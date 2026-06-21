@@ -1,0 +1,160 @@
+{
+  "main": {
+    "id": "259ed7f80a43749a",
+    "type": "split",
+    "children": [
+      {
+        "id": "8d89a962434277d5",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "e3da4848a92f4490",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "09_build_roadmap.md",
+                "mode": "preview",
+                "source": false
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "2e9b2ec211be76a2",
+    "type": "split",
+    "children": [
+      {
+        "id": "41faf1aea7a957fb",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "7efb54f71169072b",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical"
+              }
+            }
+          },
+          {
+            "id": "065386fece40d2e2",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              }
+            }
+          },
+          {
+            "id": "5746f5604fd797ef",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {}
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "0f4fd741ea722c1e",
+    "type": "split",
+    "children": [
+      {
+        "id": "59d4252fd1d2f6e8",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b0b0731395f75e6e",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "09_build_roadmap.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              }
+            }
+          },
+          {
+            "id": "002226a96a302f85",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "09_build_roadmap.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              }
+            }
+          },
+          {
+            "id": "9312fd2acc44f965",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true
+              }
+            }
+          },
+          {
+            "id": "b3b6979becc178d9",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "09_build_roadmap.md"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false
+    }
+  },
+  "active": "e3da4848a92f4490",
+  "lastOpenFiles": [
+    "08_core_systems_implementation.md",
+    "07_godot_architecture.md",
+    "06_weapons_and_upgrades.md",
+    "05_boss_bible.md",
+    "04_enemy_bible.md",
+    "03_map_and_level_design.md",
+    "02_art_direction.md",
+    "01_game_design_document.md"
+  ]
+}

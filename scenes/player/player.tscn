@@ -1,0 +1,64 @@
+[gd_scene load_steps=12 format=3 uid="uid://b6player00000001"]
+
+[ext_resource type="Script" path="res://scripts/player/player.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/vfx/blob.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/components/health_component.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/player/weapon_manager.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/player/level_system.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/components/flash_component.gd" id="7"]
+[ext_resource type="Script" path="res://scripts/player/pickup_magnet.gd" id="8"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_body"]
+radius = 12.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_hurt"]
+radius = 12.0
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_magnet"]
+radius = 60.0
+
+[node name="Player" type="CharacterBody2D"]
+motion_mode = 1
+script = ExtResource("1")
+
+[node name="Visual" type="Node2D" parent="."]
+script = ExtResource("2")
+color = Color(0.25, 0.85, 1, 1)
+radius = 12.0
+outline = true
+outline_color = Color(1, 1, 1, 0.85)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3")
+max_health = 100.0
+
+[node name="HurtboxComponent" type="Area2D" parent="."]
+script = ExtResource("4")
+is_player_hurtbox = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HurtboxComponent"]
+shape = SubResource("CircleShape2D_hurt")
+
+[node name="PickupMagnet" type="Area2D" parent="."]
+script = ExtResource("8")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PickupMagnet"]
+shape = SubResource("CircleShape2D_magnet")
+
+[node name="WeaponManager" type="Node" parent="."]
+script = ExtResource("5")
+
+[node name="LevelSystem" type="Node" parent="."]
+script = ExtResource("6")
+
+[node name="FlashComponent" type="Node" parent="."]
+script = ExtResource("7")
+sprite = NodePath("../Visual")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position_smoothing_enabled = true
+position_smoothing_speed = 8.0

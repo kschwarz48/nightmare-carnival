@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="PassiveData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"sugar_rush"
+display_name = "Sugar Rush"
+description = "+12% Max HP"
+axis = &"max_health"
+magnitude = 0.12
+max_level = 5

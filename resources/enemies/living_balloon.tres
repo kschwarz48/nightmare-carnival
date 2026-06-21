@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/vfx_pop.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"living_balloon"
+display_name = "Living Balloon"
+max_health = 4.0
+move_speed = 70.0
+contact_damage = 6.0
+ticket_value = 1
+behavior = &"chaser"
+color = Color(0.95, 0.35, 0.45, 1)
+radius = 11.0
+separation_radius = 16.0
+can_be_elite = true
+death_vfx = ExtResource("2")
+hit_sfx = &"balloon_squeak"
+death_sfx = &"balloon_pop"

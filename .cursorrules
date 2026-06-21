@@ -1,0 +1,46 @@
+# Cursor rules — Nightmare Carnival (Godot 4.7 / GDScript)
+
+You are helping build a survivors-like roguelite in Godot 4.7. The full design lives in `/docs`.
+Before implementing a feature, read the relevant doc (especially `docs/07_godot_architecture.md`
+and `docs/08_core_systems_implementation.md`). Match the patterns there exactly.
+
+## Engine & language
+- Target Godot 4.7. Use Godot 4 API only (NOT Godot 3). Key reminders:
+  - `CharacterBody2D` with `velocity` + `move_and_slide()` (no arguments).
+  - Signals: declare `signal died(unit)`, emit `died.emit(self)`, connect `node.died.connect(_on_died)`.
+  - `@export`, `@onready`, `@export_range`. Use `class_name` for shared types.
+  - `randf_range()`, `randi_range()`, `Vector2.from_angle()`, `pos.direction_to(target)`.
+  - Prefer `Callable`s and `await` over yield. `await get_tree().create_timer(t).timeout`.
+- Write **statically typed** GDScript. Type every function signature, parameter, and `@export`.
+
+## Architecture rules (do not violate)
+- Content is **data-driven**: enemies/weapons/upgrades are custom `Resource` classes (`EnemyData`,
+  `WeaponData`, `UpgradeData`). New content = a new `.tres` resource, not new bespoke code.
+- Actors are **component-composed**: reuse `HealthComponent`, `HurtboxComponent`, `HitboxComponent`,
+  `VelocityComponent`. Do not re-implement health or damage inside an enemy script.
+- **Pool** anything that spawns in bulk (enemies, projectiles, XP gems, damage numbers) via the
+  `ObjectPool` autoload. Never `queue_free()` a pooled object — return it to the pool.
+- Cross-system communication goes through the `EventBus` autoload signal hub. Avoid hard
+  `get_node("../../..")` references between unrelated systems.
+- Use the named collision-layer constants in `scripts/autoload/collision_layers.gd`. Never hardcode
+  raw layer bit numbers.
+
+## Naming
+- Files & folders: `snake_case` (`enemy_director.gd`, `living_balloon.tscn`).
+- Classes (`class_name`): `PascalCase` (`class_name EnemyDirector`).
+- Scene-tree node names: `PascalCase` (`HealthComponent`).
+- Signals: past tense (`died`, `health_changed`, `leveled_up`).
+- Constants: `SCREAMING_SNAKE_CASE`. Private members: leading underscore (`_internal_timer`).
+
+## Performance (this is a bullet-heaven; perf is a feature)
+- No per-frame `get_tree().get_nodes_in_group()` scans in hot paths. Cache references; let managers
+  iterate.
+- Avoid allocations in `_process`/`_physics_process`. Reuse vectors/arrays.
+- Steer enemies with cheap vector math + capped separation checks, not full pathfinding.
+- Keep the player position available globally (via `GameState.player`) so enemies don't search for it.
+
+## Style
+- Small, focused scripts. One responsibility per component.
+- Comment the *why*, not the *what*. Reference the doc section a system implements.
+- When unsure about a number (damage, speed, cooldown), expose it as an `@export` or read it from a
+  `Resource` — never bury a balance value in logic.

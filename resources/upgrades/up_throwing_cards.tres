@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="UpgradeData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/weapons/throwing_cards.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"up_throwing_cards"
+display_name = "Throwing Cards +"
+description = "Level up Throwing Cards (more cards / damage)."
+kind = 1
+base_weight = 1.4
+weapon = ExtResource("2")
+max_stacks = 8

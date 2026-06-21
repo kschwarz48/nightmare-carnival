@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectiles/card.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"throwing_cards"
+display_name = "Throwing Cards"
+description = "A fan of cards thrown at the nearest threat."
+style = &"projectile"
+aim_mode = &"auto_nearest"
+projectile_scene = ExtResource("2")
+max_level = 8
+base_damage = 10.0
+base_cooldown = 1.1
+base_area = 1.0
+base_amount = 1
+base_projectile_speed = 520.0
+base_pierce = 0
+lifetime = 1.4
+level_damage = Array[float]([0.0, 0.0, 4.0, 0.0, 0.0, 6.0, 0.0, 10.0])
+level_cooldown = Array[float]([0.0, 0.0, 0.0, -0.12, 0.0, 0.0, -0.12, 0.0])
+level_area = Array[float]([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+level_amount = Array[int]([0, 1, 0, 0, 1, 0, 0, 1])
+required_passive = &"lucky_ticket"
