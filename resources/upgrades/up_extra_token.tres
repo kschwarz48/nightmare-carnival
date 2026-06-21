@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="UpgradeData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/passives/extra_token.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"up_extra_token"
+display_name = "Extra Token"
+description = "+1 projectile/target (max 2)."
+kind = 2
+base_weight = 0.7
+passive = ExtResource("2")
+max_stacks = 2

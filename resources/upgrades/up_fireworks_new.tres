@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="UpgradeData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/weapons/fireworks.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"up_fireworks_new"
+display_name = "Fireworks"
+description = "New weapon: arcing rockets that explode in a deadly burst."
+kind = 0
+base_weight = 1.2
+weapon = ExtResource("2")

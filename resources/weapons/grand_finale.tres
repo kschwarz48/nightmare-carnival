@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectiles/firework_rocket.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"grand_finale"
+display_name = "Grand Finale"
+description = "A relentless screen-clearing fireworks barrage."
+style = &"projectile"
+aim_mode = &"auto_random"
+projectile_scene = ExtResource("2")
+max_level = 1
+base_damage = 34.0
+base_cooldown = 0.9
+base_area = 1.6
+base_amount = 4
+base_projectile_speed = 320.0
+base_pierce = 0
+lifetime = 0.65
+required_passive = &""

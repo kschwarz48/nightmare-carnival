@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectiles/firework_rocket.tscn" id="2"]
+[ext_resource type="Resource" path="res://resources/evolutions/grand_finale.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+id = &"fireworks"
+display_name = "Fireworks"
+description = "Launches rockets that explode in a dazzling, deadly burst."
+style = &"projectile"
+aim_mode = &"auto_random"
+projectile_scene = ExtResource("2")
+max_level = 8
+base_damage = 20.0
+base_cooldown = 1.8
+base_area = 1.0
+base_amount = 1
+base_projectile_speed = 280.0
+base_pierce = 0
+lifetime = 0.6
+level_damage = Array[float]([0.0, 0.0, 6.0, 0.0, 0.0, 8.0, 0.0, 12.0])
+level_cooldown = Array[float]([0.0, 0.0, 0.0, -0.25, 0.0, 0.0, -0.25, 0.0])
+level_area = Array[float]([0.0, 0.0, 0.0, 0.15, 0.0, 0.15, 0.0, 0.2])
+level_amount = Array[int]([0, 1, 0, 0, 1, 0, 1, 1])
+evolution = ExtResource("3")
+required_passive = &"extra_token"
