@@ -6,6 +6,7 @@ extends RefCounted
 # Registry grows as behaviors are added in later milestones (doc 04 names).
 const REGISTRY := {
 	&"chaser": preload("res://scripts/enemies/behaviors/chaser_behavior.gd"),
+	&"burst_charger": preload("res://scripts/enemies/behaviors/burst_charger_behavior.gd"),
 }
 
 static func create(key: StringName) -> EnemyBehavior:

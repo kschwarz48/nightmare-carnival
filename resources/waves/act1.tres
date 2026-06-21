@@ -2,12 +2,12 @@
 
 [ext_resource type="Script" path="res://scripts/data/wave_data.gd" id="1"]
 [ext_resource type="Resource" path="res://resources/enemies/living_balloon.tres" id="2"]
-[ext_resource type="Resource" path="res://resources/enemies/possessed_stuffie.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/enemies/wind_up_monkey.tres" id="3"]
 
 [resource]
 script = ExtResource("1")
 id = &"act1_warmup"
 start_time = 0.0
-end_time = 9999.0
+end_time = 360.0
 enemies = Array[EnemyData]([ExtResource("2"), ExtResource("3")])
-weights = Array[float]([10.0, 2.0])
+weights = Array[float]([70.0, 30.0])

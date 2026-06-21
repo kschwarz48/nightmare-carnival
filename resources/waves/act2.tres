@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="WaveData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/wave_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/enemies/living_balloon.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/enemies/wind_up_monkey.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/enemies/possessed_stuffie.tres" id="4"]
+
+[resource]
+script = ExtResource("1")
+id = &"act2_crowd"
+start_time = 360.0
+end_time = 9999.0
+enemies = Array[EnemyData]([ExtResource("2"), ExtResource("3"), ExtResource("4")])
+weights = Array[float]([40.0, 25.0, 35.0])

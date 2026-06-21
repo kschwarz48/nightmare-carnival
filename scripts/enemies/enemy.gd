@@ -43,7 +43,7 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 	hitbox.damage = p_data.contact_damage * dmg_mult * elite_dmg
 	move_speed = p_data.move_speed * spd_mult * elite_spd
 
-	visual.configure(p_data.color, p_data.radius)
+	visual.configure(p_data.color, p_data.radius, p_data.shape as Blob.Shape)
 	visual.outline = elite
 	visual.outline_color = Color(1.0, 0.9, 0.2)
 	visual.scale = Vector2.ONE * (1.4 if elite else 1.0)

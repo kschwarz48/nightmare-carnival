@@ -14,6 +14,9 @@ extends Resource
 # --- programmer-art visual (replaced by SpriteFrames at M6) ---
 @export var color: Color = Color(0.9, 0.3, 0.3)
 @export var radius: float = 12.0
+## Silhouette shape (maps to Blob.Shape: 0=circle, 1=square, 2=diamond). Distinct
+## shapes keep enemies readable in a crowd (doc 02 §4 silhouette law).
+@export var shape: int = 0
 @export var sprite_frames: SpriteFrames             # unused until final art
 
 @export var separation_radius: float = 14.0
