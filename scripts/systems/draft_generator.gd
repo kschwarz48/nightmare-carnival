@@ -5,13 +5,23 @@ extends RefCounted
 
 static func generate(count: int) -> Array[UpgradeData]:
 	var player := GameState.player as Player
+	var picks: Array[UpgradeData] = []
+
+	# Guarantee an evolution card when prerequisites are met (08 §9.2, 06 §5).
+	var evo := EvolutionSystem.find_ready_evolution(player)
+	if evo != null:
+		picks.append(evo)
+		count -= 1
+
 	var pool: Array = []                    # [{ "data": UpgradeData, "weight": float }]
 	for up: UpgradeData in ContentDB.all_upgrades():
 		if not up.is_legal(player):
 			continue
 		var w := up.base_weight * up.rarity_weight(player.stats.luck) * up.relevance_bonus(player)
 		pool.append({ "data": up, "weight": w })
-	return _weighted_sample(pool, count)
+
+	picks.append_array(_weighted_sample(pool, count))
+	return picks
 
 static func _weighted_sample(pool: Array, n: int) -> Array[UpgradeData]:
 	var result: Array[UpgradeData] = []

@@ -38,3 +38,15 @@ func add_weapon(wdata: WeaponData) -> void:
 func level_up_weapon(id: StringName) -> void:
 	if weapons.has(id):
 		(weapons[id] as Weapon).level_up()
+
+## Remove an active weapon. Weapons are plain child nodes (not pooled), so
+## queue_free is correct here (unlike pooled projectiles/enemies).
+func remove_weapon(id: StringName) -> void:
+	if weapons.has(id):
+		(weapons[id] as Weapon).queue_free()
+		weapons.erase(id)
+
+## Replace a maxed base weapon with its evolved form, in place (06 §5).
+func evolve_weapon(base_id: StringName, evolved: WeaponData) -> void:
+	remove_weapon(base_id)
+	add_weapon(evolved)

@@ -17,6 +17,8 @@ extends CharacterBody2D
 
 ## passive upgrade id -> stacks taken (used by UpgradeData legality).
 var passive_stacks: Dictionary = {}
+## passive id -> level owned (used by EvolutionSystem prerequisite checks).
+var passive_levels: Dictionary = {}
 
 var _regen_accum: float = 0.0
 
