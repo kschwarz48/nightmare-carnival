@@ -45,4 +45,4 @@ shape = SubResource("CircleShape2D_hit")
 
 [node name="FlashComponent" type="Node" parent="."]
 script = ExtResource("6")
-sprite = NodePath("../Visual")
+sprite_path = NodePath("../Visual")

@@ -57,7 +57,7 @@ script = ExtResource("6")
 
 [node name="FlashComponent" type="Node" parent="."]
 script = ExtResource("7")
-sprite = NodePath("../Visual")
+sprite_path = NodePath("../Visual")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position_smoothing_enabled = true
