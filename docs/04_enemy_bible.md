@@ -14,20 +14,20 @@ Every enemy is a **personified carnival attraction**. This doc gives each one it
 
 | Enemy | Role | HP | Speed px/s | Contact Dmg | Tickets | Behavior script | First seen |
 |-------|------|----|-----------:|------------:|--------:|-----------------|-----------|
-| Living Balloon | Swarm | 8 | 120 | 6 | 1 | `ChaserBehavior` | 0:00 |
+| Living Balloon | Swarm | 4 | 120 | 6 | 1 | `ChaserBehavior` | 0:00 |
 | Balloon Swarm | Flyby "dodge" | 4 | 320 (straight) | 8 | 1 | `FlybyBehavior` | 2:00 |
-| Wind-Up Monkey | Burst charger | 18 | 165 (charge 380) | 8 | 2 | `BurstChargerBehavior` | 1:00 |
-| Possessed Stuffie | Slow bruiser | 32 | 80 | 10 | 3 | `ChaserBehavior` | 3:00 |
-| Cotton-Candy Slime | Slow/snare | 30 | 35 | 8 (+slow) | 3 | `ChaserBehavior` | 6:00 |
+| Wind-Up Monkey | Burst charger | 12 | 165 (charge 380) | 8 | 2 | `BurstChargerBehavior` | 1:00 |
+| Possessed Stuffie | Slow bruiser | 50 | 80 | 10 | 3 | `ChaserBehavior` | 3:00 |
+| Cotton-Candy Slime | Slow/snare | 60 | 35 | 8 (+slow) | 3 | `ChaserBehavior` | 6:00 |
 | Whack-a-Mole | Pop-up ambush | 8 | — (burrows) | 10 | 2 | `PopUpBehavior` | 6:00 |
-| Evil Clown | Fast bruiser | 18 | 170 | 12 | 4 | `ErraticChaserBehavior` | 4:00 |
+| Evil Clown | Fast bruiser | 45 | 170 | 12 | 4 | `ErraticChaserBehavior` | 4:00 |
 | Jack-in-the-Box | Trap/mine | 1 | 0 (then leaps) | 25 (burst) | 4 | `AmbusherBehavior` | 9:00 |
-| Dunk-Tank Clown | Ranged | 22 | 40 | 8 / proj 10 | 5 | `ShooterBehavior` | 9:00 |
-| Puppet Soldier | Ranged/formation | 32 | 50 | 10 / musket 8 | 5 | `ShooterBehavior` + `FormationBehavior` | 12:00 |
-| Carousel Horse | Line charger | 45 | 55 (charge 230) | 18 | 6 | `LineChargerBehavior` | 12:00 |
-| Walking Ticket Booth | Tank/spawner | 240 | 22 | 16 | 25 | `SpawnerBehavior` | 12:00 |
-| Roller-Coaster Snake | Strafing serpent | 90 | rail-fast | 20 | 12 | `RailStraferBehavior` | 18:00 |
-| Bumper Car | Roaming charger | 35 | 60 (ram 200) | 16 | 5 | `LineChargerBehavior` | 12:00 (Boardwalk) |
+| Dunk-Tank Clown | Ranged | 100 | 40 | 8 / proj 10 | 5 | `ShooterBehavior` | 9:00 |
+| Puppet Soldier | Ranged/formation | 180 | 50 | 10 / musket 8 | 5 | `ShooterBehavior` + `FormationBehavior` | 12:00 |
+| Carousel Horse | Line charger | 150 | 55 (charge 230) | 18 | 6 | `LineChargerBehavior` | 12:00 |
+| Walking Ticket Booth | Tank/spawner | 600 | 22 | 16 | 25 | `SpawnerBehavior` | 12:00 |
+| Roller-Coaster Snake | Strafing serpent | 1200 | rail-fast | 20 | 12 | `RailStraferBehavior` | 18:00 |
+| Bumper Car | Roaming charger | 120 | 60 (ram 200) | 16 | 5 | `LineChargerBehavior` | 12:00 (Boardwalk) |
 
 > Elites: any enemy can spawn as an **Elite** (×4–8 HP, ×1.5 dmg, slower, elite-outline shader, guaranteed Gold + chest chance). See §11.
 >
@@ -193,7 +193,7 @@ How a designer/Cursor encodes the Living Balloon. (Resource class defined in doc
 script = ExtResource("EnemyData.gd")
 id = "living_balloon"
 display_name = "Living Balloon"
-max_health = 8.0
+max_health = 4.0
 move_speed = 70.0
 contact_damage = 6.0
 ticket_value = 1
