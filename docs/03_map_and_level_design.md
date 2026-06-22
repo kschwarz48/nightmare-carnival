@@ -105,7 +105,7 @@ Events should mostly create *positional* decisions (go toward the reward and the
 - **Tickets (XP):** drop from kills as ticket-stubs; auto-collected within pickup radius (fly to player). Bigger stubs from tougher enemies; Act IV stubs are worth more.
 - **Gold:** rarer kill drops + from breakables. Spent at the Intermission Wagon.
 - **Breakables:** popcorn carts, prize stands, crates, pumpkin bins — destroying drops Gold/health/occasional Ticket. Scatter densely along the Boardwalk (Scene Paint Mode). Consistent "breakable" shine so players learn to smash them.
-- **Health pickups:** rare hot-dog/funnel-cake drops; the only in-run heal besides regen items.
+- **Health pickups:** rare hot-dog/funnel-cake heals; the only in-run heal besides regen items. *Implemented:* a low per-roll chance (`game.gd` `food_roll_interval`/`food_spawn_chance`) spawns a bright-green, pulsing `FoodPickup` (`+20 HP`) at a random spot **relative to the player** — on-screen and visible, a short walk away — that despawns after a window if ignored. Deliberately scarce so it's a clutch lifeline, not a steady drip.
 - **Chests:** from bosses, elite packs, and the "Last Ticket" event — grant weapon/passive/evolution or a Gold jackpot. Boss chests guarantee an upgrade.
 - **The Intermission Wagon (shop):** a roaming wagon that parks somewhere on the map ~once per Act (banner + map ping). Walk to it to open a lightweight shop: **reroll a future draft**, **buy a heal**, **buy 1 random item**. (MVP: heal + reroll + 1 item; expand later.)
 
