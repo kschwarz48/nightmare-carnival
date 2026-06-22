@@ -9,7 +9,7 @@ const ENEMY_SCENE := preload("res://scenes/enemies/enemy.tscn")
 var waves: Array[WaveData] = []
 var boss_gates: Array = []                # [{ "time": 360.0, "boss": BossData, "fired": false }, ...]
 
-var _spawn_accum: float = 0.0
+var _interval_accum: float = 0.0
 var _active: Array = []                   # active enemies (hash + cap + queries)
 var _hash := SpatialHash.new()
 var _frame: int = 0
@@ -17,7 +17,7 @@ var _running: bool = false
 
 func start() -> void:
 	_active.clear()
-	_spawn_accum = 0.0
+	_interval_accum = 0.0
 	_frame = 0
 	for g in boss_gates:
 		g.fired = false
@@ -41,25 +41,51 @@ func _physics_process(_delta: float) -> void:
 	_check_boss_gates()
 	_spawn_step(_delta)
 
-# --- spawning ---
+# --- spawning (VS-style wave rules; 03 §7.4) ---
 func _spawn_step(delta: float) -> void:
-	var minutes := GameState.run_minutes()
-	_spawn_accum += _spawns_per_second(minutes) * delta
-	while _spawn_accum >= 1.0:
-		_spawn_accum -= 1.0
-		if _active.size() >= _cap():
-			_recycle_farthest()
-		_spawn_one(minutes)
-
-func _spawn_one(minutes: float) -> void:
-	var ed := _pick_enemy(minutes)
-	if ed == null:
+	var wave := _active_wave()
+	if wave == null:
 		return
+	var minutes := GameState.run_minutes()
+	var cap: int = mini(wave.max_alive, _cap())
+
+	# 1) Keep the baseline crowd: top up instantly when below the wave minimum.
+	# Break on a failed spawn (e.g. empty enemy list) so we never spin forever.
+	while _active.size() < mini(wave.min_alive, cap):
+		if not _spawn_one(minutes, wave):
+			break
+
+	# 2) Steady pressure on top: spawn_batch every spawn_interval, up to the cap.
+	_interval_accum += delta
+	var interval: float = maxf(0.05, wave.spawn_interval)
+	while _interval_accum >= interval:
+		_interval_accum -= interval
+		for _i in wave.spawn_batch:
+			if _active.size() >= cap:
+				break
+			if not _spawn_one(minutes, wave):
+				break
+
+## Latest-started active wave (waves are sorted ascending, so the last match
+## wins — lets a short burst wave temporarily override the base timeline).
+func _active_wave() -> WaveData:
+	var seconds := GameState.run_time
+	var best: WaveData = null
+	for w: WaveData in waves:
+		if w.is_active(seconds):
+			best = w
+	return best
+
+func _spawn_one(minutes: float, wave: WaveData) -> bool:
+	var ed := _pick_enemy(wave)
+	if ed == null:
+		return false
 	var e := ObjectPool.acquire(ENEMY_SCENE, _enemy_layer()) as Enemy
 	e.global_position = _ring_point()
 	var elite := ed.can_be_elite and randf() < _elite_chance(minutes)
 	e.configure(ed, _hp_mult(minutes), _dmg_mult(minutes), _spd_mult(minutes), elite)
 	_active.append(e)
+	return true
 
 func _ring_point() -> Vector2:
 	var center: Vector2 = GameState.player.global_position
@@ -69,17 +95,13 @@ func _ring_point() -> Vector2:
 	var pt := center + Vector2.from_angle(angle) * radius
 	return pt.clamp(MapBounds.min_pos, MapBounds.max_pos)
 
-func _pick_enemy(minutes: float) -> EnemyData:
-	var seconds := minutes * 60.0
-	var total := 0.0
-	var entries: Array = []
-	for w: WaveData in waves:
-		if w.is_active(seconds):
-			for pair in w.weighted_enemies():
-				entries.append(pair)
-				total += pair[1]
+func _pick_enemy(wave: WaveData) -> EnemyData:
+	var entries := wave.weighted_enemies()
 	if entries.is_empty():
 		return null
+	var total := 0.0
+	for pair in entries:
+		total += pair[1]
 	var r := randf() * total
 	var acc := 0.0
 	for pair in entries:
@@ -88,15 +110,8 @@ func _pick_enemy(minutes: float) -> EnemyData:
 			return pair[0]
 	return entries.back()[0]
 
-# Hard ceiling on spawn cadence so the exponential ramp never spirals (03 §7.2).
-const MAX_SPAWN_RATE := 12.0
-
-# --- scaling (03 §7.3); difficulty mults from GameState.difficulty ---
-## Exponential ramp: sparse early so each kill matters, scales hard late, then
-## clamped so it stays readable. base_spawn_rate sets the floor; max_alive (the
-## difficulty cap) bounds on-screen density.
-func _spawns_per_second(minutes: float) -> float:
-	return minf(GameState.difficulty.base_spawn_rate * exp(0.11 * minutes), MAX_SPAWN_RATE)
+# --- per-enemy stat scaling over time (03 §7.3); spawn COUNT is wave-driven.
+# difficulty mults from GameState.difficulty ---
 func _hp_mult(minutes: float) -> float:
 	return (1.0 + 0.06 * minutes) * GameState.difficulty.hp_mult
 func _dmg_mult(minutes: float) -> float:
@@ -107,22 +122,6 @@ func _elite_chance(minutes: float) -> float:
 	return clampf(0.01 + 0.004 * minutes, 0.0, 0.12)
 func _cap() -> int:
 	return GameState.difficulty.max_alive
-
-func _recycle_farthest() -> void:
-	var p: Vector2 = GameState.player.global_position
-	var worst: Enemy = null
-	var worst_d := -1.0
-	for e in _active:
-		if not is_instance_valid(e):
-			continue
-		var d: float = e.global_position.distance_squared_to(p)
-		if d > worst_d:
-			worst_d = d
-			worst = e
-	if worst:
-		GameState.enemies_alive -= 1
-		_remove(worst)
-		ObjectPool.release(worst)
 
 # --- bosses (gates only in M1; framework lands at M3) ---
 func _check_boss_gates() -> void:

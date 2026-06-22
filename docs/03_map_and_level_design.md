@@ -121,10 +121,15 @@ Enemies spawn in a **ring just beyond the camera view** so they "walk in" from t
 - Pick a random angle on the ring; reject points outside the map bounds or inside collision; clamp into the playable area.
 - Most spawns come from the **dark side** of the screen (away from the strongest light) for mood.
 
-### 7.2 Population cap & cadence
-- **Max alive cap** keeps perf bounded and readability sane, and — kept deliberately lowish — makes each kill feel impactful. Reference caps by difficulty: Midway 180 · Carnival 280 · Nightmare 400 · (handheld port: 150). When at cap, the director **recycles** the farthest off-screen enemy instead of adding more.
-- **Spawn cadence** (enemies/sec) is **sparse early, ramps hard late**: an exponential curve so the opening breathes and the endgame applies real pressure, then hard-clamped so it never spirals. Reference curve:
-  `spawns_per_sec = min( base(1.5) × e^(0.11 × minutes), 12 )` with **burst waves** layered on top (see 7.4). Pair the low density with healthier per-enemy HP so kills read as meaningful, not chip.
+### 7.2 Population cap & cadence (wave-driven)
+Spawning is **defined by the wave timeline (§7.4), not a global rate formula** — this is the core mechanic and is authored with intent. At any moment exactly one wave is active (the latest-started one whose window contains *now*), and the director spawns by that wave's rules:
+
+1. **Minimum top-up.** Each tick, if the live enemy count is below the wave's `min_alive`, immediately spawn up to that minimum. This guarantees a baseline crowd and instantly refills it when the player clears a pack — clearing always *matters* but never empties the screen for long.
+2. **Steady pressure.** On top of the minimum, add `spawn_batch` enemies every `spawn_interval` seconds, up to `max_alive`.
+
+Scaling across the night is the **timeline itself**: later waves raise `min_alive`/`max_alive`, shorten `spawn_interval`, grow `spawn_batch`, and shift the mix toward tougher enemies — sparse and readable early, relentless late.
+
+- **Max alive cap** keeps perf bounded and readability sane, and — kept deliberately lowish — makes each kill feel impactful. The per-wave `max_alive` is clamped by a global difficulty ceiling: Midway 180 · Carnival 280 · Nightmare 400 · (handheld port: 150). At the cap the director simply stops adding until enemies die.
 
 ### 7.3 Difficulty / time scaling (applied to spawned enemies)
 Each spawned enemy's stats are multiplied by a time-and-tier factor:
@@ -137,7 +142,7 @@ ticket_mult = (1 + 0.03 × minutes)        # rewards keep pace
 Tier multipliers (Midway 1.0 / Carnival 1.35 / Nightmare 1.8) and the optional **Curse** stack on top. All values live in a `DifficultyData` resource — never hardcode them.
 
 ### 7.4 Wave tables (data-driven)
-The director reads a **timeline of wave entries** (`WaveData` resources). Each entry: start time, end time, which enemies (weighted), spawn-rate modifier, and optional flags (burst, elite, formation). Conceptual table:
+The director reads a **timeline of wave entries** (`WaveData` resources). Each entry has: `start_time`/`end_time`, weighted `enemies`, `min_alive`, `max_alive`, `spawn_interval`, `spawn_batch`, plus forward hooks (`boss`, `event`). A short-windowed entry with a later `start_time` temporarily **overrides** the base timeline (e.g. a burst), then control falls back to the still-active base wave. Full-game conceptual timeline (enemies/bosses arrive across M2–M5):
 
 | Window | Enemy weights | Notes |
 |--------|---------------|-------|
@@ -156,6 +161,18 @@ The director reads a **timeline of wave entries** (`WaveData` resources). Each e
 | 24:00–25:00 | weak swarm flood | **Victory lap** — mow-down + Tickets → Dawn. |
 
 > The weights/times above are the *starting* tuning. Because they're resources, you (or Cursor) can iterate balance without touching code. See `WaveData`/`EnemyDirector` in doc 08.
+
+**Authored M2 timeline** (`resources/waves/`, the part actually implemented — escalating min/max, shrinking interval, mix shifting toward Stuffies; bosses arrive at M3):
+
+| Start | Enemies (weight) | min | max | interval | batch |
+|------:|------------------|----:|----:|---------:|------:|
+| 0:00 | Balloon 85 · Monkey 15 | 8 | 28 | 1.30s | 2 |
+| 2:00 | Balloon 75 · Monkey 25 | 14 | 45 | 1.10s | 2 |
+| 3:00–3:20 | Balloon 100 *(burst override)* | 45 | 70 | 0.40s | 5 |
+| 4:00 | Balloon 65 · Monkey 35 | 22 | 65 | 0.95s | 3 |
+| 6:00 | Balloon 50 · Monkey 30 · Stuffie 20 | 30 | 90 | 0.85s | 3 |
+| 9:00 | Balloon 45 · Monkey 30 · Stuffie 25 | 40 | 120 | 0.75s | 4 |
+| 12:00 | Balloon 40 · Monkey 30 · Stuffie 30 | 52 | 170 | 0.65s | 4 |
 
 ### 7.5 Elites
 Periodically (and via events), spawn **elite variants**: a normal enemy scaled up (×4–8 HP, +dmg), tinted with an elite shader outline, guaranteed Gold + chance at a chest. Elite cadence rises each Act. Elites are mini-skill-checks between bosses.

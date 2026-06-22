@@ -1195,7 +1195,9 @@ func _enemy_layer() -> Node:
 	return get_tree().current_scene.get_node(^"%EnemyLayer")
 ```
 
-> `MapBounds` is a tiny autoload (or static) set from `world.tscn` holding `min_pos`/`max_pos`. `WaveData.weighted_enemies()` returns its enemy/weight pairs. Hook `EventBus.enemy_died` (already emitted by `Enemy`) to call `_remove` if you prefer the director to own removal; above, recycling handles cap and death frees via the pool. Keep `_active` clean by also pruning on `enemy_died`.
+> `MapBounds` is a tiny autoload (or static) set from `world.tscn` holding `min_pos`/`max_pos`. `WaveData.weighted_enemies()` returns its enemy/weight pairs. Hook `EventBus.enemy_died` (already emitted by `Enemy`) so the director prunes `_active`.
+>
+> **Spawn model (implemented):** the `_spawn_step` shown above is the early rate-based sketch. The shipped director is **wave-driven** (VS-style, 03 §7.2/§7.4): pick the single latest-started active `WaveData`, **top up** to its `min_alive` every tick, then add `spawn_batch` every `spawn_interval` up to `min(wave.max_alive, difficulty.max_alive)`. Per-enemy stat scaling (`_hp_mult`/`_dmg_mult`/`_spd_mult`) still applies on top; spawn *count* comes entirely from the wave timeline, not a global rate.
 
 ---
 
