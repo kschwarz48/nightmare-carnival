@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EvolutionData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/evolution_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/weapons/saturn_rings.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"saturn_rings"
+display_name = "Saturn's Rings ✦"
+description = "EVOLUTION — Ring Toss becomes giant shredding orbits."
+result = ExtResource("2")

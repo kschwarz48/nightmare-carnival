@@ -7,6 +7,7 @@ const MAX_WEAPONS := 6
 # map style -> weapon script (extend as styles are added)
 const WEAPON_SCRIPTS := {
 	&"projectile": preload("res://scripts/weapons/projectile_weapon.gd"),
+	&"melee": preload("res://scripts/weapons/melee_weapon.gd"),
 }
 
 var weapons: Dictionary = {}   # weapon_id -> Weapon

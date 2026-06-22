@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="UpgradeData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/upgrade_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/weapons/mallet.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"up_mallet_new"
+display_name = "Whack-a-Mole Mallet"
+description = "New weapon: slams an arc around you, smashing anything close."
+kind = 0
+base_weight = 1.2
+weapon = ExtResource("2")

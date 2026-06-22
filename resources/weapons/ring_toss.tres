@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectiles/ring.tscn" id="2"]
+[ext_resource type="Resource" path="res://resources/evolutions/saturn_rings.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+id = &"ring_toss"
+display_name = "Ring Toss"
+description = "Boomerang rings fly out and curve back, piercing."
+style = &"projectile"
+aim_mode = &"forward"
+projectile_scene = ExtResource("2")
+max_level = 8
+base_damage = 13.0
+base_cooldown = 1.5
+base_area = 1.0
+base_amount = 1
+base_projectile_speed = 300.0
+base_pierce = 0
+lifetime = 1.4
+spread_angle_deg = 30.0
+level_damage = Array[float]([0.0, 0.0, 5.0, 0.0, 0.0, 7.0, 0.0, 11.0])
+level_cooldown = Array[float]([0.0, 0.0, 0.0, -0.15, 0.0, 0.0, -0.15, 0.0])
+level_area = Array[float]([0.0, 0.0, 0.0, 0.1, 0.0, 0.1, 0.0, 0.15])
+level_amount = Array[int]([0, 1, 0, 0, 1, 0, 1, 1])
+evolution = ExtResource("3")
+required_passive = &"strongman_belt"

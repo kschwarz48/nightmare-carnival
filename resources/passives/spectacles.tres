@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PassiveData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/passive_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"spectacles"
+display_name = "Spectacles"
+description = "+5% Crit chance, +0.2x Crit damage"
+axis = &"crit_chance"
+magnitude = 0.05
+axis2 = &"crit_damage"
+magnitude2 = 0.2
+max_level = 5

@@ -11,6 +11,8 @@ const DAMAGE_NUMBER_SCENE := preload("res://scenes/vfx/damage_number.tscn")
 const POP_SCENE := preload("res://scenes/vfx/vfx_pop.tscn")
 const FIREWORK_SCENE := preload("res://scenes/weapons/projectiles/firework_rocket.tscn")
 const EXPLOSION_SCENE := preload("res://scenes/weapons/explosion.tscn")
+const RING_SCENE := preload("res://scenes/weapons/projectiles/ring.tscn")
+const MELEE_ARC_SCENE := preload("res://scenes/weapons/melee_arc.tscn")
 
 @export var character_id: StringName = &"the_carny"
 @export var difficulty_id: StringName = &"midway"
@@ -44,3 +46,5 @@ func _prewarm() -> void:
 	ObjectPool.prewarm(POP_SCENE, 40)
 	ObjectPool.prewarm(FIREWORK_SCENE, 40)
 	ObjectPool.prewarm(EXPLOSION_SCENE, 24)
+	ObjectPool.prewarm(RING_SCENE, 24)
+	ObjectPool.prewarm(MELEE_ARC_SCENE, 12)

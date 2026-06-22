@@ -7,5 +7,8 @@ extends Resource
 @export var description: String = ""
 @export var axis: StringName = &"might"     # matches PlayerStats.apply_passive
 @export var magnitude: float = 0.1          # applied per level
+## Optional second effect (e.g. Spectacles = crit_chance + crit_damage). Empty axis2 = single-axis.
+@export var axis2: StringName = &""
+@export var magnitude2: float = 0.0
 @export var max_level: int = 5
 @export var icon: Texture2D

@@ -69,6 +69,8 @@ func apply(player: Player) -> void:
 			wm.level_up_weapon(weapon.id)
 		Kind.PASSIVE:
 			player.stats.apply_passive(passive.axis, passive.magnitude)
+			if passive.axis2 != &"":
+				player.stats.apply_passive(passive.axis2, passive.magnitude2)
 			player.passive_stacks[id] = int(player.passive_stacks.get(id, 0)) + 1
 			# Track by passive identity too, so EvolutionSystem can check ownership
 			# (keyed by PassiveData.id, independent of which wrapper granted it).
