@@ -14,9 +14,9 @@ Every enemy is a **personified carnival attraction**. This doc gives each one it
 
 | Enemy | Role | HP | Speed px/s | Contact Dmg | Tickets | Behavior script | First seen |
 |-------|------|----|-----------:|------------:|--------:|-----------------|-----------|
-| Living Balloon | Swarm | 4 | 70 | 6 | 1 | `ChaserBehavior` | 0:00 |
-| Wind-Up Monkey | Burst charger | 12 | 95 (charge 260) | 8 | 2 | `BurstChargerBehavior` | 0:00 |
-| Possessed Stuffie | Slow bruiser | 28 | 45 | 10 | 3 | `ChaserBehavior` | 6:00 |
+| Living Balloon | Swarm | 8 | 70 | 6 | 1 | `ChaserBehavior` | 0:00 |
+| Wind-Up Monkey | Burst charger | 18 | 95 (charge 260) | 8 | 2 | `BurstChargerBehavior` | 0:00 |
+| Possessed Stuffie | Slow bruiser | 32 | 45 | 10 | 3 | `ChaserBehavior` | 6:00 |
 | Cotton-Candy Slime | Slow/snare | 30 | 35 | 8 (+slow) | 3 | `ChaserBehavior` | 6:00 |
 | Whack-a-Mole | Pop-up ambush | 8 | — (burrows) | 10 | 2 | `PopUpBehavior` | 6:00 |
 | Evil Clown | Fast bruiser | 18 | 95 | 12 | 4 | `ErraticChaserBehavior` | 6:00 |
@@ -188,7 +188,7 @@ How a designer/Cursor encodes the Living Balloon. (Resource class defined in doc
 script = ExtResource("EnemyData.gd")
 id = "living_balloon"
 display_name = "Living Balloon"
-max_health = 4.0
+max_health = 8.0
 move_speed = 70.0
 contact_damage = 6.0
 ticket_value = 1

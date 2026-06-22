@@ -88,9 +88,15 @@ func _pick_enemy(minutes: float) -> EnemyData:
 			return pair[0]
 	return entries.back()[0]
 
+# Hard ceiling on spawn cadence so the exponential ramp never spirals (03 §7.2).
+const MAX_SPAWN_RATE := 12.0
+
 # --- scaling (03 §7.3); difficulty mults from GameState.difficulty ---
+## Exponential ramp: sparse early so each kill matters, scales hard late, then
+## clamped so it stays readable. base_spawn_rate sets the floor; max_alive (the
+## difficulty cap) bounds on-screen density.
 func _spawns_per_second(minutes: float) -> float:
-	return GameState.difficulty.base_spawn_rate * (1.0 + 0.05 * minutes)
+	return minf(GameState.difficulty.base_spawn_rate * exp(0.11 * minutes), MAX_SPAWN_RATE)
 func _hp_mult(minutes: float) -> float:
 	return (1.0 + 0.06 * minutes) * GameState.difficulty.hp_mult
 func _dmg_mult(minutes: float) -> float:

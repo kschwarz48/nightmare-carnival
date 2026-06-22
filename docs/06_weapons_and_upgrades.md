@@ -39,7 +39,7 @@ Base values are Lv1 at 100% stats. "Scales with" lists which player stats amplif
 | **Balloon Darts** | Fast piercing darts; **pop into shrapnel** at end of range | 11 | 1.0s | auto_nearest | Might, Pierce(Amount), Proj Spd | + **Spectacles** → *Sharpshooter's Bouquet* |
 | **Fireworks** | Rockets lobbed **one-by-one** on an arc → scattered **AoE explosions** | 18 | 2.6s | auto_random | Might, Area, Amount | + **Extra Token** → *Grand Finale* |
 | **Cotton-Candy Gun** | Sticky cone: **slows + DoT** | 4/tick | 0.9s | forward (cone) | Might, Area, Duration | + **Spinning Top** → *Sticky Situation* |
-| **Ring Toss** | Boomerang rings out-and-back, pierce | 13 | 1.5s | forward | Might, Area, Duration | + **Strongman Belt** → *Saturn's Rings* |
+| **Ring Toss** | Boomerang rings out-and-back, pierce | 13 | 1.5s | auto_nearest | Might, Area, Duration | + **Strongman Belt** → *Saturn's Rings* |
 | **Carnival Cannon** | Big single **human-cannonball** line shot, heavy knockback | 40 | 2.6s | auto_nearest | Might, Proj Spd, Crit | + **Energy Drink** → *Cannonball Special* |
 | **Snow-Cone Machine** | Frost cone: **chill → freeze** at stacks | 6 | 1.2s | forward (cone) | Might, Area, Duration | + **Caffeine** → *Blizzard Machine* |
 | **Hot-Dog Grill** | Flamethrower cone, **burning DoT** | 5/tick | 0.8s | forward (cone) | Might, Area, Duration | + **Strongman Belt** → *Inferno Grill* |

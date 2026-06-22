@@ -122,9 +122,9 @@ Enemies spawn in a **ring just beyond the camera view** so they "walk in" from t
 - Most spawns come from the **dark side** of the screen (away from the strongest light) for mood.
 
 ### 7.2 Population cap & cadence
-- **Max alive cap** keeps perf bounded and readability sane. Reference caps by difficulty: Midway 300 · Carnival 450 · Nightmare 600 · (handheld port: 250). When at cap, the director **recycles** the farthest off-screen enemy instead of adding more.
-- **Spawn cadence** (enemies/sec) rises over the night. Reference curve:
-  `spawns_per_sec = base(2.0) × (1 + 0.05 × minutes)` with **burst waves** layered on top (see 7.4).
+- **Max alive cap** keeps perf bounded and readability sane, and — kept deliberately lowish — makes each kill feel impactful. Reference caps by difficulty: Midway 180 · Carnival 280 · Nightmare 400 · (handheld port: 150). When at cap, the director **recycles** the farthest off-screen enemy instead of adding more.
+- **Spawn cadence** (enemies/sec) is **sparse early, ramps hard late**: an exponential curve so the opening breathes and the endgame applies real pressure, then hard-clamped so it never spirals. Reference curve:
+  `spawns_per_sec = min( base(1.5) × e^(0.11 × minutes), 12 )` with **burst waves** layered on top (see 7.4). Pair the low density with healthier per-enemy HP so kills read as meaningful, not chip.
 
 ### 7.3 Difficulty / time scaling (applied to spawned enemies)
 Each spawned enemy's stats are multiplied by a time-and-tier factor:

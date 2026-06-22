@@ -7,7 +7,7 @@
 script = ExtResource("1")
 id = &"possessed_stuffie"
 display_name = "Possessed Stuffie"
-max_health = 28.0
+max_health = 32.0
 move_speed = 45.0
 contact_damage = 10.0
 ticket_value = 3
