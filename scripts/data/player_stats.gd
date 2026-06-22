@@ -5,7 +5,7 @@ extends Resource
 
 # --- base values (from CharacterData) ---
 @export var base_max_health: float = 100.0
-@export var base_move_speed: float = 110.0
+@export var base_move_speed: float = 220.0
 @export var base_pickup_radius: float = 60.0
 
 # --- accumulators (modified by passives/upgrades/meta) ---

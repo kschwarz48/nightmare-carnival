@@ -21,7 +21,9 @@ var _wired: bool = false
 
 func _ready() -> void:
 	collision_layer = CollisionLayers.ENEMY
-	collision_mask = CollisionLayers.WORLD
+	# Collide with the world AND each other (light body collision) so crowds pack
+	# against the player instead of pixel-stacking. Flyby behaviors opt out.
+	collision_mask = CollisionLayers.WORLD | CollisionLayers.ENEMY
 	hurtbox.health_component = health
 	if not _wired:
 		health.damaged.connect(flash.flash)
@@ -52,6 +54,10 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 	hurtbox.monitoring = false
 	hurtbox.monitorable = true
 	hitbox.monitoring = true
+
+	# Reset body collision each spawn (pooled reuse), then let the behavior tweak
+	# it (flyby disables enemy-enemy collision so its sweep passes through).
+	collision_mask = CollisionLayers.WORLD | CollisionLayers.ENEMY
 
 	_behavior = EnemyBehavior.create(p_data.behavior)
 	_behavior.setup(self)

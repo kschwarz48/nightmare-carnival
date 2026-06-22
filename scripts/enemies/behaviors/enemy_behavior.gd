@@ -7,6 +7,8 @@ extends RefCounted
 const REGISTRY := {
 	&"chaser": preload("res://scripts/enemies/behaviors/chaser_behavior.gd"),
 	&"burst_charger": preload("res://scripts/enemies/behaviors/burst_charger_behavior.gd"),
+	&"erratic_chaser": preload("res://scripts/enemies/behaviors/erratic_chaser_behavior.gd"),
+	&"flyby": preload("res://scripts/enemies/behaviors/flyby_behavior.gd"),
 }
 
 static func create(key: StringName) -> EnemyBehavior:

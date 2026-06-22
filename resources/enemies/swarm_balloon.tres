@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/vfx_pop.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"swarm_balloon"
+display_name = "Balloon Swarm"
+max_health = 4.0
+move_speed = 320.0
+contact_damage = 8.0
+ticket_value = 1
+behavior = &"flyby"
+color = Color(1, 0.25, 0.55, 1)
+radius = 10.0
+shape = 0
+separation_radius = 10.0
+can_be_elite = false
+death_vfx = ExtResource("2")
+hit_sfx = &"balloon_squeak"
+death_sfx = &"balloon_pop"

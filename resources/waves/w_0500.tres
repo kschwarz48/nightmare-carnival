@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="WaveData" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/wave_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/enemies/possessed_stuffie.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/enemies/evil_clown.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/enemies/wind_up_monkey.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/enemies/swarm_balloon.tres" id="5"]
+
+[resource]
+script = ExtResource("1")
+id = &"w_0500"
+start_time = 300.0
+end_time = 99999.0
+enemies = Array[EnemyData]([ExtResource("2"), ExtResource("3"), ExtResource("4")])
+weights = Array[float]([45.0, 35.0, 20.0])
+min_alive = 26
+max_alive = 100
+spawn_interval = 0.8
+spawn_batch = 3
+swarm_enemy = ExtResource("5")
+swarm_interval = 4.0
+swarm_size = 12
+elite_burst = 4

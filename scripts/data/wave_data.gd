@@ -24,6 +24,15 @@ extends Resource
 ## Enemies added per regular batch.
 @export var spawn_batch: int = 1
 
+# --- overlay mechanics ---
+## Periodic flyby swarm (a cross-screen "dodge this"). Null swarm_enemy or
+## swarm_interval <= 0 disables it.
+@export var swarm_enemy: EnemyData = null
+@export var swarm_interval: float = 0.0
+@export var swarm_size: int = 10
+## Elites spawned once when this wave first becomes active (the gauntlet beat).
+@export var elite_burst: int = 0
+
 # --- forward hooks (authored now; logic lands in later milestones) ---
 @export var boss: Resource = null            # BossData to spawn on this wave (M3)
 @export var event: StringName = &""          # special-event key (M5)

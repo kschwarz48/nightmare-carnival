@@ -10,6 +10,8 @@ var waves: Array[WaveData] = []
 var boss_gates: Array = []                # [{ "time": 360.0, "boss": BossData, "fired": false }, ...]
 
 var _interval_accum: float = 0.0
+var _swarm_accum: float = 0.0
+var _current_wave_id: StringName = &""    # for one-shot on-enter effects (elite burst)
 var _active: Array = []                   # active enemies (hash + cap + queries)
 var _hash := SpatialHash.new()
 var _frame: int = 0
@@ -18,6 +20,8 @@ var _running: bool = false
 func start() -> void:
 	_active.clear()
 	_interval_accum = 0.0
+	_swarm_accum = 0.0
+	_current_wave_id = &""
 	_frame = 0
 	for g in boss_gates:
 		g.fired = false
@@ -49,6 +53,15 @@ func _spawn_step(delta: float) -> void:
 	var minutes := GameState.run_minutes()
 	var cap: int = mini(wave.max_alive, _cap())
 
+	# On entering a new wave, run its one-shot effects (e.g. the elite gauntlet).
+	if wave.id != _current_wave_id:
+		_current_wave_id = wave.id
+		_swarm_accum = 0.0
+		for _i in wave.elite_burst:
+			if _active.size() >= _cap():
+				break
+			_spawn_one(minutes, wave, true)
+
 	# 1) Keep the baseline crowd: top up instantly when below the wave minimum.
 	# Break on a failed spawn (e.g. empty enemy list) so we never spin forever.
 	while _active.size() < mini(wave.min_alive, cap):
@@ -66,6 +79,13 @@ func _spawn_step(delta: float) -> void:
 			if not _spawn_one(minutes, wave):
 				break
 
+	# 3) Overlay: periodic cross-screen flyby swarm ("dodge this").
+	if wave.swarm_enemy != null and wave.swarm_interval > 0.0:
+		_swarm_accum += delta
+		while _swarm_accum >= wave.swarm_interval:
+			_swarm_accum -= wave.swarm_interval
+			_spawn_swarm(wave, minutes)
+
 ## Latest-started active wave (waves are sorted ascending, so the last match
 ## wins — lets a short burst wave temporarily override the base timeline).
 func _active_wave() -> WaveData:
@@ -76,16 +96,64 @@ func _active_wave() -> WaveData:
 			best = w
 	return best
 
-func _spawn_one(minutes: float, wave: WaveData) -> bool:
+func _spawn_one(minutes: float, wave: WaveData, force_elite: bool = false) -> bool:
 	var ed := _pick_enemy(wave)
 	if ed == null:
 		return false
 	var e := ObjectPool.acquire(ENEMY_SCENE, _enemy_layer()) as Enemy
 	e.global_position = _ring_point()
-	var elite := ed.can_be_elite and randf() < _elite_chance(minutes)
+	var elite := ed.can_be_elite and (force_elite or randf() < _elite_chance(minutes))
 	e.configure(ed, _hp_mult(minutes), _dmg_mult(minutes), _spd_mult(minutes), elite)
 	_active.append(e)
 	return true
+
+## Spawn a flyby swarm: a line of enemies just off one screen edge, all sweeping
+## straight across the player's band and out the far side (FlybyBehavior).
+func _spawn_swarm(wave: WaveData, minutes: float) -> void:
+	var center: Vector2 = GameState.player.global_position
+	var half: Vector2 = get_viewport().get_visible_rect().size * 0.5
+	var dir: Vector2
+	var positions: Array[Vector2] = []
+	if randf() < 0.5:                                  # horizontal sweep
+		var from_left := randf() < 0.5
+		dir = Vector2.RIGHT if from_left else Vector2.LEFT
+		var edge_x := center.x - half.x - 60.0 if from_left else center.x + half.x + 60.0
+		for _i in wave.swarm_size:
+			positions.append(Vector2(edge_x, center.y + randf_range(-half.y, half.y)))
+	else:                                              # vertical sweep
+		var from_top := randf() < 0.5
+		dir = Vector2.DOWN if from_top else Vector2.UP
+		var edge_y := center.y - half.y - 60.0 if from_top else center.y + half.y + 60.0
+		for _i in wave.swarm_size:
+			positions.append(Vector2(center.x + randf_range(-half.x, half.x), edge_y))
+	for pos in positions:
+		if _active.size() >= _cap():
+			break
+		var e := ObjectPool.acquire(ENEMY_SCENE, _enemy_layer()) as Enemy
+		e.global_position = pos
+		e.configure(wave.swarm_enemy, _hp_mult(minutes), _dmg_mult(minutes), _spd_mult(minutes), false)
+		e.set_meta(&"flyby_dir", dir)
+		_active.append(e)
+
+## True once `pos` has exited the screen edge in its travel direction.
+func past_screen(pos: Vector2, dir: Vector2, margin: float = 120.0) -> bool:
+	if GameState.player == null:
+		return true
+	var center: Vector2 = GameState.player.global_position
+	var half: Vector2 = get_viewport().get_visible_rect().size * 0.5
+	if dir.x > 0.1 and pos.x > center.x + half.x + margin: return true
+	if dir.x < -0.1 and pos.x < center.x - half.x - margin: return true
+	if dir.y > 0.1 and pos.y > center.y + half.y + margin: return true
+	if dir.y < -0.1 and pos.y < center.y - half.y - margin: return true
+	return false
+
+## Release a non-killed enemy (flyby exit) — no ticket drop, just recycle.
+func despawn(e: Node) -> void:
+	if not is_instance_valid(e):
+		return
+	_remove(e)
+	GameState.enemies_alive -= 1
+	ObjectPool.release(e)
 
 func _ring_point() -> Vector2:
 	var center: Vector2 = GameState.player.global_position
