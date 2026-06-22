@@ -156,36 +156,47 @@ Drives a white-flash shader on a sprite when the actor takes damage. Pair every 
 # scripts/components/flash_component.gd
 class_name FlashComponent
 extends Node
-## Requires the sprite material to use a shader with a `flash` uniform (0..1).
-## Connect: health.damaged.connect(flash_component.flash)
+## Works with a ShaderMaterial `flash` uniform (0..1) OR a programmer-art visual
+## exposing set_flash(float). Connect: health.damaged.connect(flash_component.flash)
 
-@export var sprite: CanvasItem
-@export var flash_time: float = 0.08
-@export var squash: float = 0.85          # quick squash on hit for extra juice
+## GOTCHA: use a NodePath export, NOT `@export var sprite: CanvasItem`. A scene
+## that stores `sprite = NodePath("../Visual")` assigned to a node-typed export
+## silently fails to resolve (stays null) → flash never fires. Resolve in _ready.
+@export var sprite_path: NodePath = ^"../Visual"
+@export var flash_time: float = 0.10
+@export var squash: float = 0.82          # quick squash on hit for extra juice
 
+var sprite: CanvasItem
 var _t: float = 0.0
-var _base_scale: Vector2
+var _base_scale: Vector2 = Vector2.ONE
 
 func _ready() -> void:
+	sprite = get_node_or_null(sprite_path) as CanvasItem
 	if sprite:
 		_base_scale = sprite.scale
 	set_process(false)
 
 func flash(_info: DamageInfo = null) -> void:
 	_t = flash_time
-	if sprite and sprite.material is ShaderMaterial:
-		(sprite.material as ShaderMaterial).set_shader_parameter("flash", 1.0)
+	_set_flash(1.0)
 	if sprite:
 		sprite.scale = _base_scale * Vector2(1.0 / squash, squash)
 	set_process(true)
+
+func _set_flash(value: float) -> void:
+	if sprite == null:
+		return
+	if sprite.material is ShaderMaterial:
+		(sprite.material as ShaderMaterial).set_shader_parameter("flash", value)
+	elif sprite.has_method(&"set_flash"):
+		sprite.call(&"set_flash", value)
 
 func _process(delta: float) -> void:
 	_t -= delta
 	if sprite:
 		sprite.scale = sprite.scale.lerp(_base_scale, 1.0 - exp(-18.0 * delta))
 	if _t <= 0.0:
-		if sprite and sprite.material is ShaderMaterial:
-			(sprite.material as ShaderMaterial).set_shader_parameter("flash", 0.0)
+		_set_flash(0.0)
 		if sprite:
 			sprite.scale = _base_scale
 		set_process(false)
