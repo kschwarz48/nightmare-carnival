@@ -15,7 +15,7 @@ Every enemy is a **personified carnival attraction**. This doc gives each one it
 | Enemy | Role | HP | Speed px/s | Contact Dmg | Tickets | Behavior script | First seen |
 |-------|------|----|-----------:|------------:|--------:|-----------------|-----------|
 | Living Balloon | Swarm | 4 | 70 | 6 | 1 | `ChaserBehavior` | 0:00 |
-| Wind-Up Monkey | Burst charger | 12 | 60 (burst 180) | 8 | 2 | `BurstChargerBehavior` | 0:00 |
+| Wind-Up Monkey | Burst charger | 12 | 120 (charge 320) | 8 | 2 | `BurstChargerBehavior` | 0:00 |
 | Possessed Stuffie | Slow bruiser | 28 | 45 | 10 | 3 | `ChaserBehavior` | 6:00 |
 | Cotton-Candy Slime | Slow/snare | 30 | 35 | 8 (+slow) | 3 | `ChaserBehavior` | 6:00 |
 | Whack-a-Mole | Pop-up ambush | 8 | — (burrows) | 10 | 2 | `PopUpBehavior` | 6:00 |
@@ -45,9 +45,9 @@ Every enemy is a **personified carnival attraction**. This doc gives each one it
 
 ### 🐒 Wind-Up Monkey
 - **Fiction:** A tin cymbal-monkey, key in its back, eyes that snap wide when it "winds up." Clashes cymbals as it charges.
-- **Role:** First *timing* enemy. Idles/creeps, then bursts forward — teaches reading wind-ups.
+- **Role:** First *timing* enemy. Keeps pace and bursts forward — teaches reading wind-ups. Unlike the swarm, it stays a constant individual threat.
 - **Silhouette:** squat body, two raised cymbal-discs, winding key — distinct from the round balloon.
-- **Behavior (`BurstChargerBehavior`):** approaches slowly (60), and on a cooldown performs a short telegraphed **wind-up** (key spins, `attack_windup` anim, eyes flash) then **dashes** at the player's last position at 180 for ~0.4s, then recovers. Predictable, dodgeable, punishing if ignored.
+- **Behavior (`BurstChargerBehavior`):** pursues at **120** (just *above* the player's base move speed, so you can't simply outrun it — you must kill it or juke its dash). On a cooldown it performs a *quick* telegraphed **wind-up** (~0.4s: key spins, `attack_windup` anim, eyes flash) then **dashes** at the player's locked-in position at **320** for ~0.45s, then a short recovery. Readable but genuinely threatening if ignored. (Tuning lives in `EnemyData.params`: `windup_time`, `charge_speed`, `charge_time`, `recover_time`, `charge_range`.)
 - **Attack:** contact during the dash (cymbal clash) does +damage.
 - **Death:** springs and gears burst out; key spins away.
 - **Variants:** *Drummer Monkey* (elite, longer dash, leaves a small shock AoE on stop).

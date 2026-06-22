@@ -1,26 +1,26 @@
-[gd_scene load_steps=5 format=3 uid="uid://c0game000000001"]
+[gd_scene format=3 uid="uid://cvimvr7phe7eq"]
 
-[ext_resource type="Script" path="res://scripts/main/game.gd" id="1"]
-[ext_resource type="PackedScene" uid="uid://b7world000000001" path="res://scenes/world/world.tscn" id="2"]
-[ext_resource type="PackedScene" uid="uid://b8hud0000000001" path="res://scenes/ui/hud.tscn" id="3"]
-[ext_resource type="PackedScene" uid="uid://b9levelupdraft01" path="res://scenes/ui/level_up_draft.tscn" id="4"]
+[ext_resource type="Script" uid="uid://dq2o8031vxi3g" path="res://scripts/main/game.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://dhbeangr6ik13" path="res://scenes/world/world.tscn" id="2"]
+[ext_resource type="PackedScene" uid="uid://boaoenr48iq53" path="res://scenes/ui/hud.tscn" id="3"]
+[ext_resource type="PackedScene" uid="uid://cyjcq54tl0nwi" path="res://scenes/ui/level_up_draft.tscn" id="4"]
 
-[node name="Game" type="Node2D"]
+[node name="Game" type="Node2D" unique_id=534113614]
 script = ExtResource("1")
 
-[node name="World" parent="." instance=ExtResource("2")]
+[node name="World" parent="." unique_id=576304946 instance=ExtResource("2")]
 
-[node name="ActorLayer" type="Node2D" parent="."]
+[node name="ActorLayer" type="Node2D" parent="." unique_id=2119870421]
 
-[node name="EnemyLayer" type="Node2D" parent="."]
+[node name="EnemyLayer" type="Node2D" parent="." unique_id=1410410140]
 unique_name_in_owner = true
 
-[node name="ProjectileLayer" type="Node2D" parent="."]
+[node name="ProjectileLayer" type="Node2D" parent="." unique_id=366823974]
 unique_name_in_owner = true
 
-[node name="PickupLayer" type="Node2D" parent="."]
+[node name="PickupLayer" type="Node2D" parent="." unique_id=62432271]
 unique_name_in_owner = true
 
-[node name="HUD" parent="." instance=ExtResource("3")]
+[node name="HUD" parent="." unique_id=313763242 instance=ExtResource("3")]
 
-[node name="DraftLayer" parent="." instance=ExtResource("4")]
+[node name="DraftLayer" parent="." unique_id=2093761801 instance=ExtResource("4")]

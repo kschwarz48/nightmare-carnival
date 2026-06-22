@@ -21,6 +21,16 @@ extends Resource
 @export var base_pierce: int = 0
 @export var lifetime: float = 2.0
 
+# --- firing pattern (ProjectileWeapon) ---
+## Total fan width in degrees for a simultaneous volley (e.g. Throwing Cards).
+@export var spread_angle_deg: float = 24.0
+## > 0 fires the projectiles one-by-one this many seconds apart (a firework
+## "box": consecutive shots) instead of a single simultaneous fan.
+@export var burst_interval: float = 0.0
+## Each shot gets a random angle within spread_angle_deg and a random range,
+## scattering impacts instead of an even line. Pairs with burst_interval.
+@export var random_spread: bool = false
+
 # per-level deltas (index 0 unused; summed cumulatively)
 @export var level_damage: Array[float] = []
 @export var level_cooldown: Array[float] = []

@@ -433,6 +433,10 @@ extends Resource
 @export var base_projectile_speed: float = 400.0
 @export var base_pierce: int = 0
 @export var lifetime: float = 2.0
+# firing pattern (ProjectileWeapon)
+@export var spread_angle_deg: float = 24.0   # total fan width for a simultaneous volley
+@export var burst_interval: float = 0.0      # >0: fire shots consecutively, this far apart (1-by-1)
+@export var random_spread: bool = false      # random angle + range per shot → scattered impacts
 # per-level deltas (index 0 unused; summed cumulatively — see fireworks.tres in doc 06 §7)
 @export var level_damage: Array[float] = []
 @export var level_cooldown: Array[float] = []
@@ -573,6 +577,8 @@ func _spawn_projectile(origin: Vector2, dir: Vector2) -> void:
 func _world_layer() -> Node:
 	return get_tree().current_scene.get_node(^"%ProjectileLayer")  # a Node2D in game.tscn (unique name)
 ```
+
+> **Two firing patterns.** The above is the simultaneous **fan** (`spread_angle_deg`). When `burst_interval > 0`, `fire()` instead spawns the shots **consecutively** (`await get_tree().create_timer(burst_interval).timeout` between each), re-aiming per shot — with `auto_random` this scatters rockets across the crowd (Fireworks). `random_spread` adds per-shot angle + range jitter so impacts don't form a line. Lobbed projectiles (`firework_rocket.gd extends Projectile`) reset rotation and offset their visual on a parabola for a readable **arc**, then spawn a pooled `Explosion` (AoE) on fuse end instead of hitting on contact.
 
 ### 8.3 Projectile (pooled)
 

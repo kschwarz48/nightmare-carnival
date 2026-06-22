@@ -10,6 +10,8 @@ This is the **build-craft layer** — the heart of the game (pillar #3). Weapons
 - **Weapon levels:** each weapon levels **1 → 8**. Level-ups add projectiles, damage, area, pierce, or cut cooldown (per-weapon table). A maxed (Lv8) weapon is **evolution-eligible**.
 - **Auto-fire + optional aim:** weapons fire automatically on cooldown. Targeting per weapon (`aim_mode` in `WeaponData`): `auto_nearest`, `auto_random`, `forward` (facing/movement dir), `orbit`, `around` (self-centered AoE), `manual` (mouse/right-stick — opt-in accessibility/skill layer, doc 01 §12).
 - **Damage:** `weapon.base_damage × player.might × (crit ? crit_damage : 1)`, modified by area/duration where relevant; defender applies armor. Full formula in doc 08.
+- **Balance by DPS, not per-hit.** A weapon's real power is its *damage per second across everything it hits*. AoE / multi-hit weapons (Fireworks, Popcorn) therefore carry **lower per-hit damage and longer cooldowns** than single-target weapons (Cards) — tune their **cast time first**. Rule of thumb: a single-target weapon should out-DPS an AoE weapon *on one enemy*; the AoE wins in a crowd. (Fireworks vs. Throwing Cards is the reference pair.)
+- **Firing patterns** (`WeaponData`): a multi-projectile weapon fires either as a simultaneous **fan** (`spread_angle_deg`, e.g. Throwing Cards) or **consecutively** one-by-one (`burst_interval > 0`, e.g. Fireworks leaving a box). `random_spread` scatters each shot's angle + range so impacts don't form an even line; lobbed projectiles (Fireworks) add a visual arc.
 - **Scaling stats** (Might, Area, Cooldown, Duration, Amount, Proj Speed, Crit, Luck) come from passives + level-ups + meta + character, and multiply weapon output. A weapon and a passive that feed the same axis = synergy.
 
 ---
@@ -35,7 +37,7 @@ Base values are Lv1 at 100% stats. "Scales with" lists which player stats amplif
 |--------|--------------|---------:|---------:|-----|-------------|---------------------------|
 | **Popcorn Popper** | Lobs kernels that land + **pop into AoE** burst | 8 (pop 12) | 1.4s | auto_random (lob) | Might, Area, Amount | + **Foam Finger** → *Kettle-Korn Cannon* |
 | **Balloon Darts** | Fast piercing darts; **pop into shrapnel** at end of range | 11 | 1.0s | auto_nearest | Might, Pierce(Amount), Proj Spd | + **Spectacles** → *Sharpshooter's Bouquet* |
-| **Fireworks** | Random arcing rockets → **big AoE explosion** | 20 | 1.8s | auto_random | Might, Area, Amount | + **Extra Token** → *Grand Finale* |
+| **Fireworks** | Rockets lobbed **one-by-one** on an arc → scattered **AoE explosions** | 18 | 2.6s | auto_random | Might, Area, Amount | + **Extra Token** → *Grand Finale* |
 | **Cotton-Candy Gun** | Sticky cone: **slows + DoT** | 4/tick | 0.9s | forward (cone) | Might, Area, Duration | + **Spinning Top** → *Sticky Situation* |
 | **Ring Toss** | Boomerang rings out-and-back, pierce | 13 | 1.5s | forward | Might, Area, Duration | + **Strongman Belt** → *Saturn's Rings* |
 | **Carnival Cannon** | Big single **human-cannonball** line shot, heavy knockback | 40 | 2.6s | auto_nearest | Might, Proj Spd, Crit | + **Energy Drink** → *Cannonball Special* |
@@ -154,10 +156,13 @@ display_name = "Fireworks"
 description = "Launches rockets that explode in a dazzling, deadly burst."
 aim_mode = "auto_random"
 style = "projectile"
-base_damage = 20.0
-base_cooldown = 1.8
+base_damage = 18.0
+base_cooldown = 2.6        # high cast time — AoE is balanced via cadence (DPS), not per-hit
 base_area = 1.0           # AoE radius multiplier
-base_amount = 1           # rockets per volley
+base_amount = 1           # rockets per cast
+spread_angle_deg = 60.0   # scatter cone
+burst_interval = 0.12     # rockets leave the "box" one-by-one
+random_spread = true      # random angle + range per rocket → scattered impacts
 projectile_scene = ExtResource("firework_rocket.tscn")
 max_level = 8
 # per-level deltas (parallel arrays or a sub-resource list)
