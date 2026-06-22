@@ -102,6 +102,11 @@ The signature decision moment (UI is the centerpiece, doc 02 §8).
 
 **Offer-generation algorithm (summary, see doc 08):** build a weighted pool of all legal upgrades (respecting slot caps and max levels), bias by Luck + light build-relevance, sample N distinct, guarantee an evolution card when prerequisites are met, present.
 
+**Implemented weighting (`DraftGenerator` + `UpgradeData`):** `weight = base_weight × rarity_weight(luck) × relevance_bonus`.
+- `base_weight` is authored per `UpgradeData.tres`; `rarity_weight ≈ 1 + 0.1·(luck−1)`.
+- **Build relevance / evolution pity** (`relevance_bonus`): leveling an owned weapon ×1.5; **×3** if that weapon's evolution is gated *only* by more levels (its required passive is already owned); a passive that an owned weapon's evolution still *needs* ×2.5. This nudges a build you're clearly pursuing toward completion instead of leaving evolutions to pure chance — so reaching e.g. *Grand Finale* (Fireworks Lv8 + Extra Token) is steerable, not a lottery.
+- When a weapon hits Lv8 and its passive is owned, the evolution card is **guaranteed** in the next draft.
+
 ---
 
 ## 5. Evolutions

@@ -50,10 +50,28 @@ func is_legal(player: Player) -> bool:
 				and player.weapon_manager.has_weapon(weapon.id)
 	return false
 
-## Light bias toward the current build so weapons can come together.
+## Bias toward the current build so weapons come together — and especially toward
+## *completing* an evolution the player is clearly pursuing (06 §4 pity/relevance).
 func relevance_bonus(player: Player) -> float:
-	if kind == Kind.LEVEL_WEAPON and player.weapon_manager.has_weapon(weapon.id):
-		return 1.5
+	var wm := player.weapon_manager
+	match kind:
+		Kind.LEVEL_WEAPON:
+			if weapon == null or not wm.has_weapon(weapon.id):
+				return 1.0
+			# If this weapon's evolution is gated only by more levels (its passive
+			# is already owned), push hard so the build can finish.
+			if weapon.evolution != null and weapon.required_passive != &"" \
+					and int(player.passive_levels.get(weapon.required_passive, 0)) >= 1:
+				return 3.0
+			return 1.5
+		Kind.PASSIVE:
+			# If an owned weapon's evolution still needs this passive, push it up.
+			if passive != null and int(player.passive_levels.get(passive.id, 0)) < 1:
+				for wid in wm.weapons:
+					var wd: WeaponData = (wm.weapons[wid] as Weapon).data
+					if wd.evolution != null and wd.required_passive == passive.id:
+						return 2.5
+			return 1.0
 	return 1.0
 
 ## Luck nudges rarer (higher base_weight tiers) options up a touch.
@@ -75,6 +93,7 @@ func apply(player: Player) -> void:
 			# Track by passive identity too, so EvolutionSystem can check ownership
 			# (keyed by PassiveData.id, independent of which wrapper granted it).
 			player.passive_levels[passive.id] = int(player.passive_levels.get(passive.id, 0)) + 1
+			player.owned_passives[passive.id] = passive
 			player.refresh_stats()
 		Kind.EVOLUTION:
 			wm.evolve_weapon(weapon.id, evolved_weapon)

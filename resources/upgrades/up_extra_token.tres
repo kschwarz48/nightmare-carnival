@@ -9,6 +9,6 @@ id = &"up_extra_token"
 display_name = "Extra Token"
 description = "+1 projectile/target (max 2)."
 kind = 2
-base_weight = 0.7
+base_weight = 1.0
 passive = ExtResource("2")
 max_stacks = 2

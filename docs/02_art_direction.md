@@ -112,7 +112,7 @@ Implement common VFX as **pooled, self-freeing one-shot scenes** (e.g., `vfx_pop
   - Level number on a ticket-stub badge.
   - Run timer styled as a clock ticking toward dawn (with a moon→sun indicator).
   - HP as a string of light-bulbs or a banner bar, bottom-left.
-  - Weapon/passive icons in a small bottom tray.
+  - Weapon/passive icons in a small bottom tray. *(Implemented now as a functional **text** loadout readout — weapon names + levels, passive names + stacks — so builds are legible while playing; the styled icon tray is part of the M6 HUD pass.)*
 - **Level-up draft:** the centerpiece UI moment — cards styled as **carnival game prizes / tarot cards**, with rarity = ribbon color. Big, juicy, satisfying to pick.
 - **Readability rule:** UI must never occupy the central combat zone; keep the middle 70% clear.
 

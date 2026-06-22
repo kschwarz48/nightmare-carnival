@@ -19,6 +19,8 @@ extends CharacterBody2D
 var passive_stacks: Dictionary = {}
 ## passive id -> level owned (used by EvolutionSystem prerequisite checks).
 var passive_levels: Dictionary = {}
+## passive id -> PassiveData (so the HUD loadout can show names).
+var owned_passives: Dictionary = {}
 
 var _regen_accum: float = 0.0
 
