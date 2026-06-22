@@ -130,6 +130,7 @@ Spawning is **defined by the wave timeline (§7.4), not a global rate formula** 
 Scaling across the night is the **timeline itself**: later waves raise `min_alive`/`max_alive`, shorten `spawn_interval`, grow `spawn_batch`, and shift the mix toward tougher enemies — sparse and readable early, relentless late.
 
 - **Max alive cap** keeps perf bounded and readability sane, and — kept deliberately lowish — makes each kill feel impactful. The per-wave `max_alive` is clamped by a global difficulty ceiling: Midway 180 · Carnival 280 · Nightmare 400 · (handheld port: 150). At the cap the director simply stops adding until enemies die.
+- **Enemy density / collision.** Enemies steer with cheap separation (spatial hash) *and* a small amount of body collision, so a crowd packs against the player instead of pixel-stacking — that physical density is the swarm pressure. Flyby swarm enemies are the exception (they pass through). Mob speeds are tuned against the player's high move speed (doc 01 §7): fast enough that standing still gets you surrounded, slow enough to kite while moving.
 
 ### 7.3 Difficulty / time scaling (applied to spawned enemies)
 Each spawned enemy's stats are multiplied by a time-and-tier factor:
@@ -142,7 +143,7 @@ ticket_mult = (1 + 0.03 × minutes)        # rewards keep pace
 Tier multipliers (Midway 1.0 / Carnival 1.35 / Nightmare 1.8) and the optional **Curse** stack on top. All values live in a `DifficultyData` resource — never hardcode them.
 
 ### 7.4 Wave tables (data-driven)
-The director reads a **timeline of wave entries** (`WaveData` resources). Each entry has: `start_time`/`end_time`, weighted `enemies`, `min_alive`, `max_alive`, `spawn_interval`, `spawn_batch`, plus forward hooks (`boss`, `event`). A short-windowed entry with a later `start_time` temporarily **overrides** the base timeline (e.g. a burst), then control falls back to the still-active base wave. Full-game conceptual timeline (enemies/bosses arrive across M2–M5):
+The director reads a **timeline of wave entries** (`WaveData` resources). Each entry has: `start_time`/`end_time`, weighted `enemies`, `min_alive`, `max_alive`, `spawn_interval`, `spawn_batch`; overlay mechanics `swarm_enemy`/`swarm_interval`/`swarm_size` (periodic flyby swarms) and `elite_burst` (elites spawned once on entering the wave); plus forward hooks (`boss`, `event`). A short-windowed entry with a later `start_time` temporarily **overrides** the base timeline, then control falls back to the still-active base wave. Full-game conceptual timeline (enemies/bosses arrive across M2–M5):
 
 | Window | Enemy weights | Notes |
 |--------|---------------|-------|
@@ -162,17 +163,23 @@ The director reads a **timeline of wave entries** (`WaveData` resources). Each e
 
 > The weights/times above are the *starting* tuning. Because they're resources, you (or Cursor) can iterate balance without touching code. See `WaveData`/`EnemyDirector` in doc 08.
 
-**Authored M2 timeline** (`resources/waves/`, the part actually implemented — escalating min/max, shrinking interval, mix shifting toward Stuffies; bosses arrive at M3):
+See **§7.6** for the authored Stage 1 timeline that's actually implemented.
 
-| Start | Enemies (weight) | min | max | interval | batch |
-|------:|------------------|----:|----:|---------:|------:|
-| 0:00 | Balloon 85 · Monkey 15 | 8 | 28 | 1.30s | 2 |
-| 2:00 | Balloon 75 · Monkey 25 | 14 | 45 | 1.10s | 2 |
-| 3:00–3:20 | Balloon 100 *(burst override)* | 45 | 70 | 0.40s | 5 |
-| 4:00 | Balloon 65 · Monkey 35 | 22 | 65 | 0.95s | 3 |
-| 6:00 | Balloon 50 · Monkey 30 · Stuffie 20 | 30 | 90 | 0.85s | 3 |
-| 9:00 | Balloon 45 · Monkey 30 · Stuffie 25 | 40 | 120 | 0.75s | 4 |
-| 12:00 | Balloon 40 · Monkey 30 · Stuffie 30 | 52 | 170 | 0.65s | 4 |
+### 7.6 Stage 1 — authored wave design (`resources/waves/`)
+
+The implemented Stage 1 (Carnival Core, first 5 minutes). Built from the enemies we have, plus a flyby swarm and an elite gauntlet. Base spawns follow the §7.2 min/interval rules; overlay mechanics layer on top. Tuned against the player's 220 px/s.
+
+| Start | Base spawn (weights) | min→max | interval / batch | Overlay mechanic |
+|------:|----------------------|--------:|------------------|------------------|
+| 0:00 | Balloon 100 | 8→28 | 1.10s / 2 | — |
+| 1:00 | Balloon 70 · Monkey 30 | 12→42 | 1.00s / 2 | — |
+| 2:00 | Balloon 65 · Monkey 35 | 14→52 | 0.95s / 2 | **Balloon swarm** every ~7s (10 flyby) |
+| 3:00 | Stuffie 65 · Monkey 35 *(balloons gone)* | 18→62 | 0.90s / 3 | swarm every ~7s |
+| 4:00 | Stuffie 50 · Monkey 25 · Clown 25 | 22→78 | 0.85s / 3 | swarm every ~6s |
+| 5:00 | Stuffie 45 · Clown 35 · Monkey 20 | 26→100 | 0.80s / 3 | **Elite gauntlet:** 4 elites on entry + swarm every ~4s |
+
+- **Balloon swarm** (`swarm_enemy`/`swarm_interval`/`swarm_size`): a group spawned just off a random edge that sweeps straight across the player's band and despawns off the far side — a non-persistent "dodge this," doesn't track the player.
+- **Elite gauntlet** (`elite_burst`): on entering the 5:00 wave the director immediately spawns 4 elites (×6 HP, outlined) from the wave's pool, and the swarm cadence ramps up. This is the Stage 1 climax; a proper mini-boss (phases, HP bar) arrives with the M3 boss framework.
 
 ### 7.5 Elites
 Periodically (and via events), spawn **elite variants**: a normal enemy scaled up (×4–8 HP, +dmg), tinted with an elite shader outline, guaranteed Gold + chance at a chest. Elite cadence rises each Act. Elites are mini-skill-checks between bosses.

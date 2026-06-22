@@ -113,7 +113,7 @@ All player stats derive from a base profile modified by level-up upgrades, passi
 |------|------|-------|
 | Max HP | 100 | Death at 0. |
 | HP Regen | 0.0 /s | Granted by items (Funnel Cake). |
-| Move Speed | 110 px/s | The most-felt stat; tune carefully. |
+| Move Speed | 220 px/s | The most-felt stat; tune carefully. Kept high on purpose: a fast player lets enemies be fast too, so *moving* stays safe but *stopping* gets you swarmed quickly — the core "swarmy" pressure. |
 | Might (damage %) | 100% | Global outgoing damage multiplier. |
 | Attack Speed / Cooldown | 100% | Lower cooldowns = more fire. |
 | Area | 100% | Scales weapon AoE & projectile size. |

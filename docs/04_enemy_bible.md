@@ -14,12 +14,13 @@ Every enemy is a **personified carnival attraction**. This doc gives each one it
 
 | Enemy | Role | HP | Speed px/s | Contact Dmg | Tickets | Behavior script | First seen |
 |-------|------|----|-----------:|------------:|--------:|-----------------|-----------|
-| Living Balloon | Swarm | 8 | 70 | 6 | 1 | `ChaserBehavior` | 0:00 |
-| Wind-Up Monkey | Burst charger | 18 | 95 (charge 260) | 8 | 2 | `BurstChargerBehavior` | 0:00 |
-| Possessed Stuffie | Slow bruiser | 32 | 45 | 10 | 3 | `ChaserBehavior` | 6:00 |
+| Living Balloon | Swarm | 8 | 120 | 6 | 1 | `ChaserBehavior` | 0:00 |
+| Balloon Swarm | Flyby "dodge" | 4 | 320 (straight) | 8 | 1 | `FlybyBehavior` | 2:00 |
+| Wind-Up Monkey | Burst charger | 18 | 165 (charge 380) | 8 | 2 | `BurstChargerBehavior` | 1:00 |
+| Possessed Stuffie | Slow bruiser | 32 | 80 | 10 | 3 | `ChaserBehavior` | 3:00 |
 | Cotton-Candy Slime | Slow/snare | 30 | 35 | 8 (+slow) | 3 | `ChaserBehavior` | 6:00 |
 | Whack-a-Mole | Pop-up ambush | 8 | — (burrows) | 10 | 2 | `PopUpBehavior` | 6:00 |
-| Evil Clown | Fast bruiser | 18 | 95 | 12 | 4 | `ErraticChaserBehavior` | 6:00 |
+| Evil Clown | Fast bruiser | 18 | 170 | 12 | 4 | `ErraticChaserBehavior` | 4:00 |
 | Jack-in-the-Box | Trap/mine | 1 | 0 (then leaps) | 25 (burst) | 4 | `AmbusherBehavior` | 9:00 |
 | Dunk-Tank Clown | Ranged | 22 | 40 | 8 / proj 10 | 5 | `ShooterBehavior` | 9:00 |
 | Puppet Soldier | Ranged/formation | 32 | 50 | 10 / musket 8 | 5 | `ShooterBehavior` + `FormationBehavior` | 12:00 |
@@ -29,6 +30,10 @@ Every enemy is a **personified carnival attraction**. This doc gives each one it
 | Bumper Car | Roaming charger | 35 | 60 (ram 200) | 16 | 5 | `LineChargerBehavior` | 12:00 (Boardwalk) |
 
 > Elites: any enemy can spawn as an **Elite** (×4–8 HP, ×1.5 dmg, slower, elite-outline shader, guaranteed Gold + chest chance). See §11.
+>
+> **Movement & collision:** enemies steer at the player with cheap separation (spatial hash) *and* a small amount of body-to-body collision, so a crowd packs up against the player instead of pixel-stacking into one point — that physical density is the swarm pressure. The exception is **flyby** enemies (Balloon Swarm), which pass through the crowd so their sweep stays clean. Mob speeds are tuned against the player's 220 px/s: fast enough to punish standing still, slow enough to kite while moving.
+>
+> **🎈 Balloon Swarm (flyby):** not a persistent chaser — a fast group spawned just off one screen edge that sweeps *straight across* through the player's band and exits the far side, then despawns (`FlybyBehavior`). Pure "dodge this" pressure; doesn't track you, so it's beatable by moving. Introduced at 2:00 and recurs as an overlay on top of the normal crowd.
 
 ---
 

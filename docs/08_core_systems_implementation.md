@@ -867,6 +867,7 @@ extends RefCounted
 const REGISTRY := {
 	&"chaser": preload("res://scripts/enemies/behaviors/chaser_behavior.gd"),
 	&"erratic_chaser": preload("res://scripts/enemies/behaviors/erratic_chaser_behavior.gd"),
+	&"flyby": preload("res://scripts/enemies/behaviors/flyby_behavior.gd"),  # cross-screen "dodge" swarm
 	&"burst_charger": preload("res://scripts/enemies/behaviors/burst_charger_behavior.gd"),
 	&"shooter": preload("res://scripts/enemies/behaviors/shooter_behavior.gd"),
 	&"line_charger": preload("res://scripts/enemies/behaviors/line_charger_behavior.gd"),
