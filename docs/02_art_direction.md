@@ -46,7 +46,7 @@ This doc describes the **visual language**; it applies to whichever production p
 - **Enemies:** unified "threat" hue family per Act so the eye groups them; cool/eerie.
 - **Enemy danger (hitboxes/projectiles that hurt you):** always the same **hot warning color** (e.g., searing red-orange), regardless of source. Players learn "that color = it touches me, I die."
 - **Telegraphs:** the same warning color, flashing/growing before an attack lands (see §5).
-- **Pickups:** Tickets = bright gold-yellow; Gold = distinct; healing = green; chests = rainbow shimmer. Never reuse the danger color for a pickup.
+- **Pickups:** Tickets (XP) = **blue→green gradient** (bluer = small, greener = big; the XP bar matches), Gold = distinct, healing = bright green, chests = rainbow shimmer. Never reuse the danger color (red) for a pickup. *(The original spec used gold-yellow Tickets; switched to blue/green for demo legibility against the warm backdrop.)*
 
 Provide a **colorblind-safe alternate set** for all of the above (see accessibility in doc 01).
 
@@ -84,7 +84,7 @@ Borrowing classic principles, tuned for a bullet-heaven:
 
 Juice is a core feature, not polish-phase garnish — it's how mowing down a crowd *feels*. Budget for:
 
-- **Hit feedback:** white flash on hit (shader `modulate`/`flash` param), brief squash, small impact spark, damage number popup (pooled).
+- **Hit feedback:** white flash on hit (shader `modulate`/`flash` param, or `Blob.set_flash` tint), brief squash, small impact spark, damage number popup (pooled). **The player's damage flash strobes red↔white** (via `FlashComponent` strobe) so taking a hit is unmistakable, and **the HP bar flashes white on every damage tick**.
 - **Death FX:** themed burst per family (confetti, stuffing, springs, balloon shreds, sawdust puff).
 - **Pickup FX:** Tickets streak toward the player with a trail and a soft chime; level-up = brief golden bloom + the draft UI fanfare.
 - **Screen feel:** light, *frequent* micro screen-shake on big hits; bloom on neon & fireworks (HDR); chromatic aberration spike on player damage; a vignette that pulses red at low HP. All reducible via options.
@@ -108,7 +108,8 @@ Implement common VFX as **pooled, self-freeing one-shot scenes** (e.g., `vfx_pop
 
 - **Vibe:** vintage carnival posters & marquee signage — circus slab-serifs and bouncy show-card scripts, drop shadows, banner ribbons, ticket-stub motifs, marquee bulbs around panels.
 - **HUD (minimal, bottom/edges, never center):**
-  - XP/Ticket bar across the top (marquee-bulb fill).
+  - XP/Ticket bar across the top (marquee-bulb fill) — **blue→green to match the Ticket dots**.
+  - HP bar is **red**, and **flashes white per damage tick** for clear feedback.
   - Level number on a ticket-stub badge.
   - Run timer styled as a clock ticking toward dawn (with a moon→sun indicator).
   - HP as a string of light-bulbs or a banner bar, bottom-left.

@@ -21,8 +21,8 @@ func _ready() -> void:
 func set_value(v: int) -> void:
 	value = v
 	if visual:
-		# Bigger / warmer gems for higher value, for readability.
-		visual.configure(Color(1.0, 0.85, 0.2).lerp(Color(1.0, 0.4, 0.1), clampf((v - 1) / 10.0, 0.0, 1.0)),
+		# Blue -> green gradient by value (matches the XP bar); bigger = more XP.
+		visual.configure(Color(0.2, 0.55, 1.0).lerp(Color(0.25, 1.0, 0.5), clampf((v - 1) / 10.0, 0.0, 1.0)),
 			3.0 + minf(float(v), 8.0) * 0.6, Blob.Shape.DIAMOND)
 
 func magnetize() -> void:

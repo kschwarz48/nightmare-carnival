@@ -10,14 +10,21 @@ extends CanvasLayer
 @onready var xp_bar: ProgressBar = %XPBar
 @onready var weapons_label: Label = %WeaponsLabel
 @onready var passives_label: Label = %PassivesLabel
+@onready var _hp_fill: StyleBoxFlat = hp_bar.get_theme_stylebox(&"fill") as StyleBoxFlat
+
+const HP_BASE := Color(0.85, 0.2, 0.2)
+const HP_FLASH_TIME := 0.16
 
 var _loadout_dirty: bool = true
+var _hp_flash: float = 0.0
 
 func _ready() -> void:
 	EventBus.time_tick.connect(_on_time_tick)
 	EventBus.run_ended.connect(_on_run_ended)
 	# Rebuild the loadout readout only when it changes (picks), not every frame.
 	EventBus.upgrade_chosen.connect(func(_u): _loadout_dirty = true)
+	# Flash the HP bar white on every damage tick.
+	EventBus.player_damaged.connect(func(_amt, _hp): _hp_flash = HP_FLASH_TIME)
 	_on_time_tick(0.0)
 
 func _process(_delta: float) -> void:
@@ -42,6 +49,13 @@ func _process(_delta: float) -> void:
 	if _loadout_dirty:
 		_loadout_dirty = false
 		_refresh_loadout(player)
+
+	# HP bar damage flash: snap to white on a hit, ease back to red.
+	if _hp_fill and _hp_flash > 0.0:
+		_hp_flash -= _delta
+		_hp_fill.bg_color = HP_BASE.lerp(Color.WHITE, clampf(_hp_flash / HP_FLASH_TIME, 0.0, 1.0))
+		if _hp_flash <= 0.0:
+			_hp_fill.bg_color = HP_BASE
 
 func _refresh_loadout(player: Player) -> void:
 	var wpns: Array[String] = []

@@ -11,6 +11,12 @@ extends Node
 @export var sprite_path: NodePath = ^"../Visual"
 @export var flash_time: float = 0.10
 @export var squash: float = 0.82
+## Flash tint. With strobe on, the flash alternates flash_color <-> flash_color_alt
+## (e.g. red/white on the player) so damage reads loudly; default is a plain white hit.
+@export var flash_color: Color = Color.WHITE
+@export var flash_color_alt: Color = Color.WHITE
+@export var strobe: bool = false
+@export var strobe_hz: float = 14.0
 
 var sprite: CanvasItem
 var _t: float = 0.0
@@ -24,25 +30,35 @@ func _ready() -> void:
 
 func flash(_info: DamageInfo = null) -> void:
 	_t = flash_time
-	_set_flash(1.0)
+	_set_flash(1.0, _current_tint())
 	if sprite:
 		sprite.scale = _base_scale * Vector2(1.0 / squash, squash)
 	set_process(true)
 
-func _set_flash(value: float) -> void:
+## Tint for the current instant — alternates the two colors when strobing.
+func _current_tint() -> Color:
+	if not strobe:
+		return flash_color
+	var elapsed := flash_time - _t
+	return flash_color if fmod(elapsed * strobe_hz, 1.0) < 0.5 else flash_color_alt
+
+func _set_flash(value: float, tint: Color = Color.WHITE) -> void:
 	if sprite == null:
 		return
 	if sprite.material is ShaderMaterial:
 		(sprite.material as ShaderMaterial).set_shader_parameter("flash", value)
+		(sprite.material as ShaderMaterial).set_shader_parameter("flash_color", tint)
 	elif sprite.has_method(&"set_flash"):
-		sprite.call(&"set_flash", value)
+		sprite.call(&"set_flash", value, tint)
 
 func _process(delta: float) -> void:
 	_t -= delta
+	if strobe:
+		_set_flash(1.0, _current_tint())
 	if sprite:
 		sprite.scale = sprite.scale.lerp(_base_scale, 1.0 - exp(-18.0 * delta))
 	if _t <= 0.0:
-		_set_flash(0.0)
+		_set_flash(0.0, flash_color)
 		if sprite:
 			sprite.scale = _base_scale
 		set_process(false)

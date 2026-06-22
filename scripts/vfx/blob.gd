@@ -12,9 +12,11 @@ enum Shape { CIRCLE, SQUARE, DIAMOND }
 @export var outline_color: Color = Color(0, 0, 0, 0.5)
 
 var _flash: float = 0.0
+var _flash_tint: Color = Color.WHITE
 
-func set_flash(value: float) -> void:
+func set_flash(value: float, tint: Color = Color.WHITE) -> void:
 	_flash = value
+	_flash_tint = tint
 	queue_redraw()
 
 func configure(p_color: Color, p_radius: float, p_shape: Shape = Shape.CIRCLE) -> void:
@@ -24,7 +26,7 @@ func configure(p_color: Color, p_radius: float, p_shape: Shape = Shape.CIRCLE) -
 	queue_redraw()
 
 func _draw() -> void:
-	var c := color.lerp(Color.WHITE, _flash)
+	var c := color.lerp(_flash_tint, _flash)
 	match shape:
 		Shape.SQUARE:
 			var s := radius

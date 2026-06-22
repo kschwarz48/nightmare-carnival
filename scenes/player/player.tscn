@@ -58,6 +58,11 @@ script = ExtResource("6")
 [node name="FlashComponent" type="Node" parent="."]
 script = ExtResource("7")
 sprite_path = NodePath("../Visual")
+flash_time = 0.22
+flash_color = Color(1, 0.15, 0.15, 1)
+flash_color_alt = Color(1, 1, 1, 1)
+strobe = true
+strobe_hz = 16.0
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position_smoothing_enabled = true
