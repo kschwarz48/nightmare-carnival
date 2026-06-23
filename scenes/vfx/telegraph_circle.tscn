@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://dtelegraph0circ"]
+[gd_scene format=3 uid="uid://cfwli5r7iyepw"]
 
 [ext_resource type="Script" path="res://scripts/vfx/telegraph_circle.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/vfx/blob.gd" id="2"]

@@ -9,6 +9,12 @@ extends Resource
 @export var max_health: float = 4000.0
 @export var contact_damage: float = 16.0
 @export var soft_enrage_time: float = 100.0
+## When (run seconds) the dormant boss wakes up.
+@export var gate_time: float = 360.0
+## Roam toward the player once active; stops at preferred_distance. Below the
+## player's speed so it pressures/looms but can't "jump" on a fleeing player.
+@export var move_speed: float = 150.0
+@export var preferred_distance: float = 340.0
 # --- programmer-art visual (replaced by SpriteFrames at M6) ---
 @export var color: Color = Color(0.85, 0.2, 0.3)
 @export var radius: float = 90.0

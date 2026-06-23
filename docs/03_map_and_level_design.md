@@ -115,11 +115,11 @@ Events should mostly create *positional* decisions (go toward the reward and the
 
 The director is the heartbeat of the run. It owns *what spawns, where, when, and how much*, scaling with time and difficulty. (Code: `EnemyDirector` autoload, doc 08.)
 
-### 7.1 Off-screen ring spawning
-Enemies spawn in a **ring just beyond the camera view** so they "walk in" from the dark, never popping in on top of the player.
-- Spawn ring radius ≈ `max(viewport_half_diagonal) + margin(64px)`.
-- Pick a random angle on the ring; reject points outside the map bounds or inside collision; clamp into the playable area.
-- Most spawns come from the **dark side** of the screen (away from the strongest light) for mood.
+### 7.1 Spawn area & leash (VS-style)
+Enemies spawn in a **rectangular band around the player** — outside the on-screen rect (½ viewport) out to ~**1.5×** — so they "walk in" from just off-screen, never popping on top of the player. (Modeled on Vampire Survivors' spawn rectangle: from the screen edge to roughly 50% beyond.)
+- **Spawn blocking:** reject a candidate point if an enemy is already within ~28 px (cheap spatial-hash check); try a few points before skipping that spawn. Enemies never stack-spawn.
+- **Despawn leash:** normal enemies that fall **outside ~1.7× the viewport half-rect** (the player left them behind) are despawned/recycled — *not* teleported — so a fleeing player sheds the trailing crowd and fresh enemies appear ahead, keeping the fight centered and the cap meaningful. **Bosses are exempt.**
+- Clamp candidate points into the map bounds. *(No Curse system yet; when added it would raise spawn rate/amount/max and enemy speed.)*
 
 ### 7.2 Population cap & cadence (wave-driven)
 Spawning is **defined by the wave timeline (§7.4), not a global rate formula** — this is the core mechanic and is authored with intent. At any moment exactly one wave is active (the latest-started one whose window contains *now*), and the director spawns by that wave's rules:
@@ -192,7 +192,7 @@ Bosses interrupt the normal flow at their time gates:
 1. Director **pauses new normal spawns** and plays a warning (music shift, banner, screen darken-and-spotlight).
 2. The boss enters with an **intro animation** from the appropriate part of the map.
 3. **Arena handling differs by boss** (full designs in `05_boss_bible.md`):
-   - **Carnival Tent & Puppet King** are *set-piece* fights: a soft arena forms (tent canvas walls / string-light ring) loosely confining the player to the Carnival Core for the duration. Add-spawns are part of the fight. *(Implemented for the Tent: the boss spawns 4 temporary `StaticBody2D` soft-walls around the player on entry and frees them on defeat; the director pauses ambient waves for the duration.)*
+   - **Carnival Tent & Puppet King** are *set-piece* fights: a soft arena forms (tent canvas walls / string-light ring) loosely confining the player to the Carnival Core for the duration. Add-spawns are part of the fight. *(Implemented for the Tent without hard walls: the tent sits **dormant at map center from run start** — a surprise that the prop is the boss — and at its gate it wakes and **slowly roams toward the player** (stopping at range to cast) so it pressures without confining. The director pauses ambient waves for the duration. Hard soft-walls were dropped because steered enemies snag on them.)*
    - **Ferris Wheel & Ringmaster** are *roaming* fights across the open map — they chase/relocate; the whole map is the arena.
 4. On defeat: boss death spectacle, **guaranteed chest** (weapon/evolution), big Ticket burst, brief calm, then the next Act's spawn table engages.
 
@@ -201,7 +201,7 @@ Bosses interrupt the normal flow at their time gates:
 ## 9. Godot implementation notes (map specifically)
 
 - **Ground:** build zones with `TileMapLayer` (Godot 4.7) for sand/planks/midway tiles; separate layers per zone for palette/lighting control.
-- **Collision/obstacles:** fences, stall walls, railings as `StaticBody2D` (or tile collision) on the **World** physics layer. Shape the chokepoints here.
+- **Collision/obstacles:** fences, stall walls, railings as `StaticBody2D` (or tile collision) on the **World** physics layer. Shape the chokepoints here. *(Currently the play area is kept **open** — interior obstacle blocks were removed because the steered, non-navmesh enemies snag on them and get stuck. Cover/chokepoints return once enemies use a `NavigationRegion2D` to path around solids.)*
 - **Decoration:** use **Scene Paint Mode (B)** to scatter props, lights, breakables, and ground clutter quickly across the open zones.
 - **Lighting:** `CanvasModulate` for night tint; `PointLight2D` clusters at attractions; player lantern light; per-zone ambient tint (see doc 02 §3).
 - **Depth:** one Y-sorted gameplay container holds player + enemies + props so overlaps sort by ground-position.

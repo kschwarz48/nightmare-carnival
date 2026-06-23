@@ -50,10 +50,14 @@ func _ready() -> void:
 	player.global_position = MapBounds.center()
 
 	EnemyDirector.waves = ContentDB.all_waves()
-	EnemyDirector.boss_gates = [
-		{ "time": 360.0, "boss": CARNIVAL_TENT, "fired": false },
-	]
 	EnemyDirector.start()
+
+	# The Carnival Tent looms dormant at map center from the start — it's a
+	# surprise that this prop IS the boss; it wakes at its gate_time (08 §17, 05).
+	var tent := CARNIVAL_TENT.scene.instantiate()
+	tent.global_position = MapBounds.center()
+	(get_node(^"%EnemyLayer")).add_child(tent)
+	tent.setup(CARNIVAL_TENT)
 
 func _process(delta: float) -> void:
 	if not GameState.is_running or GameState.is_paused:

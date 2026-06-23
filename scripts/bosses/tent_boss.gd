@@ -1,12 +1,7 @@
 extends Boss
-## The Carnival Tent (05 BOSS 1). Three phases of curated attacks, plus a soft
-## set-piece arena (StaticBody2D walls) that forms around the player on spawn and
-## clears on defeat (03 §8).
-
-const ARENA_HALF := Vector2(900.0, 620.0)
-const WALL_THICK := 48.0
-
-var _arena: Node2D
+## The Carnival Tent (05 BOSS 1). Sits dormant at map center, wakes at the gate,
+## then slowly stalks the player. Three phases of curated attacks (base Boss
+## handles dormancy, roaming, and phase transitions).
 
 func _build_phases() -> Array[BossPhase]:
 	var p1 := BossPhase.new()
@@ -30,36 +25,3 @@ func _build_phases() -> Array[BossPhase]:
 	]
 	var out: Array[BossPhase] = [p1, p2, p3]
 	return out
-
-func _on_spawn() -> void:
-	var center: Vector2 = GameState.player.global_position if is_instance_valid(GameState.player) else global_position
-	_arena = _make_arena(center)
-	get_parent().add_child(_arena)
-	# Set-piece: the tent looms at the top of the arena.
-	global_position = center + Vector2(0.0, -ARENA_HALF.y + 140.0)
-
-func _on_despawn() -> void:
-	if is_instance_valid(_arena):
-		_arena.queue_free()
-
-func _make_arena(center: Vector2) -> Node2D:
-	var root := Node2D.new()
-	root.global_position = center
-	var defs := [
-		[Vector2(0, -ARENA_HALF.y), Vector2(ARENA_HALF.x * 2.0 + WALL_THICK, WALL_THICK)],
-		[Vector2(0, ARENA_HALF.y), Vector2(ARENA_HALF.x * 2.0 + WALL_THICK, WALL_THICK)],
-		[Vector2(-ARENA_HALF.x, 0), Vector2(WALL_THICK, ARENA_HALF.y * 2.0 + WALL_THICK)],
-		[Vector2(ARENA_HALF.x, 0), Vector2(WALL_THICK, ARENA_HALF.y * 2.0 + WALL_THICK)],
-	]
-	for d in defs:
-		var body := StaticBody2D.new()
-		body.collision_layer = CollisionLayers.WORLD
-		body.collision_mask = 0
-		body.position = d[0]
-		var cs := CollisionShape2D.new()
-		var rect := RectangleShape2D.new()
-		rect.size = d[1]
-		cs.shape = rect
-		body.add_child(cs)
-		root.add_child(body)
-	return root

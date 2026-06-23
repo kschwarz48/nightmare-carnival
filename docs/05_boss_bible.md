@@ -52,7 +52,7 @@ Transition: the tent half-collapses, canvas tearing into flame at the edges; it 
 
 **Defeat:** the whole tent deflates and collapses into a smoking heap of striped canvas; a Boss Chest tips out of the wreck. **Unlocks:** Ride Operator progress / Carnival-pedia entry.
 
-> **Implemented (M3, programmer art):** curated subset — P1 Tent-Pole Stomp + Concession Spew · P2 Inhale + Popcorn Exhale (+ Stomp) · P3 Frenzy Stomp + Clown Call. Defeat drops the guaranteed chest (opens a draft pick) + a ticket burst. Pennant Flap, Stake Drop, the always-on rotating pole, and Ring of Fire are deferred (the data-driven `BossAttack` framework makes them cheap to add).
+> **Implemented (M3, programmer art):** the tent stands **dormant at map center from run start** (the reveal: this scenery *is* the boss) and **wakes at the 6:00 gate** (warning → comes alive). Once awake it **slowly roams toward the player** (speed below the player's, stops at ~340 px to cast) — looming pressure, never a lunge — instead of a walled arena. Curated subset — P1 Tent-Pole Stomp + Concession Spew · P2 Inhale + Popcorn Exhale (+ Stomp) · P3 Frenzy Stomp + Clown Call. Defeat drops the guaranteed chest (opens a draft pick) + a ticket burst. Pennant Flap, Stake Drop, the always-on rotating pole, and Ring of Fire are deferred (the data-driven `BossAttack` framework makes them cheap to add).
 
 ---
 

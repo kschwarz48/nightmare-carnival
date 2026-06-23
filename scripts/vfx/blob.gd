@@ -3,7 +3,7 @@ extends Node2D
 ## Programmer-art visual (M1). A self-drawing colored shape that stands in for
 ## final SpriteFrames. Supports FlashComponent via set_flash(). Replaced at M6.
 
-enum Shape { CIRCLE, SQUARE, DIAMOND }
+enum Shape { CIRCLE, SQUARE, DIAMOND, TENT }
 
 @export var color: Color = Color.WHITE
 @export var radius: float = 12.0
@@ -39,6 +39,16 @@ func _draw() -> void:
 				Vector2(0, radius), Vector2(-radius, 0),
 			])
 			draw_colored_polygon(pts, c)
+		Shape.TENT:
+			# A big-top silhouette: triangle roof + center pole + base line.
+			var w := radius * 1.15
+			var roof := PackedVector2Array([
+				Vector2(0, -radius), Vector2(w, radius * 0.6), Vector2(-w, radius * 0.6),
+			])
+			draw_colored_polygon(roof, c)
+			if outline:
+				draw_polyline(PackedVector2Array([roof[0], roof[1], roof[2], roof[0]]), outline_color, 3.0)
+				draw_line(Vector2(0, -radius), Vector2(0, radius * 0.6), outline_color, 2.0)
 		_:
 			draw_circle(Vector2.ZERO, radius, c)
 			if outline:

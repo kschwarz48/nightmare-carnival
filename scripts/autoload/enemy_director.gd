@@ -7,7 +7,6 @@ const ENEMY_SCENE := preload("res://scenes/enemies/enemy.tscn")
 @export var spawn_margin: float = 80.0
 
 var waves: Array[WaveData] = []
-var boss_gates: Array = []                # [{ "time": 360.0, "boss": BossData, "fired": false }, ...]
 
 var _interval_accum: float = 0.0
 var _swarm_accum: float = 0.0
@@ -25,11 +24,11 @@ func start() -> void:
 	_current_wave_id = &""
 	_frame = 0
 	_boss_active = false
-	for g in boss_gates:
-		g.fired = false
 	_running = true
 	if not EventBus.enemy_died.is_connected(_on_enemy_died):
 		EventBus.enemy_died.connect(_on_enemy_died)
+	if not EventBus.boss_spawned.is_connected(_on_boss_spawned):
+		EventBus.boss_spawned.connect(_on_boss_spawned)
 	if not EventBus.boss_defeated.is_connected(_on_boss_defeated):
 		EventBus.boss_defeated.connect(_on_boss_defeated)
 
@@ -44,7 +43,8 @@ func _physics_process(_delta: float) -> void:
 		return
 	_frame += 1
 	_hash.rebuild(_active)
-	_check_boss_gates()
+	if _frame % 10 == 0:
+		_cull_offscreen()        # despawn enemies the player has left behind (VS leash)
 	_spawn_step(_delta)
 
 # --- spawning (VS-style wave rules; 03 §7.4) ---
@@ -105,7 +105,7 @@ func _spawn_one(minutes: float, wave: WaveData, force_elite: bool = false) -> bo
 	if ed == null:
 		return false
 	var e := ObjectPool.acquire(ENEMY_SCENE, _enemy_layer()) as Enemy
-	e.global_position = _ring_point()
+	e.global_position = _spawn_point()
 	var elite := ed.can_be_elite and (force_elite or randf() < _elite_chance(minutes))
 	e.configure(ed, _hp_mult(minutes), _dmg_mult(minutes), _spd_mult(minutes), elite)
 	_active.append(e)
@@ -169,13 +169,42 @@ func despawn(e: Node) -> void:
 	GameState.enemies_alive -= 1
 	ObjectPool.release(e)
 
-func _ring_point() -> Vector2:
+## A point in the rectangular band around the player: outside the on-screen rect
+## (½ viewport) out to ~1.5×, clamped to bounds, avoiding stacking on existing
+## enemies (VS-style spawn area + spawn blocking; 03 §7).
+func _spawn_point() -> Vector2:
 	var center: Vector2 = GameState.player.global_position
-	var view := get_viewport().get_visible_rect().size
-	var radius := view.length() * 0.5 + spawn_margin
-	var angle := randf() * TAU
-	var pt := center + Vector2.from_angle(angle) * radius
-	return pt.clamp(MapBounds.min_pos, MapBounds.max_pos)
+	var half := get_viewport().get_visible_rect().size * 0.5
+	var outer := half * 1.5
+	for _attempt in 8:
+		var pt := center + Vector2(randf_range(-outer.x, outer.x), randf_range(-outer.y, outer.y))
+		# Keep it off-screen (outside the inner on-screen rect).
+		if absf(pt.x - center.x) < half.x and absf(pt.y - center.y) < half.y:
+			continue
+		pt = pt.clamp(MapBounds.min_pos, MapBounds.max_pos)
+		if not _blocked(pt):
+			return pt
+	# Fallback: just off the right edge.
+	return (center + Vector2(half.x + spawn_margin, randf_range(-half.y, half.y))).clamp(MapBounds.min_pos, MapBounds.max_pos)
+
+## True if an enemy is already very close to pt (don't spawn on top of one).
+func _blocked(pt: Vector2) -> bool:
+	for e in _hash.query(pt):
+		if is_instance_valid(e) and pt.distance_squared_to(e.global_position) < 28.0 * 28.0:
+			return true
+	return false
+
+## Despawn normal enemies the player has left behind — outside ~1.7× the viewport
+## half-rect around the player (VS leash; bosses aren't in _active so they stay).
+func _cull_offscreen() -> void:
+	var center: Vector2 = GameState.player.global_position
+	var limit := get_viewport().get_visible_rect().size * 0.5 * 1.7
+	for e in _active.duplicate():
+		if not is_instance_valid(e):
+			continue
+		var off: Vector2 = (e.global_position - center).abs()
+		if off.x > limit.x or off.y > limit.y:
+			despawn(e)
 
 func _pick_enemy(wave: WaveData) -> EnemyData:
 	var entries := wave.weighted_enemies()
@@ -206,27 +235,10 @@ func _cap() -> int:
 	return GameState.difficulty.max_alive
 
 # --- bosses (08 §17, 03 §8) ---
-func _check_boss_gates() -> void:
-	if _boss_active:
-		return
-	var t := GameState.run_time
-	for g in boss_gates:
-		if not g.fired and t >= g.time and g.boss != null:
-			g.fired = true
-			_boss_active = true        # pause ambient now, through the warning + fight
-			_begin_boss(g.boss)
-
-## Warning beat, then spawn the boss (it repositions itself into its arena).
-func _begin_boss(bdata: BossData) -> void:
-	EventBus.boss_warning.emit(bdata.display_name)
-	await get_tree().create_timer(2.0).timeout
-	if not _running or not is_instance_valid(GameState.player):
-		return
-	var boss := bdata.scene.instantiate() as Boss
-	boss.global_position = GameState.player.global_position
-	_enemy_layer().add_child(boss)
-	boss.configure(bdata)
-	EventBus.boss_spawned.emit(boss, bdata)
+# The boss is placed dormant at run start and self-activates at its gate; the
+# director only pauses/resumes ambient waves around it.
+func _on_boss_spawned(_boss: Node, _bdata: Resource) -> void:
+	_boss_active = true                 # set-piece: ambient spawns pause
 
 func _on_boss_defeated(_boss: Node, _bdata: Resource) -> void:
 	GameState.bosses_killed += 1

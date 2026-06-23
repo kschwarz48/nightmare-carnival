@@ -1,8 +1,10 @@
 class_name Boss
 extends CharacterBody2D
-## Boss phase machine (08 §17), programmer-art flavour. Reuses the actor stack;
-## a Blob stands in for the AnimatedSprite2D and tweens stand in for intro/phase
-## anims. Subclasses override _build_phases() (and optionally the arena hooks).
+## Boss phase machine (08 §17), programmer-art flavour. The boss is placed
+## DORMANT (invulnerable scenery) at run start and wakes at its gate time, then
+## slowly roams toward the player, stopping at range to cast. No physical body
+## collision (layer/mask 0) so trash never piles on it; it's hit via its hurtbox
+## and deals contact via its hitbox.
 
 @onready var visual: Blob = $Visual
 @onready var health: HealthComponent = $HealthComponent
@@ -14,60 +16,82 @@ var data: BossData
 var phases: Array[BossPhase] = []
 var _phase_index: int = 0
 var _last_attack: BossAttack
-var _busy: bool = true            # gates the attack loop (true during intro/transition)
+var _active: bool = false          # dormant scenery until the gate
+var _intro_done: bool = false
+var _busy: bool = false            # gates the attack loop (one attack at a time)
+var _casting: bool = false         # true during telegraph->execute (holds movement)
 var _enrage_t: float = 0.0
 var _alive: bool = true
 
 func _ready() -> void:
-	collision_layer = CollisionLayers.ENEMY
-	collision_mask = CollisionLayers.WORLD
+	# No physical collision: enemies don't stick to it, it phases freely.
+	collision_layer = 0
+	collision_mask = 0
 	hurtbox.health_component = health
 
-## Called by the director after the scene is added to the tree.
-func configure(p_data: BossData) -> void:
+## Placed dormant at run start (game.gd). Looks like the boss but can't be hurt
+## and does nothing until gate_time.
+func setup(p_data: BossData) -> void:
 	data = p_data
-	visual.configure(p_data.color, p_data.radius, Blob.Shape.SQUARE)
+	visual.configure(p_data.color, p_data.radius, Blob.Shape.TENT)
 	visual.outline = true
 	visual.outline_color = Color(1.0, 0.9, 0.3)
 	health.armor = 0.0
 	health.set_max_health(p_data.max_health * GameState.difficulty.hp_mult)
 	hitbox.damage = p_data.contact_damage
-	hurtbox.monitoring = false
-	hurtbox.monitorable = true
-	hitbox.monitoring = true
-	health.damaged.connect(flash.flash)
-	health.health_changed.connect(_on_health_changed)
-	health.died.connect(_on_died)
+	hurtbox.set_deferred(&"monitorable", false)   # invulnerable while dormant
+	hurtbox.set_deferred(&"monitoring", false)
+	hitbox.set_deferred(&"monitoring", false)      # no contact damage while dormant
 	_enrage_t = p_data.soft_enrage_time
-	phases = _build_phases()
-	_on_spawn()
-	_run_intro()
-
-# --- overridable hooks ---
-func _build_phases() -> Array[BossPhase]:
-	return []
-
-func _on_spawn() -> void:
-	pass
-
-func _on_despawn() -> void:
-	pass
-
-func _run_intro() -> void:
-	_busy = true
-	var base_scale: Vector2 = visual.scale
-	visual.scale = base_scale * 0.2
-	var tw := create_tween()
-	tw.tween_property(visual, "scale", base_scale, 0.7).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	await tw.finished
-	_busy = false
 
 func _physics_process(delta: float) -> void:
 	if GameState.is_paused or not _alive:
 		return
+	if not _active:
+		if GameState.is_running and GameState.run_time >= data.gate_time:
+			_active = true
+			_awaken()
+		return
 	_enrage_t -= delta
-	if not _busy:
+	_update_movement()
+	if _intro_done and not _busy:
 		_do_attack_loop()
+
+## Warning beat, then the tent comes to life: vulnerable, armed, hunting.
+func _awaken() -> void:
+	EventBus.boss_warning.emit(data.display_name)
+	await get_tree().create_timer(2.0).timeout
+	if not is_instance_valid(self) or not _alive:
+		return
+	hurtbox.set_deferred(&"monitorable", true)
+	hitbox.set_deferred(&"monitoring", true)
+	health.damaged.connect(flash.flash)
+	health.health_changed.connect(_on_health_changed)
+	health.died.connect(_on_died)
+	phases = _build_phases()
+	EventBus.boss_spawned.emit(self, data)
+	# Rise/shake intro.
+	var base_scale: Vector2 = visual.scale
+	visual.scale = base_scale * 0.8
+	var tw := create_tween()
+	tw.tween_property(visual, "scale", base_scale, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	await tw.finished
+	_intro_done = true
+
+func _update_movement() -> void:
+	if _casting or not _intro_done or not is_instance_valid(GameState.player):
+		velocity = Vector2.ZERO
+		return
+	var to := GameState.player.global_position - global_position
+	if to.length() > data.preferred_distance:
+		velocity = to.normalized() * data.move_speed
+		move_and_slide()
+	else:
+		velocity = Vector2.ZERO
+
+# --- overridable ---
+func _build_phases() -> Array[BossPhase]:
+	return []
 
 func _do_attack_loop() -> void:
 	_busy = true
@@ -80,9 +104,11 @@ func _do_attack_loop() -> void:
 	var lead := atk.lead_time
 	if _enrage_t <= 0.0:
 		lead *= 0.7                        # Encore: faster telegraphs
+	_casting = true
 	await atk.telegraph(self, lead)
 	if not _alive: return
 	await atk.execute(self)
+	_casting = false                       # may reposition during the cooldown
 	if not _alive: return
 	await get_tree().create_timer(maxf(0.2, atk.cooldown)).timeout
 	_busy = false
@@ -96,12 +122,14 @@ func _on_health_changed(current: float, maximum: float) -> void:
 func _transition_to(index: int) -> void:
 	_phase_index = index
 	_busy = true
+	_casting = true
 	health.invincible = true
 	visual.set_flash(1.0, Color(1, 1, 1))
 	await get_tree().create_timer(0.6).timeout
 	if not _alive: return
 	visual.set_flash(0.0)
 	health.invincible = false
+	_casting = false
 	_busy = false
 
 func _on_died(_info: DamageInfo) -> void:
@@ -111,10 +139,8 @@ func _on_died(_info: DamageInfo) -> void:
 	set_physics_process(false)
 	hurtbox.set_deferred(&"monitorable", false)
 	hitbox.set_deferred(&"monitoring", false)
-	_on_despawn()
 	EventBus.boss_defeated.emit(self, data)
 	_drop_reward()
-	# Quick deflate, then free (the attack coroutine bails on _alive == false).
 	var tw := create_tween()
 	tw.tween_property(visual, "scale", Vector2.ZERO, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	await tw.finished

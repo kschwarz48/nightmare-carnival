@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://dchest0pickup01"]
+[gd_scene format=3 uid="uid://c34nn0jk8m0vk"]
 
 [ext_resource type="Script" path="res://scripts/pickups/chest.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/vfx/blob.gd" id="2"]

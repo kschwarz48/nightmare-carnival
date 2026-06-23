@@ -10,8 +10,11 @@ var _life: float = 0.0
 
 func setup(enemy: Enemy) -> void:
 	_life = 0.0
-	# Sweep cleanly through the crowd — collide only with the world.
-	enemy.collision_mask = CollisionLayers.WORLD
+	# No body collision at all: layer 0 so the fast swarm doesn't shove the crowd
+	# along with it, mask 0 so it never snags on geometry. Its hurtbox/hitbox
+	# Area2Ds are separate, so it's still killable and still deals contact.
+	enemy.collision_layer = 0
+	enemy.collision_mask = 0
 
 func physics_update(enemy: Enemy, delta: float) -> void:
 	_life += delta

@@ -56,7 +56,8 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 	hitbox.monitoring = true
 
 	# Reset body collision each spawn (pooled reuse), then let the behavior tweak
-	# it (flyby disables enemy-enemy collision so its sweep passes through).
+	# it (flyby zeroes layer+mask so its sweep passes cleanly through the crowd).
+	collision_layer = CollisionLayers.ENEMY
 	collision_mask = CollisionLayers.WORLD | CollisionLayers.ENEMY
 
 	_behavior = EnemyBehavior.create(p_data.behavior)
