@@ -74,12 +74,12 @@ A staged plan from empty project to shippable game, ordered so the game is **fun
 **Goal:** a real run shape — timed waves, scaling, and a climactic boss in an actual map.
 
 **Tasks**
-- [ ] `EnemyDirector` full: `WaveData` tables, `DifficultyData` scaling, elite spawns, boss gates (`08 §13`, `03 §7`).
-- [ ] Author the **Carnival Core** zone (`world.tscn`): TileMapLayer ground, `StaticBody2D` obstacles/chokepoints, `CanvasModulate` + a few lights, `MapBounds`, Y-sort, camera limits (`03 §9`, `02 §3`).
-- [ ] Boss framework: `Boss`, `BossPhase`, `BossAttack`, `BossData` (`08 §17`).
-- [ ] Implement **The Carnival Tent** (3 phases, its attacks, soft arena, defeat → chest) (`05`).
-- [ ] Boss-incoming flow: pause ambient spawns, warning, intro; boss bar UI.
-- [ ] Chest pickup → grants an upgrade (`03 §6`).
+- [x] `EnemyDirector` full: `WaveData` tables, `DifficultyData` scaling, elite spawns, boss gates (`08 §13`, `03 §7`).
+- [x] Author the **Carnival Core** zone (`world.tscn`): `StaticBody2D` obstacles/chokepoints (3 labeled gates), `CanvasModulate` + a few `PointLight2D`, `MapBounds`, Y-sort, camera limits (`03 §9`, `02 §3`). *(Ground is a programmer-art grid; real TileMapLayer tile art is the one item left to the M6 art pass.)*
+- [x] Boss framework: `Boss`, `BossPhase`, `BossAttack`, `BossData` (`08 §17`).
+- [x] Implement **The Carnival Tent** (3 phases, its attacks, defeat → chest) (`05`). *(Roams + leashes the player instead of a hard soft-wall arena — same set-piece pressure, fewer pathing issues.)*
+- [x] Boss-incoming flow: pause ambient spawns, warning, intro; boss bar UI.
+- [x] Chest pickup → grants an upgrade (`03 §6`).
 
 **Exit criteria:** a 6-minute run that scales, spawns elites, and ends in the Tent fight with a reward.
 

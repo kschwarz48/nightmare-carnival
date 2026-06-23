@@ -11,9 +11,11 @@ script = ExtResource("1")
 [node name="World" parent="." unique_id=576304946 instance=ExtResource("2")]
 
 [node name="ActorLayer" type="Node2D" parent="." unique_id=2119870421]
+y_sort_enabled = true
 
 [node name="EnemyLayer" type="Node2D" parent="." unique_id=1410410140]
 unique_name_in_owner = true
+y_sort_enabled = true
 
 [node name="ProjectileLayer" type="Node2D" parent="." unique_id=366823974]
 unique_name_in_owner = true

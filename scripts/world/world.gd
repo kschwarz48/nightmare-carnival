@@ -57,7 +57,41 @@ func _ready() -> void:
 			add_child(body)
 		if el.label != "":
 			_add_label(el.label, r)
+	_add_lights()
 	queue_redraw()
+
+## A few warm light pools at attractions (03 §9, 02 §3) — programmer-art mood on
+## top of the CanvasModulate night tint. Full lighting pass is M6.
+func _add_lights() -> void:
+	var tex := _radial_light_texture()
+	var lights := [
+		[Vector2(0, 0), Color(1.0, 0.92, 0.75), 1.0, 7.0],        # Big Top
+		[Vector2(-1000, -160), Color(1.0, 0.7, 0.5), 0.9, 5.0],   # Carousel
+		[Vector2(1080, 330), Color(0.7, 0.85, 1.0), 0.8, 4.5],    # Ticket Booth
+		[Vector2(550, 950), Color(1.0, 0.8, 0.5), 0.8, 4.5],      # Stalls
+		[Vector2(-1200, 660), Color(1.0, 0.6, 0.8), 0.8, 4.0],    # Prize Stand
+	]
+	for spec in lights:
+		var l := PointLight2D.new()
+		l.texture = tex
+		l.position = spec[0]
+		l.color = spec[1]
+		l.energy = spec[2]
+		l.texture_scale = spec[3]
+		add_child(l)
+
+func _radial_light_texture() -> GradientTexture2D:
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.width = 256
+	t.height = 256
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(1.0, 0.5)
+	return t
 
 func _add_label(text: String, r: Rect2) -> void:
 	var lbl := Label.new()
