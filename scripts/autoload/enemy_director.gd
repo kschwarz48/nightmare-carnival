@@ -16,6 +16,7 @@ var _active: Array = []                   # active enemies (hash + cap + queries
 var _hash := SpatialHash.new()
 var _frame: int = 0
 var _running: bool = false
+var _boss_active: bool = false            # pauses ambient spawns during a set-piece boss
 
 func start() -> void:
 	_active.clear()
@@ -23,6 +24,7 @@ func start() -> void:
 	_swarm_accum = 0.0
 	_current_wave_id = &""
 	_frame = 0
+	_boss_active = false
 	for g in boss_gates:
 		g.fired = false
 	_running = true
@@ -47,6 +49,8 @@ func _physics_process(_delta: float) -> void:
 
 # --- spawning (VS-style wave rules; 03 §7.4) ---
 func _spawn_step(delta: float) -> void:
+	if _boss_active:
+		return                       # set-piece boss: ambient spawns pause (03 §8)
 	var wave := _active_wave()
 	if wave == null:
 		return
@@ -135,6 +139,16 @@ func _spawn_swarm(wave: WaveData, minutes: float) -> void:
 		e.set_meta(&"flyby_dir", dir)
 		_active.append(e)
 
+## Spawn a single add at a position (boss summons — Concession Spew, Clown Call).
+func spawn_add(ed: EnemyData, pos: Vector2, elite: bool = false) -> void:
+	if ed == null or _active.size() >= _cap():
+		return
+	var minutes := GameState.run_minutes()
+	var e := ObjectPool.acquire(ENEMY_SCENE, _enemy_layer()) as Enemy
+	e.global_position = pos.clamp(MapBounds.min_pos, MapBounds.max_pos)
+	e.configure(ed, _hp_mult(minutes), _dmg_mult(minutes), _spd_mult(minutes), elite and ed.can_be_elite)
+	_active.append(e)
+
 ## True once `pos` has exited the screen edge in its travel direction.
 func past_screen(pos: Vector2, dir: Vector2, margin: float = 120.0) -> bool:
 	if GameState.player == null:
@@ -191,16 +205,32 @@ func _elite_chance(minutes: float) -> float:
 func _cap() -> int:
 	return GameState.difficulty.max_alive
 
-# --- bosses (gates only in M1; framework lands at M3) ---
+# --- bosses (08 §17, 03 §8) ---
 func _check_boss_gates() -> void:
+	if _boss_active:
+		return
 	var t := GameState.run_time
 	for g in boss_gates:
-		if not g.fired and t >= g.time:
+		if not g.fired and t >= g.time and g.boss != null:
 			g.fired = true
-			# Boss spawn implemented at M3.
+			_boss_active = true        # pause ambient now, through the warning + fight
+			_begin_boss(g.boss)
+
+## Warning beat, then spawn the boss (it repositions itself into its arena).
+func _begin_boss(bdata: BossData) -> void:
+	EventBus.boss_warning.emit(bdata.display_name)
+	await get_tree().create_timer(2.0).timeout
+	if not _running or not is_instance_valid(GameState.player):
+		return
+	var boss := bdata.scene.instantiate() as Boss
+	boss.global_position = GameState.player.global_position
+	_enemy_layer().add_child(boss)
+	boss.configure(bdata)
+	EventBus.boss_spawned.emit(boss, bdata)
 
 func _on_boss_defeated(_boss: Node, _bdata: Resource) -> void:
 	GameState.bosses_killed += 1
+	_boss_active = false               # resume ambient waves
 
 # --- separation service (called by enemies, throttled) ---
 func separation_for(enemy: Enemy) -> Vector2:

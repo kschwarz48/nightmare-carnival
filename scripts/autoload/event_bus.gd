@@ -5,6 +5,7 @@ extends Node
 # --- combat ---
 signal enemy_died(enemy: Node, position: Vector2)
 signal enemy_spawned(enemy: Node)
+signal boss_warning(display_name: String)
 signal boss_spawned(boss: Node, boss_data: Resource)
 signal boss_defeated(boss: Node, boss_data: Resource)
 signal player_damaged(amount: float, current_hp: float)

@@ -22,6 +22,9 @@ var passive_levels: Dictionary = {}
 ## passive id -> PassiveData (so the HUD loadout can show names).
 var owned_passives: Dictionary = {}
 
+## External force applied on top of input (e.g. the Tent boss's Inhale pull).
+var external_pull: Vector2 = Vector2.ZERO
+
 var _regen_accum: float = 0.0
 
 func _ready() -> void:
@@ -52,7 +55,7 @@ func _physics_process(delta: float) -> void:
 	if GameState.is_paused:
 		return
 	var dir := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
-	velocity = dir * stats.move_speed()
+	velocity = dir * stats.move_speed() + external_pull
 	move_and_slide()
 	_handle_regen(delta)
 

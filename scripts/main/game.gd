@@ -14,6 +14,11 @@ const EXPLOSION_SCENE := preload("res://scenes/weapons/explosion.tscn")
 const RING_SCENE := preload("res://scenes/weapons/projectiles/ring.tscn")
 const MELEE_ARC_SCENE := preload("res://scenes/weapons/melee_arc.tscn")
 const FOOD_SCENE := preload("res://scenes/pickups/food_pickup.tscn")
+const CARNIVAL_TENT := preload("res://resources/bosses/carnival_tent.tres")
+const TELEGRAPH_SCENE := preload("res://scenes/vfx/telegraph_circle.tscn")
+const SHOCKWAVE_SCENE := preload("res://scenes/bosses/shockwave.tscn")
+const POPCORN_SCENE := preload("res://scenes/bosses/popcorn.tscn")
+const CHEST_SCENE := preload("res://scenes/pickups/chest.tscn")
 
 @export var character_id: StringName = &"the_carny"
 @export var difficulty_id: StringName = &"midway"
@@ -45,7 +50,9 @@ func _ready() -> void:
 	player.global_position = MapBounds.center()
 
 	EnemyDirector.waves = ContentDB.all_waves()
-	EnemyDirector.boss_gates = []
+	EnemyDirector.boss_gates = [
+		{ "time": 360.0, "boss": CARNIVAL_TENT, "fired": false },
+	]
 	EnemyDirector.start()
 
 func _process(delta: float) -> void:
@@ -82,3 +89,7 @@ func _prewarm() -> void:
 	ObjectPool.prewarm(RING_SCENE, 24)
 	ObjectPool.prewarm(MELEE_ARC_SCENE, 12)
 	ObjectPool.prewarm(FOOD_SCENE, 6)
+	ObjectPool.prewarm(TELEGRAPH_SCENE, 16)
+	ObjectPool.prewarm(SHOCKWAVE_SCENE, 12)
+	ObjectPool.prewarm(POPCORN_SCENE, 40)
+	ObjectPool.prewarm(CHEST_SCENE, 2)

@@ -85,6 +85,8 @@ A staged plan from empty project to shippable game, ordered so the game is **fun
 
 **Verify:** the Tent's telegraphs are readable and dodgeable; phase transitions fire at the right HP; director caps hold; play the full 0:00→6:00→Tent arc.
 
+> **Implemented (programmer-art pass):** boss framework (`Boss`/`BossPhase`/`BossAttack`/`BossData`), the **Carnival Tent** with a curated 2-attacks-per-phase moveset (P1 Stomp+Spew · P2 Inhale+Popcorn Exhale · P3 Frenzy Stomp+Clown Call), director boss-gate flow (warning → spawn → **ambient paused** → defeat resumes), boss bar + warning banner, guaranteed **chest** (opens a draft pick) + ticket burst, and a **minimal arena** (grid floor + obstacle blocks + boss-spawned soft-wall arena). Deferred: remaining Tent attacks (Pennant Flap, Stake Drop, rotating pole, Ring of Fire), real TileMapLayer/lighting (M6), and bosses 2–4 (M5).
+
 ---
 
 ## Milestone 4 — Meta loop & run lifecycle

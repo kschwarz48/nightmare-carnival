@@ -192,7 +192,7 @@ Bosses interrupt the normal flow at their time gates:
 1. Director **pauses new normal spawns** and plays a warning (music shift, banner, screen darken-and-spotlight).
 2. The boss enters with an **intro animation** from the appropriate part of the map.
 3. **Arena handling differs by boss** (full designs in `05_boss_bible.md`):
-   - **Carnival Tent & Puppet King** are *set-piece* fights: a soft arena forms (tent canvas walls / string-light ring) loosely confining the player to the Carnival Core for the duration. Add-spawns are part of the fight.
+   - **Carnival Tent & Puppet King** are *set-piece* fights: a soft arena forms (tent canvas walls / string-light ring) loosely confining the player to the Carnival Core for the duration. Add-spawns are part of the fight. *(Implemented for the Tent: the boss spawns 4 temporary `StaticBody2D` soft-walls around the player on entry and frees them on defeat; the director pauses ambient waves for the duration.)*
    - **Ferris Wheel & Ringmaster** are *roaming* fights across the open map — they chase/relocate; the whole map is the arena.
 4. On defeat: boss death spectacle, **guaranteed chest** (weapon/evolution), big Ticket burst, brief calm, then the next Act's spawn table engages.
 

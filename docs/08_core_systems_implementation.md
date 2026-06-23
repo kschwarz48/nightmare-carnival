@@ -1350,6 +1350,8 @@ Spawn them by listening to `HealthComponent.damaged` on enemies (wire in `enemy.
 
 Bosses reuse the actor stack (Health/Hurtbox/Hitbox/Flash) and add a **phase state machine** whose phases hold **attack pools**. Attacks are objects with `telegraph()`/`execute()` so adding one is data-like.
 
+> **Implemented (M3, programmer art):** `Boss` uses a `Blob` (not `AnimatedSprite2D`) and a tween for the intro/phase-transition (brief invuln flash) instead of anims. `_build_phases()` is overridden per-boss in code (`tent_boss.gd`). `telegraph(boss, lead)` takes the enrage-adjusted lead (no compounding). Boss attack hazards live on layer `ENEMY_ATTACK` / mask `PLAYER_HURTBOX` — `shockwave.gd` is the `Explosion` pattern with flipped layers; telegraphs are the pooled `telegraph_circle.gd`. The director (08 §13) owns the gate flow: emit `boss_warning`, pause ambient (`_boss_active`), spawn + `configure`, emit `boss_spawned`; on `boss_defeated` resume. Boss summons go through `EnemyDirector.spawn_add()`.
+
 ```gdscript
 # scripts/bosses/boss_attack.gd
 class_name BossAttack
