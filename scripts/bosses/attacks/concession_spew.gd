@@ -1,5 +1,6 @@
 extends BossAttack
-## Concession Spew (05 P1): the maw spits a few weak adds near the player.
+## Concession Spew (05 P1): the maw SPITS a few weak adds out of the tent — they
+## emerge at the boss and then chase, so they're never dumped on top of the player.
 
 const BALLOON := preload("res://resources/enemies/living_balloon.tres")
 const STUFFIE := preload("res://resources/enemies/possessed_stuffie.tres")
@@ -11,7 +12,6 @@ func _init() -> void:
 	lead_time = 0.7
 
 func execute(boss) -> void:
-	var center: Vector2 = GameState.player.global_position if is_instance_valid(GameState.player) else boss.global_position
 	for i in COUNT:
 		var ed: EnemyData = BALLOON if randf() < 0.7 else STUFFIE
-		EnemyDirector.spawn_add(ed, center + Vector2.from_angle(randf() * TAU) * randf_range(80.0, 220.0))
+		EnemyDirector.spawn_add(ed, boss.global_position + Vector2.from_angle(randf() * TAU) * randf_range(50.0, 130.0))

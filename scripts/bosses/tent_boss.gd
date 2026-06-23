@@ -10,12 +10,13 @@ func _build_phases() -> Array[BossPhase]:
 		preload("res://scripts/bosses/attacks/tent_stomp.gd").new(),
 		preload("res://scripts/bosses/attacks/concession_spew.gd").new(),
 	]
+	# Phase 2 is the suck-in phase: NO stomp here — you can't dodge a pole slam
+	# while being pulled toward the maw. Just Inhale + Popcorn Exhale.
 	var p2 := BossPhase.new()
 	p2.hp_threshold = 0.6
 	p2.attacks = [
 		preload("res://scripts/bosses/attacks/inhale.gd").new(),
 		preload("res://scripts/bosses/attacks/popcorn_exhale.gd").new(),
-		preload("res://scripts/bosses/attacks/tent_stomp.gd").new(),
 	]
 	var p3 := BossPhase.new()
 	p3.hp_threshold = 0.3
