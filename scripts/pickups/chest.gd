@@ -17,6 +17,11 @@ func magnetize() -> void:
 	if _opened:
 		return
 	_opened = true
+	# magnetize() is called from the player magnet's area_entered (a query flush) —
+	# defer the draft open + pool release out of the callback.
+	call_deferred(&"_open")
+
+func _open() -> void:
 	EventBus.player_leveled_up.emit(0)      # opens the draft for a free pick
 	AudioManager.play_sfx(&"chest")
 	ObjectPool.release(self)

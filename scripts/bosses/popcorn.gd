@@ -35,8 +35,9 @@ func _on_area_entered(a: Area2D) -> void:
 		_despawn()
 
 func _despawn() -> void:
+	# Can fire from _on_area_entered (hit) — defer the flag change + release.
 	set_deferred(&"monitoring", false)
-	ObjectPool.release(self)
+	ObjectPool.call_deferred(&"release", self)
 
 func _on_acquired() -> void:
 	set_physics_process(true)

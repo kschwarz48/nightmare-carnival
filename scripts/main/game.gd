@@ -47,7 +47,8 @@ func _ready() -> void:
 	var player: Player = PLAYER_SCENE.instantiate()
 	player.character_data = character
 	actor_layer.add_child(player)
-	player.global_position = MapBounds.center()
+	# Offset from center so the player doesn't start under the dormant tent.
+	player.global_position = MapBounds.center() + Vector2(0, 700)
 
 	EnemyDirector.waves = ContentDB.all_waves()
 	EnemyDirector.start()

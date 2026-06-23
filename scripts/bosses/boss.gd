@@ -140,18 +140,22 @@ func _on_died(_info: DamageInfo) -> void:
 	hurtbox.set_deferred(&"monitorable", false)
 	hitbox.set_deferred(&"monitoring", false)
 	EventBus.boss_defeated.emit(self, data)
-	_drop_reward()
+	# Runs inside the killing weapon's hit callback — defer the pool spawns.
+	call_deferred(&"_drop_reward", global_position)
 	var tw := create_tween()
 	tw.tween_property(visual, "scale", Vector2.ZERO, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
 	await tw.finished
 	queue_free()
 
 ## Guaranteed boss chest + a ticket burst (03 §6, 05 shared rules).
-func _drop_reward() -> void:
-	var chest := ObjectPool.acquire(preload("res://scenes/pickups/chest.tscn"), get_parent())
-	chest.global_position = global_position
+func _drop_reward(at: Vector2) -> void:
+	var layer := get_parent()
+	if layer == null:
+		return
+	var chest := ObjectPool.acquire(preload("res://scenes/pickups/chest.tscn"), layer)
+	chest.global_position = at
 	var gem_scene := preload("res://scenes/pickups/ticket_gem.tscn")
 	for i in 12:
-		var gem := ObjectPool.acquire(gem_scene, get_parent())
-		gem.global_position = global_position + Vector2.from_angle(randf() * TAU) * randf_range(20.0, 90.0)
+		var gem := ObjectPool.acquire(gem_scene, layer)
+		gem.global_position = at + Vector2.from_angle(randf() * TAU) * randf_range(20.0, 90.0)
 		gem.call(&"set_value", 5)

@@ -89,20 +89,31 @@ func _on_damaged(info: DamageInfo) -> void:
 		AudioManager.play_sfx(data.hit_sfx)
 
 func _on_died(_info: DamageInfo) -> void:
+	# Runs inside a hit callback (a projectile/AoE area_entered flush). Stop further
+	# hits now, but DEFER the spawns + pool release out of the callback (Godot
+	# forbids add_child/remove_child/monitoring changes during a query flush).
+	if hurtbox:
+		hurtbox.set_deferred(&"monitorable", false)
+	if hitbox:
+		hitbox.set_deferred(&"monitoring", false)
+	set_physics_process(false)
+	call_deferred(&"_finish_death", global_position)
+
+func _finish_death(at: Vector2) -> void:
 	GameState.enemies_alive -= 1
 	GameState.enemies_killed += 1
-	_drop_tickets()
+	_drop_tickets(at)
 	if data and data.death_vfx:
 		var vfx := ObjectPool.acquire(data.death_vfx, get_parent())
-		vfx.global_position = global_position
+		vfx.global_position = at
 	if data and data.death_sfx != &"":
 		AudioManager.play_sfx(data.death_sfx)
-	EventBus.enemy_died.emit(self, global_position)
+	EventBus.enemy_died.emit(self, at)
 	ObjectPool.release(self)
 
-func _drop_tickets() -> void:
+func _drop_tickets(at: Vector2) -> void:
 	var gem := ObjectPool.acquire(TICKET_SCENE, get_parent())
-	gem.global_position = global_position
+	gem.global_position = at
 	gem.call(&"set_value", data.ticket_value)
 
 # Pool hooks. NOTE: prewarm() calls _on_released() before the node ever enters
