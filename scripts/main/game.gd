@@ -23,11 +23,11 @@ const CHEST_SCENE := preload("res://scenes/pickups/chest.tscn")
 @export var character_id: StringName = &"the_carny"
 @export var difficulty_id: StringName = &"midway"
 
-# --- rare food (heal) spawning (03 §6) ---
-## Roll cadence and per-roll chance (kept very low — food is a clutch lifeline,
-## not a steady drip). ~one roll every interval; expected one per ~interval/chance s.
-@export var food_roll_interval: float = 5.0
-@export var food_spawn_chance: float = 0.02
+# --- food (heal) spawning (03 §6) ---
+## Guaranteed on a randomized interval (not a flat per-roll chance, which gave
+## all-or-nothing variance) — a steady-but-occasional lifeline you actually see.
+@export var food_interval_min: float = 70.0
+@export var food_interval_max: float = 110.0
 ## Spawn relative to the player so it's on-screen and visible, never on top of them.
 @export var food_min_dist: float = 200.0
 @export var food_max_dist: float = 470.0
@@ -35,7 +35,7 @@ const CHEST_SCENE := preload("res://scenes/pickups/chest.tscn")
 @onready var actor_layer: Node = $ActorLayer
 @onready var pickup_layer: Node = %PickupLayer
 
-var _food_accum: float = 0.0
+var _food_timer: float = 0.0
 
 func _ready() -> void:
 	var character := ContentDB.get_character(character_id)
@@ -59,14 +59,16 @@ func _ready() -> void:
 	(get_node(^"%EnemyLayer")).add_child(tent)
 	tent.setup(CARNIVAL_TENT)
 
+	# First food comes early (so it's clearly working), then settles to cadence.
+	_food_timer = randf_range(30.0, 50.0)
+
 func _process(delta: float) -> void:
 	if not GameState.is_running or GameState.is_paused:
 		return
-	_food_accum += delta
-	while _food_accum >= food_roll_interval:
-		_food_accum -= food_roll_interval
-		if randf() < food_spawn_chance:
-			_spawn_food()
+	_food_timer -= delta
+	if _food_timer <= 0.0:
+		_spawn_food()
+		_food_timer = randf_range(food_interval_min, food_interval_max)
 
 ## Drop a healing pickup at a random spot around the player — on-screen and
 ## clearly visible, but a short walk away so grabbing it is a deliberate choice.
