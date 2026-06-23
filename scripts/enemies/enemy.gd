@@ -10,8 +10,6 @@ extends CharacterBody2D
 @onready var hitbox: HitboxComponent = $HitboxComponent
 @onready var flash: FlashComponent = $FlashComponent
 
-const TICKET_SCENE := preload("res://scenes/pickups/ticket_gem.tscn")
-
 var data: EnemyData
 var move_speed: float = 60.0
 var is_elite: bool = false
@@ -112,9 +110,9 @@ func _finish_death(at: Vector2) -> void:
 	ObjectPool.release(self)
 
 func _drop_tickets(at: Vector2) -> void:
-	var gem := ObjectPool.acquire(TICKET_SCENE, get_parent())
-	gem.global_position = at
-	gem.call(&"set_value", data.ticket_value)
+	# Elites drop a fat (red) gem; GemDirector enforces the ground cap + bank.
+	var value: int = data.ticket_value * (5 if is_elite else 1)
+	GemDirector.drop(value, at, get_parent())
 
 # Pool hooks. NOTE: prewarm() calls _on_released() before the node ever enters
 # the tree, so @onready refs may still be null — guard accordingly.

@@ -9,5 +9,5 @@ display_name = "Midway"
 base_spawn_rate = 1.5
 hp_mult = 1.0
 dmg_mult = 1.0
-max_alive = 180
+max_alive = 280
 greed_bonus = 0.0

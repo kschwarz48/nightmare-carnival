@@ -27,6 +27,7 @@ ContentDB="*res://scripts/autoload/content_db.gd"
 ObjectPool="*res://scripts/autoload/object_pool.gd"
 AudioManager="*res://scripts/autoload/audio_manager.gd"
 EnemyDirector="*res://scripts/autoload/enemy_director.gd"
+GemDirector="*res://scripts/autoload/gem_director.gd"
 
 [display]
 

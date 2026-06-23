@@ -86,9 +86,9 @@ func _exit_tree() -> void:
 	EnemyDirector.stop()
 
 func _prewarm() -> void:
-	ObjectPool.prewarm(ENEMY_SCENE, 200)
+	ObjectPool.prewarm(ENEMY_SCENE, 320)
 	ObjectPool.prewarm(PROJECTILE_SCENE, 120)
-	ObjectPool.prewarm(TICKET_SCENE, 200)
+	ObjectPool.prewarm(TICKET_SCENE, 450)
 	ObjectPool.prewarm(DAMAGE_NUMBER_SCENE, 60)
 	ObjectPool.prewarm(POP_SCENE, 40)
 	ObjectPool.prewarm(FIREWORK_SCENE, 40)

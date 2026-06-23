@@ -102,7 +102,7 @@ Events should mostly create *positional* decisions (go toward the reward and the
 
 ## 6. Pickups, breakables & the shop
 
-- **Tickets (XP):** drop from kills as ticket-stubs; auto-collected within pickup radius (fly to player). Bigger stubs from tougher enemies; Act IV stubs are worth more.
+- **Tickets (XP):** drop from kills as ticket-stubs; auto-collected within pickup radius (fly to player). Bigger stubs from tougher enemies; Act IV stubs are worth more. *Implemented (VS-style):* gem **color is keyed to payout** — blue = 1, green = a few, **red = a lot** (elites drop a fat ×5 red gem). A **400-gem ground cap** (anti-lag): past the cap, new XP is vacuumed into a single accumulating **Red Gem Bank** (`GemDirector`) drawn big and pulsing — collecting it dumps the whole hoard at once, triggering a chain of level-ups. Below the cap, normal gems resume.
 - **Gold:** rarer kill drops + from breakables. Spent at the Intermission Wagon.
 - **Breakables:** popcorn carts, prize stands, crates, pumpkin bins — destroying drops Gold/health/occasional Ticket. Scatter densely along the Boardwalk (Scene Paint Mode). Consistent "breakable" shine so players learn to smash them.
 - **Health pickups:** occasional hot-dog/funnel-cake heals; the only in-run heal besides regen items. *Implemented:* spawned on a **guaranteed randomized interval** (`game.gd` `food_interval_min`/`max`, default 70–110 s, first one ~30–50 s in) — a bright-green pulsing `FoodPickup` (`+20 HP`) at a random spot **relative to the player** (on-screen, a short walk away) that despawns after a window if ignored. (A flat per-roll chance was too swingy — players could go a whole run seeing none.) A clutch lifeline that reliably appears without being a steady drip.
