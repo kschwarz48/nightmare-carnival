@@ -5,6 +5,10 @@ extends Node
 const ENEMY_SCENE := preload("res://scenes/enemies/enemy.tscn")
 
 @export var spawn_margin: float = 80.0
+## On-screen half-extent in world units (≈ half of a 1920×1080 view at zoom 1).
+## Used for the spawn band + despawn leash — a fixed world distance, independent
+## of the actual viewport/zoom (and reliable in headless tests).
+const VIEW_HALF := Vector2(980.0, 560.0)
 
 var waves: Array[WaveData] = []
 
@@ -115,7 +119,7 @@ func _spawn_one(minutes: float, wave: WaveData, force_elite: bool = false) -> bo
 ## straight across the player's band and out the far side (FlybyBehavior).
 func _spawn_swarm(wave: WaveData, minutes: float) -> void:
 	var center: Vector2 = GameState.player.global_position
-	var half: Vector2 = get_viewport().get_visible_rect().size * 0.5
+	var half := VIEW_HALF
 	var dir: Vector2
 	var positions: Array[Vector2] = []
 	if randf() < 0.5:                                  # horizontal sweep
@@ -154,7 +158,7 @@ func past_screen(pos: Vector2, dir: Vector2, margin: float = 120.0) -> bool:
 	if GameState.player == null:
 		return true
 	var center: Vector2 = GameState.player.global_position
-	var half: Vector2 = get_viewport().get_visible_rect().size * 0.5
+	var half := VIEW_HALF
 	if dir.x > 0.1 and pos.x > center.x + half.x + margin: return true
 	if dir.x < -0.1 and pos.x < center.x - half.x - margin: return true
 	if dir.y > 0.1 and pos.y > center.y + half.y + margin: return true
@@ -174,7 +178,7 @@ func despawn(e: Node) -> void:
 ## enemies (VS-style spawn area + spawn blocking; 03 §7).
 func _spawn_point() -> Vector2:
 	var center: Vector2 = GameState.player.global_position
-	var half := get_viewport().get_visible_rect().size * 0.5
+	var half := VIEW_HALF
 	var outer := half * 1.5
 	for _attempt in 8:
 		var pt := center + Vector2(randf_range(-outer.x, outer.x), randf_range(-outer.y, outer.y))
@@ -198,7 +202,7 @@ func _blocked(pt: Vector2) -> bool:
 ## half-rect around the player (VS leash; bosses aren't in _active so they stay).
 func _cull_offscreen() -> void:
 	var center: Vector2 = GameState.player.global_position
-	var limit := get_viewport().get_visible_rect().size * 0.5 * 1.7
+	var limit := VIEW_HALF * 1.7
 	for e in _active.duplicate():
 		if not is_instance_valid(e):
 			continue

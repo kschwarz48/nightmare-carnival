@@ -21,9 +21,10 @@ var _wired: bool = false
 
 func _ready() -> void:
 	collision_layer = CollisionLayers.ENEMY
-	# Collide with the world AND each other (light body collision) so crowds pack
-	# against the player instead of pixel-stacking. Flyby behaviors opt out.
-	collision_mask = CollisionLayers.WORLD | CollisionLayers.ENEMY
+	# VS-style: collide only with EACH OTHER (no perfect overlap → a fluid wall),
+	# but NOT the world — enemies walk straight through obstacles rather than
+	# getting stuck on them (no pathfinding). Flyby behaviors opt out entirely.
+	collision_mask = CollisionLayers.ENEMY
 	hurtbox.health_component = health
 	if not _wired:
 		health.damaged.connect(flash.flash)
@@ -58,7 +59,7 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 	# Reset body collision each spawn (pooled reuse), then let the behavior tweak
 	# it (flyby zeroes layer+mask so its sweep passes cleanly through the crowd).
 	collision_layer = CollisionLayers.ENEMY
-	collision_mask = CollisionLayers.WORLD | CollisionLayers.ENEMY
+	collision_mask = CollisionLayers.ENEMY
 
 	_behavior = EnemyBehavior.create(p_data.behavior)
 	_behavior.setup(self)
@@ -74,6 +75,13 @@ func _physics_process(delta: float) -> void:
 ## Cheap separation: ask the director's spatial hash (throttled, 08 §12-13).
 func separation() -> Vector2:
 	return EnemyDirector.separation_for(self)
+
+## Shared chase movement (03 §3): direct vector seek toward `dir` + cheap
+## separation (no overlap), then move. No pathfinding — VS-style. Enemies don't
+## collide with the world, so they walk through obstacles instead of snagging.
+func steer(dir: Vector2, speed_scale: float = 1.0, sep_scale: float = 0.6) -> void:
+	velocity = dir * move_speed * speed_scale + separation() * move_speed * sep_scale
+	move_and_slide()
 
 func _on_damaged(info: DamageInfo) -> void:
 	DamageNumber.spawn(get_parent(), global_position, info.amount, info.is_crit)

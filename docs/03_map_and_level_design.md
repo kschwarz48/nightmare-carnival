@@ -65,7 +65,7 @@ Five designed pinch-points, three between Carnival↔Boardwalk, two-plus between
 
 **Why chokepoints matter mechanically:** enemies path toward the player (cheap steering, doc 08). When the player stands just past a chokepoint, the crowd compresses into the gap — turning a 270° swarm into a 90° firing line. This is the map's core skill expression: *use geometry to convert an unwinnable crowd into a manageable one.* Counter-pressure: ranged enemies (Puppet Soldiers, Dunk-Tank Clowns) punish camping a chokepoint, and the tide/events can flush you out.
 
-**Implementation note:** chokepoints are just `StaticBody2D` collision (fences/stall walls/railings) on the world layer shaping navigable space. Enemies use direct steering + separation and naturally pile at gaps; no navmesh required (but a `NavigationRegion2D` is an option if you want smarter pathing around big obstacles — see doc 08 §enemy-steering).
+**Implementation note (VS-style, repeatable):** chokepoints/attractions are `StaticBody2D` on the **World** layer that block the **player** (cover + kiting geography). Enemies use **direct vector seek + separation only — no pathfinding** and, like Vampire Survivors, **walk straight through world obstacles** (enemy bodies mask only other enemies, not World) so hundreds of them never snag or need A*/navmesh. Bosses likewise ignore terrain (no body collision). So gates/walls shape *where you run and funnel the horde for AoE*, not enemy routing. (If a future stage wants enemies physically blocked by specific walls, add those walls to the enemy mask + a `NavigationRegion2D`; not needed for M3.)
 
 ---
 
@@ -201,7 +201,7 @@ Bosses interrupt the normal flow at their time gates:
 ## 9. Godot implementation notes (map specifically)
 
 - **Ground:** build zones with `TileMapLayer` (Godot 4.7) for sand/planks/midway tiles; separate layers per zone for palette/lighting control.
-- **Collision/obstacles:** fences, stall walls, railings as `StaticBody2D` (or tile collision) on the **World** physics layer. Shape the chokepoints here. *(Currently the play area is kept **open** — interior obstacle blocks were removed because the steered, non-navmesh enemies snag on them and get stuck. Cover/chokepoints return once enemies use a `NavigationRegion2D` to path around solids.)*
+- **Collision/obstacles:** fences, stall walls, railings as `StaticBody2D` (or tile collision) on the **World** physics layer. Shape the chokepoints here. *(Implemented: the **Carnival Core** is authored in `world.gd` as a data-driven element list — CAROUSEL, STALLS, TICKET BOOTH, PRIZE STAND, and a fence with three labeled GATE gaps — each a programmer-art rect with a text `Label`. Solids block the player only; enemies walk through them, per the VS pathing model above.)*
 - **Decoration:** use **Scene Paint Mode (B)** to scatter props, lights, breakables, and ground clutter quickly across the open zones.
 - **Lighting:** `CanvasModulate` for night tint; `PointLight2D` clusters at attractions; player lantern light; per-zone ambient tint (see doc 02 §3).
 - **Depth:** one Y-sorted gameplay container holds player + enemies + props so overlaps sort by ground-position.

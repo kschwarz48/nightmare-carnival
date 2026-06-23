@@ -21,9 +21,7 @@ func physics_update(enemy: Enemy, delta: float) -> void:
 
 	match _state:
 		State.APPROACH:
-			enemy.velocity = to_player(enemy) * enemy.move_speed \
-				+ enemy.separation() * enemy.move_speed * 0.4
-			enemy.move_and_slide()
+			enemy.steer(to_player(enemy), 1.0, 0.4)
 			if enemy.global_position.distance_to(GameState.player.global_position) < charge_range:
 				_state = State.WINDUP
 				_t = windup_time
