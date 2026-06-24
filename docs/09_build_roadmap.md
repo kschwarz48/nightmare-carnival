@@ -94,13 +94,15 @@ A staged plan from empty project to shippable game, ordered so the game is **fun
 **Goal:** death and victory feed progression; the "one more night" hook closes.
 
 **Tasks**
-- [ ] `SaveManager` meta persistence (`08 §18`).
-- [ ] Run end: ResultsScreen, payout formula → Lost Tickets (`01 §8`, `08 §18`).
-- [ ] **Lost & Found** hub: spend Lost Tickets on a few stat perks + 1 unlock; Carnival-pedia stub (`01 §9`).
-- [ ] Main menu → character select → run → results → (run again / menu) flow (`07 §4`).
-- [ ] Second character (The Strongman) with a distinct starting weapon (`01 §6`).
-- [ ] "Run Again" one-click (re-use last character/difficulty), death→next-run < 8s (`01 §11`).
-- [ ] Pause menu + basic options (volume, a couple of accessibility toggles).
+- [x] `SaveManager` meta persistence (`08 §18`) — perks table (buy/cost/cap), `apply_meta_perks`, spend, settings; JSON save/load.
+- [x] Run end: ResultsScreen, payout formula → Lost Tickets (`01 §8`, `08 §18`) — `GameState._payout`; Results credits once.
+- [x] **Lost & Found** hub: escalating capped stat perks + 1 unlock (Crystal Orbs gated via `UpgradeData.unlock_id`); Carnival-pedia count (`01 §9`).
+- [x] Main menu → character select → run → results → (run again / menu) flow (`07 §4`) — `App` root swaps screens via EventBus nav signals.
+- [x] Second character (The Strongman): mallet, +50% HP / −15% speed, **knockback-on-hit** quirk (`01 §6`).
+- [x] "Run Again" one-click (re-uses last character); death→next-run measured ~0.2s (`01 §11`).
+- [x] Pause menu + options (master volume, reduce-flashes), persisted to settings.
+
+> **Implemented (M4):** the run is nested under the persistent `App` root, so it can't be the SceneTree's `current_scene` — spawn layers are registered on `GameState.{enemy,projectile,actor,pickup}_layer` by `game.gd` and read there by `EnemyDirector`/weapons. Difficulty is Midway-only (tiers → M5); only the death→payout path is reachable (the win path is coded but needs M5 content). Headless-verified: full loop, payout credit + persistence across reload, perk buy/cap, unlock gating, Strongman knockback, pause.
 
 **Exit criteria:** full game loop from menu through a run to payout and back, with persistent meta and 2 characters.
 
