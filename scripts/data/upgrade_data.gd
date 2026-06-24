@@ -114,4 +114,5 @@ func apply(player: Player) -> void:
 			player.refresh_stats()
 		Kind.EVOLUTION:
 			wm.evolve_weapon(weapon.id, evolved_weapon)
+			EventBus.weapon_evolved.emit(weapon.evolution)
 	EventBus.upgrade_chosen.emit(self)
