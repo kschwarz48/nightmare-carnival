@@ -93,6 +93,10 @@ func _update_movement() -> void:
 func _build_phases() -> Array[BossPhase]:
 	return []
 
+## Stretches the gap between attacks so the boss casts less often. ~1.67 makes
+## the post-attack cooldown 1.67× longer ≈ a 40% lower cast rate (tunable).
+const ATTACK_COOLDOWN_MULT := 1.67
+
 func _do_attack_loop() -> void:
 	_busy = true
 	var phase := phases[_phase_index]
@@ -110,7 +114,7 @@ func _do_attack_loop() -> void:
 	await atk.execute(self)
 	_casting = false                       # may reposition during the cooldown
 	if not _alive: return
-	await get_tree().create_timer(maxf(0.2, atk.cooldown)).timeout
+	await get_tree().create_timer(maxf(0.2, atk.cooldown) * ATTACK_COOLDOWN_MULT).timeout
 	_busy = false
 
 func _on_health_changed(current: float, maximum: float) -> void:
