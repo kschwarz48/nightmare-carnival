@@ -17,6 +17,13 @@ func launch(dir: Vector2, dmg: float, spd: float, area_scale: float,
 	_through_dir = Vector2.ZERO
 
 func _physics_process(delta: float) -> void:
+	# THROUGH ignores lifetime — it flies straight out until it's well off-screen.
+	if _stage == Stage.THROUGH:
+		global_position += _through_dir * speed * delta * 1.3
+		var p := GameState.player
+		if not is_instance_valid(p) or global_position.distance_to(p.global_position) > 1500.0:
+			_despawn()
+		return
 	if lifetime <= 0.0:
 		_despawn()
 		return
