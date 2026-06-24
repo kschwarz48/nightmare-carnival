@@ -13,6 +13,7 @@ const REGISTRY := {
 	&"spawner": preload("res://scripts/enemies/behaviors/spawner_behavior.gd"),
 	&"ambusher": preload("res://scripts/enemies/behaviors/ambusher_behavior.gd"),
 	&"pop_up": preload("res://scripts/enemies/behaviors/pop_up_behavior.gd"),
+	&"rail_strafer": preload("res://scripts/enemies/behaviors/rail_strafer_behavior.gd"),
 }
 
 static func create(key: StringName) -> EnemyBehavior:
