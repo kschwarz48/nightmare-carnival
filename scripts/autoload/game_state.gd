@@ -26,6 +26,8 @@ var gold: int = 0
 
 ## Act boundaries in run-seconds (Act II/III/IV start; 01 §5). Act I is 0–6:00.
 const ACT_GATES: Array[float] = [360.0, 720.0, 1080.0]
+## Survive to Dawn = win (01 §5, §11).
+const WIN_TIME: float = 1500.0     # 25:00
 
 var act: int = 1
 var _tick_accum: float = 0.0
@@ -33,6 +35,9 @@ var _tick_accum: float = 0.0
 func _process(delta: float) -> void:
 	if is_running and not is_paused:
 		run_time += delta
+		if run_time >= WIN_TIME:
+			end_run(true)              # Dawn — survived the night
+			return
 		_update_act()
 		# Emit a ~1Hz tick for HUD/director without per-frame string work.
 		_tick_accum += delta

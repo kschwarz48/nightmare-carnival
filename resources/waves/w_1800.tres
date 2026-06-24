@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="WaveData" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/wave_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/enemies/roller_coaster_snake.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/enemies/carousel_horse.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/enemies/puppet_soldier.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/enemies/evil_clown.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/enemies/possessed_stuffie.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/enemies/swarm_balloon.tres" id="7"]
+
+[resource]
+script = ExtResource("1")
+id = &"w_1800"
+start_time = 1080.0
+end_time = 99999.0
+enemies = Array[EnemyData]([ExtResource("2"), ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])
+weights = Array[float]([14.0, 22.0, 22.0, 22.0, 20.0])
+min_alive = 96
+max_alive = 280
+spawn_interval = 0.66
+spawn_batch = 6
+swarm_enemy = ExtResource("7")
+swarm_interval = 4.0
+swarm_size = 52
