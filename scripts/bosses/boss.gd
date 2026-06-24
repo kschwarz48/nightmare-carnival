@@ -60,7 +60,7 @@ func _physics_process(delta: float) -> void:
 ## Warning beat, then the tent comes to life: vulnerable, armed, hunting.
 func _awaken() -> void:
 	EventBus.boss_warning.emit(data.display_name)
-	await get_tree().create_timer(2.0).timeout
+	await get_tree().create_timer(2.0, false).timeout
 	if not is_instance_valid(self) or not _alive:
 		return
 	hurtbox.set_deferred(&"monitorable", true)
@@ -114,7 +114,7 @@ func _do_attack_loop() -> void:
 	await atk.execute(self)
 	_casting = false                       # may reposition during the cooldown
 	if not _alive: return
-	await get_tree().create_timer(maxf(0.2, atk.cooldown) * ATTACK_COOLDOWN_MULT).timeout
+	await get_tree().create_timer(maxf(0.2, atk.cooldown) * ATTACK_COOLDOWN_MULT, false).timeout
 	_busy = false
 
 func _on_health_changed(current: float, maximum: float) -> void:
@@ -135,7 +135,7 @@ func _transition_to(index: int) -> void:
 	_casting = true
 	health.invincible = true
 	visual.set_flash(1.0, Color(1, 1, 1))
-	await get_tree().create_timer(0.6).timeout
+	await get_tree().create_timer(0.6, false).timeout
 	if not _alive: return
 	visual.set_flash(0.0)
 	health.invincible = false

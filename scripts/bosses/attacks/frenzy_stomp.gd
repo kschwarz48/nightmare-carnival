@@ -25,10 +25,10 @@ func execute(boss) -> void:
 		var tel := ObjectPool.acquire(TELEGRAPH, boss.get_parent())
 		tel.global_position = pos
 		tel.call(&"show_telegraph", RADIUS, STOMP_LEAD)
-		await boss.get_tree().create_timer(STOMP_LEAD).timeout
+		await boss.get_tree().create_timer(STOMP_LEAD, false).timeout
 		if not boss._alive:
 			return
 		var sw := ObjectPool.acquire(SHOCKWAVE, boss.get_parent())
 		sw.global_position = pos
 		sw.call(&"detonate", DMG, RADIUS)
-		await boss.get_tree().create_timer(STOMP_GAP).timeout
+		await boss.get_tree().create_timer(STOMP_GAP, false).timeout

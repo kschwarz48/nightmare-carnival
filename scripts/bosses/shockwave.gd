@@ -30,6 +30,9 @@ func detonate(damage: float, radius: float) -> void:
 	monitoring = true
 	set_process(true)
 	await get_tree().physics_frame
+	# physics_frame still fires while paused — don't land the hit mid-pause.
+	while GameState.is_paused:
+		await get_tree().physics_frame
 	if not _live or not is_instance_valid(self):
 		return
 	for a in get_overlapping_areas():

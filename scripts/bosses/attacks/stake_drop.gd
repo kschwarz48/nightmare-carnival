@@ -24,7 +24,7 @@ func execute(boss) -> void:
 		var tel := ObjectPool.acquire(TELEGRAPH, boss.get_parent())
 		tel.global_position = p
 		tel.call(&"show_telegraph", RADIUS, LEAD)
-	await boss.get_tree().create_timer(LEAD).timeout
+	await boss.get_tree().create_timer(LEAD, false).timeout
 	if not boss._alive:
 		return
 	for p in spots:

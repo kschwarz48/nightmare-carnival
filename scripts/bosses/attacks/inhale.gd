@@ -16,7 +16,7 @@ func telegraph(boss, lead: float) -> void:
 	var tel := ObjectPool.acquire(TELEGRAPH, boss.get_parent())
 	tel.global_position = boss.global_position
 	tel.call(&"show_telegraph", 320.0, lead)
-	await boss.get_tree().create_timer(lead).timeout
+	await boss.get_tree().create_timer(lead, false).timeout
 
 func execute(boss) -> void:
 	# Suspend the Rotating Pole while pulling — being dragged into the maw AND a
@@ -26,10 +26,14 @@ func execute(boss) -> void:
 		pole.set_paused(true)
 	var t := DURATION
 	while t > 0.0 and boss._alive:
+		await boss.get_tree().physics_frame
+		# physics_frame keeps firing while the tree is paused — don't advance the
+		# pull or the timer during a pause (e.g. the level-up draft).
+		if GameState.is_paused:
+			continue
 		var p = GameState.player
 		if is_instance_valid(p):
 			p.external_pull = (boss.global_position - p.global_position).normalized() * PULL_SPEED
-		await boss.get_tree().physics_frame
 		t -= boss.get_physics_process_delta_time()
 	if is_instance_valid(GameState.player):
 		(GameState.player as Player).external_pull = Vector2.ZERO

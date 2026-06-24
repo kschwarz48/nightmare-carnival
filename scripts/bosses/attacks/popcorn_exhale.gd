@@ -17,7 +17,7 @@ func telegraph(boss, lead: float) -> void:
 	var tel := ObjectPool.acquire(TELEGRAPH, boss.get_parent())
 	tel.global_position = boss.global_position
 	tel.call(&"show_telegraph", 120.0, lead)
-	await boss.get_tree().create_timer(lead).timeout
+	await boss.get_tree().create_timer(lead, false).timeout
 
 func execute(boss) -> void:
 	var base := Vector2.RIGHT
