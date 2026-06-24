@@ -2,7 +2,7 @@ extends Control
 ## Lost & Found meta hub (01 §9). Spend Lost Tickets on escalating, capped stat
 ## perks + one demo unlock (Crystal Orbs into the draft pool); Carnival-pedia stub.
 
-const ORBS_UNLOCK := &"weapon_crystal_orbs"
+const ORBS_UNLOCK := &"weapon_plush_companion"
 const ORBS_COST := 150
 
 @onready var tickets_label: Label = %Tickets
@@ -55,9 +55,9 @@ func _refresh() -> void:
 			btn.text = "Buy (%d)" % SaveManager.perk_cost(id)
 			btn.disabled = not SaveManager.can_buy_perk(id)
 	if SaveManager.is_unlocked(ORBS_UNLOCK):
-		unlock_btn.text = "Crystal Orbs — UNLOCKED"
+		unlock_btn.text = "Plush Companion — UNLOCKED"
 		unlock_btn.disabled = true
 	else:
-		unlock_btn.text = "Unlock Crystal Orbs  (%d)" % ORBS_COST
+		unlock_btn.text = "Unlock Plush Companion  (%d)" % ORBS_COST
 		unlock_btn.disabled = SaveManager.lost_tickets() < ORBS_COST
 	pedia_label.text = "Carnival-pedia: %d discovered" % SaveManager.meta.pedia.size()

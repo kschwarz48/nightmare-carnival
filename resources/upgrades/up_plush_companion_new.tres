@@ -11,3 +11,4 @@ description = "New weapon: orbiting pets that bite nearby enemies."
 kind = 0
 base_weight = 1.0
 weapon = ExtResource("2")
+unlock_id = &"weapon_plush_companion"

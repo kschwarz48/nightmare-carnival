@@ -15,14 +15,17 @@ extends CanvasLayer
 @onready var boss_name: Label = %BossName
 @onready var boss_bar: ProgressBar = %BossBar
 @onready var boss_warning: Label = %BossWarning
+@onready var chest_toast: Label = %ChestToast
 
 const HP_BASE := Color(0.85, 0.2, 0.2)
 const HP_FLASH_TIME := 0.16
+const CHEST_TOAST_TIME := 2.6
 
 var _loadout_dirty: bool = true
 var _hp_flash: float = 0.0
 var _boss: Node = null
 var _warn_t: float = 0.0
+var _toast_t: float = 0.0
 
 func _ready() -> void:
 	EventBus.time_tick.connect(_on_time_tick)
@@ -35,9 +38,20 @@ func _ready() -> void:
 	EventBus.boss_warning.connect(_on_boss_warning)
 	EventBus.boss_spawned.connect(_on_boss_spawned)
 	EventBus.boss_defeated.connect(_on_boss_defeated)
+	EventBus.chest_opened.connect(_on_chest_opened)
 	boss_panel.visible = false
 	boss_warning.visible = false
+	chest_toast.visible = false
 	_on_time_tick(0.0)
+
+## Chest payout feedback (03 §6): list the upgrades it granted for a few seconds.
+func _on_chest_opened(rewards: Variant) -> void:
+	var list: Array = rewards if rewards is Array else []
+	if list.is_empty():
+		return
+	chest_toast.text = "CHEST!\n" + "\n".join(list)
+	chest_toast.visible = true
+	_toast_t = CHEST_TOAST_TIME
 
 func _process(_delta: float) -> void:
 	var player := GameState.player as Player
@@ -68,6 +82,12 @@ func _process(_delta: float) -> void:
 		_hp_fill.bg_color = HP_BASE.lerp(Color.WHITE, clampf(_hp_flash / HP_FLASH_TIME, 0.0, 1.0))
 		if _hp_flash <= 0.0:
 			_hp_fill.bg_color = HP_BASE
+
+	# Chest payout toast timer.
+	if _toast_t > 0.0:
+		_toast_t -= _delta
+		if _toast_t <= 0.0:
+			chest_toast.visible = false
 
 	# Boss warning banner timer + boss HP bar tracking.
 	if _warn_t > 0.0:
