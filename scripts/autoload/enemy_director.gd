@@ -127,7 +127,7 @@ func _spawn_swarm(wave: WaveData, minutes: float) -> void:
 	var ang := randf() * TAU                           # the side it comes from
 	var dir := -Vector2.from_angle(ang)               # heading: across, through center
 	var cluster_center := center + Vector2.from_angle(ang) * ring
-	var spread := clampf(float(wave.swarm_size) * 4.5, 40.0, 110.0)
+	var spread := clampf(float(wave.swarm_size) * 2.6, 50.0, 190.0)
 	for _i in wave.swarm_size:
 		if _active.size() >= _cap():
 			break
