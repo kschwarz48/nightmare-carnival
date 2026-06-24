@@ -11,3 +11,4 @@ description = "New weapon: orbs that orbit you, grinding anything nearby."
 kind = 0
 base_weight = 1.2
 weapon = ExtResource("2")
+unlock_id = &"weapon_crystal_orbs"

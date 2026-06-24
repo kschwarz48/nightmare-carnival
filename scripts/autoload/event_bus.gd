@@ -31,3 +31,10 @@ signal carnival_event_ended(event_data: Resource)
 # --- ui / flow ---
 signal request_pause(paused: bool)
 signal time_tick(run_seconds: float)
+
+# --- screen navigation (M4; the App root listens and swaps screens, 07 §4) ---
+signal goto_menu
+signal goto_character_select
+signal goto_lost_and_found
+signal start_run(character_id: StringName)
+signal run_again

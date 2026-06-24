@@ -242,10 +242,12 @@ func _on_boss_spawned(boss: Node, _bdata: Resource) -> void:
 	if boss is Node2D and not _bosses.has(boss):
 		_bosses.append(boss)            # so weapon auto-aim can target it
 
-func _on_boss_defeated(boss: Node, _bdata: Resource) -> void:
+func _on_boss_defeated(boss: Node, bdata: Resource) -> void:
 	GameState.bosses_killed += 1
 	_boss_active = false               # resume ambient waves
 	_bosses.erase(boss)
+	if bdata and bdata.id != &"":
+		SaveManager.discover(bdata.id)  # Carnival-pedia (01 §9)
 
 # --- separation service (called by enemies, throttled) ---
 func separation_for(enemy: Enemy) -> Vector2:
@@ -297,6 +299,8 @@ func get_random_enemy_near(from: Vector2, radius: float) -> Node2D:
 
 func _on_enemy_died(enemy: Node, _position: Vector2) -> void:
 	_remove(enemy)
+	if enemy is Enemy and (enemy as Enemy).data:
+		SaveManager.discover((enemy as Enemy).data.id)   # Carnival-pedia (01 §9)
 
 func _remove(e: Node) -> void:
 	var i := _active.find(e)

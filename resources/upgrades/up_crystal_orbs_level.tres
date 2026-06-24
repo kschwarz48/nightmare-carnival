@@ -12,3 +12,4 @@ kind = 1
 base_weight = 1.4
 weapon = ExtResource("2")
 max_stacks = 8
+unlock_id = &"weapon_crystal_orbs"

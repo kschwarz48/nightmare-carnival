@@ -10,12 +10,15 @@ extends CharacterBody2D
 @onready var hitbox: HitboxComponent = $HitboxComponent
 @onready var flash: FlashComponent = $FlashComponent
 
+const KNOCKBACK_DECAY := 2400.0     # px/s² the shove bleeds off
+
 var data: EnemyData
 var move_speed: float = 60.0
 var is_elite: bool = false
 
 var _behavior: EnemyBehavior
 var _wired: bool = false
+var _knockback: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	collision_layer = CollisionLayers.ENEMY
@@ -35,6 +38,7 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 		elite: bool = false) -> void:
 	data = p_data
 	is_elite = elite
+	_knockback = Vector2.ZERO
 	var elite_hp := 6.0 if elite else 1.0
 	var elite_dmg := 1.5 if elite else 1.0
 	var elite_spd := 0.85 if elite else 1.0
@@ -68,7 +72,13 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 func _physics_process(delta: float) -> void:
 	if GameState.is_paused or _behavior == null:
 		return
+	if _knockback.length_squared() > 1.0:
+		_knockback = _knockback.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
 	_behavior.physics_update(self, delta)
+
+## A momentary shove (Strongman's knockback-on-hit). Decays in steer/_physics.
+func apply_knockback(impulse: Vector2) -> void:
+	_knockback = impulse
 
 ## Cheap separation: ask the director's spatial hash (throttled, 08 §12-13).
 func separation() -> Vector2:
@@ -78,7 +88,7 @@ func separation() -> Vector2:
 ## separation (no overlap), then move. No pathfinding — VS-style. Enemies don't
 ## collide with the world, so they walk through obstacles instead of snagging.
 func steer(dir: Vector2, speed_scale: float = 1.0, sep_scale: float = 0.6) -> void:
-	velocity = dir * move_speed * speed_scale + separation() * move_speed * sep_scale
+	velocity = dir * move_speed * speed_scale + separation() * move_speed * sep_scale + _knockback
 	move_and_slide()
 
 func _on_damaged(info: DamageInfo) -> void:

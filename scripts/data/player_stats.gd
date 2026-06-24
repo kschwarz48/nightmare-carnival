@@ -23,6 +23,7 @@ var greed: float = 1.0
 var xp_gain_mult: float = 1.0
 var hp_regen: float = 0.0
 var revives: int = 0
+var knockback: float = 0.0          # impulse applied to enemies that hit you (Strongman quirk)
 
 var max_health_add: float = 0.0
 var max_health_mult: float = 1.0
@@ -57,4 +58,5 @@ func apply_passive(axis: StringName, magnitude: float) -> void:
 		&"move_speed": move_speed_mult += magnitude
 		&"pickup": pickup_radius_mult += magnitude
 		&"revive": revives += int(magnitude)
+		&"knockback": knockback += magnitude
 		_: push_warning("Unknown stat axis: %s" % axis)

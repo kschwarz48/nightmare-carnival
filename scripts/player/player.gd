@@ -39,6 +39,8 @@ func _ready() -> void:
 		visual.configure(character_data.color, character_data.radius)
 	elif stats == null:
 		stats = PlayerStats.new()
+	# Meta perks bought in the Lost & Found apply on top of the character base (01 §9).
+	SaveManager.apply_meta_perks(stats)
 
 	hurtbox.health_component = health
 	health.set_max_health(stats.max_health())
@@ -89,6 +91,18 @@ func _apply_camera_limits() -> void:
 
 func _on_damaged(info: DamageInfo) -> void:
 	EventBus.player_damaged.emit(info.amount, health.current_health)
+	if stats.knockback > 0.0:
+		_shove_nearby_enemies()
+
+## Strongman quirk: when something hits you, shove the enemies pressing on you.
+func _shove_nearby_enemies() -> void:
+	const RADIUS := 80.0
+	for e in EnemyDirector._active:
+		if not is_instance_valid(e):
+			continue
+		var to: Vector2 = e.global_position - global_position
+		if to.length() < RADIUS:
+			e.apply_knockback(to.normalized() * stats.knockback)
 
 func _on_died(_info: DamageInfo) -> void:
 	if stats.revives > 0:

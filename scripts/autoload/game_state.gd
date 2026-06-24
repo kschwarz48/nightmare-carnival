@@ -53,8 +53,20 @@ func end_run(did_win: bool) -> void:
 		"time": run_time,
 		"kills": enemies_killed,
 		"bosses": bosses_killed,
+		"lost_tickets": _payout(did_win),
 	}
 	EventBus.run_ended.emit(did_win, stats)
+
+## Lost Tickets earned this run (01 §8). end_run only computes it — the
+## ResultsScreen credits it to the SaveManager exactly once.
+func _payout(did_win: bool) -> int:
+	var greed: float = 1.0
+	if difficulty:
+		greed += difficulty.greed_bonus
+	var base := floori(run_time / 6.0) + 50 * bosses_killed + floori(float(enemies_killed) / 25.0)
+	if did_win:
+		base += 100
+	return int(round(float(base) * greed))
 
 func set_paused(value: bool) -> void:
 	is_paused = value
