@@ -15,7 +15,6 @@ const RING_SCENE := preload("res://scenes/weapons/projectiles/ring.tscn")
 const MELEE_ARC_SCENE := preload("res://scenes/weapons/melee_arc.tscn")
 const FOOD_SCENE := preload("res://scenes/pickups/food_pickup.tscn")
 const GOLDEN_TICKET_SCENE := preload("res://scenes/pickups/golden_ticket.tscn")
-const CARNIVAL_TENT := preload("res://resources/bosses/carnival_tent.tres")
 const TELEGRAPH_SCENE := preload("res://scenes/vfx/telegraph_circle.tscn")
 const SHOCKWAVE_SCENE := preload("res://scenes/bosses/shockwave.tscn")
 const POPCORN_SCENE := preload("res://scenes/bosses/popcorn.tscn")
@@ -49,6 +48,13 @@ func _ready() -> void:
 	var difficulty := ContentDB.get_difficulty(difficulty_id)
 	GameState.start_run(character, difficulty)
 
+	# Register this run's spawn layers so autoloads/weapons can find them (the run
+	# is nested under the App root, so it isn't the SceneTree's current_scene).
+	GameState.actor_layer = $ActorLayer
+	GameState.enemy_layer = %EnemyLayer
+	GameState.projectile_layer = %ProjectileLayer
+	GameState.pickup_layer = %PickupLayer
+
 	_prewarm()
 
 	var player: Player = PLAYER_SCENE.instantiate()
@@ -60,12 +66,15 @@ func _ready() -> void:
 	EnemyDirector.waves = ContentDB.all_waves()
 	EnemyDirector.start()
 
-	# The Carnival Tent looms dormant at map center from the start — it's a
-	# surprise that this prop IS the boss; it wakes at its gate_time (08 §17, 05).
-	var tent := CARNIVAL_TENT.scene.instantiate()
-	tent.global_position = MapBounds.center()
-	(get_node(^"%EnemyLayer")).add_child(tent)
-	tent.setup(CARNIVAL_TENT)
+	# Boss schedule is data-driven: every BossData in ContentDB is placed dormant
+	# at map center and self-wakes at its own gate_time (08 §17, 05). The Tent is
+	# visible scenery (the "this prop IS the boss" reveal); later bosses stay
+	# hidden until their gate (BossData.visible_when_dormant).
+	for bd: BossData in ContentDB.all_bosses():
+		var boss := bd.scene.instantiate()
+		boss.global_position = MapBounds.center()
+		(get_node(^"%EnemyLayer")).add_child(boss)
+		boss.setup(bd)
 
 	# First food comes early (so it's clearly working), then settles to cadence.
 	_food_timer = randf_range(30.0, 50.0)
@@ -123,4 +132,5 @@ func _prewarm() -> void:
 	ObjectPool.prewarm(TELEGRAPH_SCENE, 16)
 	ObjectPool.prewarm(SHOCKWAVE_SCENE, 12)
 	ObjectPool.prewarm(POPCORN_SCENE, 40)
+	ObjectPool.prewarm(preload("res://scenes/enemies/enemy_projectile.tscn"), 60)
 	ObjectPool.prewarm(CHEST_SCENE, 2)

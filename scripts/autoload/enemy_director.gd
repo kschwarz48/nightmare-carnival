@@ -21,12 +21,14 @@ var _frame: int = 0
 var _running: bool = false
 var _boss_active: bool = false            # pauses ambient spawns during a set-piece boss
 var _bosses: Array = []                   # active bosses (targetable by weapon auto-aim)
+var _miniboss_accum: float = 0.0          # time toward the next miniboss (03 §6)
 
 func start() -> void:
 	_active.clear()
 	_bosses.clear()
 	_interval_accum = 0.0
 	_swarm_accum = 0.0
+	_miniboss_accum = 0.0
 	_current_wave_id = &""
 	_frame = 0
 	_boss_active = false
@@ -61,6 +63,7 @@ func _spawn_step(delta: float) -> void:
 	if wave == null:
 		return
 	var minutes := GameState.run_minutes()
+	_miniboss_step(delta)
 	var cap: int = mini(wave.max_alive, _cap())
 
 	# On entering a new wave, run its one-shot effects (e.g. the elite gauntlet).
@@ -71,6 +74,8 @@ func _spawn_step(delta: float) -> void:
 			if _active.size() >= _cap():
 				break
 			_spawn_one(minutes, wave, true)
+		if wave.event != &"":                       # one-shot carnival event (03 §5)
+			EventRunner.run(ContentDB.get_event(wave.event))
 
 	# 1) Keep the baseline crowd: top up instantly when below the wave minimum.
 	# Break on a failed spawn (e.g. empty enemy list) so we never spin forever.
@@ -127,7 +132,7 @@ func _spawn_swarm(wave: WaveData, minutes: float) -> void:
 	var ang := randf() * TAU                           # the side it comes from
 	var dir := -Vector2.from_angle(ang)               # heading: across, through center
 	var cluster_center := center + Vector2.from_angle(ang) * ring
-	var spread := clampf(float(wave.swarm_size) * 4.5, 40.0, 110.0)
+	var spread := clampf(float(wave.swarm_size) * 2.6, 50.0, 190.0)
 	for _i in wave.swarm_size:
 		if _active.size() >= _cap():
 			break
@@ -138,6 +143,20 @@ func _spawn_swarm(wave: WaveData, minutes: float) -> void:
 		e.configure(wave.swarm_enemy, _hp_mult(minutes), _dmg_mult(minutes), _spd_mult(minutes), false)
 		e.set_meta(&"flyby_dir", dir)
 		_active.append(e)
+
+## Periodic miniboss (03 §6): a high-HP mob that walks in from the edge and drops
+## a reward chest. Cadence + which enemy come from the difficulty (data-driven).
+func _miniboss_step(delta: float) -> void:
+	var interval: float = GameState.difficulty.miniboss_interval
+	if interval <= 0.0:
+		return
+	_miniboss_accum += delta
+	if _miniboss_accum < interval:
+		return
+	_miniboss_accum = 0.0
+	var ed := ContentDB.get_enemy(GameState.difficulty.miniboss_enemy)
+	if ed != null and _active.size() < _cap():
+		spawn_add(ed, _spawn_point())
 
 ## Spawn a single add at a position (boss summons — Concession Spew, Clown Call).
 func spawn_add(ed: EnemyData, pos: Vector2, elite: bool = false) -> void:
@@ -242,10 +261,12 @@ func _on_boss_spawned(boss: Node, _bdata: Resource) -> void:
 	if boss is Node2D and not _bosses.has(boss):
 		_bosses.append(boss)            # so weapon auto-aim can target it
 
-func _on_boss_defeated(boss: Node, _bdata: Resource) -> void:
+func _on_boss_defeated(boss: Node, bdata: Resource) -> void:
 	GameState.bosses_killed += 1
 	_boss_active = false               # resume ambient waves
 	_bosses.erase(boss)
+	if bdata and bdata.id != &"":
+		SaveManager.discover(bdata.id)  # Carnival-pedia (01 §9)
 
 # --- separation service (called by enemies, throttled) ---
 func separation_for(enemy: Enemy) -> Vector2:
@@ -297,6 +318,8 @@ func get_random_enemy_near(from: Vector2, radius: float) -> Node2D:
 
 func _on_enemy_died(enemy: Node, _position: Vector2) -> void:
 	_remove(enemy)
+	if enemy is Enemy and (enemy as Enemy).data:
+		SaveManager.discover((enemy as Enemy).data.id)   # Carnival-pedia (01 §9)
 
 func _remove(e: Node) -> void:
 	var i := _active.find(e)
@@ -304,4 +327,4 @@ func _remove(e: Node) -> void:
 		_active.remove_at(i)
 
 func _enemy_layer() -> Node:
-	return get_tree().current_scene.get_node(^"%EnemyLayer")
+	return GameState.enemy_layer

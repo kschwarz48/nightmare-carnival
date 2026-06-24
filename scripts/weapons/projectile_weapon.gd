@@ -59,10 +59,11 @@ func _spawn_projectile(origin: Vector2, dir: Vector2) -> void:
 		life *= randf_range(0.65, 1.25)
 	var p := ObjectPool.acquire(data.projectile_scene, _world_layer()) as Projectile
 	p.global_position = origin
+	p.knockback_dealt = current_knockback()
 	p.launch(dir, current_damage(),
 		data.projectile_speed_at(level) * _stats().projectile_speed_mult,
 		current_area(), data.pierce_at(level), life,
 		_stats().roll_crit(), _stats().crit_damage)
 
 func _world_layer() -> Node:
-	return get_tree().current_scene.get_node(^"%ProjectileLayer")
+	return GameState.projectile_layer

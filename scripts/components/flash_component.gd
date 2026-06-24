@@ -21,6 +21,7 @@ extends Node
 var sprite: CanvasItem
 var _t: float = 0.0
 var _base_scale: Vector2 = Vector2.ONE
+var _strobe_active: bool = false        # strobe, unless the "reduce flashes" option is on
 
 func _ready() -> void:
 	sprite = get_node_or_null(sprite_path) as CanvasItem
@@ -30,6 +31,7 @@ func _ready() -> void:
 
 func flash(_info: DamageInfo = null) -> void:
 	_t = flash_time
+	_strobe_active = strobe and not bool(SaveManager.get_setting(&"reduce_flashes", false))
 	_set_flash(1.0, _current_tint())
 	if sprite:
 		sprite.scale = _base_scale * Vector2(1.0 / squash, squash)
@@ -37,7 +39,7 @@ func flash(_info: DamageInfo = null) -> void:
 
 ## Tint for the current instant — alternates the two colors when strobing.
 func _current_tint() -> Color:
-	if not strobe:
+	if not _strobe_active:
 		return flash_color
 	var elapsed := flash_time - _t
 	return flash_color if fmod(elapsed * strobe_hz, 1.0) < 0.5 else flash_color_alt
@@ -53,7 +55,7 @@ func _set_flash(value: float, tint: Color = Color.WHITE) -> void:
 
 func _process(delta: float) -> void:
 	_t -= delta
-	if strobe:
+	if _strobe_active:
 		_set_flash(1.0, _current_tint())
 	if sprite:
 		sprite.scale = sprite.scale.lerp(_base_scale, 1.0 - exp(-18.0 * delta))

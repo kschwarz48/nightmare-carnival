@@ -9,6 +9,12 @@ extends Resource
 @export var move_speed: float = 60.0
 @export var contact_damage: float = 8.0
 @export var ticket_value: int = 1
+## How strongly this enemy is knocked back (06 §1). 1.0 = normal; <1 = heavy/resistant.
+@export var knockback_taken: float = 1.0
+# --- miniboss reward (03 §6): high-HP mobs drop a chest on death ---
+@export var drops_chest: bool = false
+@export var chest_rolls_min: int = 1
+@export var chest_rolls_max: int = 7
 @export var behavior: StringName = &"chaser"        # maps to a behavior script (§11)
 
 # --- programmer-art visual (replaced by SpriteFrames at M6) ---

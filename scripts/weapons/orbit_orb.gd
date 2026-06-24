@@ -13,6 +13,7 @@ const HIT_DELAY := 1.7
 @onready var shape: CollisionShape2D = $CollisionShape2D
 
 var _dmg: float = 10.0
+var knockback_dealt: float = 0.0  # set by OrbitWeapon
 var _cool: Dictionary = {}        # HurtboxComponent -> seconds until hittable again
 var _t: float = 0.0
 var _hue: float = 0.0             # gradient phase offset (per orb)
@@ -31,6 +32,9 @@ func setup(radius: float) -> void:
 
 func set_damage(d: float) -> void:
 	_dmg = d
+
+func set_knockback(k: float) -> void:
+	knockback_dealt = k
 
 func set_hue(h: float) -> void:
 	_hue = h
@@ -56,4 +60,4 @@ func _physics_process(delta: float) -> void:
 func _try_hit(a: Area2D) -> void:
 	if a is HurtboxComponent and not _cool.has(a):
 		_cool[a] = HIT_DELAY
-		(a as HurtboxComponent).receive(DamageInfo.new(_dmg, self, false))
+		(a as HurtboxComponent).receive(DamageInfo.new(_dmg, self, false, knockback_dealt))

@@ -10,12 +10,17 @@ extends CharacterBody2D
 @onready var hitbox: HitboxComponent = $HitboxComponent
 @onready var flash: FlashComponent = $FlashComponent
 
+const CHEST_SCENE := preload("res://scenes/pickups/chest.tscn")
+const KB_DURATION := 0.12           # knockback lasts 120 ms (06 §1)
+
 var data: EnemyData
 var move_speed: float = 60.0
 var is_elite: bool = false
 
 var _behavior: EnemyBehavior
 var _wired: bool = false
+var _kb_timer: float = 0.0           # seconds of knockback remaining
+var _kb_mult: float = 0.0            # reverse-speed multiplier while knocked
 
 func _ready() -> void:
 	collision_layer = CollisionLayers.ENEMY
@@ -35,6 +40,8 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 		elite: bool = false) -> void:
 	data = p_data
 	is_elite = elite
+	_kb_timer = 0.0
+	_kb_mult = 0.0
 	var elite_hp := 6.0 if elite else 1.0
 	var elite_dmg := 1.5 if elite else 1.0
 	var elite_spd := 0.85 if elite else 1.0
@@ -68,7 +75,18 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 func _physics_process(delta: float) -> void:
 	if GameState.is_paused or _behavior == null:
 		return
+	if _kb_timer > 0.0:
+		_kb_timer -= delta
 	_behavior.physics_update(self, delta)
+
+## Knockback (06 §1): briefly move in REVERSE of the seek direction at
+## move_speed × `mult` for 120 ms. `mult` = weapon knockback_dealt × this enemy's
+## knockback_taken. A bigger/last-wins shove replaces a smaller active one.
+func take_knockback(mult: float) -> void:
+	if mult <= 0.0:
+		return
+	_kb_timer = KB_DURATION
+	_kb_mult = mult
 
 ## Cheap separation: ask the director's spatial hash (throttled, 08 §12-13).
 func separation() -> Vector2:
@@ -78,11 +96,18 @@ func separation() -> Vector2:
 ## separation (no overlap), then move. No pathfinding — VS-style. Enemies don't
 ## collide with the world, so they walk through obstacles instead of snagging.
 func steer(dir: Vector2, speed_scale: float = 1.0, sep_scale: float = 0.6) -> void:
+	if _kb_timer > 0.0:
+		# Knocked back: overall movement reversed × the knockback multiplier.
+		velocity = -dir.normalized() * move_speed * _kb_mult
+		move_and_slide()
+		return
 	velocity = dir * move_speed * speed_scale + separation() * move_speed * sep_scale
 	move_and_slide()
 
 func _on_damaged(info: DamageInfo) -> void:
 	DamageNumber.spawn(get_parent(), global_position, info.amount, info.is_crit)
+	if info.knockback > 0.0 and data:
+		take_knockback(info.knockback * data.knockback_taken)
 	if data and data.hit_sfx != &"":
 		AudioManager.play_sfx(data.hit_sfx)
 
@@ -101,6 +126,10 @@ func _finish_death(at: Vector2) -> void:
 	GameState.enemies_alive -= 1
 	GameState.enemies_killed += 1
 	_drop_tickets(at)
+	if data and data.drops_chest:
+		var chest := ObjectPool.acquire(CHEST_SCENE, get_parent())
+		chest.global_position = at
+		chest.rolls = randi_range(data.chest_rolls_min, data.chest_rolls_max)
 	if data and data.death_vfx:
 		var vfx := ObjectPool.acquire(data.death_vfx, get_parent())
 		vfx.global_position = at

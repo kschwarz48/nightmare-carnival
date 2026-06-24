@@ -6,13 +6,14 @@ This is the **build-craft layer** — the heart of the game (pillar #3). Weapons
 
 ## 1. Core rules
 
-- **Loadout caps:** **6 active weapons + 6 passive items** per run (classic survivors economy). Forces choices and enables evolutions (which free up… nothing — they replace the base weapon in its slot).
+- **Loadout caps:** **4 active weapons + 4 passive items** per run (`WeaponManager.MAX_WEAPONS`, `Player.MAX_PASSIVES`). Forces choices and enables evolutions (which replace the base weapon in its slot). *(Tightened from 6/6 in M4.)*
 - **Weapon levels:** each weapon levels **1 → 8**. Level-ups add projectiles, damage, area, pierce, or cut cooldown (per-weapon table). A maxed (Lv8) weapon is **evolution-eligible**.
 - **Auto-fire + optional aim:** weapons fire automatically on cooldown. Targeting per weapon (`aim_mode` in `WeaponData`): `auto_nearest`, `auto_random`, `forward` (facing/movement dir), `orbit`, `around` (self-centered AoE), `manual` (mouse/right-stick — opt-in accessibility/skill layer, doc 01 §12).
 - **Damage:** `weapon.base_damage × player.might × (crit ? crit_damage : 1)`, modified by area/duration where relevant; defender applies armor. Full formula in doc 08.
 - **Balance by DPS, not per-hit.** A weapon's real power is its *damage per second across everything it hits*. AoE / multi-hit weapons (Fireworks, Popcorn) therefore carry **lower per-hit damage and longer cooldowns** than single-target weapons (Cards) — tune their **cast time first**. Rule of thumb: a single-target weapon should out-DPS an AoE weapon *on one enemy*; the AoE wins in a crowd. (Fireworks vs. Throwing Cards is the reference pair.)
 - **Firing patterns** (`WeaponData`): a multi-projectile weapon fires either as a simultaneous **fan** (`spread_angle_deg`, e.g. Throwing Cards) or **consecutively** one-by-one (`burst_interval > 0`, e.g. Fireworks leaving a box). `random_spread` scatters each shot's angle + range so impacts don't form an even line; lobbed projectiles (Fireworks) add a visual arc.
 - **Scaling stats** (Might, Area, Cooldown, Duration, Amount, Proj Speed, Crit, Luck) come from passives + level-ups + meta + character, and multiply weapon output. A weapon and a passive that feed the same axis = synergy.
+- **Knockback (minor, all abilities):** whenever the player damages an enemy, the enemy is briefly pushed back — for **120 ms** its overall movement is **reversed and multiplied** by a knockback multiplier, then it resumes. The multiplier = the damaging source's **knockback dealt** (`WeaponData.knockback_dealt`, default 1.0) × the target's **knockback taken** (`EnemyData.knockback_taken`, default 1.0; <1 = heavy/resistant, 0 = immune). *Implemented:* the dealt value rides on `DamageInfo.knockback` (projectiles/explosions/orbs/contact hitboxes set it); `Enemy.take_knockback(mult)` reverses `steer()` for the window. Bosses have no `steer`/body movement, so they're naturally immune. The Strongman's on-hit shove reuses the same path with a large multiplier (`PlayerStats.knockback`).
 
 ---
 

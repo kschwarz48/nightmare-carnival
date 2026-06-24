@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="CharacterData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/character_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/weapons/mallet.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"the_strongman"
+display_name = "The Strongman"
+description = "Tanky melee. +50% HP, slower, and shoves enemies that hit him."
+base_max_health = 150.0
+base_move_speed = 187.0
+base_pickup_radius = 60.0
+might_mult = 1.0
+xp_gain_mult = 1.0
+knockback = 5.0
+color = Color(0.95, 0.55, 0.3, 1)
+radius = 14.0
+starting_weapon = ExtResource("2")
+unlock_id = &""

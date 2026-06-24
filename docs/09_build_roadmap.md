@@ -94,13 +94,15 @@ A staged plan from empty project to shippable game, ordered so the game is **fun
 **Goal:** death and victory feed progression; the "one more night" hook closes.
 
 **Tasks**
-- [ ] `SaveManager` meta persistence (`08 §18`).
-- [ ] Run end: ResultsScreen, payout formula → Lost Tickets (`01 §8`, `08 §18`).
-- [ ] **Lost & Found** hub: spend Lost Tickets on a few stat perks + 1 unlock; Carnival-pedia stub (`01 §9`).
-- [ ] Main menu → character select → run → results → (run again / menu) flow (`07 §4`).
-- [ ] Second character (The Strongman) with a distinct starting weapon (`01 §6`).
-- [ ] "Run Again" one-click (re-use last character/difficulty), death→next-run < 8s (`01 §11`).
-- [ ] Pause menu + basic options (volume, a couple of accessibility toggles).
+- [x] `SaveManager` meta persistence (`08 §18`) — perks table (buy/cost/cap), `apply_meta_perks`, spend, settings; JSON save/load.
+- [x] Run end: ResultsScreen, payout formula → Lost Tickets (`01 §8`, `08 §18`) — `GameState._payout`; Results credits once.
+- [x] **Lost & Found** hub: escalating capped stat perks + 1 unlock (Crystal Orbs gated via `UpgradeData.unlock_id`); Carnival-pedia count (`01 §9`).
+- [x] Main menu → character select → run → results → (run again / menu) flow (`07 §4`) — `App` root swaps screens via EventBus nav signals.
+- [x] Second character (The Strongman): mallet, +50% HP / −15% speed, **knockback-on-hit** quirk (`01 §6`).
+- [x] "Run Again" one-click (re-uses last character); death→next-run measured ~0.2s (`01 §11`).
+- [x] Pause menu + options (master volume, reduce-flashes), persisted to settings.
+
+> **Implemented (M4):** the run is nested under the persistent `App` root, so it can't be the SceneTree's `current_scene` — spawn layers are registered on `GameState.{enemy,projectile,actor,pickup}_layer` by `game.gd` and read there by `EnemyDirector`/weapons. Difficulty is Midway-only (tiers → M5); only the death→payout path is reachable (the win path is coded but needs M5 content). Headless-verified: full loop, payout credit + persistence across reload, perk buy/cap, unlock gating, Strongman knockback, pause.
 
 **Exit criteria:** full game loop from menu through a run to payout and back, with persistent meta and 2 characters.
 
@@ -110,19 +112,22 @@ A staged plan from empty project to shippable game, ordered so the game is **fun
 
 ## Milestone 5 — Content build-out
 
-**Goal:** the full roster and all three zones. (Mostly data + behaviors, thanks to the data-driven architecture.)
+**Goal:** the full roster on one excellent zone. (Mostly data + behaviors, thanks to the data-driven architecture.) *Scope pivot: a single very good zone (Carnival Core), no in-run gold/shop — minibosses → chests instead.*
+
+> **Pre-M5 hardening done** (so content doesn't breed debt): data-driven **boss scheduling** (ContentDB + `visible_when_dormant`); **Act timeline** (`act_changed`); **enemy projectile + `shooter` behavior**; **EventData + EventRunner** skeleton (`elite_pack`/`miniboss`); **minibosses → VS-style chests** (`ChestReward`, 1–7 upgrades to equipped items); **`summon` weapon style**; `weapon_evolved` wired. Each ships with a reference resource + headless test. Remaining `dash`/`clone`/`beam` styles build with their weapon.
 
 **Tasks**
-- [ ] All remaining enemy behaviors: `ErraticChaser`, `Shooter`, `LineCharger`, `RailStrafer`, `Spawner`, `Ambusher`, `PopUp`, `Formation` (`08 §11`, `04`).
-- [ ] All 8 enemy families + key variants/elites as `EnemyData` resources (`04`).
+- [ ] Remaining enemy behaviors: `LineCharger`, `RailStrafer`, `Spawner`, `Ambusher`, `PopUp`, `Formation` (`shooter` done) (`08 §11`, `04`).
+- [ ] All enemy families + key variants/elites as `EnemyData` resources (`04`).
 - [ ] Remaining 3 bosses: Ferris Wheel (roaming/roll), Puppet King (sub-target strings), Ringmaster (3-phase finale) (`05`).
-- [ ] Full weapon roster (~14) + full passive roster (~16) + all evolutions as resources (`06`).
-- [ ] Remaining characters (4) (`01 §6`).
-- [ ] **Boardwalk** + **Beach** zones, chokepoints, zone hazards (tide, plank gaps, grease) (`03 §2–4`).
-- [ ] Carnival Events system (`EventData` + `event_runner`) + Intermission Wagon shop (`03 §5–6`).
-- [ ] Full `WaveData` timeline across all four Acts (`03 §7.4`).
+- [ ] Full weapon roster + passive roster + all evolutions as resources (`06`); `dash`/`clone`/`beam` styles as needed.
+- [ ] Remaining characters (`01 §6`).
+- [ ] **Carnival Core** zone polish (the one zone), chokepoints, hazards (`03 §2–4`).
+- [ ] Authored carnival events (`EventData` resources) + timed-hazard event host (`03 §5`).
+- [ ] Full `WaveData` timeline + per-Act ambient across all four Acts (`03 §7.4`).
+- [ ] Difficulty tiers (Carnival/Nightmare/Endless) + curse; the select-screen gating.
 
-**Exit criteria:** a complete 25-minute run with all four bosses, full draft pool, all zones, on the default difficulty.
+**Exit criteria:** a complete 25-minute run with all four bosses, full draft pool, on the Carnival Core, default difficulty.
 
 **Verify:** win a full run; every weapon/evolution reachable; every boss beatable; profile at Act IV peak (~600 enemies) — hit your platform budget.
 

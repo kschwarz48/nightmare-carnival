@@ -17,6 +17,9 @@ enum Kind { NEW_WEAPON, LEVEL_WEAPON, PASSIVE, EVOLUTION }
 # PASSIVE
 @export var passive: PassiveData
 @export var max_stacks: int = 5
+# Optional meta gate (Lost & Found unlock, 01 §9): if set and not unlocked, this
+# option never appears in the draft.
+@export var unlock_id: StringName = &""
 # EVOLUTION — set at runtime by EvolutionSystem.make_evolution(), not authored.
 @export var evolved_weapon: WeaponData
 
@@ -35,6 +38,8 @@ static func make_evolution(base: WeaponData, evo: EvolutionData) -> UpgradeData:
 
 ## Is this a valid offer for the current build state?
 func is_legal(player: Player) -> bool:
+	if unlock_id != &"" and not SaveManager.is_unlocked(unlock_id):
+		return false                    # gated behind a Lost & Found unlock
 	var wm := player.weapon_manager
 	match kind:
 		Kind.NEW_WEAPON:
@@ -109,4 +114,5 @@ func apply(player: Player) -> void:
 			player.refresh_stats()
 		Kind.EVOLUTION:
 			wm.evolve_weapon(weapon.id, evolved_weapon)
+			EventBus.weapon_evolved.emit(weapon.evolution)
 	EventBus.upgrade_chosen.emit(self)

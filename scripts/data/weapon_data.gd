@@ -20,6 +20,9 @@ extends Resource
 @export var base_projectile_speed: float = 400.0
 @export var base_pierce: int = 0
 @export var lifetime: float = 2.0
+## Knockback dealt on hit (06 §1). The enemy's brief reverse-speed shove uses
+## this × the enemy's knockback_taken. ~1.0 is a minor nudge; 0 = no knockback.
+@export var knockback_dealt: float = 1.0
 
 # --- firing pattern (ProjectileWeapon) ---
 ## Total fan width in degrees for a simultaneous volley (e.g. Throwing Cards).

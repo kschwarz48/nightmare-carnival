@@ -1,9 +1,12 @@
 extends Area2D
-## Boss reward chest (03 §6, 05). Pooled. Layer PICKUP — the player's magnet
-## "opens" it on contact, granting a guaranteed draft pick (emits
-## player_leveled_up, which the LevelUpDraft turns into a choose-one).
+## Reward chest (03 §6, 05). Pooled. Layer PICKUP — the player's magnet "opens"
+## it on contact, instantly granting `rolls` VS-style upgrades to already-equipped
+## items (ChestReward). Boss chests roll big; miniboss chests roll 1–7.
 
 @onready var visual: Blob = $Visual
+
+## How many random equipped-item upgrades this chest grants. Set on spawn.
+var rolls: int = 1
 
 var _opened: bool = false
 var _pulse: float = 0.0
@@ -18,11 +21,12 @@ func magnetize() -> void:
 		return
 	_opened = true
 	# magnetize() is called from the player magnet's area_entered (a query flush) —
-	# defer the draft open + pool release out of the callback.
+	# defer the grant + pool release out of the callback.
 	call_deferred(&"_open")
 
 func _open() -> void:
-	EventBus.player_leveled_up.emit(0)      # opens the draft for a free pick
+	if GameState.player:
+		ChestReward.grant(GameState.player as Player, rolls)
 	AudioManager.play_sfx(&"chest")
 	ObjectPool.release(self)
 
@@ -34,6 +38,7 @@ func _process(delta: float) -> void:
 func _on_acquired() -> void:
 	_opened = false
 	_pulse = 0.0
+	rolls = 1                 # spawner overrides this right after acquire
 	show()
 	set_process(true)
 	set_deferred(&"monitorable", true)

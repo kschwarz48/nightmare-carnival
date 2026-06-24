@@ -19,5 +19,5 @@ spawn_interval = 0.8
 spawn_batch = 5
 swarm_enemy = ExtResource("5")
 swarm_interval = 4.0
-swarm_size = 22
+swarm_size = 66
 elite_burst = 4

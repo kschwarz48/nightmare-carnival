@@ -49,5 +49,6 @@ func _on_area_entered(_area: Area2D) -> void:
 func _despawn() -> void:
 	var ex := ObjectPool.acquire(EXPLOSION_SCENE, get_parent()) as Explosion
 	ex.global_position = global_position
+	ex.knockback_dealt = knockback_dealt
 	ex.detonate(damage, _blast_area, is_crit, crit_damage)
 	super._despawn()

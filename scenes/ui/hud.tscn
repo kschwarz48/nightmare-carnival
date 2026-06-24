@@ -141,6 +141,23 @@ theme_override_font_sizes/font_size = 44
 text = "BOSS APPROACHES"
 horizontal_alignment = 1
 
+[node name="ChestToast" type="Label" parent="Root"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.62
+anchor_right = 0.5
+anchor_bottom = 0.62
+offset_left = -360.0
+offset_right = 360.0
+offset_bottom = 120.0
+theme_override_colors/font_color = Color(1, 0.85, 0.25, 1)
+theme_override_font_sizes/font_size = 26
+text = "CHEST!"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="BossPanel" type="VBoxContainer" parent="Root"]
 unique_name_in_owner = true
 visible = false

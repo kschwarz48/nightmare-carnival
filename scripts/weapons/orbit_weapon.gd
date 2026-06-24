@@ -105,6 +105,7 @@ func _orbit(_delta: float) -> void:
 		orb.scale = Vector2.ONE * grow
 		orb.setup(orb_r)
 		orb.set_damage(dmg)
+		orb.set_knockback(current_knockback())
 		orb.set_hue(float(i) / float(maxi(1, n)))
 
 func _despawn_orbs() -> void:
@@ -115,7 +116,7 @@ func _despawn_orbs() -> void:
 	_active_t = 0.0
 
 func _orb_parent() -> Node:
-	return get_tree().current_scene.get_node(^"%ProjectileLayer")
+	return GameState.projectile_layer
 
 func _exit_tree() -> void:
 	_despawn_orbs()
