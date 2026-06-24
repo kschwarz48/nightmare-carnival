@@ -118,9 +118,15 @@ func _on_health_changed(current: float, maximum: float) -> void:
 	if _phase_index + 1 < phases.size() and ratio <= phases[_phase_index + 1].hp_threshold:
 		_transition_to(_phase_index + 1)
 
+## Overridable: a phase was just entered (index into `phases`). Subclasses use it
+## for persistent per-phase hazards (e.g. the Tent's Rotating Pole).
+func _on_phase_entered(_index: int) -> void:
+	pass
+
 ## Brief invulnerable, busy transition between phases (flash + pause).
 func _transition_to(index: int) -> void:
 	_phase_index = index
+	_on_phase_entered(index)
 	_busy = true
 	_casting = true
 	health.invincible = true
