@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/vfx_pop.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"walking_ticket_booth"
+display_name = "Walking Ticket Booth"
+max_health = 600.0
+move_speed = 22.0
+contact_damage = 16.0
+ticket_value = 25
+knockback_taken = 0.15
+behavior = &"spawner"
+color = Color(0.55, 0.4, 0.75, 1)
+radius = 24.0
+shape = 1
+separation_radius = 30.0
+can_be_elite = false
+death_vfx = ExtResource("2")
+params = { "spawn_interval": 4.5, "spawn_count": 2, "spawn_enemy": &"living_balloon" }
