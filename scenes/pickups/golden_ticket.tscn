@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://bg0ld3nt1ck3t0"]
+[gd_scene format=3 uid="uid://cdin63niokdad"]
 
 [ext_resource type="Script" path="res://scripts/pickups/golden_ticket.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/vfx/blob.gd" id="2"]

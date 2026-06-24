@@ -117,22 +117,24 @@ func _spawn_one(minutes: float, wave: WaveData, force_elite: bool = false) -> bo
 	_active.append(e)
 	return true
 
-## Spawn a flyby swarm: a big blob of fast enemies that streak in from ALL angles
-## around the player and cross straight through the play area, out the far side
-## (FlybyBehavior). Each picks its own perimeter spawn + heading, so it reads as a
-## converging storm rather than a single wall sweeping one direction.
+## Spawn a flyby swarm: a tight, touching cluster of fast enemies — a "school of
+## fish" — that streaks across the whole play area together from one random angle
+## and out the far side (FlybyBehavior; flyby bodies don't collide, so they stay
+## packed). One shared heading, one tight blob.
 func _spawn_swarm(wave: WaveData, minutes: float) -> void:
 	var center: Vector2 = GameState.player.global_position
-	var ring := VIEW_HALF.length() + 80.0             # just off-screen on every side
+	var ring := VIEW_HALF.length() + 90.0
+	var ang := randf() * TAU                           # the side it comes from
+	var dir := -Vector2.from_angle(ang)               # heading: across, through center
+	var cluster_center := center + Vector2.from_angle(ang) * ring
+	var spread := clampf(float(wave.swarm_size) * 4.5, 40.0, 110.0)
 	for _i in wave.swarm_size:
 		if _active.size() >= _cap():
 			break
-		var spawn := center + Vector2.from_angle(randf() * TAU) * ring
-		# Aim across, through a jittered point near the player, so headings differ.
-		var target := center + Vector2.from_angle(randf() * TAU) * randf_range(0.0, VIEW_HALF.y * 0.6)
-		var dir := spawn.direction_to(target)
+		# Disk-uniform offset (sqrt) keeps the school dense rather than ring-heavy.
+		var off := Vector2.from_angle(randf() * TAU) * (sqrt(randf()) * spread)
 		var e := ObjectPool.acquire(ENEMY_SCENE, _enemy_layer()) as Enemy
-		e.global_position = spawn
+		e.global_position = cluster_center + off
 		e.configure(wave.swarm_enemy, _hp_mult(minutes), _dmg_mult(minutes), _spd_mult(minutes), false)
 		e.set_meta(&"flyby_dir", dir)
 		_active.append(e)

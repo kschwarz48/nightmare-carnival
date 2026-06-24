@@ -50,7 +50,7 @@ Base values are Lv1 at 100% stats. "Scales with" lists which player stats amplif
 
 > **Design intent per weapon = a distinct *shape of fire*:** forward fan, around-self, orbit, lob-AoE, pierce-line, cone-DoT, big-single, boomerang, summon, clone. Drafting variety should always feel mechanically different, not just "more damage."
 
-> **Implemented — `orbit` style (`orbit_weapon.gd` + `orbit_orb.gd`):** Crystal Orbs maintains N persistent orbs (Amount) that rotate around the player (spin speed scales with Duration), each a continuous-contact `OrbitOrb` that re-hits enemies on a short interval (Might = damage, Area = orb size + ring radius). No aim, no cooldown-fire — the Weapon cooldown loop is overridden. Orbs are weapon-owned child nodes (freed with the weapon), not pooled projectiles. Evolution (Cosmic Convergence) not yet wired.
+> **Implemented — `orbit` style (`orbit_weapon.gd` + `orbit_orb.gd`), Holy-Bible model:** on a cooldown Crystal Orbs *summons* N orbs (cast-time grow-in) that spin fast around the player for a **duration**, then vanish until the next cast. Each orb is a continuous-contact `OrbitOrb` that re-hits enemies on a short interval. Leveling raises orb **count** (Amount), **orbit speed**, and **duration**, and lowers cooldown — so at max level duration ≥ cooldown and the orbs are up permanently (a wall of spinning orbs). Might = damage, Area = orb size + ring radius, Duration also scales speed/length. Orbs are weapon-owned nodes (freed with the weapon), not pooled. Evolution (Cosmic Convergence) not yet wired.
 
 ### Generic per-level scaling template
 Most weapons follow a rhythm like this (tune per weapon in its resource):

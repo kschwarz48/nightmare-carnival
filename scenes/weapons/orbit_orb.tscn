@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://c0rb1t0rb00orb"]
+[gd_scene format=3 uid="uid://0i5onpag5okx"]
 
 [ext_resource type="Script" path="res://scripts/weapons/orbit_orb.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/vfx/blob.gd" id="2"]

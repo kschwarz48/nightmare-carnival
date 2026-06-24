@@ -19,6 +19,11 @@ func telegraph(boss, lead: float) -> void:
 	await boss.get_tree().create_timer(lead).timeout
 
 func execute(boss) -> void:
+	# Suspend the Rotating Pole while pulling — being dragged into the maw AND a
+	# sweeping wall at once is the "impossible" P2 overlap (player feedback).
+	var pole = boss.get_node_or_null(^"RotatingPole")
+	if pole:
+		pole.set_paused(true)
 	var t := DURATION
 	while t > 0.0 and boss._alive:
 		var p = GameState.player
@@ -28,3 +33,5 @@ func execute(boss) -> void:
 		t -= boss.get_physics_process_delta_time()
 	if is_instance_valid(GameState.player):
 		(GameState.player as Player).external_pull = Vector2.ZERO
+	if is_instance_valid(pole):
+		pole.set_paused(false)

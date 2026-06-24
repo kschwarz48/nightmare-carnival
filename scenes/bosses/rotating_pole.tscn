@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://br0t4t1ngp0le0"]
+[gd_scene format=3 uid="uid://brjs6bo6ed7j2"]
 
 [ext_resource type="Script" path="res://scripts/bosses/rotating_pole.gd" id="1"]
 
