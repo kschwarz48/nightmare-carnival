@@ -15,6 +15,7 @@ const LOST_AND_FOUND := preload("res://scenes/ui/lost_and_found.tscn")
 
 var _current: Node = null
 var _last_character_id: StringName = &"the_carny"
+var _last_difficulty_id: StringName = &"midway"
 var _swapping: bool = false
 
 func _ready() -> void:
@@ -62,12 +63,17 @@ func _to_character_select() -> void:
 func _to_lost_and_found() -> void:
 	await _swap(LOST_AND_FOUND)
 
-func _start_run(character_id: StringName) -> void:
+func _start_run(character_id: StringName, difficulty_id: StringName) -> void:
 	_last_character_id = character_id
-	await _swap(GAME, func(g): g.character_id = character_id)
+	_last_difficulty_id = difficulty_id
+	await _swap(GAME, func(g):
+		g.character_id = character_id
+		g.difficulty_id = difficulty_id)
 
 func _run_again() -> void:
-	await _swap(GAME, func(g): g.character_id = _last_character_id)
+	await _swap(GAME, func(g):
+		g.character_id = _last_character_id
+		g.difficulty_id = _last_difficulty_id)
 
 func _on_run_ended(_did_win: bool, stats: Dictionary) -> void:
 	await _swap(RESULTS, func(r): r.setup(stats))

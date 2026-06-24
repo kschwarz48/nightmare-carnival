@@ -36,5 +36,5 @@ signal time_tick(run_seconds: float)
 signal goto_menu
 signal goto_character_select
 signal goto_lost_and_found
-signal start_run(character_id: StringName)
+signal start_run(character_id: StringName, difficulty_id: StringName)
 signal run_again
