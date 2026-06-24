@@ -11,3 +11,5 @@ hp_mult = 1.0
 dmg_mult = 1.0
 max_alive = 280
 greed_bonus = 0.0
+miniboss_interval = 75.0
+miniboss_enemy = &"carnival_miniboss"

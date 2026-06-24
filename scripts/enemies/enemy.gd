@@ -10,6 +10,7 @@ extends CharacterBody2D
 @onready var hitbox: HitboxComponent = $HitboxComponent
 @onready var flash: FlashComponent = $FlashComponent
 
+const CHEST_SCENE := preload("res://scenes/pickups/chest.tscn")
 const KB_DURATION := 0.12           # knockback lasts 120 ms (06 §1)
 
 var data: EnemyData
@@ -125,6 +126,10 @@ func _finish_death(at: Vector2) -> void:
 	GameState.enemies_alive -= 1
 	GameState.enemies_killed += 1
 	_drop_tickets(at)
+	if data and data.drops_chest:
+		var chest := ObjectPool.acquire(CHEST_SCENE, get_parent())
+		chest.global_position = at
+		chest.rolls = randi_range(data.chest_rolls_min, data.chest_rolls_max)
 	if data and data.death_vfx:
 		var vfx := ObjectPool.acquire(data.death_vfx, get_parent())
 		vfx.global_position = at

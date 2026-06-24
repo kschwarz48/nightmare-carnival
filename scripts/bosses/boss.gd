@@ -166,6 +166,7 @@ func _drop_reward(at: Vector2) -> void:
 		return
 	var chest := ObjectPool.acquire(preload("res://scenes/pickups/chest.tscn"), layer)
 	chest.global_position = at
+	chest.rolls = randi_range(4, 6)        # bosses roll big (03 §6)
 	var gem_scene := preload("res://scenes/pickups/ticket_gem.tscn")
 	for i in 12:
 		var gem := ObjectPool.acquire(gem_scene, layer)

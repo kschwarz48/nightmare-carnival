@@ -21,12 +21,14 @@ var _frame: int = 0
 var _running: bool = false
 var _boss_active: bool = false            # pauses ambient spawns during a set-piece boss
 var _bosses: Array = []                   # active bosses (targetable by weapon auto-aim)
+var _miniboss_accum: float = 0.0          # time toward the next miniboss (03 §6)
 
 func start() -> void:
 	_active.clear()
 	_bosses.clear()
 	_interval_accum = 0.0
 	_swarm_accum = 0.0
+	_miniboss_accum = 0.0
 	_current_wave_id = &""
 	_frame = 0
 	_boss_active = false
@@ -61,6 +63,7 @@ func _spawn_step(delta: float) -> void:
 	if wave == null:
 		return
 	var minutes := GameState.run_minutes()
+	_miniboss_step(delta)
 	var cap: int = mini(wave.max_alive, _cap())
 
 	# On entering a new wave, run its one-shot effects (e.g. the elite gauntlet).
@@ -140,6 +143,20 @@ func _spawn_swarm(wave: WaveData, minutes: float) -> void:
 		e.configure(wave.swarm_enemy, _hp_mult(minutes), _dmg_mult(minutes), _spd_mult(minutes), false)
 		e.set_meta(&"flyby_dir", dir)
 		_active.append(e)
+
+## Periodic miniboss (03 §6): a high-HP mob that walks in from the edge and drops
+## a reward chest. Cadence + which enemy come from the difficulty (data-driven).
+func _miniboss_step(delta: float) -> void:
+	var interval: float = GameState.difficulty.miniboss_interval
+	if interval <= 0.0:
+		return
+	_miniboss_accum += delta
+	if _miniboss_accum < interval:
+		return
+	_miniboss_accum = 0.0
+	var ed := ContentDB.get_enemy(GameState.difficulty.miniboss_enemy)
+	if ed != null and _active.size() < _cap():
+		spawn_add(ed, _spawn_point())
 
 ## Spawn a single add at a position (boss summons — Concession Spew, Clown Call).
 func spawn_add(ed: EnemyData, pos: Vector2, elite: bool = false) -> void:
