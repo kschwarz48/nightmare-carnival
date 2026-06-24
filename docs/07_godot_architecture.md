@@ -92,8 +92,10 @@ res://
 > **Present in the repo today (M4)** — the rest of the tree above is the target:
 > - **Autoloads:** `CollisionLayers, EventBus, GameState, SaveManager, MapBounds, ContentDB, ObjectPool, AudioManager, EnemyDirector, GemDirector` (see §5).
 > - **Components:** `health_component, hurtbox_component, hitbox_component, flash_component` (no Velocity/Animation/Stats components yet — enemies move via their behavior, player stats live on the `PlayerStats` resource).
-> - **Behaviors:** `enemy_behavior` (base) + `chaser, erratic_chaser, burst_charger, flyby`. The shooter/charger/spawner/etc. variants arrive with M5 content.
-> - **Weapons (`scripts/weapons/`):** `weapon` (base), `projectile_weapon, melee_weapon, orbit_weapon`; attack nodes `projectile, boomerang, firework_rocket, explosion, melee_arc, orbit_orb`.
+> - **Behaviors:** `enemy_behavior` (base) + `chaser, erratic_chaser, burst_charger, flyby, shooter`. The remaining variants (line_charger/rail_strafer/spawner/etc.) arrive with M5 content. Ranged enemies use the pooled `enemy_projectile`.
+> - **Weapons (`scripts/weapons/`):** `weapon` (base), `projectile_weapon, melee_weapon, orbit_weapon, summon_weapon`; attack nodes `projectile, boomerang, firework_rocket, explosion, melee_arc, orbit_orb`. (dash/clone/beam styles build with their weapon in M5.)
+> - **Systems (`scripts/systems/`):** `damage_info, spatial_hash, draft_generator, evolution_system, event_runner, chest_reward`.
+> - **Schedules/timeline:** boss scheduling is data-driven (`ContentDB.all_bosses` + `BossData.visible_when_dormant`); `GameState.act` + `act_changed` drive the Act timeline; `DifficultyData.miniboss_interval/_enemy` drive periodic minibosses → `ChestReward` chests.
 > - **Bosses:** `boss, boss_phase, boss_attack, tent_boss, rotating_pole` + `attacks/` (tent_stomp, concession_spew, pennant_flap, inhale, popcorn_exhale, stake_drop, frenzy_stomp, clown_call, ring_of_fire) + `shockwave, popcorn`.
 > - **Pickups:** `ticket_gem, food_pickup, golden_ticket, chest`.
 > - **UI screens (`scenes/ui/`):** `main_menu, character_select, results_screen, lost_and_found, hud, level_up_draft, pause_menu`.

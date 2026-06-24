@@ -1,6 +1,8 @@
 # 03 · Map & Level Design
 
-Covers the boardwalk map, its three zones and chokepoints, environmental hazards & events, and the **spawn director** that paces the whole night. Implementation of the director is in `08_core_systems_implementation.md`; this doc defines *what* it does and the tunable design values.
+Covers the boardwalk map, its chokepoints, environmental hazards & events, and the **spawn director** that paces the whole night. Implementation of the director is in `08_core_systems_implementation.md`; this doc defines *what* it does and the tunable design values.
+
+> **Design update (pre-M5): single zone.** The game now ships **one very good zone — the Carnival Core** — instead of three stitched zones (Boardwalk/Beach are dropped for now). The 3-zone layout below (§2–4) is retained as future reference but is **not** the current build; the run plays entirely in the Carnival Core. The **economy is XP/Tickets only** — no in-run Gold or Intermission Wagon; the **only shop is the Lost & Found hub** (between runs). Reward chests now come from **bosses and minibosses** (see §6).
 
 ---
 
@@ -103,11 +105,10 @@ Events should mostly create *positional* decisions (go toward the reward and the
 ## 6. Pickups, breakables & the shop
 
 - **Tickets (XP):** drop from kills as ticket-stubs; auto-collected within pickup radius (fly to player). Bigger stubs from tougher enemies; Act IV stubs are worth more. *Implemented (VS-style):* gem **color is keyed to payout** — blue = 1, green = a few, **red = a lot** (elites drop a fat ×5 red gem). A **400-gem ground cap** (anti-lag): past the cap, new XP is vacuumed into a single accumulating **Red Gem Bank** (`GemDirector`) drawn big and pulsing — collecting it dumps the whole hoard at once, triggering a chain of level-ups. Below the cap, normal gems resume.
-- **Gold:** rarer kill drops + from breakables. Spent at the Intermission Wagon.
-- **Breakables:** popcorn carts, prize stands, crates, pumpkin bins — destroying drops Gold/health/occasional Ticket. Scatter densely along the Boardwalk (Scene Paint Mode). Consistent "breakable" shine so players learn to smash them.
-- **Health pickups:** occasional hot-dog/funnel-cake heals; the only in-run heal besides regen items. *Implemented:* spawned on a **guaranteed randomized interval** (`game.gd` `food_interval_min`/`max`, default 70–110 s, first one ~30–50 s in) — a bright-green pulsing `FoodPickup` (`+20 HP`) at a random spot **relative to the player** (on-screen, a short walk away) that despawns after a window if ignored. (A flat per-roll chance was too swingy — players could go a whole run seeing none.) A clutch lifeline that reliably appears without being a steady drip.
-- **Chests:** from bosses, elite packs, and the "Last Ticket" event — grant weapon/passive/evolution or a Gold jackpot. Boss chests guarantee an upgrade.
-- **The Intermission Wagon (shop):** a roaming wagon that parks somewhere on the map ~once per Act (banner + map ping). Walk to it to open a lightweight shop: **reroll a future draft**, **buy a heal**, **buy 1 random item**. (MVP: heal + reroll + 1 item; expand later.)
+- **Gold & the Intermission Wagon shop:** *deferred.* The pre-M5 pivot drops in-run Gold and the roaming shop. The **only shop is the Lost & Found hub** (between runs, spends Lost Tickets). Breakables (popcorn carts dropping gold) are also deferred.
+- **Health pickups:** occasional hot-dog/funnel-cake heals; the only in-run heal besides regen items. *Implemented:* spawned on a **guaranteed randomized interval** (`game.gd` `food_interval_min`/`max`, default 70–110 s, first one ~30–50 s in) — a bright-green pulsing `FoodPickup` (`+20 HP`) at a random spot **relative to the player** (on-screen, a short walk away) that despawns after a window if ignored. A clutch lifeline that reliably appears without being a steady drip.
+- **Golden Ticket:** rare wormhole pickup — collecting it **vacuums every XP gem on the map** to the player. Much rarer than food (~1 by the 6:00 gate).
+- **Chests (VS-style):** dropped by **bosses** (roll 4–6) and **minibosses** (roll 1–7). Opening grants that many **upgrades to random already-equipped items** (owned weapons / held passives), instantly, no draft (`ChestReward`; falls back to a new weapon if everything's maxed). **Minibosses** are periodic high-HP "Carnival Brute" mobs (no mechanics) that walk in from the edge and drop the chest on death (`DifficultyData.miniboss_interval`/`_enemy`; `EnemyData.drops_chest`).
 
 ---
 

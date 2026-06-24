@@ -70,7 +70,7 @@ The **second-to-second** verb is *move* (dodging). The **minute-to-minute** deci
 
 ## 5. The night: run structure & timeline
 
-A run is a single night on the boardwalk, **25 minutes**, played on one continuous connected map (three zones — see `03_map_and_level_design.md`). Difficulty scales with **time elapsed**, not player location, so there's nowhere truly safe to hide.
+A run is a single night on the boardwalk, **25 minutes**, played on one continuous map. *(Design update, pre-M5: the map is now **one very good zone — the Carnival Core** — rather than three stitched zones; see `03_map_and_level_design.md`.)* Difficulty scales with **time elapsed**, not player location, so there's nowhere truly safe to hide.
 
 The night is paced in four **Acts**, each ending with a ride-boss. Bosses appear at fixed time gates; surviving past one ratchets the spawn tables to the next Act.
 
