@@ -9,6 +9,8 @@ extends Resource
 @export var move_speed: float = 60.0
 @export var contact_damage: float = 8.0
 @export var ticket_value: int = 1
+## How strongly this enemy is knocked back (06 §1). 1.0 = normal; <1 = heavy/resistant.
+@export var knockback_taken: float = 1.0
 @export var behavior: StringName = &"chaser"        # maps to a behavior script (§11)
 
 # --- programmer-art visual (replaced by SpriteFrames at M6) ---

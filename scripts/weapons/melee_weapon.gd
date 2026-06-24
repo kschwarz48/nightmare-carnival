@@ -9,6 +9,7 @@ func fire() -> void:
 		return
 	var swing := ObjectPool.acquire(data.projectile_scene, _world_layer()) as Explosion
 	swing.global_position = GameState.player.global_position
+	swing.knockback_dealt = current_knockback()
 	swing.detonate(current_damage(), current_area(), _stats().roll_crit(), _stats().crit_damage)
 
 func _world_layer() -> Node:

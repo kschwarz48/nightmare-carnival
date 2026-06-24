@@ -95,14 +95,14 @@ func _on_damaged(info: DamageInfo) -> void:
 		_shove_nearby_enemies()
 
 ## Strongman quirk: when something hits you, shove the enemies pressing on you.
+## Reuses the shared knockback (reverse-speed) with a big multiplier (stats.knockback).
 func _shove_nearby_enemies() -> void:
 	const RADIUS := 80.0
 	for e in EnemyDirector._active:
 		if not is_instance_valid(e):
 			continue
-		var to: Vector2 = e.global_position - global_position
-		if to.length() < RADIUS:
-			e.apply_knockback(to.normalized() * stats.knockback)
+		if e.global_position.distance_to(global_position) < RADIUS:
+			e.take_knockback(stats.knockback)
 
 func _on_died(_info: DamageInfo) -> void:
 	if stats.revives > 0:

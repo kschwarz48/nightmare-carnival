@@ -39,8 +39,6 @@ func _on_area_entered(area: Area2D) -> void:
 		_hit(area)
 
 func _hit(hurtbox: HurtboxComponent) -> void:
-	var kb := Vector2.ZERO
-	if knockback_force > 0.0:
-		kb = (hurtbox.global_position - global_position).normalized() * knockback_force
-	hurtbox.receive(DamageInfo.new(damage, owner, false, kb))
+	# knockback_force is the dealt multiplier (scalar); enemies reverse-speed on it.
+	hurtbox.receive(DamageInfo.new(damage, owner, false, knockback_force))
 	_cooldowns[hurtbox] = damage_interval

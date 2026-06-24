@@ -10,7 +10,7 @@ extends CharacterBody2D
 @onready var hitbox: HitboxComponent = $HitboxComponent
 @onready var flash: FlashComponent = $FlashComponent
 
-const KNOCKBACK_DECAY := 2400.0     # px/s² the shove bleeds off
+const KB_DURATION := 0.12           # knockback lasts 120 ms (06 §1)
 
 var data: EnemyData
 var move_speed: float = 60.0
@@ -18,7 +18,8 @@ var is_elite: bool = false
 
 var _behavior: EnemyBehavior
 var _wired: bool = false
-var _knockback: Vector2 = Vector2.ZERO
+var _kb_timer: float = 0.0           # seconds of knockback remaining
+var _kb_mult: float = 0.0            # reverse-speed multiplier while knocked
 
 func _ready() -> void:
 	collision_layer = CollisionLayers.ENEMY
@@ -38,7 +39,8 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 		elite: bool = false) -> void:
 	data = p_data
 	is_elite = elite
-	_knockback = Vector2.ZERO
+	_kb_timer = 0.0
+	_kb_mult = 0.0
 	var elite_hp := 6.0 if elite else 1.0
 	var elite_dmg := 1.5 if elite else 1.0
 	var elite_spd := 0.85 if elite else 1.0
@@ -72,13 +74,18 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 func _physics_process(delta: float) -> void:
 	if GameState.is_paused or _behavior == null:
 		return
-	if _knockback.length_squared() > 1.0:
-		_knockback = _knockback.move_toward(Vector2.ZERO, KNOCKBACK_DECAY * delta)
+	if _kb_timer > 0.0:
+		_kb_timer -= delta
 	_behavior.physics_update(self, delta)
 
-## A momentary shove (Strongman's knockback-on-hit). Decays in steer/_physics.
-func apply_knockback(impulse: Vector2) -> void:
-	_knockback = impulse
+## Knockback (06 §1): briefly move in REVERSE of the seek direction at
+## move_speed × `mult` for 120 ms. `mult` = weapon knockback_dealt × this enemy's
+## knockback_taken. A bigger/last-wins shove replaces a smaller active one.
+func take_knockback(mult: float) -> void:
+	if mult <= 0.0:
+		return
+	_kb_timer = KB_DURATION
+	_kb_mult = mult
 
 ## Cheap separation: ask the director's spatial hash (throttled, 08 §12-13).
 func separation() -> Vector2:
@@ -88,11 +95,18 @@ func separation() -> Vector2:
 ## separation (no overlap), then move. No pathfinding — VS-style. Enemies don't
 ## collide with the world, so they walk through obstacles instead of snagging.
 func steer(dir: Vector2, speed_scale: float = 1.0, sep_scale: float = 0.6) -> void:
-	velocity = dir * move_speed * speed_scale + separation() * move_speed * sep_scale + _knockback
+	if _kb_timer > 0.0:
+		# Knocked back: overall movement reversed × the knockback multiplier.
+		velocity = -dir.normalized() * move_speed * _kb_mult
+		move_and_slide()
+		return
+	velocity = dir * move_speed * speed_scale + separation() * move_speed * sep_scale
 	move_and_slide()
 
 func _on_damaged(info: DamageInfo) -> void:
 	DamageNumber.spawn(get_parent(), global_position, info.amount, info.is_crit)
+	if info.knockback > 0.0 and data:
+		take_knockback(info.knockback * data.knockback_taken)
 	if data and data.hit_sfx != &"":
 		AudioManager.play_sfx(data.hit_sfx)
 

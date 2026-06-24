@@ -29,6 +29,7 @@ func current_cooldown() -> float: return data.cooldown_at(level) * _stats().cool
 func current_damage() -> float:   return data.damage_at(level) * _stats().might_mult
 func current_amount() -> int:     return data.amount_at(level) + _stats().amount_add
 func current_area() -> float:     return data.area_at(level) * _stats().area_mult
+func current_knockback() -> float: return data.knockback_dealt
 
 func level_up() -> void:
 	level = mini(level + 1, data.max_level)

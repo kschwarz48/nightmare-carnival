@@ -23,7 +23,7 @@ var greed: float = 1.0
 var xp_gain_mult: float = 1.0
 var hp_regen: float = 0.0
 var revives: int = 0
-var knockback: float = 0.0          # impulse applied to enemies that hit you (Strongman quirk)
+var knockback: float = 0.0          # reverse-speed knockback multiplier for the Strongman's on-hit shove
 
 var max_health_add: float = 0.0
 var max_health_mult: float = 1.0

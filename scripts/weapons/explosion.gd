@@ -15,6 +15,7 @@ var _dmg: float = 0.0
 var _crit: bool = false
 var _t: float = 0.0
 var _live: bool = false
+var knockback_dealt: float = 0.0     # set by the firing weapon (melee swing / firework)
 
 func _ready() -> void:
 	collision_layer = CollisionLayers.PLAYER_ATTACK
@@ -49,7 +50,7 @@ func _on_area_entered(a: Area2D) -> void:
 func _try_hit(a: Area2D) -> void:
 	if a is HurtboxComponent and not _hit.has(a):
 		_hit.append(a)
-		a.receive(DamageInfo.new(_dmg, self, _crit))
+		a.receive(DamageInfo.new(_dmg, self, _crit, knockback_dealt))
 
 func _process(delta: float) -> void:
 	_t -= delta

@@ -9,6 +9,7 @@ var pierce: int = 0
 var lifetime: float = 2.0
 var is_crit: bool = false
 var crit_damage: float = 2.0
+var knockback_dealt: float = 0.0     # set by the firing weapon; passed into the hit
 
 var _life: float = 0.0
 var _hit: Array = []     # hurtboxes already hit (no double-tap during pierce)
@@ -45,7 +46,7 @@ func _on_area_entered(area: Area2D) -> void:
 	if area is HurtboxComponent and not _hit.has(area):
 		_hit.append(area)
 		var dmg := damage * (crit_damage if is_crit else 1.0)
-		area.receive(DamageInfo.new(dmg, self, is_crit))
+		area.receive(DamageInfo.new(dmg, self, is_crit, knockback_dealt))
 		if pierce <= 0:
 			_despawn()
 		else:

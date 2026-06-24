@@ -105,6 +105,7 @@ func _orbit(_delta: float) -> void:
 		orb.scale = Vector2.ONE * grow
 		orb.setup(orb_r)
 		orb.set_damage(dmg)
+		orb.set_knockback(current_knockback())
 		orb.set_hue(float(i) / float(maxi(1, n)))
 
 func _despawn_orbs() -> void:

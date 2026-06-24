@@ -12,7 +12,7 @@ extends Resource
 @export var base_pickup_radius: float = 60.0
 @export var might_mult: float = 1.0
 @export var xp_gain_mult: float = 1.0
-@export var knockback: float = 0.0             # Strongman quirk: shove enemies that hit you
+@export var knockback: float = 0.0             # Strongman quirk: reverse-speed shove multiplier vs enemies that hit you
 
 # programmer-art visual
 @export var color: Color = Color(0.2, 0.8, 1.0)

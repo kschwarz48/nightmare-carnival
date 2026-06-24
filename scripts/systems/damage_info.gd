@@ -5,11 +5,11 @@ extends RefCounted
 var amount: float = 0.0
 var source: Node = null          # who dealt it (thorns, lifesteal, attribution)
 var is_crit: bool = false
-var knockback: Vector2 = Vector2.ZERO
+var knockback: float = 0.0       # knockback-dealt multiplier (0 = none); see Enemy.take_knockback
 var damage_type: StringName = &"physical"
 
 func _init(p_amount: float, p_source: Node = null, p_crit: bool = false,
-		p_knockback: Vector2 = Vector2.ZERO, p_type: StringName = &"physical") -> void:
+		p_knockback: float = 0.0, p_type: StringName = &"physical") -> void:
 	amount = p_amount
 	source = p_source
 	is_crit = p_crit
