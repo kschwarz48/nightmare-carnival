@@ -8,6 +8,7 @@ var _weapons: Array[WeaponData] = []
 var _enemies: Array[EnemyData] = []
 var _upgrades: Array[UpgradeData] = []
 var _waves: Array[WaveData] = []
+var _bosses: Array[BossData] = []
 
 func _ready() -> void:
 	_load_dir("res://resources/characters/", _characters)
@@ -16,7 +17,9 @@ func _ready() -> void:
 	_load_dir("res://resources/enemies/", _enemies)
 	_load_dir("res://resources/upgrades/", _upgrades)
 	_load_dir("res://resources/waves/", _waves)
+	_load_dir("res://resources/bosses/", _bosses)
 	_waves.sort_custom(func(a, b): return a.start_time < b.start_time)
+	_bosses.sort_custom(func(a, b): return a.gate_time < b.gate_time)
 
 func _load_dir(path: String, into: Array) -> void:
 	var dir := DirAccess.open(path)
@@ -36,6 +39,13 @@ func all_characters() -> Array[CharacterData]: return _characters
 func all_difficulties() -> Array[DifficultyData]: return _difficulties
 func all_upgrades() -> Array[UpgradeData]: return _upgrades
 func all_waves() -> Array[WaveData]: return _waves
+func all_bosses() -> Array[BossData]: return _bosses
+
+func get_boss(id: StringName) -> BossData:
+	for b in _bosses:
+		if b.id == id:
+			return b
+	return null
 
 func get_character(id: StringName) -> CharacterData:
 	for c in _characters:

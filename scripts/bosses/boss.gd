@@ -42,6 +42,7 @@ func setup(p_data: BossData) -> void:
 	hurtbox.set_deferred(&"monitorable", false)   # invulnerable while dormant
 	hurtbox.set_deferred(&"monitoring", false)
 	hitbox.set_deferred(&"monitoring", false)      # no contact damage while dormant
+	visual.visible = p_data.visible_when_dormant   # hidden until it wakes (non-Tent bosses)
 	_enrage_t = p_data.soft_enrage_time
 
 func _physics_process(delta: float) -> void:
@@ -63,6 +64,7 @@ func _awaken() -> void:
 	await get_tree().create_timer(2.0, false).timeout
 	if not is_instance_valid(self) or not _alive:
 		return
+	visual.visible = true                          # reveal (if it was hidden while dormant)
 	hurtbox.set_deferred(&"monitorable", true)
 	hitbox.set_deferred(&"monitoring", true)
 	health.damaged.connect(flash.flash)

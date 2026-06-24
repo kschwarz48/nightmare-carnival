@@ -11,6 +11,9 @@ extends Resource
 @export var soft_enrage_time: float = 100.0
 ## When (run seconds) the dormant boss wakes up.
 @export var gate_time: float = 360.0
+## Visible as scenery before it wakes? The Tent is (the "this prop IS the boss"
+## reveal); later bosses stay hidden until their gate so they don't litter the map.
+@export var visible_when_dormant: bool = false
 ## Roam toward the player once active; stops at preferred_distance. Below the
 ## player's speed so it pressures/looms but can't "jump" on a fleeing player.
 @export var move_speed: float = 150.0
