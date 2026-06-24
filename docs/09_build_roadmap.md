@@ -74,16 +74,18 @@ A staged plan from empty project to shippable game, ordered so the game is **fun
 **Goal:** a real run shape — timed waves, scaling, and a climactic boss in an actual map.
 
 **Tasks**
-- [ ] `EnemyDirector` full: `WaveData` tables, `DifficultyData` scaling, elite spawns, boss gates (`08 §13`, `03 §7`).
-- [ ] Author the **Carnival Core** zone (`world.tscn`): TileMapLayer ground, `StaticBody2D` obstacles/chokepoints, `CanvasModulate` + a few lights, `MapBounds`, Y-sort, camera limits (`03 §9`, `02 §3`).
-- [ ] Boss framework: `Boss`, `BossPhase`, `BossAttack`, `BossData` (`08 §17`).
-- [ ] Implement **The Carnival Tent** (3 phases, its attacks, soft arena, defeat → chest) (`05`).
-- [ ] Boss-incoming flow: pause ambient spawns, warning, intro; boss bar UI.
-- [ ] Chest pickup → grants an upgrade (`03 §6`).
+- [x] `EnemyDirector` full: `WaveData` tables, `DifficultyData` scaling, elite spawns, boss gates (`08 §13`, `03 §7`).
+- [x] Author the **Carnival Core** zone (`world.tscn`): `StaticBody2D` obstacles/chokepoints (3 labeled gates), `CanvasModulate` + a few `PointLight2D`, `MapBounds`, Y-sort, camera limits (`03 §9`, `02 §3`). *(Ground is a programmer-art grid; real TileMapLayer tile art is the one item left to the M6 art pass.)*
+- [x] Boss framework: `Boss`, `BossPhase`, `BossAttack`, `BossData` (`08 §17`).
+- [x] Implement **The Carnival Tent** (3 phases, its attacks, defeat → chest) (`05`). *(Roams + leashes the player instead of a hard soft-wall arena — same set-piece pressure, fewer pathing issues.)*
+- [x] Boss-incoming flow: pause ambient spawns, warning, intro; boss bar UI.
+- [x] Chest pickup → grants an upgrade (`03 §6`).
 
 **Exit criteria:** a 6-minute run that scales, spawns elites, and ends in the Tent fight with a reward.
 
 **Verify:** the Tent's telegraphs are readable and dodgeable; phase transitions fire at the right HP; director caps hold; play the full 0:00→6:00→Tent arc.
+
+> **Implemented (programmer-art pass):** boss framework (`Boss`/`BossPhase`/`BossAttack`/`BossData`), the **Carnival Tent** with a curated 2-attacks-per-phase moveset (P1 Stomp+Spew · P2 Inhale+Popcorn Exhale · P3 Frenzy Stomp+Clown Call), director boss-gate flow (warning → spawn → **ambient paused** → defeat resumes), boss bar + warning banner, guaranteed **chest** (opens a draft pick) + ticket burst. The Tent now sits **dormant at center from run start** and **roams** the player when it wakes (no hard arena). The **Carnival Core** zone is authored in programmer art (`world.gd` data-driven elements: CAROUSEL, STALLS, TICKET BOOTH, PRIZE STAND, 3 labeled GATE chokepoints, FERRIS WHEEL/SEA markers) with text labels. Enemies use **direct vector seek + separation and walk through obstacles** (VS-style, no pathfinding); solids block the player only. Deferred: remaining Tent attacks (Pennant Flap, Stake Drop, rotating pole, Ring of Fire), real TileMapLayer/lighting (M6), and bosses 2–4 (M5).
 
 ---
 

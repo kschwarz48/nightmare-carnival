@@ -44,11 +44,13 @@ Base values are Lv1 at 100% stats. "Scales with" lists which player stats amplif
 | **Snow-Cone Machine** | Frost cone: **chill → freeze** at stacks | 6 | 1.2s | forward (cone) | Might, Area, Duration | + **Caffeine** → *Blizzard Machine* |
 | **Hot-Dog Grill** | Flamethrower cone, **burning DoT** | 5/tick | 0.8s | forward (cone) | Might, Area, Duration | + **Strongman Belt** → *Inferno Grill* |
 | **Laser Light Show** | Rotating **sweeping beams** from player | 7/tick | beam | orbit | Might, Area, Duration | + **Spinning Top** → *Grand Illumination* |
-| **Crystal Orbs** (Magic 8-Ball) | Orbiting orbs that block/hit | 10 | orbit | orbit | Might, Amount, Area, Duration | + **Foam Finger** → *Cosmic Convergence* |
+| **Crystal Orbs** (Magic 8-Ball) ✅ | Orbiting orbs that block/hit | 10 | orbit | orbit | Might, Amount, Area, Duration | + **Foam Finger** → *Cosmic Convergence* |
 | **Strongman Bell** | Overhead slam → **shockwave ring** | 16 | 1.7s | around | Might, Area | + **Lucky Ticket** → *High Striker* |
 | **Funhouse Mirror** | Spawns a **clone** that re-fires your last shots | mirrors | 3.0s | special | Amount, Duration | + **Season Pass** → *Hall of Mirrors* |
 
 > **Design intent per weapon = a distinct *shape of fire*:** forward fan, around-self, orbit, lob-AoE, pierce-line, cone-DoT, big-single, boomerang, summon, clone. Drafting variety should always feel mechanically different, not just "more damage."
+
+> **Implemented — `orbit` style (`orbit_weapon.gd` + `orbit_orb.gd`), King Bible model:** on a cooldown Crystal Orbs *summons* orbs (cast-time grow-in) that spin around the player for a duration, then cool down. Stat mapping: **Amount** = orb count (starts at **1**, spaced evenly), **Speed** (projectile-speed stat) = rotation rate, **Duration** = active spin length, **Area** = ring radius (capped at 220px) + orb size, **Might** = damage. **Cooldown is extended by the weapon's *base* duration** (`_total_cycle = current_cooldown + base_duration`; 3+3 = 6s), and that base duration grows with level-ups but is *not* affected by the player's Duration bonus — Duration only lengthens the active spin (so Duration stacks push toward permanent uptime). **Hitbox delay** per orb: an enemy can't be re-hit by the same orb within 1.7s, and all of an orb's delays reset together the instant any one elapses (so clusters can be hit a little more often). Orbs render with a shifting hue gradient so they read as a weapon. Weapon-owned nodes (freed with the weapon), not pooled. Evolution (Cosmic Convergence) not yet wired.
 
 ### Generic per-level scaling template
 Most weapons follow a rhythm like this (tune per weapon in its resource):

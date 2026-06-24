@@ -52,10 +52,10 @@ func _on_area_entered(area: Area2D) -> void:
 			pierce -= 1
 
 func _despawn() -> void:
-	# _despawn fires from _on_area_entered (a collision callback) where direct
-	# monitoring changes are blocked, so defer it.
+	# _despawn can fire from _on_area_entered (a collision callback) where Area2D
+	# flag changes and remove_child are blocked — defer both. (Idempotent release.)
 	set_deferred(&"monitoring", false)
-	ObjectPool.release(self)
+	ObjectPool.call_deferred(&"release", self)
 
 # Pool hooks
 func _on_released() -> void:

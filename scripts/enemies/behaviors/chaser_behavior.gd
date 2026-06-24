@@ -14,6 +14,4 @@ func physics_update(enemy: Enemy, delta: float) -> void:
 	var to := to_player(enemy)
 	_bob_phase += delta * 6.0
 	var perp := to.orthogonal() * sin(_bob_phase) * 0.25
-	var desired := (to + perp).normalized() * enemy.move_speed
-	enemy.velocity = desired + enemy.separation() * enemy.move_speed * 0.6
-	enemy.move_and_slide()
+	enemy.steer((to + perp).normalized())

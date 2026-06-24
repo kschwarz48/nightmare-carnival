@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/boss_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/bosses/carnival_tent.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"carnival_tent"
+display_name = "The Carnival Tent"
+scene = ExtResource("2")
+max_health = 4000.0
+contact_damage = 16.0
+soft_enrage_time = 100.0
+gate_time = 360.0
+move_speed = 150.0
+preferred_distance = 340.0
+color = Color(0.85, 0.2, 0.3, 1)
+radius = 90.0
+bar_color = Color(0.9, 0.25, 0.3, 1)

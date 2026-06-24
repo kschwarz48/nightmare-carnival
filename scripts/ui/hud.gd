@@ -11,12 +11,18 @@ extends CanvasLayer
 @onready var weapons_label: Label = %WeaponsLabel
 @onready var passives_label: Label = %PassivesLabel
 @onready var _hp_fill: StyleBoxFlat = hp_bar.get_theme_stylebox(&"fill") as StyleBoxFlat
+@onready var boss_panel: VBoxContainer = %BossPanel
+@onready var boss_name: Label = %BossName
+@onready var boss_bar: ProgressBar = %BossBar
+@onready var boss_warning: Label = %BossWarning
 
 const HP_BASE := Color(0.85, 0.2, 0.2)
 const HP_FLASH_TIME := 0.16
 
 var _loadout_dirty: bool = true
 var _hp_flash: float = 0.0
+var _boss: Node = null
+var _warn_t: float = 0.0
 
 func _ready() -> void:
 	EventBus.time_tick.connect(_on_time_tick)
@@ -25,6 +31,12 @@ func _ready() -> void:
 	EventBus.upgrade_chosen.connect(func(_u): _loadout_dirty = true)
 	# Flash the HP bar white on every damage tick.
 	EventBus.player_damaged.connect(func(_amt, _hp): _hp_flash = HP_FLASH_TIME)
+	# Boss incoming / bar / cleared.
+	EventBus.boss_warning.connect(_on_boss_warning)
+	EventBus.boss_spawned.connect(_on_boss_spawned)
+	EventBus.boss_defeated.connect(_on_boss_defeated)
+	boss_panel.visible = false
+	boss_warning.visible = false
 	_on_time_tick(0.0)
 
 func _process(_delta: float) -> void:
@@ -56,6 +68,29 @@ func _process(_delta: float) -> void:
 		_hp_fill.bg_color = HP_BASE.lerp(Color.WHITE, clampf(_hp_flash / HP_FLASH_TIME, 0.0, 1.0))
 		if _hp_flash <= 0.0:
 			_hp_fill.bg_color = HP_BASE
+
+	# Boss warning banner timer + boss HP bar tracking.
+	if _warn_t > 0.0:
+		_warn_t -= _delta
+		if _warn_t <= 0.0:
+			boss_warning.visible = false
+	if _boss != null and is_instance_valid(_boss):
+		boss_bar.value = _boss.health.get_ratio()
+
+func _on_boss_warning(display_name: String) -> void:
+	boss_warning.text = display_name.to_upper() + " APPROACHES"
+	boss_warning.visible = true
+	_warn_t = 2.0
+
+func _on_boss_spawned(boss: Node, data: Resource) -> void:
+	_boss = boss
+	boss_name.text = data.display_name
+	boss_bar.value = 1.0
+	boss_panel.visible = true
+
+func _on_boss_defeated(_boss: Node, _data: Resource) -> void:
+	_boss = null
+	boss_panel.visible = false
 
 func _refresh_loadout(player: Player) -> void:
 	var wpns: Array[String] = []

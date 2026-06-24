@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"crystal_orbs"
+display_name = "Crystal Orbs"
+description = "Orbiting orbs that grind anything they sweep through."
+style = &"orbit"
+aim_mode = &"auto_nearest"
+max_level = 8
+base_damage = 10.0
+base_cooldown = 3.0
+base_area = 1.0
+base_amount = 1
+base_projectile_speed = 0.0
+base_pierce = 0
+lifetime = 3.0
+level_damage = Array[float]([0.0, 0.0, 4.0, 0.0, 5.0, 0.0, 6.0, 0.0])
+level_cooldown = Array[float]([0.0, -0.2, 0.0, -0.2, 0.0, -0.2, 0.0, -0.2])
+level_area = Array[float]([0.0, 0.0, 0.0, 0.15, 0.0, 0.0, 0.15, 0.0])
+level_amount = Array[int]([0, 1, 1, 0, 1, 1, 0, 1])

@@ -65,7 +65,7 @@ Five designed pinch-points, three between Carnival↔Boardwalk, two-plus between
 
 **Why chokepoints matter mechanically:** enemies path toward the player (cheap steering, doc 08). When the player stands just past a chokepoint, the crowd compresses into the gap — turning a 270° swarm into a 90° firing line. This is the map's core skill expression: *use geometry to convert an unwinnable crowd into a manageable one.* Counter-pressure: ranged enemies (Puppet Soldiers, Dunk-Tank Clowns) punish camping a chokepoint, and the tide/events can flush you out.
 
-**Implementation note:** chokepoints are just `StaticBody2D` collision (fences/stall walls/railings) on the world layer shaping navigable space. Enemies use direct steering + separation and naturally pile at gaps; no navmesh required (but a `NavigationRegion2D` is an option if you want smarter pathing around big obstacles — see doc 08 §enemy-steering).
+**Implementation note (VS-style, repeatable):** chokepoints/attractions are `StaticBody2D` on the **World** layer that block the **player** (cover + kiting geography). Enemies use **direct vector seek + separation only — no pathfinding** and, like Vampire Survivors, **walk straight through world obstacles** (enemy bodies mask only other enemies, not World) so hundreds of them never snag or need A*/navmesh. Bosses likewise ignore terrain (no body collision). So gates/walls shape *where you run and funnel the horde for AoE*, not enemy routing. (If a future stage wants enemies physically blocked by specific walls, add those walls to the enemy mask + a `NavigationRegion2D`; not needed for M3.)
 
 ---
 
@@ -102,10 +102,10 @@ Events should mostly create *positional* decisions (go toward the reward and the
 
 ## 6. Pickups, breakables & the shop
 
-- **Tickets (XP):** drop from kills as ticket-stubs; auto-collected within pickup radius (fly to player). Bigger stubs from tougher enemies; Act IV stubs are worth more.
+- **Tickets (XP):** drop from kills as ticket-stubs; auto-collected within pickup radius (fly to player). Bigger stubs from tougher enemies; Act IV stubs are worth more. *Implemented (VS-style):* gem **color is keyed to payout** — blue = 1, green = a few, **red = a lot** (elites drop a fat ×5 red gem). A **400-gem ground cap** (anti-lag): past the cap, new XP is vacuumed into a single accumulating **Red Gem Bank** (`GemDirector`) drawn big and pulsing — collecting it dumps the whole hoard at once, triggering a chain of level-ups. Below the cap, normal gems resume.
 - **Gold:** rarer kill drops + from breakables. Spent at the Intermission Wagon.
 - **Breakables:** popcorn carts, prize stands, crates, pumpkin bins — destroying drops Gold/health/occasional Ticket. Scatter densely along the Boardwalk (Scene Paint Mode). Consistent "breakable" shine so players learn to smash them.
-- **Health pickups:** rare hot-dog/funnel-cake heals; the only in-run heal besides regen items. *Implemented:* a low per-roll chance (`game.gd` `food_roll_interval`/`food_spawn_chance`) spawns a bright-green, pulsing `FoodPickup` (`+20 HP`) at a random spot **relative to the player** — on-screen and visible, a short walk away — that despawns after a window if ignored. Deliberately scarce so it's a clutch lifeline, not a steady drip.
+- **Health pickups:** occasional hot-dog/funnel-cake heals; the only in-run heal besides regen items. *Implemented:* spawned on a **guaranteed randomized interval** (`game.gd` `food_interval_min`/`max`, default 70–110 s, first one ~30–50 s in) — a bright-green pulsing `FoodPickup` (`+20 HP`) at a random spot **relative to the player** (on-screen, a short walk away) that despawns after a window if ignored. (A flat per-roll chance was too swingy — players could go a whole run seeing none.) A clutch lifeline that reliably appears without being a steady drip.
 - **Chests:** from bosses, elite packs, and the "Last Ticket" event — grant weapon/passive/evolution or a Gold jackpot. Boss chests guarantee an upgrade.
 - **The Intermission Wagon (shop):** a roaming wagon that parks somewhere on the map ~once per Act (banner + map ping). Walk to it to open a lightweight shop: **reroll a future draft**, **buy a heal**, **buy 1 random item**. (MVP: heal + reroll + 1 item; expand later.)
 
@@ -115,11 +115,11 @@ Events should mostly create *positional* decisions (go toward the reward and the
 
 The director is the heartbeat of the run. It owns *what spawns, where, when, and how much*, scaling with time and difficulty. (Code: `EnemyDirector` autoload, doc 08.)
 
-### 7.1 Off-screen ring spawning
-Enemies spawn in a **ring just beyond the camera view** so they "walk in" from the dark, never popping in on top of the player.
-- Spawn ring radius ≈ `max(viewport_half_diagonal) + margin(64px)`.
-- Pick a random angle on the ring; reject points outside the map bounds or inside collision; clamp into the playable area.
-- Most spawns come from the **dark side** of the screen (away from the strongest light) for mood.
+### 7.1 Spawn area & leash (VS-style)
+Enemies spawn in a **rectangular band around the player** — outside the on-screen rect (½ viewport) out to ~**1.5×** — so they "walk in" from just off-screen, never popping on top of the player. (Modeled on Vampire Survivors' spawn rectangle: from the screen edge to roughly 50% beyond.)
+- **Spawn blocking:** reject a candidate point if an enemy is already within ~28 px (cheap spatial-hash check); try a few points before skipping that spawn. Enemies never stack-spawn.
+- **Despawn leash:** normal enemies that fall **outside ~1.7× the viewport half-rect** (the player left them behind) are despawned/recycled — *not* teleported — so a fleeing player sheds the trailing crowd and fresh enemies appear ahead, keeping the fight centered and the cap meaningful. **Bosses are exempt.**
+- Clamp candidate points into the map bounds. *(No Curse system yet; when added it would raise spawn rate/amount/max and enemy speed.)*
 
 ### 7.2 Population cap & cadence (wave-driven)
 Spawning is **defined by the wave timeline (§7.4), not a global rate formula** — this is the core mechanic and is authored with intent. At any moment exactly one wave is active (the latest-started one whose window contains *now*), and the director spawns by that wave's rules:
@@ -192,7 +192,7 @@ Bosses interrupt the normal flow at their time gates:
 1. Director **pauses new normal spawns** and plays a warning (music shift, banner, screen darken-and-spotlight).
 2. The boss enters with an **intro animation** from the appropriate part of the map.
 3. **Arena handling differs by boss** (full designs in `05_boss_bible.md`):
-   - **Carnival Tent & Puppet King** are *set-piece* fights: a soft arena forms (tent canvas walls / string-light ring) loosely confining the player to the Carnival Core for the duration. Add-spawns are part of the fight.
+   - **Carnival Tent & Puppet King** are *set-piece* fights: a soft arena forms (tent canvas walls / string-light ring) loosely confining the player to the Carnival Core for the duration. Add-spawns are part of the fight. *(Implemented for the Tent without hard walls: the tent sits **dormant at map center from run start** — a surprise that the prop is the boss — and at its gate it wakes and **slowly roams toward the player** (stopping at range to cast) so it pressures without confining. The director pauses ambient waves for the duration. Hard soft-walls were dropped because steered enemies snag on them.)*
    - **Ferris Wheel & Ringmaster** are *roaming* fights across the open map — they chase/relocate; the whole map is the arena.
 4. On defeat: boss death spectacle, **guaranteed chest** (weapon/evolution), big Ticket burst, brief calm, then the next Act's spawn table engages.
 
@@ -201,7 +201,7 @@ Bosses interrupt the normal flow at their time gates:
 ## 9. Godot implementation notes (map specifically)
 
 - **Ground:** build zones with `TileMapLayer` (Godot 4.7) for sand/planks/midway tiles; separate layers per zone for palette/lighting control.
-- **Collision/obstacles:** fences, stall walls, railings as `StaticBody2D` (or tile collision) on the **World** physics layer. Shape the chokepoints here.
+- **Collision/obstacles:** fences, stall walls, railings as `StaticBody2D` (or tile collision) on the **World** physics layer. Shape the chokepoints here. *(Implemented: the **Carnival Core** is authored in `world.gd` as a data-driven element list — CAROUSEL, STALLS, TICKET BOOTH, PRIZE STAND, and a fence with three labeled GATE gaps — each a programmer-art rect with a text `Label`. Solids block the player only; enemies walk through them, per the VS pathing model above.)*
 - **Decoration:** use **Scene Paint Mode (B)** to scatter props, lights, breakables, and ground clutter quickly across the open zones.
 - **Lighting:** `CanvasModulate` for night tint; `PointLight2D` clusters at attractions; player lantern light; per-zone ambient tint (see doc 02 §3).
 - **Depth:** one Y-sorted gameplay container holds player + enemies + props so overlaps sort by ground-position.

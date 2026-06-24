@@ -52,6 +52,8 @@ Transition: the tent half-collapses, canvas tearing into flame at the edges; it 
 
 **Defeat:** the whole tent deflates and collapses into a smoking heap of striped canvas; a Boss Chest tips out of the wreck. **Unlocks:** Ride Operator progress / Carnival-pedia entry.
 
+> **Implemented (M3, programmer art):** the tent stands **dormant at map center from run start** (the reveal: this scenery *is* the boss) and **wakes at the 6:00 gate** (warning → comes alive). Once awake it **slowly roams toward the player** (speed below the player's, stops at ~340 px to cast) — looming pressure, never a lunge — instead of a walled arena. **Full bible moveset:** P1 Tent-Pole Stomp + Concession Spew + **Pennant Flap** · P2 Inhale + Popcorn Exhale + **Stake Drop**, with the **Rotating Pole** sweeping as an always-on P2 hazard (spawned/freed via `Boss._on_phase_entered`) · P3 Frenzy Stomp + Clown Call + **Ring of Fire**. (Frenzy Stomp telegraphs are tuned long enough to clear; no stomp in P2 since you can't dodge one while being pulled.) Defeat drops the guaranteed chest (opens a draft pick) + a ticket burst.
+
 ---
 
 ## 🎡 BOSS 2 — THE FERRIS WHEEL  (gate 12:00)
