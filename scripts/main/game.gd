@@ -132,4 +132,5 @@ func _prewarm() -> void:
 	ObjectPool.prewarm(TELEGRAPH_SCENE, 16)
 	ObjectPool.prewarm(SHOCKWAVE_SCENE, 12)
 	ObjectPool.prewarm(POPCORN_SCENE, 40)
+	ObjectPool.prewarm(preload("res://scenes/enemies/enemy_projectile.tscn"), 60)
 	ObjectPool.prewarm(CHEST_SCENE, 2)
