@@ -65,6 +65,7 @@ func _collect() -> void:
 
 func _on_released() -> void:
 	GemDirector.on_gem_freed(self)
+	remove_from_group(&"xp_gems")
 	is_bank = false
 	_pulse = 0.0
 	_magnetized = false
@@ -77,6 +78,7 @@ func _on_released() -> void:
 
 func _on_acquired() -> void:
 	show()
+	add_to_group(&"xp_gems")          # so the Golden Ticket can vacuum every gem
 	set_physics_process(true)
 	# Deferred: acquisition happens during the death/collision flush (see _ready).
 	set_deferred(&"monitorable", true)
