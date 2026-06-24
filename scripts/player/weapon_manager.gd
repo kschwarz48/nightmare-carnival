@@ -8,6 +8,7 @@ const MAX_WEAPONS := 4
 const WEAPON_SCRIPTS := {
 	&"projectile": preload("res://scripts/weapons/projectile_weapon.gd"),
 	&"melee": preload("res://scripts/weapons/melee_weapon.gd"),
+	&"orbit": preload("res://scripts/weapons/orbit_weapon.gd"),
 }
 
 var weapons: Dictionary = {}   # weapon_id -> Weapon
