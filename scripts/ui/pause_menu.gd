@@ -1,6 +1,7 @@
 extends CanvasLayer
-## In-run pause overlay + basic options (M4). Toggled with ui_cancel; runs while
-## the tree is paused (PROCESS_MODE_ALWAYS). Quit-to-menu abandons the run.
+## In-run pause overlay + basic options (M4). Toggled with the `pause` action
+## (Esc / controller Start); runs while the tree is paused (PROCESS_MODE_ALWAYS).
+## Quit-to-menu abandons the run.
 
 @onready var panel: Control = %Panel
 @onready var options: Control = %Options
@@ -27,7 +28,7 @@ func _ready() -> void:
 	reduce_flash.toggled.connect(func(v): SaveManager.set_setting(&"reduce_flashes", v))
 
 func _unhandled_input(e: InputEvent) -> void:
-	if not e.is_action_pressed(&"ui_cancel"):
+	if not e.is_action_pressed(&"pause"):
 		return
 	if _open:
 		_resume()

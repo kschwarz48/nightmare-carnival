@@ -4,16 +4,18 @@ How the project is structured in Godot 4.7. This doc defines the **skeleton** �
 
 **Guiding principles:** (1) **data-driven** content via `Resource`s, (2) **composition over inheritance** via component nodes, (3) **decoupling** via an autoload `EventBus`, (4) **pooling** for everything that spawns in bulk, (5) **performance is a feature** — this is a bullet-heaven.
 
+> **Implemented reality (M1–M4):** the skeleton below is the target. Current state differs in two deliberate ways: (1) **programmer art** — actors draw themselves via a `Blob` (`scripts/vfx/blob.gd`) self-drawing `Node2D` instead of `Sprite2D`/`AnimatedSprite2D`; real art + lighting + tilemaps land in **M6**. (2) Only the components/behaviors/screens actually built so far exist (this doc flags what's aspirational vs. live). The **app root scene is `app.tscn` / `app.gd`** (not `main.tscn`).
+
 ---
 
 ## 1. Project settings (set these first)
 
-- **Renderer:** Forward+ on desktop (or Mobile renderer if targeting handhelds first). 2D HDR optional (Godot 4.7) for neon/firework bloom.
+- **Renderer:** `gl_compatibility` (desktop + mobile) — chosen for the programmer-art phase and broad perf headroom; the neon/bloom pass (Forward+ / 2D HDR) is an **M6** decision, not baked in yet.
 - **Display → Window:** base resolution `1920×1080`; **Stretch mode** `canvas_items`, **Aspect** `expand` (clean ultrawide/letterbox). If pixel-art path: use `viewport` stretch + integer scale + nearest filter (Godot 4.7 nearest viewport scaling).
 - **Rendering → Textures → Default filter:** Linear for HD art / Nearest for pixel art.
 - **Physics:** 2D physics tick at 60 Hz; consider `physics_jitter_fix`. We lean on `Area2D` overlap for combat (not heavy rigid-body sim).
 - **Time → `Engine.max_fps`** capped (e.g., 120) and vsync on by default.
-- **Input Map:** define actions up front — `move_up/down/left/right`, `aim` (mouse), `dash` (if used), `pause`, `confirm`, `cancel`, `reroll`. Gamepad + keyboard bindings for each.
+- **Input Map:** actions defined in `project.godot`: `move_up/down/left/right`, `dash`, `pause` (Esc / controller Start), `confirm` (Space/Enter / A), `cancel`, `reroll`. The pause menu reads `pause`; the level-up draft reads `confirm`. Add `aim` (mouse) when manual-aim weapons land.
 - **Layer names:** name 2D physics layers in Project Settings to match §6 (so the editor is readable), but **reference them in code via constants**, never raw numbers.
 
 ---
@@ -27,9 +29,9 @@ res://
 │   ├── art/  audio/  fonts/  shaders/
 ├── scenes/                       # .tscn composed scenes
 │   ├── main/
-│   │   ├── main.tscn             # root: boots autoloads-aware flow, holds current "screen"
-│   │   ├── game.tscn             # the actual run: world + director + HUD + player spawn
-│   │   └── world.tscn            # the map (tilemaps, lights, obstacles, hazards, ysort)
+│   │   ├── app.tscn              # root: ScreenHolder + Fade; swaps screens via EventBus nav
+│   │   ├── game.tscn             # the actual run: world + layers + HUD + draft + pause menu
+│   │   └── world.tscn            # the map (programmer-art zone; tilemaps/lights = M6)
 │   ├── player/
 │   │   └── player.tscn
 │   ├── enemies/
@@ -87,6 +89,15 @@ res://
 
 **Rule of thumb:** `scripts/data/*.gd` defines *schemas* (`class_name EnemyData extends Resource`). `resources/**/*.tres` are *instances* of those schemas (the Living Balloon, the Fireworks). Designers/Cursor add content by creating `.tres` files, not code.
 
+> **Present in the repo today (M4)** — the rest of the tree above is the target:
+> - **Autoloads:** `CollisionLayers, EventBus, GameState, SaveManager, MapBounds, ContentDB, ObjectPool, AudioManager, EnemyDirector, GemDirector` (see §5).
+> - **Components:** `health_component, hurtbox_component, hitbox_component, flash_component` (no Velocity/Animation/Stats components yet — enemies move via their behavior, player stats live on the `PlayerStats` resource).
+> - **Behaviors:** `enemy_behavior` (base) + `chaser, erratic_chaser, burst_charger, flyby`. The shooter/charger/spawner/etc. variants arrive with M5 content.
+> - **Weapons (`scripts/weapons/`):** `weapon` (base), `projectile_weapon, melee_weapon, orbit_weapon`; attack nodes `projectile, boomerang, firework_rocket, explosion, melee_arc, orbit_orb`.
+> - **Bosses:** `boss, boss_phase, boss_attack, tent_boss, rotating_pole` + `attacks/` (tent_stomp, concession_spew, pennant_flap, inhale, popcorn_exhale, stake_drop, frenzy_stomp, clown_call, ring_of_fire) + `shockwave, popcorn`.
+> - **Pickups:** `ticket_gem, food_pickup, golden_ticket, chest`.
+> - **UI screens (`scenes/ui/`):** `main_menu, character_select, results_screen, lost_and_found, hud, level_up_draft, pause_menu`.
+
 ---
 
 ## 3. Scene composition philosophy
@@ -96,32 +107,31 @@ res://
 - **Composition example — the generic enemy:**
 
 ```
-Enemy (CharacterBody2D, enemy.gd)
-├── Sprite2D / AnimatedSprite2D
-├── CollisionShape2D                 # body, on Enemy layer
+Enemy (CharacterBody2D, enemy.gd)                    # actual M4 shape
+├── Visual (Node2D, blob.gd)         # programmer art (Sprite2D/AnimatedSprite2D at M6)
+├── CollisionShape2D                 # body, on ENEMY layer
 ├── HealthComponent (Node)           # hp, take_damage(), died signal
-├── HurtboxComponent (Area2D)        # receives player hits, on EnemyHurtbox layer
-├── HitboxComponent (Area2D)         # deals contact damage, on EnemyHitbox layer
-├── VelocityComponent (Node)         # optional: shared movement helpers
-├── AnimationComponent (Node)        # drives anims from state strings
-└── FlashComponent (Node)            # white-flash-on-hit shader driver
-# Behavior is a script/Resource set on enemy.gd from EnemyData ("chaser", etc.)
+├── HurtboxComponent (Area2D)        # receives player hits, ENEMY_HURTBOX layer
+├── HitboxComponent (Area2D)         # deals contact damage, ENEMY_ATTACK layer
+└── FlashComponent (Node)            # white-flash-on-hit driver (drives Blob.set_flash)
+# Movement/AI comes from a behavior (EnemyBehavior) created from EnemyData.behavior
+# ("chaser", "erratic_chaser", "burst_charger", "flyby"). Knockback lives on Enemy.
 ```
 
-- **The player** mirrors this and adds `WeaponManager`, `LevelSystem`, and a `Camera2D`:
+- **The player** mirrors this and adds `WeaponManager`, `LevelSystem`, and a `Camera2D` (no Lantern light until the M6 lighting pass; `PlayerStats` is a plain resource on the script, not a child node):
 
 ```
 Player (CharacterBody2D, player.gd)
-├── Sprite2D / AnimatedSprite2D
-├── CollisionShape2D                 # Player layer
+├── Visual (Node2D, blob.gd)
+├── CollisionShape2D                 # PLAYER layer
 ├── HealthComponent
-├── HurtboxComponent (Area2D)        # PlayerHurtbox layer (receives enemy hits)
-├── PickupMagnet (Area2D)            # PickupMagnet layer (sized by pickup radius)
-├── WeaponManager (Node)             # holds active Weapon nodes, fires them
+├── HurtboxComponent (Area2D)        # PLAYER_HURTBOX layer (receives enemy hits)
+├── FlashComponent (Node)
+├── PickupMagnet (Area2D)            # PICKUP_MAGNET layer (sized by pickup radius)
+├── WeaponManager (Node)             # holds active Weapon nodes, fires them (cap 4)
 ├── LevelSystem (Node)               # XP, level, triggers draft
-├── PlayerStats (Resource ref)       # current run stats
-├── Camera2D                         # limits = map bounds; computes spawn ring
-└── LanternLight (PointLight2D)
+└── Camera2D                         # limits = map bounds
+# stats: PlayerStats (Resource) built from CharacterData.make_stats() + meta perks
 ```
 
 ---
@@ -129,31 +139,36 @@ Player (CharacterBody2D, player.gd)
 ## 4. Application / scene flow
 
 ```
-main.tscn (persistent root)
-   └── CurrentScreen (swapped):
-        MainMenu  ──►  LostAndFound  ──►  CharacterSelect  ──►  game.tscn (a run)
-                                                                   │
-                                                          (win/lose) ▼
-                                                            ResultsScreen ──► (back to menu / run again)
+app.tscn (persistent root: app.gd)
+   ├── ScreenHolder (swapped, one child at a time):
+   │     MainMenu  ──►  CharacterSelect  ──►  game.tscn (a run)
+   │        ▲   └────►  LostAndFound ───┘            │
+   │        │                            (death/win) ▼
+   │        └──────────────  ResultsScreen ──► (Run Again / Lost & Found / Menu)
+   └── Fade (CanvasLayer)              # quick black fade between screens
 ```
-- `main.gd` owns screen transitions (free old, instance new) and a fade. Autoloads persist across all screens.
-- `game.tscn` instances `world.tscn`, spawns the chosen character, starts `EnemyDirector`, shows `hud.tscn`. On player death or 25:00 win it tells `GameState` to end the run and transitions to `ResultsScreen`.
+- `app.gd` owns screen transitions (free old, instance new, fade) driven **entirely by EventBus signals** (`goto_menu`, `goto_character_select`, `goto_lost_and_found`, `start_run(character_id)`, `run_again`, and the existing `run_ended` → Results). Screens never reference each other or the App. Autoloads persist across all screens.
+- `game.tscn` instances `world.tscn`, spawns the chosen character, starts `EnemyDirector`, shows `hud.tscn`. On player death (M4) — or the 25:00 win (M5) — it tells `GameState` to `end_run()`, which emits `run_ended` and the App brings up `ResultsScreen` (which credits the Lost Tickets payout).
+- **`current_scene` caveat:** the run is nested under `app.tscn/ScreenHolder`, so it is **not** the SceneTree's `current_scene` (Godot rejects setting `current_scene` to a non-root-child). Systems that need the run's spawn layers read them from `GameState.{actor,enemy,projectile,pickup}_layer`, which `game.gd` registers on start — never `get_tree().current_scene.get_node("%...")`.
 
 ---
 
 ## 5. Autoload singletons
 
-Register these in **Project Settings → Autoload** (order matters: `CollisionLayers`, `EventBus`, `GameState`, `SaveManager` early; `ObjectPool`, `AudioManager`, `EnemyDirector` after).
+Registered in **Project Settings → Autoload** in this order (dependencies load first): `CollisionLayers, EventBus, GameState, SaveManager, MapBounds, ContentDB, ObjectPool, AudioManager, EnemyDirector, GemDirector`.
 
 | Autoload | Responsibility | Key members |
 |----------|----------------|-------------|
 | **CollisionLayers** | Named physics-layer constants (see §6). | `WORLD`, `PLAYER`, `ENEMY`, … |
 | **EventBus** | Global signal hub for cross-system events. | signals (see §7) |
-| **GameState** | Current run state: time, paused, difficulty, currency, **player ref**, kill counts. | `player`, `run_time`, `is_paused`, `difficulty`, `tickets`, `gold` |
-| **SaveManager** | Persist meta: Lost Tickets, unlocks, settings, pedia. | `load()`, `save()`, `meta` |
-| **ObjectPool** | Acquire/release pooled scene instances (enemies, projectiles, gems, vfx, damage numbers). | `acquire(scene)`, `release(node)` |
-| **AudioManager** | Music layers, SFX one-shots, ducking, dynamic intensity. | `play_sfx()`, `play_music()`, `set_intensity()` |
-| **EnemyDirector** | Spawn ring, wave tables, time/difficulty scaling, elites, boss gates. | `start()`, `_spawn_tick()` |
+| **GameState** | Current run state + the active run's spawn-layer refs. | `player`, `character`, `difficulty`, `run_time`, `is_running`, `is_paused`, `enemies_killed`, `bosses_killed`, `tickets`, `gold`, `{actor,enemy,projectile,pickup}_layer`; `start_run()`, `end_run()`, `set_paused()` |
+| **SaveManager** | Persist meta: Lost Tickets, unlocks, perks, pedia, settings. | `meta`, `load_game()`/`save_game()`, `buy_perk()`, `apply_meta_perks()`, `is_unlocked()`/`unlock()`, `discover()`, `get_setting()`/`set_setting()` |
+| **MapBounds** | The run's world rectangle (camera limits, spawn clamping). | `min_pos`, `max_pos`, `center()`, `set_bounds()` |
+| **ContentDB** | Loads every `.tres` under `resources/` once; typed lookups. | `all_characters/weapons/upgrades/waves()`, `get_character/difficulty/weapon(id)` |
+| **ObjectPool** | Acquire/release pooled scene instances (enemies, projectiles, gems, vfx). | `acquire(scene, parent)`, `release(node)`, `prewarm()` |
+| **AudioManager** | Music (intro→loop) + SFX one-shots (dynamic intensity = M6). | `play_sfx()`, `play_music()`, `set_intensity()` |
+| **EnemyDirector** | Spawn band, wave tables, time/difficulty scaling, elites, swarms, separation service, boss tracking. | `start()`, `spawn_add()`, `get_nearest_enemy()`, `separation_for()` |
+| **GemDirector** | XP-gem spawning with the 400-gem ground cap + Red Gem Bank (03 §6). | `drop(value, at, parent)`, `reset()` |
 
 **Why autoloads:** these are genuinely global, single-instance systems. Resist adding more — gameplay objects talk through `EventBus`, not new singletons.
 
@@ -213,6 +228,7 @@ extends Node
 # --- combat ---
 signal enemy_died(enemy, position)         # → director (count/cap), pedia, score
 signal enemy_spawned(enemy)
+signal boss_warning(display_name)          # → HUD warning banner before a boss wakes
 signal boss_spawned(boss, boss_data)
 signal boss_defeated(boss, boss_data)
 signal player_damaged(amount, current_hp)
@@ -230,7 +246,7 @@ signal chest_opened(rewards)
 
 # --- run lifecycle ---
 signal run_started(character_data, difficulty_data)
-signal run_ended(did_win, stats)
+signal run_ended(did_win, stats)           # stats carries the Lost Tickets payout
 signal act_changed(act_index)
 signal carnival_event_started(event_data)
 signal carnival_event_ended(event_data)
@@ -238,6 +254,13 @@ signal carnival_event_ended(event_data)
 # --- ui / flow ---
 signal request_pause(paused)
 signal time_tick(run_seconds)              # emitted ~each second for HUD/director
+
+# --- screen navigation (M4; the App root listens and swaps screens) ---
+signal goto_menu
+signal goto_character_select
+signal goto_lost_and_found
+signal start_run(character_id)
+signal run_again
 ```
 
 Usage: `EventBus.enemy_died.emit(self, global_position)` / `EventBus.player_leveled_up.connect(_on_level_up)`.

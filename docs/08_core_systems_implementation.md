@@ -19,11 +19,11 @@ extends RefCounted
 var amount: float = 0.0
 var source: Node = null          # who dealt it (for thorns, lifesteal, attribution)
 var is_crit: bool = false
-var knockback: Vector2 = Vector2.ZERO
+var knockback: float = 0.0       # knockback-DEALT multiplier (06 §1); enemy reverses speed on it
 var damage_type: StringName = &"physical"   # "fire", "frost", etc. for resist/DoT hooks
 
 func _init(p_amount: float, p_source: Node = null, p_crit: bool = false,
-		p_knockback: Vector2 = Vector2.ZERO, p_type: StringName = &"physical") -> void:
+		p_knockback: float = 0.0, p_type: StringName = &"physical") -> void:
 	amount = p_amount
 	source = p_source
 	is_crit = p_crit
@@ -117,7 +117,7 @@ extends Area2D
 
 @export var damage: float = 10.0
 @export var damage_interval: float = 0.5   # re-tick the same target every N seconds (contact)
-@export var knockback_force: float = 0.0
+@export var knockback_force: float = 0.0   # knockback-dealt multiplier (06 §1); 0 = none
 
 var _cooldowns: Dictionary = {}            # HurtboxComponent -> time_left
 
@@ -139,10 +139,9 @@ func _on_area_entered(area: Area2D) -> void:
 		_hit(area)
 
 func _hit(hurtbox: HurtboxComponent) -> void:
-	var kb := Vector2.ZERO
-	if knockback_force > 0.0:
-		kb = (hurtbox.global_position - global_position).normalized() * knockback_force
-	hurtbox.receive(DamageInfo.new(damage, owner, false, kb))
+	# knockback_force rides on DamageInfo.knockback as a scalar multiplier; the
+	# target (Enemy.take_knockback) reverses its own movement for 120 ms (06 §1).
+	hurtbox.receive(DamageInfo.new(damage, owner, false, knockback_force))
 	_cooldowns[hurtbox] = damage_interval
 ```
 
@@ -586,7 +585,7 @@ func _spawn_projectile(origin: Vector2, dir: Vector2) -> void:
 		_stats().roll_crit(), _stats().crit_damage)
 
 func _world_layer() -> Node:
-	return get_tree().current_scene.get_node(^"%ProjectileLayer")  # a Node2D in game.tscn (unique name)
+	return GameState.projectile_layer   # registered by game.gd (07 §4 current_scene caveat)
 ```
 
 > **Two firing patterns.** The above is the simultaneous **fan** (`spread_angle_deg`). When `burst_interval > 0`, `fire()` instead spawns the shots **consecutively** (`await get_tree().create_timer(burst_interval).timeout` between each), re-aiming per shot — with `auto_random` this scatters rockets across the crowd (Fireworks). `random_spread` adds per-shot angle + range jitter so impacts don't form a line. Lobbed projectiles (`firework_rocket.gd extends Projectile`) reset rotation and offset their visual on a parabola for a readable **arc**, then spawn a pooled `Explosion` (AoE) on fuse end instead of hitting on contact.
@@ -1193,7 +1192,7 @@ func _remove(e: Enemy) -> void:
 	if i != -1: _active.remove_at(i)
 
 func _enemy_layer() -> Node:
-	return get_tree().current_scene.get_node(^"%EnemyLayer")
+	return GameState.enemy_layer   # registered by game.gd (07 §4 current_scene caveat)
 ```
 
 > `MapBounds` is a tiny autoload (or static) set from `world.tscn` holding `min_pos`/`max_pos`. `WaveData.weighted_enemies()` returns its enemy/weight pairs. Hook `EventBus.enemy_died` (already emitted by `Enemy`) so the director prunes `_active`.
