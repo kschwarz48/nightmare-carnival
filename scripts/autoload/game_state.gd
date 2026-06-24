@@ -6,6 +6,14 @@ var player: Node2D = null
 var difficulty: DifficultyData
 var character: CharacterData
 
+# The active run's spawn layers, registered by game.gd. Autoloads/weapons read
+# these instead of get_tree().current_scene (the run is nested under the App root,
+# so it can't be the SceneTree's current_scene).
+var actor_layer: Node = null
+var enemy_layer: Node = null
+var projectile_layer: Node = null
+var pickup_layer: Node = null
+
 var run_time: float = 0.0          # seconds elapsed this run
 var is_running: bool = false
 var is_paused: bool = false

@@ -65,4 +65,4 @@ func _spawn_projectile(origin: Vector2, dir: Vector2) -> void:
 		_stats().roll_crit(), _stats().crit_damage)
 
 func _world_layer() -> Node:
-	return get_tree().current_scene.get_node(^"%ProjectileLayer")
+	return GameState.projectile_layer

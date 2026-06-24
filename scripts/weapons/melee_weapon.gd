@@ -12,4 +12,4 @@ func fire() -> void:
 	swing.detonate(current_damage(), current_area(), _stats().roll_crit(), _stats().crit_damage)
 
 func _world_layer() -> Node:
-	return get_tree().current_scene.get_node(^"%ProjectileLayer")
+	return GameState.projectile_layer

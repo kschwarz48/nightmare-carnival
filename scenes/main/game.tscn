@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://dhbeangr6ik13" path="res://scenes/world/world.tscn" id="2"]
 [ext_resource type="PackedScene" uid="uid://boaoenr48iq53" path="res://scenes/ui/hud.tscn" id="3"]
 [ext_resource type="PackedScene" uid="uid://cyjcq54tl0nwi" path="res://scenes/ui/level_up_draft.tscn" id="4"]
+[ext_resource type="PackedScene" uid="uid://cpausemenu0ui0" path="res://scenes/ui/pause_menu.tscn" id="5"]
 
 [node name="Game" type="Node2D" unique_id=534113614]
 script = ExtResource("1")
@@ -26,3 +27,5 @@ unique_name_in_owner = true
 [node name="HUD" parent="." unique_id=313763242 instance=ExtResource("3")]
 
 [node name="DraftLayer" parent="." unique_id=2093761801 instance=ExtResource("4")]
+
+[node name="PauseMenu" parent="." instance=ExtResource("5")]

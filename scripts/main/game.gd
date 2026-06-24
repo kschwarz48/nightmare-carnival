@@ -49,6 +49,13 @@ func _ready() -> void:
 	var difficulty := ContentDB.get_difficulty(difficulty_id)
 	GameState.start_run(character, difficulty)
 
+	# Register this run's spawn layers so autoloads/weapons can find them (the run
+	# is nested under the App root, so it isn't the SceneTree's current_scene).
+	GameState.actor_layer = $ActorLayer
+	GameState.enemy_layer = %EnemyLayer
+	GameState.projectile_layer = %ProjectileLayer
+	GameState.pickup_layer = %PickupLayer
+
 	_prewarm()
 
 	var player: Player = PLAYER_SCENE.instantiate()

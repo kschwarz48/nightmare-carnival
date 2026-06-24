@@ -308,4 +308,4 @@ func _remove(e: Node) -> void:
 		_active.remove_at(i)
 
 func _enemy_layer() -> Node:
-	return get_tree().current_scene.get_node(^"%EnemyLayer")
+	return GameState.enemy_layer
