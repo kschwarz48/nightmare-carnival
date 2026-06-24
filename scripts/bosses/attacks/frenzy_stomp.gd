@@ -1,17 +1,20 @@
 extends BossAttack
-## Frenzy Stomp (05 P3): a rapid sequence of short-telegraph stomps that track
-## the player's position — the angry, faster late-phase pressure.
+## Frenzy Stomp (05 P3): a sequence of stomps that track the player's position —
+## the angry, faster late-phase pressure. Each stomp telegraphs long enough to
+## actually clear it (lead 0.8s > RADIUS/player_speed ≈ 0.5s) and the stomps are
+## spaced into a readable rhythm rather than an undodgeable blur.
 
 const TELEGRAPH := preload("res://scenes/vfx/telegraph_circle.tscn")
 const SHOCKWAVE := preload("res://scenes/bosses/shockwave.tscn")
-const RADIUS := 120.0
+const RADIUS := 110.0
 const DMG := 25.0
-const COUNT := 4
-const STOMP_LEAD := 0.45
+const COUNT := 3
+const STOMP_LEAD := 0.8
+const STOMP_GAP := 0.4
 
 func _init() -> void:
-	weight = 2.0
-	cooldown = 0.5
+	weight = 1.5
+	cooldown = 1.0
 	lead_time = 0.3
 
 func execute(boss) -> void:
@@ -28,4 +31,4 @@ func execute(boss) -> void:
 		var sw := ObjectPool.acquire(SHOCKWAVE, boss.get_parent())
 		sw.global_position = pos
 		sw.call(&"detonate", DMG, RADIUS)
-		await boss.get_tree().create_timer(0.22).timeout
+		await boss.get_tree().create_timer(STOMP_GAP).timeout

@@ -20,9 +20,11 @@ var _hash := SpatialHash.new()
 var _frame: int = 0
 var _running: bool = false
 var _boss_active: bool = false            # pauses ambient spawns during a set-piece boss
+var _bosses: Array = []                   # active bosses (targetable by weapon auto-aim)
 
 func start() -> void:
 	_active.clear()
+	_bosses.clear()
 	_interval_accum = 0.0
 	_swarm_accum = 0.0
 	_current_wave_id = &""
@@ -115,30 +117,22 @@ func _spawn_one(minutes: float, wave: WaveData, force_elite: bool = false) -> bo
 	_active.append(e)
 	return true
 
-## Spawn a flyby swarm: a line of enemies just off one screen edge, all sweeping
-## straight across the player's band and out the far side (FlybyBehavior).
+## Spawn a flyby swarm: a big blob of fast enemies that streak in from ALL angles
+## around the player and cross straight through the play area, out the far side
+## (FlybyBehavior). Each picks its own perimeter spawn + heading, so it reads as a
+## converging storm rather than a single wall sweeping one direction.
 func _spawn_swarm(wave: WaveData, minutes: float) -> void:
 	var center: Vector2 = GameState.player.global_position
-	var half := VIEW_HALF
-	var dir: Vector2
-	var positions: Array[Vector2] = []
-	if randf() < 0.5:                                  # horizontal sweep
-		var from_left := randf() < 0.5
-		dir = Vector2.RIGHT if from_left else Vector2.LEFT
-		var edge_x := center.x - half.x - 60.0 if from_left else center.x + half.x + 60.0
-		for _i in wave.swarm_size:
-			positions.append(Vector2(edge_x, center.y + randf_range(-half.y, half.y)))
-	else:                                              # vertical sweep
-		var from_top := randf() < 0.5
-		dir = Vector2.DOWN if from_top else Vector2.UP
-		var edge_y := center.y - half.y - 60.0 if from_top else center.y + half.y + 60.0
-		for _i in wave.swarm_size:
-			positions.append(Vector2(center.x + randf_range(-half.x, half.x), edge_y))
-	for pos in positions:
+	var ring := VIEW_HALF.length() + 80.0             # just off-screen on every side
+	for _i in wave.swarm_size:
 		if _active.size() >= _cap():
 			break
+		var spawn := center + Vector2.from_angle(randf() * TAU) * ring
+		# Aim across, through a jittered point near the player, so headings differ.
+		var target := center + Vector2.from_angle(randf() * TAU) * randf_range(0.0, VIEW_HALF.y * 0.6)
+		var dir := spawn.direction_to(target)
 		var e := ObjectPool.acquire(ENEMY_SCENE, _enemy_layer()) as Enemy
-		e.global_position = pos
+		e.global_position = spawn
 		e.configure(wave.swarm_enemy, _hp_mult(minutes), _dmg_mult(minutes), _spd_mult(minutes), false)
 		e.set_meta(&"flyby_dir", dir)
 		_active.append(e)
@@ -241,12 +235,15 @@ func _cap() -> int:
 # --- bosses (08 §17, 03 §8) ---
 # The boss is placed dormant at run start and self-activates at its gate; the
 # director only pauses/resumes ambient waves around it.
-func _on_boss_spawned(_boss: Node, _bdata: Resource) -> void:
+func _on_boss_spawned(boss: Node, _bdata: Resource) -> void:
 	_boss_active = true                 # set-piece: ambient spawns pause
+	if boss is Node2D and not _bosses.has(boss):
+		_bosses.append(boss)            # so weapon auto-aim can target it
 
-func _on_boss_defeated(_boss: Node, _bdata: Resource) -> void:
+func _on_boss_defeated(boss: Node, _bdata: Resource) -> void:
 	GameState.bosses_killed += 1
 	_boss_active = false               # resume ambient waves
+	_bosses.erase(boss)
 
 # --- separation service (called by enemies, throttled) ---
 func separation_for(enemy: Enemy) -> Vector2:
@@ -275,6 +272,14 @@ func get_nearest_enemy(from: Vector2, max_dist: float) -> Node2D:
 		if d < best_d:
 			best_d = d
 			best = e
+	# Bosses aren't in _active (no body collision) but must still be auto-targeted.
+	for b in _bosses:
+		if not is_instance_valid(b):
+			continue
+		var d: float = from.distance_squared_to(b.global_position)
+		if d < best_d:
+			best_d = d
+			best = b
 	return best
 
 func get_random_enemy_near(from: Vector2, radius: float) -> Node2D:
@@ -283,6 +288,9 @@ func get_random_enemy_near(from: Vector2, radius: float) -> Node2D:
 	for e in _active:
 		if is_instance_valid(e) and from.distance_squared_to(e.global_position) <= r2:
 			near.append(e)
+	for b in _bosses:
+		if is_instance_valid(b) and from.distance_squared_to(b.global_position) <= r2:
+			near.append(b)
 	return near.pick_random() if not near.is_empty() else null
 
 func _on_enemy_died(enemy: Node, _position: Vector2) -> void:

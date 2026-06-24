@@ -3,6 +3,8 @@ extends CharacterBody2D
 ## The avatar (08 §7). Composes the shared component stack and adds the
 ## WeaponManager, LevelSystem, pickup magnet and camera.
 
+const MAX_PASSIVES := 4        # distinct passive items the player can hold (06 §1)
+
 @export var stats: PlayerStats
 @export var character_data: CharacterData
 

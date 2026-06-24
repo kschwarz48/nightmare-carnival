@@ -38,11 +38,23 @@ func is_legal(player: Player) -> bool:
 	var wm := player.weapon_manager
 	match kind:
 		Kind.NEW_WEAPON:
-			return weapon != null and not wm.has_weapon(weapon.id) and wm.has_room()
+			if weapon == null or wm.has_weapon(weapon.id) or not wm.has_room():
+				return false
+			# Don't re-offer a base weapon once its evolution is already owned (06 §5).
+			var evo := weapon.evolution as EvolutionData
+			if evo != null and evo.result != null and wm.has_weapon(evo.result.id):
+				return false
+			return true
 		Kind.LEVEL_WEAPON:
 			return weapon != null and wm.has_weapon(weapon.id) and not wm.is_weapon_maxed(weapon.id)
 		Kind.PASSIVE:
-			return passive != null and player.passive_stacks.get(id, 0) < max_stacks
+			if passive == null or player.passive_stacks.get(id, 0) >= max_stacks:
+				return false
+			# Distinct-passive cap: a brand-new passive is illegal once full (06 §1).
+			if not player.owned_passives.has(passive.id) \
+					and player.owned_passives.size() >= Player.MAX_PASSIVES:
+				return false
+			return true
 		Kind.EVOLUTION:
 			# Pre-validated by EvolutionSystem; offered directly, not sampled from
 			# the pool. Re-check the base is still owned and unevolved.
