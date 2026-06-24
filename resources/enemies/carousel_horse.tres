@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/vfx_pop.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"carousel_horse"
+display_name = "Carousel Horse"
+max_health = 150.0
+move_speed = 55.0
+contact_damage = 18.0
+ticket_value = 6
+knockback_taken = 0.5
+behavior = &"burst_charger"
+color = Color(0.95, 0.85, 0.5, 1)
+radius = 18.0
+shape = 2
+separation_radius = 22.0
+can_be_elite = true
+death_vfx = ExtResource("2")
+params = { "windup_time": 0.7, "charge_speed": 230.0, "charge_time": 0.7, "recover_time": 0.8, "charge_range": 420.0 }

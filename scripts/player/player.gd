@@ -28,6 +28,8 @@ var owned_passives: Dictionary = {}
 var external_pull: Vector2 = Vector2.ZERO
 
 var _regen_accum: float = 0.0
+var _slow_t: float = 0.0
+var _slow_factor: float = 1.0
 
 func _ready() -> void:
 	collision_layer = CollisionLayers.PLAYER
@@ -58,10 +60,20 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if GameState.is_paused:
 		return
+	var slow := 1.0
+	if _slow_t > 0.0:
+		_slow_t -= delta
+		slow = _slow_factor
 	var dir := Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
-	velocity = dir * stats.move_speed() + external_pull
+	velocity = dir * stats.move_speed() * slow + external_pull
 	move_and_slide()
 	_handle_regen(delta)
+
+## Brief movement slow (Cotton-Candy Slime contact, 04). Strongest active wins.
+func apply_slow(factor: float, duration: float) -> void:
+	if _slow_t <= 0.0 or factor < _slow_factor:
+		_slow_factor = factor
+	_slow_t = maxf(_slow_t, duration)
 
 ## Re-derive live values after a stat-changing upgrade.
 func refresh_stats() -> void:
@@ -93,6 +105,10 @@ func _on_damaged(info: DamageInfo) -> void:
 	EventBus.player_damaged.emit(info.amount, health.current_health)
 	if stats.knockback > 0.0:
 		_shove_nearby_enemies()
+	# Cotton-Candy Slime etc.: contact applies a brief movement slow (04).
+	var src = info.source
+	if src is Enemy and (src as Enemy).data and (src as Enemy).data.contact_slow > 0.0:
+		apply_slow(1.0 - (src as Enemy).data.contact_slow, (src as Enemy).data.contact_slow_time)
 
 ## Strongman quirk: when something hits you, shove the enemies pressing on you.
 ## Reuses the shared knockback (reverse-speed) with a big multiplier (stats.knockback).
