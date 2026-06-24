@@ -9,6 +9,7 @@ var _enemies: Array[EnemyData] = []
 var _upgrades: Array[UpgradeData] = []
 var _waves: Array[WaveData] = []
 var _bosses: Array[BossData] = []
+var _events: Array[EventData] = []
 
 func _ready() -> void:
 	_load_dir("res://resources/characters/", _characters)
@@ -18,6 +19,7 @@ func _ready() -> void:
 	_load_dir("res://resources/upgrades/", _upgrades)
 	_load_dir("res://resources/waves/", _waves)
 	_load_dir("res://resources/bosses/", _bosses)
+	_load_dir("res://resources/events/", _events)
 	_waves.sort_custom(func(a, b): return a.start_time < b.start_time)
 	_bosses.sort_custom(func(a, b): return a.gate_time < b.gate_time)
 
@@ -40,11 +42,30 @@ func all_difficulties() -> Array[DifficultyData]: return _difficulties
 func all_upgrades() -> Array[UpgradeData]: return _upgrades
 func all_waves() -> Array[WaveData]: return _waves
 func all_bosses() -> Array[BossData]: return _bosses
+func all_enemies() -> Array[EnemyData]: return _enemies
 
 func get_boss(id: StringName) -> BossData:
 	for b in _bosses:
 		if b.id == id:
 			return b
+	return null
+
+func get_enemy(id: StringName) -> EnemyData:
+	for e in _enemies:
+		if e.id == id:
+			return e
+	return null
+
+func get_event(id: StringName) -> EventData:
+	for e in _events:
+		if e.id == id:
+			return e
+	return null
+
+func get_weapon(id: StringName) -> WeaponData:
+	for w in _weapons:
+		if w.id == id:
+			return w
 	return null
 
 func get_character(id: StringName) -> CharacterData:

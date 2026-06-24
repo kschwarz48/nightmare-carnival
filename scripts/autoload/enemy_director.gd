@@ -71,6 +71,8 @@ func _spawn_step(delta: float) -> void:
 			if _active.size() >= _cap():
 				break
 			_spawn_one(minutes, wave, true)
+		if wave.event != &"":                       # one-shot carnival event (03 §5)
+			EventRunner.run(ContentDB.get_event(wave.event))
 
 	# 1) Keep the baseline crowd: top up instantly when below the wave minimum.
 	# Break on a failed spawn (e.g. empty enemy list) so we never spin forever.

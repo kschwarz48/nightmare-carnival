@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EventData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/event_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"ev_clown_pack"
+display_name = "Clown Pack"
+type = &"elite_pack"
+banner = "The clowns are loose!"
+params = { "enemy_id": &"evil_clown", "count": 5 }
