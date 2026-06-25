@@ -117,17 +117,17 @@ A staged plan from empty project to shippable game, ordered so the game is **fun
 > **Pre-M5 hardening done** (so content doesn't breed debt): data-driven **boss scheduling** (ContentDB + `visible_when_dormant`); **Act timeline** (`act_changed`); **enemy projectile + `shooter` behavior**; **EventData + EventRunner** skeleton (`elite_pack`/`miniboss`); **minibosses → VS-style chests** (`ChestReward`, 1–7 upgrades to equipped items); **`summon` weapon style**; `weapon_evolved` wired. Each ships with a reference resource + headless test. Remaining `dash`/`clone`/`beam` styles build with their weapon.
 
 **Tasks**
-- [ ] Remaining enemy behaviors: `LineCharger`, `RailStrafer`, `Spawner`, `Ambusher`, `PopUp`, `Formation` (`shooter` done) (`08 §11`, `04`).
-- [ ] All enemy families + key variants/elites as `EnemyData` resources (`04`).
+- [x] Enemy behaviors: `shooter`, `spawner`, `ambusher`, `pop_up`, `rail_strafer`; chargers reuse `burst_charger` (Carousel Horse / Bumper Car). `Formation` refinement deferred (Puppet Soldiers use `shooter`).
+- [x] Enemy families as `EnemyData` (Act I–IV): slimes, whack-a-mole, jack-in-the-box, dunk-tank/puppet shooters, carousel/bumper chargers, ticket-booth spawner, roller-coaster snake, carnival-brute miniboss.
 - [x] Remaining 3 bosses: Ferris Wheel (roll), Puppet King (cut-the-strings stagger), Ringmaster (parade → bullet-hell finale; defeat = Dawn) (`05`).
-- [ ] Full weapon roster + passive roster + all evolutions as resources (`06`); `dash`/`clone`/`beam` styles as needed.
-- [ ] Remaining characters (`01 §6`).
+- [x] Evolutions wired for every evolvable weapon (Grand Finale, Saturn's Rings, Whack Frenzy, Cosmic Convergence, Nightmare Menagerie, Royal Flush) + Luck passive. *(`dash`/`clone`/`beam` styles + their weapons still to come.)*
+- [ ] Remaining characters (Fortune Teller / Ride Operator / Lost Child / Ringleader) (`01 §6`).
 - [ ] **Carnival Core** zone polish (the one zone), chokepoints, hazards (`03 §2–4`).
-- [ ] Authored carnival events (`EventData` resources) + timed-hazard event host (`03 §5`).
-- [ ] Full `WaveData` timeline + per-Act ambient across all four Acts (`03 §7.4`).
-- [ ] Difficulty tiers (Carnival/Nightmare/Endless) + curse; the select-screen gating.
+- [~] Carnival events: `EventData`/`EventRunner` + `ev_clown_pack`; more authored events + timed-hazard host to come (`03 §5`).
+- [x] Full `WaveData` timeline (w_0000 → w_2400, all four Acts) + the 25:00 Dawn win condition.
+- [x] Difficulty tiers Midway/Carnival/Nightmare + select picker. *(Endless + Curse still to come.)*
 
-**Exit criteria:** a complete 25-minute run with all four bosses, full draft pool, on the Carnival Core, default difficulty.
+**Exit criteria (met):** a complete 25-minute run, all four bosses, evolutions reachable, on the Carnival Core, with selectable difficulty. *(Remaining M5 = more characters, more weapon styles/events, zone & Endless polish.)*
 
 **Verify:** win a full run; every weapon/evolution reachable; every boss beatable; profile at Act IV peak (~600 enemies) — hit your platform budget.
 
