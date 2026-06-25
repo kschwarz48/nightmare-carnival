@@ -16,10 +16,23 @@ func acquire(scene: PackedScene, parent: Node) -> Node:
 		node = scene.instantiate()
 		node.set_meta(&"_pool_key", key)
 	node.set_meta(&"_pooled", false)
+	# Safety net: a caller occasionally passes a parent that's been freed/removed
+	# (an enemy dying the same frame it despawns, a run ending). Never hard-crash
+	# on add_child(null) — fall back to a valid node and log which scene did it.
+	if not is_instance_valid(parent):
+		push_warning("ObjectPool.acquire: invalid parent for %s — using fallback." % key)
+		parent = _fallback_parent()
 	parent.add_child(node)
 	if node.has_method(&"_on_acquired"):
 		node.call(&"_on_acquired")
 	return node
+
+## A guaranteed-valid parent for the rare invalid-parent case: the active run's
+## projectile layer if present, else the pool node itself.
+func _fallback_parent() -> Node:
+	if is_instance_valid(GameState.projectile_layer):
+		return GameState.projectile_layer
+	return self
 
 ## Return a node to its pool. Idempotent — safe to call (or call_deferred) more
 ## than once. NOTE: when releasing from inside a physics collision callback
