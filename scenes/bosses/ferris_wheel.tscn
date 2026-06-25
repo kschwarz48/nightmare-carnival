@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://dferriswheel001"]
+[gd_scene format=3 uid="uid://b0ho4ql3d4j6o"]
 
 [ext_resource type="Script" path="res://scripts/bosses/ferris_boss.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/vfx/blob.gd" id="2"]

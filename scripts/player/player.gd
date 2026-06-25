@@ -34,6 +34,9 @@ var _slow_factor: float = 1.0
 func _ready() -> void:
 	collision_layer = CollisionLayers.PLAYER
 	collision_mask = CollisionLayers.WORLD
+	# Draw above the world layer (enemies, projectiles, orbs, telegraphs) so big
+	# self-cast abilities (Saturn's Rings, Crystal Orbs) never hide the player.
+	z_index = 20
 	GameState.player = self
 
 	if character_data:
