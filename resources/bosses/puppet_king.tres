@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/boss_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/bosses/puppet_king.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"puppet_king"
+display_name = "The Puppet King"
+scene = ExtResource("2")
+max_health = 16000.0
+contact_damage = 22.0
+soft_enrage_time = 100.0
+gate_time = 1080.0
+visible_when_dormant = false
+move_speed = 70.0
+preferred_distance = 520.0
+color = Color(0.55, 0.3, 0.65, 1)
+radius = 82.0
+bar_color = Color(0.7, 0.4, 0.9, 1)
