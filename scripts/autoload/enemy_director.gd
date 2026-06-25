@@ -267,6 +267,8 @@ func _on_boss_defeated(boss: Node, bdata: Resource) -> void:
 	_bosses.erase(boss)
 	if bdata and bdata.id != &"":
 		SaveManager.discover(bdata.id)  # Carnival-pedia (01 §9)
+	if bdata and bdata.final_boss:
+		GameState.end_run(true)         # beating the Ringmaster = Dawn (05, 01 §11)
 
 # --- separation service (called by enemies, throttled) ---
 func separation_for(enemy: Enemy) -> Vector2:

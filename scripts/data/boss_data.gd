@@ -14,6 +14,8 @@ extends Resource
 ## Visible as scenery before it wakes? The Tent is (the "this prop IS the boss"
 ## reveal); later bosses stay hidden until their gate so they don't litter the map.
 @export var visible_when_dormant: bool = false
+## The final boss — defeating it ends the night (Dawn / win), 05/01 §11.
+@export var final_boss: bool = false
 ## Roam toward the player once active; stops at preferred_distance. Below the
 ## player's speed so it pressures/looms but can't "jump" on a fleeing player.
 @export var move_speed: float = 150.0

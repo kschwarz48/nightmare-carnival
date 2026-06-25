@@ -119,7 +119,7 @@ A staged plan from empty project to shippable game, ordered so the game is **fun
 **Tasks**
 - [ ] Remaining enemy behaviors: `LineCharger`, `RailStrafer`, `Spawner`, `Ambusher`, `PopUp`, `Formation` (`shooter` done) (`08 §11`, `04`).
 - [ ] All enemy families + key variants/elites as `EnemyData` resources (`04`).
-- [ ] Remaining 3 bosses: Ferris Wheel (roaming/roll), Puppet King (sub-target strings), Ringmaster (3-phase finale) (`05`).
+- [x] Remaining 3 bosses: Ferris Wheel (roll), Puppet King (cut-the-strings stagger), Ringmaster (parade → bullet-hell finale; defeat = Dawn) (`05`).
 - [ ] Full weapon roster + passive roster + all evolutions as resources (`06`); `dash`/`clone`/`beam` styles as needed.
 - [ ] Remaining characters (`01 §6`).
 - [ ] **Carnival Core** zone polish (the one zone), chokepoints, hazards (`03 §2–4`).
