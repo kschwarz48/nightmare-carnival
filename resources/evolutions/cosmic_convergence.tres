@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EvolutionData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/evolution_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/weapons/cosmic_convergence.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"cosmic_convergence"
+display_name = "Cosmic Convergence ✦"
+description = "EVOLUTION — Crystal Orbs become a permanent wall of giant orbs."
+result = ExtResource("2")

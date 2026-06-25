@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="WeaponData" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/weapons/projectiles/card.tscn" id="2"]
+[ext_resource type="Resource" path="res://resources/evolutions/royal_flush.tres" id="3"]
 
 [resource]
 script = ExtResource("1")
@@ -23,4 +24,5 @@ level_damage = Array[float]([0.0, 0.0, 4.0, 0.0, 0.0, 6.0, 0.0, 10.0])
 level_cooldown = Array[float]([0.0, 0.0, 0.0, -0.12, 0.0, 0.0, -0.12, 0.0])
 level_area = Array[float]([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 level_amount = Array[int]([0, 1, 0, 0, 1, 0, 0, 1])
+evolution = ExtResource("3")
 required_passive = &"lucky_ticket"
