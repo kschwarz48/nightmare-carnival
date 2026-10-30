@@ -203,6 +203,17 @@ export class Hud {
     this.root.append(this.bannerEl);
   }
 
+  /**
+   * A whisper (secret-quest feedback): ghostly italic lines that rise and fade near the top of the
+   * screen — enough to notice that something happened, without spelling out what to do next.
+   */
+  whisper(text: string, sub?: string, dur = 4.2): void {
+    const el = h('div', { class: 'whisper' }, h('div', { class: 't' }, text), sub ? h('div', { class: 's' }, sub) : null);
+    el.style.animationDuration = `${dur}s`;
+    this.root.append(el);
+    setTimeout(() => el.remove(), dur * 1000);
+  }
+
   warning(bossId: string, reducedFlash: boolean): void {
     this.warnEl?.remove();
     const b = BOSS_MAP[bossId as keyof typeof BOSS_MAP];

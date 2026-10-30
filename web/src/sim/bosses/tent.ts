@@ -8,6 +8,15 @@ import type { Game } from '../game';
 import type { Co } from '../script';
 import { BossBase, type Attack, type BossOpts } from './boss';
 
+/**
+ * The stomp's shockwave ripple. It starts inside the stomp circle (so stepping out of the stomp is
+ * enough to be outside it), expands slower than the slowest character can run, and carries a gap —
+ * dodgeable by running or by slipping through the gap. Guarded by a test against character speeds.
+ */
+export const SHOCKWAVE = { r: 62, r2: 52, grow: 150, active: 1.0, dmg: 10, gapHalf: 0.45 };
+/** Radius of a stomp's footprint. */
+export const STOMP_R = 85;
+
 export class TentBoss extends BossBase {
   private pole: Hazard | null = null;
   private eaten = 0;
@@ -102,13 +111,13 @@ export class TentBoss extends BossBase {
       this.pose.leg = leg;
       const t = this.tele(tele);
       this.hz('circle', 'stomp', x, y, {
-        r: 85, tele: t, active: 0.12, dmg: 25,
+        r: STOMP_R, tele: t, active: 0.12, dmg: 25,
         onActivate: () => {
           this.pose.legT = 1;
           g.fx.push('shake', x, y, 0.45);
           g.fx.push('dust', x, y, 1.5);
           this.sfx('stomp', 0.9);
-          this.hz('ring', 'shockwave', x, y, { r: 95, r2: 80, grow: 260, tele: 0.01, active: 0.85, dmg: 12 });
+          this.hz('ring', 'shockwave', x, y, { ...SHOCKWAVE, tele: 0.12, angle: g.rng.range(0, Math.PI * 2) });
         },
       });
       yield gap;

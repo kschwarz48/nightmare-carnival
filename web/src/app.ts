@@ -371,11 +371,15 @@ export class App {
         if (q.x !== undefined && q.y !== undefined) fx('spark', q.x, q.y, 'gravity');
         if (q.a !== undefined) {
           const L = LAST_SONG.lamps[q.a];
-          fx('ring', L.x + 20, L.y, 'gravity', 60);
+          fx('ring', L.x, L.y, 'gravity', 60);
         }
         break;
-      case 'lamp_lit':
+      case 'lamp_lit': {
         a.play('lamp_lit', { vol: 0.7, pan: pan(q.x) });
+        const ls = g.quests.get<{ lit: boolean[] } & import('./sim/quest').QuestChain>('last_song');
+        const lit = ls ? ls.lit.filter(Boolean).length : 1;
+        const name = q.a !== undefined ? LAST_SONG.lamps[q.a].id : 'lamp';
+        this.hud.whisper(`The ${name} lamp remembers…`, LAST_SONG.lamps.map((_, k) => (ls?.lit[k] ? '●' : '○')).join(' ') + (lit >= 4 ? '' : '   the others are still cold'));
         if (q.b) bell(q.b, 0.5, q.x);
         if (q.x !== undefined && q.y !== undefined) {
           fx('ring', q.x, q.y, 'gravity', 220);
@@ -383,7 +387,9 @@ export class App {
         }
         this.input.rumble(0.3, 160);
         break;
+      }
       case 'carousel_wakes':
+        this.hud.whisper('Something stirs on the carousel…', 'a tune, long forgotten, begins to play', 5);
         a.play('carousel_wake', { vol: 0.8 });
         a.play('rumble', { vol: 0.5 });
         this.renderer.fx.shake = Math.max(this.renderer.fx.shake, 0.5);
@@ -405,13 +411,16 @@ export class App {
         if (q.x !== undefined && q.y !== undefined) fx('ring', q.x, q.y, 'gravity', 90);
         break;
       case 'sour':
+        this.hud.whisper('The melody falters.', 'begin again', 2.6);
         a.play('sour', { vol: 0.5, pan: pan(q.x) });
         break;
       case 'melody_solved':
+        this.hud.whisper('The song is remembered.', 'somewhere to the south-west, a machine whirs awake', 5.5);
         LAST_SONG.lamps.forEach((l, k) => setTimeout(() => bell(l.note, 0.5), k * 160));
         setTimeout(() => a.play('toll', { vol: 0.6 }), 900);
         break;
       case 'ding':
+        if (q.b && q.a) this.hud.whisper(`The bell answers — ${['', 'once', 'twice', 'thrice'][Math.min(3, q.a)] ?? ''}.`, q.a >= 3 ? 'the bell falls silent' : undefined, 3);
         a.play('ding', { vol: q.b ? 0.8 : 0.4, pan: pan(q.x) });
         if (q.b && q.x !== undefined && q.y !== undefined) fx('ring', q.x, q.y - 40, 'bell', 120);
         break;
@@ -419,6 +428,7 @@ export class App {
         a.play('clunk', { vol: 0.55, pan: pan(q.x) });
         break;
       case 'ticket':
+        this.hud.whisper('A Ghost Ticket follows you.', 'admit one — to the last show of the night', 6);
         a.play('ghost_ticket', { vol: 0.8 });
         this.renderer.fx.screenFlash = Math.max(this.renderer.fx.screenFlash, 0.25);
         this.renderer.fx.screenFlashCol = [0.5, 1, 0.75];

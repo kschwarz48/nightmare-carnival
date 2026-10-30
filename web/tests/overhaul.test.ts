@@ -20,6 +20,7 @@ import { PROPS } from '../src/data/map';
 import { TICK } from '../src/sim/constants';
 import type { Game } from '../src/sim/game';
 import { readyEvolutions } from '../src/sim/draft';
+import { SHOCKWAVE, STOMP_R } from '../src/sim/bosses/tent';
 
 /** Tick once, resolving any level-up draft so the world keeps running. */
 function step(g: Game, n = 1): void {
@@ -371,5 +372,19 @@ describe('3D model library (D-35/D-38)', () => {
         expect(same).toBe(false);
       }
     }
+  });
+});
+
+describe('boss fairness', () => {
+  it("the Big Top's stomp shockwave can be outrun by the slowest character, and has a gap", () => {
+    const slowest = Math.min(...CHAR_DATA.map((c) => c.speed));
+    const pr = 14; // the largest player radius (Strongman)
+    const escaped = STOMP_R + pr; // standing just outside the stomp's footprint as it lands
+    for (let t = 0; t <= SHOCKWAVE.active + 1e-9; t += 1 / 60) {
+      const ringOuter = SHOCKWAVE.r + SHOCKWAVE.grow * t + pr;
+      expect(escaped + slowest * t).toBeGreaterThan(ringOuter);
+    }
+    expect(SHOCKWAVE.grow).toBeLessThan(slowest);
+    expect(SHOCKWAVE.gapHalf).toBeGreaterThan(0.3);
   });
 });
