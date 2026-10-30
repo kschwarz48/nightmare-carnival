@@ -30,15 +30,30 @@ function balloon(r: number): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(r < 13 ? 1.8 : 1.6, 2);
-  const latex: ColorFn = (p) => C(0xffffff).multiplyScalar(0.62 + 0.2 * Math.max(0, p.x / r * 0.5 + p.y / (r * 2) * 0.5));
+  // old latex (D-50): sun-faded and grimy, darker and puckered toward the knot
+  const latex: ColorFn = (p) => {
+    const lit = 0.6 + 0.2 * Math.max(0, p.x / r * 0.5 + p.y / (r * 2) * 0.5);
+    const grime = 0.74 + 0.34 * vnoise(p.x * 0.16 + 3, p.y * 0.16, p.z * 0.16);
+    const knot = 0.55 + 0.45 * Math.min(1, Math.max(0, p.y / (r * 0.9)));
+    return C(0xffffff).multiplyScalar(lit * grime * knot);
+  };
   sc.add({ t: 'ell', c: [0, r * 1.05, 0], r: [r, r * 1.08, r] }, { col: latex, bone: b('body'), k: 0, surf: [0.4, 0] });
   sc.add({ t: 'cap', a: [0, r * 0.4, 0], b: [0, 0.2, 0], ra: r * 0.62, rb: r * 0.16 }, { col: latex, bone: b('body'), k: r * 0.6, surf: [0.4, 0] });
   sc.add({ t: 'sph', c: [0, -0.4, 0], r: r * 0.17 }, { col: latex, bone: b('body'), k: r * 0.1, surf: [0.4, 0] });
-  // carved hollow eyes and a jagged grin
-  for (const s of [1, -1]) sc.add({ t: 'ell', c: [s * r * 0.36, r * 1.25, r * 0.92], r: [r * 0.19, r * 0.26, r * 0.22], rot: [0, s * 0.35, s * -0.25] }, { sub: true, k: r * 0.08 });
-  sc.add({ t: 'box', c: [0, r * 0.82, r * 0.95], h: [r * 0.5, r * 0.07, r * 0.25], r: r * 0.04, rot: [-0.25, 0, 0] }, { sub: true, k: r * 0.06 });
-  for (const s of [1, -1]) glowEye(sc, b('body'), [s * r * 0.36, r * 1.24, r * 0.78], r * 0.13, PAL.sickYellow, 1.4);
-  for (let i = 0; i < 5; i++) sc.detail(cone(r * 0.05, r * 0.14, 4), { col: PAL.bone, bone: b('body'), pos: [-r * 0.36 + i * r * 0.18, r * 0.86, r * 0.9], rot: [Math.PI, 0, 0], surf: SURF.bone });
+  // deep-set, slanted eye holes and a wide sagging grin stitched at the corners
+  for (const s2 of [1, -1]) sc.add({ t: 'ell', c: [s2 * r * 0.36, r * 1.24, r * 0.9], r: [r * 0.2, r * 0.24, r * 0.26], rot: [0, s2 * 0.35, s2 * -0.5] }, { sub: true, k: r * 0.08 });
+  sc.add({ t: 'box', c: [0, r * 0.8, r * 0.95], h: [r * 0.62, r * 0.075, r * 0.26], r: r * 0.04, rot: [-0.25, 0, 0.06] }, { sub: true, k: r * 0.06 });
+  for (const s2 of [1, -1]) glowEye(sc, b('body'), [s2 * r * 0.36, r * 1.22, r * 0.76], r * 0.12, PAL.sickYellow, 1.5);
+  for (let i = 0; i < 7; i++) {
+    const big = i % 3 === 1 ? 1.35 : 1;
+    sc.detail(cone(r * 0.05 * big, r * 0.15 * big, 4), { col: C(PAL.bone).multiplyScalar(0.82), bone: b('body'), pos: [-r * 0.48 + i * r * 0.16, r * 0.85, r * 0.9], rot: [Math.PI, 0, (i - 3) * 0.06], surf: SURF.bone });
+  }
+  for (const s2 of [1, -1]) for (let k = 0; k < 2; k++) {
+    const x = s2 * r * (0.5 + k * 0.1);
+    sc.detail(tube([[x - r * 0.04, r * 0.92, r * 0.86], [x + r * 0.04, r * 0.68, r * 0.88]], r * 0.018, 3, 2), { col: PAL.ink, bone: b('body'), surf: SURF.cloth });
+  }
+  // a crossed patch of old tape where it was mended once
+  for (const a of [0.6, -0.6]) sc.detail(rbox(r * 0.55, r * 0.13, r * 0.03, r * 0.02, 1), { col: C(PAL.dirty).multiplyScalar(0.85), bone: b('body'), pos: [-r * 0.6, r * 1.62, r * 0.55], rot: [-0.55, -0.75, a], surf: SURF.cloth });
   // the string, three swinging segments
   for (const [n, y0, y1] of [['s0', -r * 0.12, -r * 0.9], ['s1', -r * 0.9, -r * 1.7], ['s2', -r * 1.7, -r * 2.5]] as const) sc.detail(cyl(0.35, 0.35, y0 - y1, 4), { col: PAL.dirty, bone: b(n), pos: [0, (y0 + y1) / 2, 0], surf: SURF.cloth });
   const clips: Clips = {

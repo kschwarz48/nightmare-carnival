@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { C, box, cone, cyl, ellipsoid, extrude, lathe, rbox, smoothShape, sphere, starShape, torus, tube, vnoise, weather, stripes, bands, sagPoints, type ColorFn, type V3 } from '../core/geo';
 import { ModelBuilder, PAL, PART, SURF, body, bulb, coneHat, eyes, ruff, stitches } from './kit';
+import { bunting, canvasRoof, diamonds, headerBoard, pagodaRoof, patch, turnedPost, valance } from './arch';
 
 type M = ModelBuilder;
 
@@ -38,26 +39,50 @@ function bulbRow(m: M, x0: number, x1: number, y: number, z: number, n: number, 
   for (let i = 0; i < n; i++) bulb(m, [x0 + (x1 - x0) * (i / Math.max(1, n - 1)), y, z], 1.6, cols[i % cols.length], PART.BODY, undefined, 1);
 }
 
-/** Generic midway stall: back wall, side walls, counter, striped awning, sign board. Returns counter top y. */
+/** Booth header geometry shared with the sign placement in world/props.ts. */
+export const BOOTH = { eaveY: 128, ridgeY: 172, headerY: 132, headerH: 40, headerZ: 10 };
+
+/**
+ * A midway game booth (D-47): a raised plank deck, turned corner posts, canvas side walls, a
+ * painted counter with a diamond-patterned skirt, a peaked striped canvas roof sagging between its
+ * rafters, a scalloped valance with tassels, an arched header board ringed with marquee bulbs, and
+ * two lanterns hung under the eave — the booth's own warm light. Returns the counter-top height.
+ */
 function stall(m: M, hw: number, hh: number, wall: number, a: number, b: number): number {
   const w = hw * 2, d = hh * 2;
-  plankWall(m, w, 120, [0, 0, -hh + 2], 0, wall);
-  plankWall(m, d - 6, 110, [-hw + 2, 0, 0], Math.PI / 2, wall);
-  plankWall(m, d - 6, 110, [hw - 2, 0, 0], Math.PI / 2, wall);
-  // counter
-  m.add(rbox(w - 6, 42, 14, 1.5, 1), { col: weather(b, 0.5, 0.06, PAL.woodPale), pos: [0, 21, hh - 8], surf: SURF.paint });
-  m.add(rbox(w, 3, 18, 1, 1), { col: weather(PAL.woodDark, 0.4), pos: [0, 43, hh - 8], surf: SURF.wood });
-  // corner posts
-  for (const s of [-1, 1]) m.add(cyl(2.4, 2.8, 128, 8), { col: weather(PAL.cream, 0.5, 0.06, PAL.woodPale), pos: [s * (hw - 3), 64, hh - 2], surf: SURF.wood });
-  awning(m, w + 10, 34, 120, hh + 6, a, b);
-  // a hanging lantern under the awning — the stall's own warm light
-  m.add(cyl(0.5, 0.5, 14, 4), { col: PAL.iron, pos: [0, 112, hh - 4], surf: SURF.iron });
-  m.add(cyl(5, 6, 3, 8), { col: PAL.brass, pos: [0, 104, hh - 4], surf: SURF.brass });
-  m.add(sphere(5.6, 10, 8), { col: PAL.amber, pos: [0, 98, hh - 4], emit: 1, surf: SURF.bulb });
-  // sign board on top
-  m.add(rbox(w * 0.7, 22, 3, 2, 1), { col: weather(PAL.woodDark, 0.4), pos: [0, 136, -hh + 6], surf: SURF.wood });
-  bulbRow(m, -w * 0.32, w * 0.32, 149, -hh + 8, 7);
-  return 44;
+  const front = hh - 6, back = -hh + 4;
+  for (let i = 0; i < 7; i++) m.add(box(w + 6, 5, d / 7 - 0.8), { col: weather(PAL.woodDark, 0.5, 0.08, PAL.woodPale), pos: [0, 2.5, -hh + (i + 0.5) * (d / 7)], surf: SURF.wood });
+  plankWall(m, w - 6, 118, [0, 5, back], 0, wall);
+  // canvas side walls, vertical stripes, bellied slightly by the wind
+  for (const sx of [-1, 1]) {
+    const x = sx * (hw - 3);
+    for (let k = 0; k < 4; k++) {
+      const z0 = back + ((front - back) * k) / 4, z1 = back + ((front - back) * (k + 1)) / 4;
+      m.add(patch((u, v) => [x - sx * 1.6 * Math.sin(Math.PI * v) * Math.sin(Math.PI * (k + u) / 4), 6 + 116 * v, sx > 0 ? z0 + (z1 - z0) * u : z1 - (z1 - z0) * u], 3, 4, true), { col: weather(k % 2 ? a : b, 0.5, 0.06), surf: SURF.canvas });
+    }
+  }
+  // counter: skirt with a painted diamond motif, worn wooden top
+  m.add(rbox(w - 8, 40, 10, 1.2, 1), { col: weather(b, 0.5, 0.06, PAL.woodPale), pos: [0, 25, front], surf: SURF.paint });
+  diamonds(m, -hw + 10, hw - 10, 25, front + 5.3, 9, a);
+  m.add(rbox(w - 2, 3.4, 18, 1, 1), { col: weather(PAL.woodDark, 0.4, 0.1, PAL.woodPale), pos: [0, 46.5, front + 1], surf: SURF.wood });
+  // turned corner posts and a front beam
+  for (const sx of [-1, 1]) {
+    turnedPost(m, sx * (hw - 4), front + 7, BOOTH.eaveY, 2.6, weather(PAL.cream, 0.5, 0.06, PAL.woodPale));
+    turnedPost(m, sx * (hw - 4), back, BOOTH.eaveY, 2.4, weather(PAL.cream, 0.5, 0.06, PAL.woodPale));
+  }
+  m.add(rbox(w + 4, 6, 5, 1, 1), { col: weather(PAL.woodDark, 0.4), pos: [0, BOOTH.eaveY - 3, front + 7], surf: SURF.wood });
+  // the roof, its valance, the header board
+  canvasRoof(m, { w: w + 14, front: hh + 14, back: hh + 6, eaveY: BOOTH.eaveY, ridgeY: BOOTH.ridgeY, stripes: Math.round(w / 24), a, b });
+  valance(m, -(w + 14) / 2, (w + 14) / 2, BOOTH.eaveY, hh + 14.5, 11, Math.round(w / 19), a, b);
+  headerBoard(m, w * 0.62, BOOTH.headerH, BOOTH.headerY, hh + BOOTH.headerZ, PAL.ink, wall);
+  // lanterns under the eave
+  for (const sx of [-1, 1]) {
+    const x = sx * w * 0.27;
+    m.add(cyl(0.5, 0.5, 12, 4), { col: PAL.iron, pos: [x, BOOTH.eaveY - 10, front + 6], surf: SURF.iron });
+    m.add(cyl(4.6, 5.6, 3, 8), { col: PAL.brass, pos: [x, BOOTH.eaveY - 17, front + 6], surf: SURF.brass });
+    m.add(sphere(5.2, 10, 8), { col: PAL.amber, pos: [x, BOOTH.eaveY - 23, front + 6], emit: 1, surf: SURF.bulb });
+  }
+  return 48;
 }
 
 // ---------------------------------------------------------------- landmarks
@@ -159,10 +184,8 @@ export function ticketBooth(): THREE.BufferGeometry {
   m.add(box(50, 60, 1), { col: 0xe0a050, pos: [0, 82, 74], surf: SURF.glass, emit: 0.8 });
   for (let i = 0; i < 6; i++) m.add(cyl(0.9, 0.9, 60, 5), { col: PAL.iron, pos: [-21 + i * 8.4, 82, 77], surf: SURF.iron });
   m.add(torus(26, 2.4, 6, 16, Math.PI), { col: weather(PAL.woodDark, 0.4), pos: [0, 112, 77], surf: SURF.wood });
-  // pagoda roof with upturned corners
-  m.add(lathe([[0, 60], [14, 58], [86, 20], [120, 2], [124, -2], [0, -2]], 4), { col: weather(PAL.mustard, 0.55, 0.05, PAL.woodPale), pos: [0, 152, 0], rot: [0, Math.PI / 4, 0], scale: [1, 1, 0.82], surf: SURF.paint });
-  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) bulb(m, [x * 84, 154, z * 70], 2.2, PAL.amber);
-  m.add(cone(5, 26, 8), { col: PAL.gold, pos: [0, 225, 0], surf: SURF.gold });
+  // shingled pagoda roof with upturned corners and gilded hip caps
+  pagodaRoof(m, { hw: 118, dz: 0.82, y: 150, h: 66, courses: 8, col: 0x5b6b66, trim: PAL.mustard, lift: 12 });
   // marquee board
   m.add(rbox(150, 30, 4, 2, 1), { col: weather(PAL.ink, 0.3), pos: [0, 190, 66], rot: [-0.2, 0, 0], surf: SURF.wood });
   bulbRow(m, -70, 70, 207, 63, 13);
@@ -610,13 +633,34 @@ export function clownStatue(): THREE.BufferGeometry {
   return m.build({ ao: 0.35 });
 }
 
+/** A small grandstand (D-47): five worn seat planks on risers, a cross-braced steel frame, rails, litter. */
 export function bleachers(): THREE.BufferGeometry {
   const m = new ModelBuilder();
+  const steel = weather(PAL.iron, 0.55, 0.08, PAL.rust);
   for (let i = 0; i < 5; i++) {
-    m.add(box(300, 4, 16), { col: weather(PAL.woodPale, 0.5, 0.04), pos: [0, 14 + i * 16, 30 - i * 16], surf: SURF.wood });
-    m.add(box(300, 12, 2), { col: weather(PAL.woodDark, 0.4), pos: [0, 6 + i * 16, 38 - i * 16], surf: SURF.wood });
+    const y = 14 + i * 16, z = 30 - i * 16;
+    // seat: three boards with gaps, paint worn through to bare wood
+    for (let k = 0; k < 3; k++) m.add(box(296, 2.6, 4.4), { col: weather(i % 2 ? PAL.redDeep : PAL.cream, 0.6, 0.05, PAL.woodPale), pos: [0, y, z + 4 - k * 5], surf: SURF.wood });
+    // riser board
+    m.add(box(296, 13, 1.6), { col: weather(PAL.woodDark, 0.5, 0.08), pos: [0, y - 7, z + 7.5], surf: SURF.wood });
   }
-  for (let i = 0; i <= 6; i++) for (const z of [36, -36]) m.add(cyl(2, 2, z > 0 ? 14 : 80, 5), { col: PAL.iron, pos: [-150 + i * 50, z > 0 ? 7 : 40, z], surf: SURF.iron });
+  // steel frame: legs, stringers and X bracing under the seats
+  for (let i = 0; i <= 6; i++) {
+    const x = -148 + i * 49.3;
+    m.add(box(3, 86, 3), { col: steel, pos: [x, 43, -36], surf: SURF.iron });
+    m.add(box(3, 16, 3), { col: steel, pos: [x, 8, 36], surf: SURF.iron });
+    m.add(tube([[x, 4, 36], [x, 84, -36]], 1.6, 4, 6), { col: steel, surf: SURF.iron });
+    if (i < 6) m.add(tube([[x, 8, -34], [x + 49.3, 70, -34]], 1, 4, 6), { col: steel, surf: SURF.iron });
+  }
+  // back and side rails
+  m.add(cyl(1.6, 1.6, 300, 6), { col: steel, pos: [0, 104, -38], rot: [0, 0, Math.PI / 2], surf: SURF.iron });
+  for (const sx of [-1, 1]) m.add(tube([[sx * 150, 20, 38], [sx * 150, 104, -38]], 1.6, 4, 6), { col: steel, surf: SURF.iron });
+  for (let i = 0; i <= 6; i++) m.add(cyl(1.1, 1.1, 22, 5), { col: steel, pos: [-148 + i * 49.3, 93, -38], surf: SURF.iron });
+  // what the crowd left behind
+  m.add(rbox(8, 10, 6, 1, 1), { col: weather(PAL.cream, 0.4), pos: [-60, 34, 3], rot: [0, 0.3, 0.2], surf: SURF.paint });
+  m.add(rbox(8, 10, 6, 1, 1), { col: weather(PAL.red, 0.4), pos: [90, 66, -30], rot: [0.4, 0.8, 0], surf: SURF.paint });
+  m.add(cyl(9, 7, 4, 10), { col: weather(PAL.charcoal, 0.3), pos: [24, 49, -12], surf: SURF.cloth });
+  bunting(m, [-150, 108, -38], [150, 108, -38], 10, 12, [PAL.blood, PAL.cream, PAL.mustard, PAL.navy]);
   return m.build({ ao: 0.4 });
 }
 

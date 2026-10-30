@@ -6,11 +6,64 @@ import { WEAPONS, PASSIVES } from './data/weapons';
 import { h } from './ui/dom';
 import { createBoss } from './sim/bosses';
 import { BOSS_MAP } from './data/bosses';
+import { pool } from './render3d/core/materials';
+import { SEARCHLIGHTS } from './render3d/renderer3d';
+
+/**
+ * The threejs-qa-release canvas inspector's pixel metrics, ported to run in-page on the live
+ * framebuffer (same 160×90 luminance grid, 4-bit colour buckets and edge threshold), so captures
+ * taken in the in-app browser carry the same measured evidence as the Playwright inspector.
+ */
+function pixelMetrics(px: Uint8Array, width: number, height: number) {
+  const stepX = Math.max(1, Math.floor(width / 160)), stepY = Math.max(1, Math.floor(height / 90));
+  const cols = Math.floor(width / stepX), rows = Math.floor(height / stepY);
+  const lum = new Float64Array(cols * rows);
+  const buckets = new Map<string, number>();
+  let samples = 0;
+  for (let gy = 0; gy < rows; gy++) {
+    for (let gx = 0; gx < cols; gx++) {
+      const o = (gy * stepY * width + gx * stepX) * 4;
+      const r = px[o], g = px[o + 1], b = px[o + 2];
+      lum[gy * cols + gx] = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      const key = `${r >> 4},${g >> 4},${b >> 4}`;
+      buckets.set(key, (buckets.get(key) ?? 0) + 1);
+      samples++;
+    }
+  }
+  const sorted = Array.from(lum).sort((a, b) => a - b);
+  const mean = sorted.reduce((s, v) => s + v, 0) / sorted.length;
+  const p5 = sorted[Math.floor(sorted.length * 0.05)], p95 = sorted[Math.floor(sorted.length * 0.95)];
+  let entropy = 0, dominant = 0;
+  for (const c of buckets.values()) {
+    const p = c / samples;
+    entropy -= p * Math.log2(p);
+    dominant = Math.max(dominant, c);
+  }
+  let edges = 0, checked = 0;
+  for (let gy = 0; gy < rows - 1; gy++) {
+    for (let gx = 0; gx < cols - 1; gx++) {
+      const i = gy * cols + gx;
+      if (Math.max(Math.abs(lum[i] - lum[i + 1]), Math.abs(lum[i] - lum[i + cols])) > 12) edges++;
+      checked++;
+    }
+  }
+  const r2 = (v: number, d: number) => +v.toFixed(d);
+  return {
+    colorBuckets: buckets.size,
+    colorEntropyBits: r2(entropy, 2),
+    edgeDensity: r2(edges / checked, 3),
+    luminance: { mean: r2(mean, 1), p5: r2(p5, 1), p95: r2(p95, 1), contrast: r2(p95 - p5, 1) },
+    dominantColorShare: r2(dominant / samples, 3),
+  };
+}
 
 export function installDevTools(app: App): void {
     
     const api = {
       app,
+      /** The practical-light pool and searchlights (lighting inspection). */
+      pool,
+      searchlights: SEARCHLIGHTS,
       /** Freeze a run for visual inspection: optional restart, teleport, zoom and camera offset. */
       shot(o: { restart?: boolean; char?: string; t?: number; zoom?: number; x?: number; y?: number; dx?: number; dy?: number; hud?: boolean } = {}) {
         if (!app.game || o.restart) {
@@ -93,6 +146,28 @@ export function installDevTools(app: App): void {
         const total = (performance.now() - t0) / frames;
         return { msPerFrame: +total.toFixed(2), simMs: +(simMs / frames).toFixed(2), renderMs: +(total - simMs / frames).toFixed(2), enemies: g.active.length, projs: g.projs.filter((p) => p.alive).length, bullets: g.bullets.filter((b) => b.alive).length, billboards: app.renderer.fxAdd.count + app.renderer.fxNormal.count + app.renderer.glow.count, drawCalls: app.renderer.renderer.info.render.calls, triangles: app.renderer.renderer.info.render.triangles };
       },
+      /** Render one frame and measure it: pixel metrics plus this frame's renderer totals (all passes). */
+      metrics() {
+        const r = app.renderer;
+        const g = app.game ?? app.demo!;
+        const gl = r.renderer.getContext();
+        r.render(g, 1, 0);
+        const w = gl.drawingBufferWidth, hgt = gl.drawingBufferHeight;
+        const px = new Uint8Array(w * hgt * 4);
+        gl.readPixels(0, 0, w, hgt, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        const info = r.renderer.info;
+        return { ...pixelMetrics(px, w, hgt), size: [w, hgt], renderer: { calls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures, programs: info.programs?.length ?? 0 } };
+      },
+      /** Render a frame, measure it and save it (dev server) as artifacts/visual/<run>/<name>.png + .json. */
+      async capture(run: string, name: string) {
+        const m = api.metrics();
+        const r = app.renderer;
+        r.render(app.game ?? app.demo!, 1, 0);
+        const png = r.renderer.domElement.toDataURL('image/png');
+        const meta = { ...m, diagnostics: (window as any).__THREE_GAME_DIAGNOSTICS__, at: new Date().toISOString() };
+        const res = await fetch('/__capture', { method: 'POST', body: JSON.stringify({ run, name, png, meta }) });
+        return { saved: (await res.json()).file as string, ...m };
+      },
       god(on = true) {
         if (app.game) app.game.cfg.godMode = on;
       },
@@ -138,6 +213,58 @@ export function installDevTools(app: App): void {
       },
     };
     (window as any).__nc = api;
+
+    // ---- the threejs-qa-release determinism contract: seed, named states, freeze, diagnostics
+    let seed = 42;
+    const freeze = () => {
+      app.draft.hide();
+      app.overlayPause = true;
+    };
+    const run = (char = 'carny') => {
+      app.overlayPause = false;
+      app.renderer.zoom = 1;
+      app.renderer.inspect = null;
+      app.startRun({ character: char, difficulty: 'midway', curse: false, seed });
+      app.game!.cfg.godMode = true;
+      return app.game!;
+    };
+    const STATES: Record<string, () => void> = {
+      /** a minute into a night: the opening crowd around the player on the plaza */
+      'active-play-desktop': () => { run(); api.advance(60); },
+      /** late in a night: Act IV density with an evolved arsenal */
+      'late-combat': () => { const g = run('ride_operator'); api.jump(1150); api.advance(45); g.cfg.godMode = true; },
+      /** the Ringmaster's stage: boss lighting, telegraphs, summons */
+      'boss-ringmaster': () => { run(); api.advance(20); api.spawnBoss('ringmaster', 0, -380); api.advance(5); },
+    };
+    (window as any).__THREE_GAME_TEST_HOOKS__ = {
+      seed(n: number) { seed = n | 0; },
+      async setState(name: string) {
+        const enter = STATES[name];
+        if (!enter) throw new Error(`Unknown test state: ${name}`);
+        enter();
+        freeze();
+        app.renderer.snapCamera(app.game!.player.x, app.game!.player.y);
+        return { state: name };
+      },
+      setPausedForScreenshot(on: boolean) { app.overlayPause = on; },
+      hideDebugUi() { panel.classList.add('hidden'); },
+      states: Object.keys(STATES),
+    };
+    Object.defineProperty(window, '__THREE_GAME_DIAGNOSTICS__', {
+      configurable: true,
+      get: () => {
+        const g = app.game;
+        const info = app.renderer.renderer.info;
+        return {
+          frame: info.render.frame,
+          state: g ? g.phase : 'menu',
+          time: g ? +g.time.toFixed(2) : 0,
+          player: g ? { x: Math.round(g.player.x), y: Math.round(g.player.y) } : null,
+          enemies: g ? g.active.length : 0,
+          renderer: { calls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures },
+        };
+      },
+    });
     // compact on-screen dev panel, toggled with the backquote key
     const panel = h('div', { class: 'devpanel hidden' });
     const b = (label: string, fn: () => void) => h('button', { onclick: fn }, label);

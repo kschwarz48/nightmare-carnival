@@ -135,7 +135,7 @@ export class PropSet {
     }
     for (const [key, gr] of groups) {
       const geo = gr.spec.build(gr.props[0]);
-      const mat = actorMaterial({ dither: gr.spec.dither, emitBoost: 2.6, envIntensity: 0.5 });
+      const mat = actorMaterial({ dither: gr.spec.dither, emitBoost: 2.6, envIntensity: 0.5, detail: true });
       const b = new StaticBatch(geo, mat, gr.props.length, { shadow: true });
       b.rim = [0, 0, 0, 0];
       for (const p of gr.props) b.add(p.x, p.y, 0, gr.spec.yaw ? gr.spec.yaw(p) : 0, 1);
@@ -156,7 +156,7 @@ export class PropSet {
       const SEG = 120;
       let count = 0;
       for (const p of list) count += Math.ceil((p.w ?? SEG) / SEG);
-      const b = new StaticBatch(section(kind, SEG), actorMaterial({ dither: kind === 'fence' }), count, { shadow: true });
+      const b = new StaticBatch(section(kind, SEG), actorMaterial({ dither: kind === 'fence', detail: true }), count, { shadow: true });
       b.rim = [0, 0, 0, 0];
       for (const p of list) {
         const len = p.w ?? SEG;
@@ -173,7 +173,7 @@ export class PropSet {
     }
     // ---- dynamic attractions
     const dyn = (geo: THREE.BufferGeometry, cap: number, shadow = true, emit = 2.6) => {
-      const b = new ActorBatch(geo, actorMaterial({ emitBoost: emit, dither: true }), cap, { shadow });
+      const b = new ActorBatch(geo, actorMaterial({ emitBoost: emit, dither: true, detail: true }), cap, { shadow });
       b.rim = [0, 0, 0, 0];
       scene.add(b.mesh);
       return b;
@@ -212,14 +212,15 @@ export class PropSet {
     scene.add(this.bulbs.mesh);
     // ---- painted signs
     const signs: [string, number, number, number, number, number, number, number?][] = [];
+    const hdrY = P.BOOTH.headerY + P.BOOTH.headerH * 0.42, hdrZ = P.BOOTH.headerZ + 3.4;
     for (const p of PROPS) {
       if (p.kind === 'gate_arch') signs.push([p.label ?? 'MIDWAY', p.x, p.y, 230, 30, 238, 6]);
       if (p.kind === 'ticket_booth') signs.push(['TICKETS', p.x, p.y, 140, 26, 190, 70, -0.2]);
-      if (p.kind === 'prize_stand') signs.push(['PRIZES', p.x, p.y, 160, 20, 136, -62]);
-      if (p.kind === 'stall_ringtoss') signs.push(['RING TOSS', p.x, p.y, 120, 18, 136, -52]);
-      if (p.kind === 'stall_bottles') signs.push(['KNOCK EM DOWN', p.x, p.y, 120, 18, 136, -52]);
-      if (p.kind === 'stall_darts') signs.push(['POP-A-BALLOON', p.x, p.y, 120, 18, 136, -52]);
-      if (p.kind === 'stall_shooting') signs.push(['SHOOTING GALLERY', p.x, p.y, 140, 18, 136, -57]);
+      if (p.kind === 'prize_stand') signs.push(['PRIZES', p.x, p.y, 128, 20, hdrY, (p.hh ?? 70) + hdrZ]);
+      if (p.kind === 'stall_ringtoss') signs.push(['RING TOSS', p.x, p.y, 98, 18, hdrY, (p.hh ?? 60) + hdrZ]);
+      if (p.kind === 'stall_bottles') signs.push(['KNOCK EM DOWN', p.x, p.y, 98, 18, hdrY, (p.hh ?? 60) + hdrZ]);
+      if (p.kind === 'stall_darts') signs.push(['POP-A-BALLOON', p.x, p.y, 98, 18, hdrY, (p.hh ?? 60) + hdrZ]);
+      if (p.kind === 'stall_shooting') signs.push(['SHOOTING GALLERY', p.x, p.y, 114, 18, hdrY, (p.hh ?? 65) + hdrZ]);
       if (p.kind === 'sign_midway') signs.push(['THE MIDWAY', p.x, p.y, 150, 34, 110, 3]);
       if (p.kind === 'funhouse') signs.push(['FUN HOUSE', p.x, p.y, 260, 44, 236, 60]);
       if (p.kind === 'fortune_machine') signs.push(['ZOLTANA', p.x, p.y, 60, 12, 168, 16]);
@@ -352,7 +353,7 @@ export class PropSet {
     const lightsOn = 1 - g.darkness * 0.92;
     for (const p of this.lampProps) {
       const fl = lampFlicker(p, time) * lightsOn;
-      pool.add(p.x, p.y, 300, 1.7 * fl, 1, 0.56, 0.24, LAMP_LIGHT_H);
+      pool.add(p.x, p.y, 320, 1.55 * fl, 1, 0.56, 0.24, LAMP_LIGHT_H);
     }
     const ls = this.quest(g);
     for (let i = 0; i < this.ghostProps.length; i++) {

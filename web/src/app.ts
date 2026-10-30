@@ -201,7 +201,7 @@ export class App {
   }
 
   // =================================================================== runs
-  startRun(o: { character: string; difficulty: string; curse: boolean; daily?: boolean }): void {
+  startRun(o: { character: string; difficulty: string; curse: boolean; daily?: boolean; seed?: number }): void {
     this.audio.unlock();
     this.lastRun = o;
     if (!o.daily) {
@@ -209,7 +209,7 @@ export class App {
       this.save.save();
     }
     const perk = (id: string) => this.save.perkLevel(id);
-    const seed = o.daily ? hashSeed('nc-daily-' + dailyInfo().seed) : (Math.random() * 2 ** 31) | 0;
+    const seed = o.seed ?? (o.daily ? hashSeed('nc-daily-' + dailyInfo().seed) : (Math.random() * 2 ** 31) | 0);
     const cfg: RunConfig = {
       character: o.character,
       difficulty: o.difficulty as RunConfig['difficulty'],

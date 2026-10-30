@@ -3,6 +3,7 @@
 // tips) are drawn on vertical structures shifted south by height·cot(elevation), so what you see
 // fire is exactly where the sim spawns it.
 
+import { patch } from './models/arch';
 import * as THREE from 'three';
 import { clamp, lerp } from '../core/math';
 import type { Game } from '../sim/game';
@@ -23,7 +24,7 @@ import { COT_EL as COT } from './core/view';
 
 abstract class Rig {
   group = new THREE.Group();
-  mat = actorMaterial({ emitBoost: 3, matte: true });
+  mat = actorMaterial({ emitBoost: 3, matte: true, detail: true });
   depth = actorDepthMaterial(this.mat);
   constructor(scene: THREE.Scene) {
     this.group.visible = false;
@@ -62,9 +63,31 @@ class TentRig extends Rig {
   constructor(scene: THREE.Scene) {
     super(scene);
     const m = new ModelBuilder();
-    const canvas = stripes(20, PAL.red, PAL.cream, 0, 0.55);
-    m.add(cyl(150, 156, 110, 32, true), { col: canvas, pos: [0, 55, 0], surf: SURF.canvas });
-    m.add(lathe([[160, 108], [164, 110], [110, 170], [40, 238], [8, 262], [0, 264]], 32), { col: stripes(20, PAL.red, PAL.cream, 0.025, 0.55), surf: SURF.canvas });
+    // canvas walls and roof, one panel per stripe (crisp seams), sagging between the poles
+    const N = 20, prof: [number, number][] = [[162, 109], [110, 170], [40, 238], [8, 262], [0, 264]];
+    const at = (v: number): [number, number] => {
+      const f = v * (prof.length - 1), i = Math.min(prof.length - 2, Math.floor(f)), t = f - i;
+      return [prof[i][0] + (prof[i + 1][0] - prof[i][0]) * t, prof[i][1] + (prof[i + 1][1] - prof[i][1]) * t];
+    };
+    for (let k = 0; k < N; k++) {
+      const a0 = (k / N) * Math.PI * 2, a1 = ((k + 1) / N) * Math.PI * 2;
+      const col = weather(k % 2 ? PAL.red : PAL.cream, 0.55, 0.05);
+      m.add(patch((u, v) => {
+        const a = a1 - (a1 - a0) * u;
+        const r = 156 - 6 * v - 2.6 * Math.sin(Math.PI * u);
+        return [Math.cos(a) * r, 110 * v, Math.sin(a) * r];
+      }, 4, 4), { col, surf: SURF.canvas });
+      m.add(patch((u, v) => {
+        const a = a1 - (a1 - a0) * u;
+        const [r0, y0] = at(v);
+        const sag = 5 * Math.sin(Math.PI * u) * Math.sin(Math.PI * Math.min(1, v * 1.3));
+        return [Math.cos(a) * (r0 - sag * 0.4), y0 - sag, Math.sin(a) * (r0 - sag * 0.4)];
+      }, 4, 8), { col, surf: SURF.canvas });
+      // a rope seam over each pole line
+      const pts: V3[] = [];
+      for (let i = 0; i <= 8; i++) { const [r0, y0] = at(i / 8); pts.push([Math.cos(a0) * (r0 + 0.8), y0 + 0.8, Math.sin(a0) * (r0 + 0.8)]); }
+      m.add(tube(pts, 0.8, 4, 16), { col: weather(PAL.straw, 0.5), surf: SURF.cloth });
+    }
     for (let i = 0; i < 40; i++) {
       const a = (i / 40) * Math.PI * 2;
       m.add(sphere(12, 6, 4), { col: weather(i % 2 ? PAL.red : PAL.cream, 0.4), pos: [Math.cos(a) * 162, 104, Math.sin(a) * 162], scale: [1.1, 1.3, 0.35], rot: [0, -a + Math.PI / 2, 0], surf: SURF.canvas });

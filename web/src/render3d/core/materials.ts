@@ -20,7 +20,7 @@ export const shared = {
   /** Colour poured into unlit areas: night shadows read deep blue-violet, never dead grey (D-41). */
   uShadowFill: { value: new THREE.Vector3(0.045, 0.06, 0.13) },
   // world-anchored ground mist (D-41): hugs the floor, drifts with the wind, lit by the practicals
-  uMistCol: { value: new THREE.Vector3(0.045, 0.072, 0.14) },
+  uMistCol: { value: new THREE.Vector3(0.05, 0.07, 0.115) },
   uMistDensity: { value: 0.36 },
   uMistHeight: { value: 20 },
   uMistWind: { value: new THREE.Vector2(1, 0.3) },
@@ -28,7 +28,12 @@ export const shared = {
   uMistEdge: { value: new THREE.Vector2(2200, 1960) },
 };
 
-/** Ground mist shared by every world shader so floor, props and figures sit in the same fog. */
+/**
+ * Ground mist shared by every world shader so floor, props and figures sit in the same fog (D-46):
+ * rolling banks that swell and ebb as they drift on the wind, nearly clear between banks over the
+ * play area, thicker toward the woods and the sea. Fog scatters moonlight and lamplight (it adds a
+ * luminous veil) rather than smearing dark smudges over the ground.
+ */
 export const MIST_GLSL = /* glsl */ `
 uniform vec3 uMistCol;
 uniform float uMistDensity, uMistHeight, uMistTime;
@@ -40,14 +45,18 @@ float mNoise(vec2 p) {
   return mix(mix(mHash(i), mHash(i + vec2(1, 0)), u.x), mix(mHash(i + vec2(0, 1)), mHash(i + vec2(1, 1)), u.x), u.y);
 }
 float ncMist(vec3 wp) {
-  vec2 p = wp.xz * 0.0024 + uMistWind * uMistTime * 0.012;
-  float n = mNoise(p) * 0.55 + mNoise(p * 2.3 + 7.1) * 0.3 + mNoise(p * 5.1 - uMistWind.yx * uMistTime * 0.01) * 0.15;
+  vec2 p = wp.xz * 0.0021 + uMistWind * uMistTime * 0.01;
+  float n = mNoise(p) * 0.55 + mNoise(p * 2.3 + 7.1) * 0.3 + mNoise(p * 5.3 - uMistWind.yx * uMistTime * 0.012) * 0.15;
+  float roll = 0.5 + 0.5 * sin(uMistTime * 0.05 + wp.x * 0.0011 - wp.z * 0.0008);
+  float bank = smoothstep(0.47 - roll * 0.07, 0.8, n);
   float h = exp(-max(wp.y, 0.0) / uMistHeight);
   float edge = smoothstep(uMistEdge.x * 0.45, uMistEdge.x * 1.05, max(abs(wp.x), abs(wp.z)));
   float sea = smoothstep(uMistEdge.y - 420.0, uMistEdge.y + 200.0, wp.z);
-  float d = uMistDensity * (0.12 + 1.3 * smoothstep(0.38, 0.9, n)) * (1.0 + edge * 0.9 + sea * 1.1);
-  return clamp(d * h, 0.0, 0.82);
-}`;
+  float d = uMistDensity * (0.05 + 1.15 * bank) * (1.0 + edge * 1.2 + sea * 1.3);
+  return clamp(d * h, 0.0, 0.8);
+}
+// in-scattering veil: the fog absorbs a little and glows with the moon and the practicals
+vec3 ncFog(vec3 col, float d, vec3 lit) { return col * (1.0 - d * 0.5) + (uMistCol + lit) * d; }`;
 
 const V_HEAD = /* glsl */ `
 attribute vec3 aSurf;   // roughness, metalness, emissive amount
@@ -65,6 +74,9 @@ uniform vec4 uAnimB;   // head nod, spin rate, wind-up lean, wind-up arm raise
 uniform vec4 uObjAnim; // non-instanced: phase, wind-up, flash, move
 uniform vec4 uObjTint;
 uniform vec4 uObjRim;
+#ifdef NC_WIND
+uniform float uTime;
+#endif
 #ifndef NC_SKIN
 mat3 ncRotX(float a) { float c = cos(a), s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
 mat3 ncRotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
@@ -78,6 +90,16 @@ mat3 ncPartRot(float part, vec4 an) {
   if (part < 4.5) return ncRotX(-sin(ph) * uAnimA.z * mv);
   if (part < 5.5) return ncRotX(sin(ph) * uAnimA.z * mv);
   if (part < 6.5) return ncRotY(ph * uAnimB.y);
+  #ifdef NC_WIND
+  // ground cover: the night wind combs through it, gusting in waves across the midway
+  #ifdef USE_INSTANCING
+  float gust = 0.6 + 0.4 * sin(uTime * 0.7 + instanceMatrix[3].x * 0.004 + instanceMatrix[3].z * 0.003);
+  #else
+  float gust = 0.8;
+  #endif
+  ph = uTime * 1.6 + an.y;
+  return ncRotZ(sin(ph * 0.9 + aPivot.x * 0.4) * 0.16 * gust) * ncRotX(cos(ph * 0.7 + aPivot.z * 0.4) * 0.12 * gust);
+  #endif
   return ncRotZ(sin(ph * 0.7 + aPivot.y * 0.05 + aPivot.x * 0.03) * 0.13) * ncRotX(cos(ph * 0.55 + aPivot.x * 0.05) * 0.09);
 }
 mat3 ncBodyRot(vec4 an) {
@@ -111,6 +133,9 @@ vec3 ncAnimate(vec3 p, mat3 R, mat3 B, vec4 an) {
 `;
 
 const V_VARY = /* glsl */ `
+#ifdef NC_DETAIL
+varying vec3 vLocal;
+#endif
 varying vec4 vTint;
 varying vec4 vRimC;
 varying float vFlash;
@@ -169,6 +194,16 @@ transformed = ncAnimate(transformed, ncR, ncB, ncAn);
 `;
 
 const F_HEAD = /* glsl */ `
+#ifdef NC_DETAIL
+varying vec3 vLocal;
+float dHash3(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
+float dNoise(vec3 p) {
+  vec3 i = floor(p), f = fract(p);
+  vec3 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(dHash3(i), dHash3(i + vec3(1.0, 0.0, 0.0)), u.x), mix(dHash3(i + vec3(0.0, 1.0, 0.0)), dHash3(i + vec3(1.0, 1.0, 0.0)), u.x), u.y),
+             mix(mix(dHash3(i + vec3(0.0, 0.0, 1.0)), dHash3(i + vec3(1.0, 0.0, 1.0)), u.x), mix(dHash3(i + vec3(0.0, 1.0, 1.0)), dHash3(i + vec3(1.0, 1.0, 1.0)), u.x), u.y), u.z);
+}
+#endif
 varying vec4 vTint;
 varying vec4 vRimC;
 varying float vFlash;
@@ -190,6 +225,47 @@ float ncBayer(vec2 p) {
 }
 `;
 
+/**
+ * Procedural surface detail for props (D-47), keyed off each vertex's surface preset (roughness /
+ * metalness), in model space so it sticks to the prop: grain running along the boards, canvas with
+ * rain streaks, stains and mildew, paint chipped through to dark wood, rust blooming on iron and
+ * verdigris tarnish on brass. Emissive parts are left alone.
+ */
+const F_DETAIL = /* glsl */ `
+float ncRA = 0.0, ncMA = 0.0;
+#ifdef NC_DETAIL
+if (vEmit < 0.05) {
+  vec3 lp = vLocal;
+  float rgh = vSurf.x, mtl = vSurf.y;
+  float n1 = dNoise(lp * 0.05), n2 = dNoise(lp * 0.21 + 7.0);
+  if (mtl > 0.5) {
+    float rust = smoothstep(0.5, 0.78, n1 * 0.7 + n2 * 0.3);
+    vec3 rc = rgh > 0.45 ? vec3(0.3, 0.12, 0.045) : vec3(0.15, 0.19, 0.13);
+    diffuseColor.rgb = mix(diffuseColor.rgb, rc * (0.7 + 0.6 * n2), rust * 0.75);
+    ncRA = rust * 0.35;
+    ncMA = rust * 0.7;
+  } else if (rgh > 0.74 && rgh < 0.82) {
+    vec3 gp = abs(vWNor.y) > 0.6 ? vec3(lp.x * 0.09, lp.y * 0.9, lp.z * 0.9) : vec3(lp.x * 0.9, lp.y * 0.09, lp.z * 0.9);
+    float grain = dNoise(gp) * 0.6 + dNoise(gp * 2.7) * 0.4;
+    diffuseColor.rgb *= 0.76 + 0.4 * grain;
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.22 + 0.012, smoothstep(0.6, 0.72, n2) * 0.4);
+  } else if (rgh > 0.84 && rgh < 0.92) {
+    float streak = dNoise(vec3(lp.x * 0.22, lp.y * 0.02, lp.z * 0.22));
+    float stain = smoothstep(0.55, 0.85, n1);
+    diffuseColor.rgb *= (0.8 + 0.32 * streak) * (1.0 - 0.32 * stain);
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.78, 0.88, 0.68), smoothstep(0.7, 0.9, n2) * 0.5);
+  } else if (rgh > 0.54 && rgh < 0.62) {
+    float chip = smoothstep(0.66, 0.7, dNoise(lp * 0.32 + 3.0) * 0.65 + n2 * 0.35);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.085, 0.058, 0.04), chip * 0.85);
+    diffuseColor.rgb *= 0.86 + 0.24 * n1;
+    ncRA = chip * 0.3;
+  } else {
+    diffuseColor.rgb *= 0.9 + 0.2 * n1;
+  }
+}
+#endif
+`;
+
 export interface ActorMatOpts {
   animA?: readonly [number, number, number, number];
   animB?: readonly [number, number, number, number];
@@ -204,6 +280,10 @@ export interface ActorMatOpts {
   boneTex?: THREE.Texture;
   /** Matte, painterly surface: no specular glints from the practicals, faint reflections. */
   matte?: boolean;
+  /** Procedural surface detail for props (D-47): wood grain, weathered canvas, chipped paint, rust. */
+  detail?: boolean;
+  /** Wind-swept ground cover: SWAY parts move with shared time (instances need no per-frame updates). */
+  wind?: boolean;
 }
 
 interface NcData {
@@ -241,7 +321,10 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
       vWNor = normalize(mat3(modelMatrix) * ncN);
       vViewZ = -mvPosition.z;
       vEmit = aSurf.z;
-      vSurf = aSurf.xy;`,
+      vSurf = aSurf.xy;
+      #ifdef NC_DETAIL
+      vLocal = transformed;
+      #endif`,
     );
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', `#include <common>\n${F_HEAD}`)
@@ -259,9 +342,9 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
       }
       #endif`,
     )
-    .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vTint.rgb;')
-    .replace('#include <roughnessmap_fragment>', '#ifdef NC_MATTE\nfloat roughnessFactor = max(roughness * vSurf.x, 0.82);\n#else\nfloat roughnessFactor = roughness * vSurf.x;\n#endif')
-    .replace('#include <metalnessmap_fragment>', '#ifdef NC_MATTE\nfloat metalnessFactor = metalness * vSurf.y * 0.2;\n#else\nfloat metalnessFactor = metalness * vSurf.y;\n#endif')
+    .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb *= vTint.rgb;\n${F_DETAIL}`)
+    .replace('#include <roughnessmap_fragment>', '#ifdef NC_MATTE\nfloat roughnessFactor = max(roughness * vSurf.x, 0.82);\n#else\nfloat roughnessFactor = min(1.0, roughness * vSurf.x + ncRA);\n#endif')
+    .replace('#include <metalnessmap_fragment>', '#ifdef NC_MATTE\nfloat metalnessFactor = metalness * vSurf.y * 0.2;\n#else\nfloat metalnessFactor = metalness * vSurf.y * (1.0 - ncMA);\n#endif')
     .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vEmit * uEmitBoost * vTint.w;')
     .replace(
       '#include <lights_fragment_end>',
@@ -286,7 +369,7 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
         #ifdef NC_MATTE
         ncM *= 0.3; // figures stand in the mist without being washed out by it
         #endif
-        if (ncM > 0.002) gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistCol + poolLightFlat(vWPos + vec3(0.0, 18.0, 0.0)) * 0.3, ncM);
+        if (ncM > 0.002) gl_FragColor.rgb = ncFog(gl_FragColor.rgb, ncM, poolLightFlat(vWPos + vec3(0.0, 18.0, 0.0)) * 0.3);
       }
       {
         float ncRim = pow(1.0 - clamp(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0, 1.0), 2.4);
@@ -330,6 +413,8 @@ export function actorMaterial(o: ActorMatOpts = {}): THREE.MeshStandardMaterial 
   if (o.dither) m.defines.NC_DITHER = '';
   if (o.boneTex) m.defines.NC_SKIN = '';
   if (o.matte) m.defines.NC_MATTE = '';
+  if (o.detail) m.defines.NC_DETAIL = '';
+  if (o.wind) m.defines.NC_WIND = '';
   m.onBeforeCompile = ncCompile;
   return m;
 }

@@ -20,6 +20,7 @@ import { Ground3D } from './world/ground';
 import { LightShafts, Motes } from './world/atmosphere';
 import { LAST_SONG } from '../data/quests';
 import { PropSet } from './world/props';
+import { Clutter } from './world/clutter';
 import { BossRigs } from './bosses';
 import { Post3D } from './post';
 import type { LastSongChain } from '../sim/quest';
@@ -49,6 +50,15 @@ export interface RenderSettings {
   quality: 'low' | 'medium' | 'high';
 }
 
+/** Theatre searchlights (D-46): mounted on the gate towers, their discs wander over the plaza and midway. */
+export const SEARCHLIGHTS = [
+  { tower: [-1000, -1150] as const, cx: -120, cy: 240, ax: 520, ay: 380, r: 115, i: 0.6, col: [0.7, 0.82, 1] as const, speed: 0.11, phase: 0, x: 0, y: 0 },
+  { tower: [1000, -1150] as const, cx: 160, cy: 420, ax: 560, ay: 420, r: 100, i: 0.75, col: [1, 0.74, 0.45] as const, speed: 0.09, phase: 2.4, x: 0, y: 0 },
+];
+
+interface Corpse { key: string; x: number; y: number; h: number; yaw: number; s: number; row: number; rig: boolean; pop: boolean; tr: number; tg: number; tb: number; frame: number; t: number; dur: number; fall: number; uidHash: number }
+const newCorpse = (): Corpse => ({ key: '', x: 0, y: 0, h: 0, yaw: 0, s: 1, row: 0, rig: false, pop: false, tr: 1, tg: 1, tb: 1, frame: -9, t: 0, dur: 0.4, fall: 1, uidHash: 0 });
+
 export class GameRenderer3D {
   renderer: THREE.WebGLRenderer;
   scene = new THREE.Scene();
@@ -59,6 +69,7 @@ export class GameRenderer3D {
   shafts: LightShafts;
   motes = new Motes();
   props: PropSet;
+  clutter: Clutter;
   bosses: BossRigs;
   hemi: THREE.HemisphereLight;
   moon: THREE.DirectionalLight;
@@ -104,6 +115,14 @@ export class GameRenderer3D {
   private pPrevCd = 0;
   private pPrevX = 0;
   private pPrevY = 0;
+  // death animations (D-50): the last drawn pose of every on-screen enemy, and the corpses still
+  // playing out after the sim has removed them (pooled; no per-frame allocation)
+  private seen = new Map<number, Corpse>();
+  private corpses: Corpse[] = [];
+  private corpsePool: Corpse[] = [];
+  private frameNo = 0;
+  private corpseGame: Game | null = null;
+  private tmpM4 = new THREE.Matrix4();
   /** Dev-only inspection zoom (1 = gameplay framing) and camera lock. */
   zoom = 1;
   inspect: { x: number; y: number } | null = null;
@@ -116,6 +135,7 @@ export class GameRenderer3D {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.info.autoReset = false;
     this.camera = new THREE.OrthographicCamera(-800, 800, 500, -500, 10, 9000);
     this.scene.fog = new THREE.FogExp2(0x0b1324, 0.00022);
     this.scene.background = new THREE.Color(0x030306);
@@ -141,13 +161,13 @@ export class GameRenderer3D {
     this.scene.add(this.spot, this.spot.target);
     this.buildEnvironment();
 
-    this.ground = new Ground3D(this.renderer.capabilities.getMaxAnisotropy());
+    this.ground = new Ground3D(this.renderer);
     this.scene.add(this.ground.mesh);
     this.shafts = new LightShafts(this.scene);
 
     const tex = assets.atlas.textures;
     this.f = (k: string) => assets.atlas.get(k);
-    this.teleFill = new DecalBatch(40000, false, 3, { lift: 1.2 });
+    this.teleFill = new DecalBatch(40000, false, 3, { lift: 1.2, hatch: 26, time: shared.uTime });
     this.zoneShapes = new DecalBatch(30000, false, 3, { lift: 1.0 });
     this.addShapes = new DecalBatch(60000, true, 6, { lift: 1.6 });
     this.teleLine = new DecalBatch(30000, false, 12, { lift: 2.0, depthTest: false });
@@ -160,6 +180,7 @@ export class GameRenderer3D {
     for (const l of [this.fxNormal, this.fxAdd, this.glow, this.numbers]) l.addTo(this.scene);
     this.fx = new FxSystem(assets);
     this.props = new PropSet(this.scene);
+    this.clutter = new Clutter(this.scene);
     this.bosses = new BossRigs(this.scene);
     this.post = new Post3D(this.renderer, this.scene, this.camera);
   }
@@ -214,6 +235,7 @@ export class GameRenderer3D {
   private applyQuality(): void {
     const q = this.settings.quality;
     this.post.setQuality(q);
+    this.clutter?.setQuality(q);
     if (q === this.shadowQuality) return;
     this.shadowQuality = q;
     const ms = q === 'high' ? 2048 : 1024;
@@ -278,6 +300,8 @@ export class GameRenderer3D {
 
   // =================================================================== frame
   render(g: Game, alpha: number, dt: number, opts: { menu?: boolean } = {}): void {
+    this.renderer.info.reset();
+    this.frameNo++;
     this.time += dt;
     shared.uTime.value = this.time;
     if (this.settings.quality !== this.shadowQuality) this.applyQuality();
@@ -354,6 +378,7 @@ export class GameRenderer3D {
     this.drawHazards(g);
     this.drawPickups(g, alpha, inView);
     this.drawEnemies(g, alpha, inView, dt);
+    this.drawCorpses(g, dt);
     this.bosses.update(g, this, alpha, dt);
     this.drawSummons(g, alpha, dt);
     this.drawWeaponVisuals(g, px, py);
@@ -396,17 +421,18 @@ export class GameRenderer3D {
     const dawn = this.dawn;
     // moonlight: cold, from the west-north-west, a little brighter through gaps in the cloud
     const cloud = 0.85 + 0.15 * Math.sin(this.time * 0.07) * Math.sin(this.time * 0.031 + 1);
-    this.moon.intensity = lerp(lerp(1.05 * cloud, 0.12, dark), 2.4, dawn);
+    this.moon.intensity = lerp(lerp(1.3 * cloud, 0.12, dark), 2.4, dawn);
     const mt = this.moonTint;
     this.moon.color.setRGB(lerp(lerp(0.62, 0.9, mt), 1.0, dawn), lerp(lerp(0.7, 0.25, mt), 0.78, dawn), lerp(lerp(0.86, 0.18, mt), 0.6, dawn));
     (this.scene.fog as THREE.FogExp2).color.setRGB(lerp(0.027, 0.07, mt), lerp(0.03, 0.012, mt), lerp(0.05, 0.01, mt));
     // snap the shadow frustum to texels so shadows don't shimmer while the camera glides
     const texel = 3000 / this.moon.shadow.mapSize.x;
     const tx = Math.round(cx / texel) * texel, ty = Math.round(cy / texel) * texel;
-    this.moon.position.set(tx - 1500, 2400, ty - 900);
+    // a low moon (~34° up, from the north-west) rakes long shadows across the midway toward the camera
+    this.moon.position.set(tx - 1900, 1500, ty - 1100);
     this.moon.target.position.set(tx, 0, ty);
     this.moon.target.updateMatrixWorld();
-    this.hemi.intensity = lerp(lerp(0.5, 0.08, dark), 1.2, dawn);
+    this.hemi.intensity = lerp(lerp(0.42, 0.08, dark), 1.2, dawn);
     // the lantern: a warm cone from above and slightly behind the player — long radial shadows
     const lanternOn = menu ? 0.5 : 1;
     this.lantern.position.set(px - 40, 640, py + 210);
@@ -429,7 +455,16 @@ export class GameRenderer3D {
       const l = LIGHTS[i];
       const t = this.time * 7 + i * 13.1;
       const fl = l.flicker > 0 ? 1 - l.flicker * (Math.sin(t) * 0.5 + 0.5) * (Math.sin(t * 2.7) > 0.6 ? 1 : 0.15) : 1;
-      pool.add(l.x, l.y, l.r * 1.05, l.intensity * 1.15 * fl, l.color[0], l.color[1], l.color[2], 150);
+      pool.add(l.x, l.y, l.r * 0.92, l.intensity * 1.1 * fl, l.color[0], l.color[1], l.color[2], 150);
+    }
+    // theatre searchlights from the two gate towers sweep the plaza and the midway: crisp moving discs
+    const sOn = (1 - dark) * (1 - dawn * 0.9);
+    for (let k = 0; k < SEARCHLIGHTS.length; k++) {
+      const sl = SEARCHLIGHTS[k];
+      const t = this.time * sl.speed + sl.phase;
+      sl.x = sl.cx + Math.sin(t * 1.3) * sl.ax;
+      sl.y = sl.cy + Math.sin(t * 0.83 + 1.1) * sl.ay;
+      pool.add(sl.x, sl.y, sl.r, sl.i * sOn, sl.col[0], sl.col[1], sl.col[2], 900, 6, 0.32);
     }
     this.props.addLights(g, this.time);
     pool.end();
@@ -593,6 +628,9 @@ export class GameRenderer3D {
     const ux = dx / len, uy = dy / len, nx = -uy * w, ny = ux * w;
     L.line(h.x + nx, h.y + ny, h.x2 + nx, h.y2 + ny, 2.2, r, g, b, a);
     L.line(h.x - nx, h.y - ny, h.x2 - nx, h.y2 - ny, 2.2, r, g, b, a);
+    // a soft glow bleeding off each edge so the lane reads as lit, not drawn
+    this.addShapes.line(h.x + nx, h.y + ny, h.x2 + nx, h.y2 + ny, 12, r, g, b, a * 0.16, 0);
+    this.addShapes.line(h.x - nx, h.y - ny, h.x2 - nx, h.y2 - ny, 12, r, g, b, a * 0.16, 0);
     const step = 90;
     const off = (this.time * 260) % step;
     for (let d = off; d < len; d += step) {
@@ -723,6 +761,19 @@ export class GameRenderer3D {
       if (id === 'whack_a_mole' && !e.hidden) h -= (1 - Math.min(1, e.t * 6)) * 20;
       const i = b.add(x, y, h, yaw, s * ACTOR_SCALE, 1, ACTOR_STRETCH * (1 - 0.08 * e.windup), 1);
       if (i < 0) continue;
+      {
+        let c = this.seen.get(e.uid);
+        if (!c) {
+          c = this.corpsePool.pop() ?? newCorpse();
+          this.seen.set(e.uid, c);
+        }
+        c.key = key; c.x = x; c.y = y; c.h = h; c.yaw = yaw; c.s = s; c.frame = this.frameNo;
+        c.pop = id === 'living_balloon' || id === 'swarm_balloon';
+        c.row = rig ? rig.row('move', e.idx * 0.37) : 0;
+        c.rig = !!rig;
+        const bt = c.pop ? BALLOON_TINTS[e.idx % BALLOON_TINTS.length] : null;
+        c.tr = bt ? bt[0] : 1; c.tg = bt ? bt[1] : 1; c.tb = bt ? bt[2] : 1;
+      }
       const telegraph = e.windup > 0 ? e.windup : 0;
       const flash = Math.min(1, e.flash * 0.9 + (e.invuln ? 0.25 : 0));
       if (rig) {
@@ -749,6 +800,65 @@ export class GameRenderer3D {
       }
       if (telegraph > 0.05) b.rimLight(i, 1, 0.3, 0.12, 0.8 + telegraph * 1.6);
       if (e.shield > 0) this.addShapes.ring(x, y, e.r + 10, e.r + 14, 0.5, 0.8, 1, 0.6, 0.3);
+    }
+  }
+
+  /**
+   * Death animations (D-50): an enemy that vanished from the sim while on screen keeps its body for
+   * a beat — balloons swell and burst; everything else topples away from the camera, squashes and
+   * sinks into the ground while a hot flash fades — drawn through the same instanced batches.
+   */
+  private drawCorpses(g: Game, dt: number): void {
+    if (g !== this.corpseGame) {
+      // a new night (or the menu demo): nobody from the last one gets a death scene
+      this.corpseGame = g;
+      for (const c of this.seen.values()) this.corpsePool.push(c);
+      for (const c of this.corpses) this.corpsePool.push(c);
+      this.seen.clear();
+      this.corpses.length = 0;
+      return;
+    }
+    for (const [uid, c] of this.seen) {
+      if (c.frame === this.frameNo) continue;
+      this.seen.delete(uid);
+      if (c.frame === this.frameNo - 1 && this.corpses.length < 160) {
+        c.t = 0;
+        c.dur = c.pop ? 0.09 : 0.42;
+        c.fall = (c.uidHash = (uid * 2654435761) >>> 0) % 2 ? 1 : -1;
+        this.corpses.push(c);
+      } else this.corpsePool.push(c);
+    }
+    for (let k = this.corpses.length - 1; k >= 0; k--) {
+      const c = this.corpses[k];
+      c.t += dt;
+      const f = Math.min(1, c.t / c.dur);
+      if (f >= 1) {
+        this.corpses[k] = this.corpses[this.corpses.length - 1];
+        this.corpses.pop();
+        this.corpsePool.push(c);
+        continue;
+      }
+      const def = ENEMY_MODELS[c.key];
+      if (!def) continue;
+      const b = this.batch(c.key, def, 400);
+      const S = c.s * ACTOR_SCALE;
+      let i: number;
+      if (c.pop) {
+        const sw = 1 + 0.35 * f;
+        i = b.add(c.x, c.y, c.h, c.yaw, S * sw, 1, ACTOR_STRETCH * (1 - 0.15 * f), 1);
+      } else {
+        // topple sideways and back, squash, sink
+        const e = f * f * (3 - 2 * f);
+        this.tmpE.set(-e * 0.9, c.yaw, c.fall * e * 1.1, 'YXZ');
+        this.tmpQ.setFromEuler(this.tmpE);
+        this.tmpS.set(S * (1 + 0.12 * e), S * ACTOR_STRETCH * (1 - 0.45 * e), S * (1 + 0.12 * e));
+        this.tmpV.set(c.x, c.h - 10 * e * e, c.y);
+        this.tmpM4.compose(this.tmpV, this.tmpQ, this.tmpS);
+        i = b.addMatrix(this.tmpM4);
+      }
+      if (i < 0) continue;
+      b.anim(i, c.row, c.row, Math.max(0, 0.55 - f * 2.2), 0);
+      b.tint(i, c.tr * (1 - 0.5 * f), c.tg * (1 - 0.55 * f), c.tb * (1 - 0.6 * f), 1);
     }
   }
 
@@ -992,7 +1102,7 @@ export class GameRenderer3D {
 }
 
 const BALLOON_TINTS: [number, number, number][] = [
-  [0.62, 0.1, 0.08], [0.66, 0.46, 0.1], [0.12, 0.34, 0.34], [0.38, 0.14, 0.42], [0.62, 0.55, 0.4], [0.24, 0.38, 0.12],
+  [0.5, 0.08, 0.07], [0.52, 0.37, 0.1], [0.1, 0.27, 0.28], [0.3, 0.11, 0.34], [0.5, 0.45, 0.33], [0.2, 0.3, 0.1],
 ];
 /** Neon colours per ticket tier (blue → green → magenta, D-27). */
 const NEON: [number, number, number][] = [[0.12, 0.5, 1], [0.15, 0.95, 0.4], [1, 0.23, 0.82]];

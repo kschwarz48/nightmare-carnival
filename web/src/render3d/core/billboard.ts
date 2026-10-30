@@ -173,24 +173,44 @@ const DECAL_VERT = /* glsl */ `
 attribute vec4 color;
 uniform float uLift;
 varying vec4 vCol;
+varying vec2 vWp;
 void main() {
   vCol = color;
+  vWp = position.xy;
   gl_Position = projectionMatrix * viewMatrix * vec4(position.x, uLift + position.z, position.y, 1.0);
 }`;
 const DECAL_FRAG = /* glsl */ `
 varying vec4 vCol;
-void main() { gl_FragColor = vCol; }`;
+varying vec2 vWp;
+#ifdef NC_HATCH
+uniform float uTime, uHatch;
+float dh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+#endif
+void main() {
+  vec4 c = vCol;
+  #ifdef NC_HATCH
+  // telegraph fills (D-49): caution stripes painted across the ground, crawling slowly, with a
+  // scorched grain — an authored warning on the midway floor rather than a flat UI tint
+  float st = fract((vWp.x + vWp.y) / uHatch - uTime * 0.35);
+  float band = smoothstep(0.0, 0.08, st) * (1.0 - smoothstep(0.5, 0.58, st));
+  float grain = 0.82 + 0.18 * dh(floor(vWp * 0.5));
+  c.a *= mix(0.42, 1.0, band) * grain;
+  c.rgb *= mix(0.75, 1.0, band);
+  #endif
+  gl_FragColor = c;
+}`;
 
 /** Ground-plane vector shapes (telegraphs, zones, rings, beams). `z` on the batch raises the layer. */
 export class DecalBatch extends ShapeBatch {
-  constructor(capVerts: number, additive: boolean, order: number, o: { lift?: number; depthTest?: boolean } = {}) {
+  constructor(capVerts: number, additive: boolean, order: number, o: { lift?: number; depthTest?: boolean; hatch?: number; time?: THREE.IUniform } = {}) {
     super(capVerts, additive, order);
     const old = this.mesh.material as THREE.Material;
     old.dispose();
     this.mesh.material = new THREE.ShaderMaterial({
       vertexShader: DECAL_VERT,
       fragmentShader: DECAL_FRAG,
-      uniforms: { uLift: { value: o.lift ?? 1.5 } },
+      uniforms: { uLift: { value: o.lift ?? 1.5 }, uHatch: { value: o.hatch ?? 24 }, uTime: o.time ?? { value: 0 } },
+      defines: o.hatch ? { NC_HATCH: '' } : {},
       transparent: true,
       depthWrite: false,
       depthTest: o.depthTest ?? true,
