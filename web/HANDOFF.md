@@ -31,7 +31,10 @@ _Updated 2026-10-30. Branch: `web-threejs-rebuild` (not pushed, no PR)._
   gentler, the Puppet King's stage ring is drawn, capped, predicted and applies to everyone, the prize
   wheel draws above everything as a lit slot-machine show with cards naming item, level and winner,
   Bradley's new mix, and a quieter waltz on the Midway.
-- **187 tests pass**, typecheck is clean, `npm run build` produces a static site.
+- **Playtest tuning** (D-62): firing squads half clowns, denser party crowds (a solo night's XP per
+  hour), big Reroll / Banish / Skip buttons, evolutions level to Evo Lv 8, the Funhouse Mirror capped at
+  a share of your damage, multicoloured wheel bulbs, the Steam Calliope's icon.
+- **192 tests pass**, typecheck is clean, `npm run build` produces a static site.
 - The **biggest open item is human playtesting** (balance and readability). All tuning so far used bots.
 - The original Godot project at the repo root is untouched. Two Godot files (`export_presets.cfg`,
   `project.godot`) had **uncommitted local edits before this work started** — they're the repo owner's,

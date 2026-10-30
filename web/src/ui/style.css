@@ -203,7 +203,21 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 .card .desc { font-size: 1em; line-height: 1.25; }
 .card .evo-hint { margin-top: auto; padding-top: 0.6em; font-size: 0.82em; opacity: 0.8; font-style: italic; }
 .card .key { position: absolute; bottom: 8px; right: 12px; font-family: var(--head); font-size: 0.8em; opacity: 0.5; }
-.draft-actions { display: flex; gap: 1em; margin-top: 1.8em; flex-wrap: wrap; justify-content: center; }
+.draft-actions { display: flex; gap: 1.4em; margin-top: 2.2em; flex-wrap: wrap; justify-content: center; padding: 0 1em; }
+.draft-actions .act { display: inline-flex; align-items: center; gap: 0.55em; font-size: 1.35em; padding: 0.5em 0.85em 0.5em 0.65em; min-width: 12em; text-align: left; }
+.draft-actions .act .ico { font-size: 1.75em; line-height: 1; width: 1.15em; text-align: center; font-family: 'Segoe UI Symbol', 'Apple Symbols', 'Noto Sans Symbols 2', var(--body); text-shadow: 2px 2px 0 var(--ink); }
+.draft-actions .act .lbl { display: flex; flex-direction: column; line-height: 1; letter-spacing: 0.03em; }
+.draft-actions .act .lbl b { font-weight: normal; }
+.draft-actions .act .lbl small { font-family: var(--body); font-size: 0.52em; letter-spacing: 0.02em; margin-top: 0.35em; opacity: 0.9; text-shadow: none; }
+.draft-actions .act .count { margin-left: auto; min-width: 1.75em; height: 1.75em; padding: 0 0.3em; border-radius: 999px; background: var(--ink); color: var(--cream); display: grid; place-items: center; font-size: 0.8em; text-shadow: none; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.3); }
+.draft-actions .act .kbd { font-size: 0.58em; margin-left: 0.15em; }
+.draft-actions .act.skip { background: linear-gradient(180deg, #8fd6a4 0%, #3f8a5a 60%, #23503a 100%); color: var(--cream); text-shadow: 2px 2px 0 var(--ink); }
+.draft-actions .act.banish.on { animation: banishPulse 0.8s ease-in-out infinite; }
+@keyframes banishPulse { 50% { filter: brightness(1.3); box-shadow: 0 5px 0 var(--ink), 0 0 26px rgba(255, 70, 50, 0.85); } }
+.draft.banishing .card { box-shadow: 0 0 0 3px var(--red), 0 8px 0 var(--ink), 0 14px 30px rgba(0, 0, 0, 0.6); }
+.draft.banishing .card::after { content: '⊘ BANISH'; position: absolute; inset: 0; display: grid; place-items: center; border-radius: 12px; background: rgba(110, 8, 16, 0.55); color: var(--cream); font-family: var(--head); font-size: 1.7em; text-shadow: 2px 2px 0 var(--ink); opacity: 0; transition: opacity 0.12s; pointer-events: none; }
+.draft.banishing .card:hover::after, .draft.banishing .card.focus::after { opacity: 1; }
+@media (max-width: 700px) { .draft-actions .act { font-size: 1.1em; min-width: 10em; } }
 
 /* ------------------------------------------------------------ chest */
 .chest-pop { background: radial-gradient(ellipse at center, rgba(80, 50, 10, 0.5), rgba(8, 4, 14, 0.85)); }

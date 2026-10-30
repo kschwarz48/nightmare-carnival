@@ -44,6 +44,9 @@ const KIND: Record<ChestEntry['type'], [string, string]> = {
   new: ['NEW!', '#c8283a'], level: ['LEVEL UP', '#a8781e'], passive: ['CHARM', '#22807a'],
   evolution: ['EVOLUTION', '#6a3fc0'], voucher: ['LOST & FOUND', '#7a4f22'], heal: ['A SMALL MERCY', '#8a3a4a'],
 };
+/** midway bulbs in every colour (D-62): red, orange, yellow, green, cyan, blue, violet, pink; saturated, so
+ *  the hue survives the glow and tone mapping instead of washing out to white */
+const BULB_COLS: [number, number, number][] = [[1, 0.06, 0.06], [1, 0.42, 0.02], [1, 0.82, 0.04], [0.12, 1, 0.16], [0.04, 0.78, 1], [0.16, 0.26, 1], [0.66, 0.12, 1], [1, 0.12, 0.56]];
 /** the co-op player colours (style.css .p1-.p6) */
 const PLAYER_HEX = ['#ffd27a', '#8af4ff', '#ff8fb0', '#a8ff7a', '#c7a2ff', '#ffb066'];
 
@@ -137,7 +140,7 @@ export class PrizeWheel {
     const bulbGeo = new ModelBuilder();
     bulb(bulbGeo, [0, 0, 0], 5.5, 0xffffff, 0, undefined, 1);
     const pts = arch.getSpacedPoints(44);
-    this.bulbs = new ActorBatch(bulbGeo.build({ ao: 0 }), actorMaterial({ emitBoost: 1.35 }), pts.length, { receive: false });
+    this.bulbs = new ActorBatch(bulbGeo.build({ ao: 0 }), actorMaterial({ emitBoost: 2.4 }), pts.length, { receive: false });
     for (let i = 0; i < pts.length; i++) this.bulbMats.push(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(pts[i].x * 0.97, pts[i].y * 0.97, -12));
     this.board.add(this.bulbs.mesh);
     // ---- the wheel: painted wedges, brass rim and pegs, a sun-faced hub, icons on every wedge
@@ -165,7 +168,7 @@ export class PrizeWheel {
     // rim lights: two per wedge, between the pegs, riding the wheel round
     const rim = new ModelBuilder();
     bulb(rim, [0, 0, 0], 7, 0xffffff, 0, undefined, 1);
-    this.rimBulbs = new ActorBatch(rim.build({ ao: 0 }), actorMaterial({ emitBoost: 1.7 }), RIM_N, { receive: false });
+    this.rimBulbs = new ActorBatch(rim.build({ ao: 0 }), actorMaterial({ emitBoost: 2.4 }), RIM_N, { receive: false });
     for (let i = 0; i < RIM_N; i++) {
       const a = (i + 0.5) * (SEG / 2);
       this.rimMats.push(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(Math.cos(a) * 282, Math.sin(a) * 282, 8));
@@ -534,18 +537,19 @@ export class PrizeWheel {
     for (let i = 0; i < this.bulbMats.length; i++) {
       const on = strobe >= 0 ? strobe : Math.sin(this.chase - i * 0.9) > 0 ? 1 : 0.22;
       const k = this.bulbs.addMatrix(this.bulbMats[i]);
+      const c = BULB_COLS[i % BULB_COLS.length];
       if (this.evoShow) this.bulbs.tint(k, 1, i % 2 ? 0.3 : 0.75, 0.15, on * ease);
-      else this.bulbs.tint(k, 1, i % 3 === 0 ? 0.5 : 0.85, i % 3 === 0 ? 0.32 : 0.5, on * ease);
+      else this.bulbs.tint(k, c[0], c[1], c[2], on * ease);
     }
     this.bulbs.end();
-    // the rim lights ride the wheel in alternating gold and red, swapping as the chase runs
+    // the rim lights ride the wheel in every colour, every other one lit, swapping as the chase runs
     this.rimBulbs.begin();
     const swap = Math.floor(this.chase / 1.6) % 2;
     for (let i = 0; i < RIM_N; i++) {
       const on = strobe >= 0 ? strobe : (i + swap) % 2 ? 0.35 : 1;
       const k = this.rimBulbs.addMatrix(this.rimMats[i]);
-      if (i % 2) this.rimBulbs.tint(k, 1, 0.42, 0.3, on * ease);
-      else this.rimBulbs.tint(k, 1, 0.86, 0.5, on * ease);
+      const c = BULB_COLS[(i * 3) % BULB_COLS.length];
+      this.rimBulbs.tint(k, c[0], c[1], c[2], on * ease);
     }
     this.rimBulbs.end();
     // lever: pulled during the crank beat

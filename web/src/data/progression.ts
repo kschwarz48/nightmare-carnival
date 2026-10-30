@@ -132,8 +132,14 @@ export const COOP = {
   reviveAssisted: 6,
   reviveRadius: 95,
   reviveHpFrac: 0.5,
-  /** crowd density multiplier by party size (more bodies to chase, more to feed shared XP) */
-  density: [1, 1, 1.25, 1.45, 1.6, 1.72, 1.82] as number[],
+  /**
+   * crowd density multiplier by party size (more bodies to chase, more to feed shared XP): alive cap,
+   * minimum alive and spawn rate. D-62: raised (was 1.25 / 1.45 / 1.6 / 1.72 / 1.82) so a party's XP per
+   * hour matches a solo night again while the XP per level (`xp`) stays where the playtest wanted it; a
+   * bot duo at 2.0 collects 19.2k XP by minute 24 against a solo bot's 19.5k (7.3k before). Capped so the
+   * crowd stays under the 520-enemy pool at Midway.
+   */
+  density: [1, 1, 2, 2.3, 2.5, 2.6, 2.6] as number[],
   /**
    * enemy and boss HP multiplier by party size. Two players bring roughly twice the weapons early and
    * ~1.3x a solo build once their 4 slots are full (vs 6 solo), so HP rises less than linearly.

@@ -207,7 +207,12 @@ export class Director {
     const pt = this.spawnPoint();
     if (id === 'puppet_soldier' && !forceElite) {
       const n = 3 + Math.min(3, this.g.act - 2) + (this.g.diff.id === 'nightmare' ? 1 : 0);
-      return this.spawnFormation(pt.x, pt.y, n) > 0;
+      // D-61: the firing squads proved too much, so half of each rank comes as Evil Clowns instead (the
+      // crowd stays as dense): a rank of 4 is 2 muskets and 2 clowns, a rank of 5 is 2 and 3
+      const muskets = Math.max(2, Math.floor(n / 2));
+      const made = this.spawnFormation(pt.x, pt.y, muskets);
+      for (let i = muskets; i < n; i++) this.g.spawnEnemy('evil_clown', pt.x + this.g.rng.range(-60, 60), pt.y + this.g.rng.range(-60, 60), { elite: this.g.rng.chance(this.eliteChance()) });
+      return made > 0;
     }
     const elite = forceElite || this.g.rng.chance(this.eliteChance());
     return this.g.spawnEnemy(id, pt.x, pt.y, { elite }) !== null;

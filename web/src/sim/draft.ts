@@ -65,7 +65,7 @@ function candidates(g: Game): Cand[] {
 
   // Level owned weapons
   for (const w of owned) {
-    if (w.def.isEvolution || w.level >= w.def.maxLevel) continue;
+    if (w.level >= w.def.maxLevel) continue; // evolutions level too (D-61)
     if (banished.has(w.def.id)) continue;
     const next = w.level + 1;
     const rarity: Rarity = next === w.def.maxLevel ? 'rare' : 'common';
@@ -221,7 +221,7 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
   for (let i = 0; i < Math.max(0, rolls); i++) {
     const options: (() => string)[] = [];
     for (const w of g.weapons.list) {
-      if (!w.def.isEvolution && w.level < w.def.maxLevel) {
+      if (w.level < w.def.maxLevel) {
         options.push(() => {
           g.weapons.levelUp(w.def.id);
           entries.push({ type: 'level', id: w.def.id, label: `${w.def.name} Lv ${w.level}`, name: w.def.name, level: w.level, max: w.level >= w.def.maxLevel });

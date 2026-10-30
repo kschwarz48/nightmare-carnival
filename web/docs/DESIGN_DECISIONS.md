@@ -404,3 +404,30 @@ and teleports, and the prize wheel dull and see-through.
   out-of-tune music box, a faint calliope, no heartbeat.
 - `PROTO` stays at 6, which hasn't shipped yet. The ring rides in the reflective boss state and the
   card fields in the forwarded chest event.
+
+### D-62 · Playtest tuning: firing squads, party crowds, readable draft actions, levelling evolutions
+- **Firing squads.** The Puppet Soldier ranks that march in from 12:00 proved too much. Half of every
+  rank now comes as Evil Clowns, so a rank of 4 is 2 muskets and 2 clowns, and a rank of 5 is 2 and 3.
+  The crowd stays as dense. The Puppet King's own levies are unchanged.
+- **Party crowds pay a solo night's XP.** The party XP cost per level (D-57, D-61) stays as it is.
+  `COOP.density` rises to 2.0 / 2.3 / 2.5 / 2.6 / 2.6 for two to six players (from 1.25 / 1.45 / 1.6 /
+  1.72 / 1.82). That scales the alive cap, the minimum alive and the spawn rate. Bot duos at 2.0 collect
+  19.2k XP by minute 24, against 7.3k before and 19.5k for a solo bot, and finish 64% of their build
+  (40% before). Bot trios and quads flee dense crowds and leave tickets on the ground, so their runs
+  don't show the gain; tune from play. The Midway alive cap stays under the 520-enemy pool.
+- **Reroll / Banish / Skip** are large buttons, each with an icon, a line saying what it does, a count
+  of how many are left and the key. Banish mode outlines every card in red and shows "⊘ BANISH" on the
+  one under the cursor.
+- **Evolutions level.** An evolved weapon starts at Evo Lv 1 and levels to 8 from level-up cards and
+  prize wheels. Each evolution has a seven-step plan, mostly damage (+10% four times, +16% at Evo Lv 8)
+  with its own strengths in between: area for slams and fields, speed for projectiles and orbits,
+  cooldown, one more card, pet or note, pierce, or duration. Projectile speed gained a level table
+  (`lv.spd`) for this. The tray shows ✦3, then ✦MAX.
+- **The Funhouse Mirror is capped.** Its `damage` is now the clones' total share of your damage, split
+  between however many clones there are, so the Amount stat spreads clones out without multiplying
+  them. It's 12% at Lv 1 and 30% at Lv 8. The Hall of Mirrors gives 36% at Evo Lv 1 and 50% at Evo Lv 8.
+  Before, each clone replayed every attack at up to 60% (75% for the evolution), and Amount added
+  clones, so 3-4 clones could add 200% or more.
+- **Prize wheel bulbs** cycle eight saturated colours, saturated enough that the hue survives the glow.
+- **The Steam Calliope's icon** was missing (no drawing for the `calliope` kind). It's now a little
+  steam organ, and the Grand Requiem's version adds notes.

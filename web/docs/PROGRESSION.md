@@ -140,6 +140,27 @@ Bot parties trail a solo bot well behind by minute 24, so a gentler party XP can
 The duo rows also show the noise: the cheaper XP table finished at a lower level than the dearer one
 (each run's builds diverge). Three seeds can't resolve a 15% change; the playtest's "a little too harsh" decided it.
 
+### Party crowds (D-62)
+
+`scripts/party.ts` with a density override (2 seeds, god mode, 24 minutes; XP is raw XP collected):
+
+| density table (2..6 players) | party | build @24m | level @24m | XP collected @24m | peak alive |
+|---|---|---|---|---|---|
+| — (solo) | 1 | 83% | 44.5 | 19,495 | 204 |
+| 1.25 / 1.45 / 1.6 … (old) | 2 | 40% | 20.0 | 7,276 | 238 |
+| 1.8 / 2.3 / 2.7 … | 2 | 53% | 25.5 | 16,496 | 365 |
+| 2.4 / 3 / 3.4 … | 2 | 68% | 32.0 | 32,528 | 535 |
+| **2.0 / 2.3 / 2.5 / 2.6 / 2.6 (shipped)** | 2 | 64% | 27.0 | 19,204 | 395 |
+| old | 3 | 50% | 19.0 | 12,193 | 283 |
+| shipped | 3 | 45% | 17.0 | 8,910 | 448 |
+| old | 4 | 53% | 16.0 | 12,012 | 335 |
+| shipped | 4 | 52% | 16.5 | 11,976 | 441 |
+| shipped (6 at 2.7 in this run) | 6 | 63% | 21.0 | 35,190 | 540 |
+
+XP grows faster than the crowd for duos. In trios and quads the pilot flees the denser crowd and leaves
+its tickets uncollected, a bot artefact: people wade in. The shipped table holds the large parties at
+2.6 to stay under the enemy pool.
+
 ## Honest uncertainty
 
 * These numbers come from bots, not people. The pilot dodges by potential fields and cannot read

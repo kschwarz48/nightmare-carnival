@@ -45,6 +45,7 @@ export function weaponIcon(ctx: Ctx, w: number, h: number, kind: string, evo: bo
     cards: '#a83040', mallet: '#a86a30', tarot: '#6a3a9a', bumper: '#2f6f9f', plush: '#c86a9a', tophat: '#8a2030',
     popcorn: '#c8a030', darts: '#c8406a', fireworks: '#3a3a9a', cotton: '#e07ab0', rings: '#3a8a6a', cannon: '#7a3020',
     snowcone: '#3a8ac8', grill: '#c84a20', laser: '#5a2aa0', orbs: '#2a6aa0', bell: '#a0802a', mirror: '#4a7a8a',
+    calliope: '#7a2a40',
   };
   badge(ctx, w, h, bg[kind] ?? '#5a4a6a', evo);
   const s = w / 64;
@@ -203,6 +204,39 @@ export function weaponIcon(ctx: Ctx, w: number, h: number, kind: string, evo: bo
         ctx.fillText('DING', 34, 50);
       }
       break;
+    case 'calliope': {
+      // a little steam organ: brass pipes over a red cabinet with a keyboard, steam at the pipe tops
+      const tops = [22, 15, 11, 15, 22];
+      for (let k = 0; k < 5; k++) {
+        const x = 17 + k * 6.4;
+        roundRect(ctx, x, tops[k], 4.8, 38 - tops[k], 1.8);
+        fillInk(ctx, shade(ctx, x + 2.4, tops[k] + 5, 9, '#fff2b0', PAL.gold), 1.5);
+        ellipse(ctx, x + 2.4, tops[k] + 5, 1.5, 1.1);
+        ctx.fillStyle = INK;
+        ctx.fill();
+      }
+      roundRect(ctx, 13, 36, 38, 16, 3);
+      fillInk(ctx, shade(ctx, 32, 40, 22, '#e8685e', PAL.red), 2.4);
+      roundRect(ctx, 16.5, 41, 31, 7, 1.5);
+      fillInk(ctx, '#f8f2e2', 1.3);
+      ctx.fillStyle = INK;
+      for (let k = 0; k < 4; k++) ctx.fillRect(20.5 + k * 7, 41, 2.6, 4.2);
+      ctx.save();
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = '#f4f8ff';
+      for (const [x, y, r] of [[21, 13, 3], [32.5, 8, 3.6], [44, 13, 3]]) {
+        circle(ctx, x, y, r);
+        ctx.fill();
+      }
+      ctx.restore();
+      if (evo) {
+        ctx.fillStyle = '#fff36a';
+        ctx.font = 'bold 13px Georgia';
+        ctx.fillText('♪', 6, 30);
+        ctx.fillText('♫', 48, 30);
+      }
+      break;
+    }
     case 'mirror':
       ellipse(ctx, 32, 32, 16, 21);
       fillInk(ctx, shade(ctx, 32, 32, 18, '#e8f8ff', '#7ab0c8'), 3);

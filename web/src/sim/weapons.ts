@@ -104,7 +104,7 @@ export class Weapons {
     return w.def.amount + weaponLevelSum(w.def.lv.amount, w.level) + this.g.player.stats.amount;
   }
   speed(w: WeaponInst): number {
-    return w.def.speed * this.g.player.stats.projSpeed;
+    return (w.def.speed + weaponLevelSum(w.def.lv.spd, w.level)) * this.g.player.stats.projSpeed;
   }
   duration(w: WeaponInst): number {
     return (w.def.duration + weaponLevelSum(w.def.lv.dur, w.level)) * this.g.player.stats.duration;
@@ -138,8 +138,11 @@ export class Weapons {
     if (this.clones.length) {
       const mw = this.list.find((x) => x.def.kind === 'mirror');
       if (!mw) return;
-      const mult = this.damage(mw) / this.g.player.stats.might; // mirror "damage" = clone power ratio
-      for (const c of this.clones) if (c.alive) fn(c.x, c.y, mult);
+      // the mirror's "damage" is the clones' total share of yours, split between them (D-61), so more
+      // clones (Amount) spread the reflection around without multiplying it
+      const live = this.clones.filter((c) => c.alive);
+      const mult = this.damage(mw) / this.g.player.stats.might / Math.max(1, live.length);
+      for (const c of live) fn(c.x, c.y, mult);
     }
   }
 

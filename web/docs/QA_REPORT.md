@@ -115,6 +115,27 @@ understate that character.
 
 ---
 
+## Playtest tuning — firing squads, party crowds, draft actions, evolutions (D-62)
+
+**Automated:** 192 tests pass. New `tests/tuning.test.ts` covers:
+- a firing-squad rank comes half as clowns;
+- the party density table stays within the enemy pool;
+- every evolution levels to 8, with Royal Flush faster, harder and one card more at Evo Lv 8;
+- level-up cards and prize wheels level an evolution;
+- the mirror's replays add 12% then 30% of your damage, and the Hall of Mirrors 36% then 50%,
+  whatever the clone count.
+
+**Live (dev server, one machine):**
+- the new Reroll / Banish / Skip buttons and banish mode (screenshots);
+- the wheel's coloured bulbs (canvas capture);
+- the calliope icon in the tray.
+
+**Bots:** see `PROGRESSION.md`, "Party crowds (D-62)".
+
+**Not verified:** a human party at the new density, for difficulty and frame rate.
+
+---
+
 ## Co-op tuning, the Puppet King's stage, the prize wheel, music — 2026-10-30 (D-61)
 
 **Automated:** 187 tests pass (typecheck clean, production build OK). New:

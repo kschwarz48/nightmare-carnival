@@ -162,7 +162,7 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
     if (shown < st.lostTickets) requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
-  const rows = st.weapons.slice().sort((a, b) => b.damage - a.damage).map((w) => h('tr', {}, h('td', {}, h('img', { src: c.assets.weaponIcon(w.id) })), h('td', {}, WEAPONS[w.id]?.name ?? w.id), h('td', {}, WEAPONS[w.id]?.isEvolution ? '✦' : `Lv ${w.level}`), h('td', { class: 'barcell' }, h('i', { style: { width: `${(w.damage / total) * 100}%` } })), h('td', {}, fmtNum(w.damage))));
+  const rows = st.weapons.slice().sort((a, b) => b.damage - a.damage).map((w) => h('tr', {}, h('td', {}, h('img', { src: c.assets.weaponIcon(w.id) })), h('td', {}, WEAPONS[w.id]?.name ?? w.id), h('td', {}, `${WEAPONS[w.id]?.isEvolution ? '✦ ' : ''}Lv ${w.level}`), h('td', { class: 'barcell' }, h('i', { style: { width: `${(w.damage / total) * 100}%` } })), h('td', {}, fmtNum(w.damage))));
   const buttons = h('div', { class: 'cs-actions' });
   if (actions.endless && won && !st.endless) buttons.append(btn('Lock In (Endless)', () => { c.click(); actions.endless!(); }, 'red'));
   buttons.append(btn(actions.againLabel ?? (st.daily ? 'Menu' : 'Run Again'), () => { c.click(); (st.daily && !actions.againLabel ? actions.menu : actions.again)(); }, '', { 'data-default': '' }), btn('Lost & Found', () => { c.click(); actions.lostfound(); }, 'purple'), btn(actions.menuLabel ?? 'Main Menu', () => { c.click(); actions.menu(); }, 'small'));

@@ -152,7 +152,8 @@ export class Hud {
           continue;
         }
         const max = w.level >= w.def.maxLevel;
-        wg.append(h('div', { class: `slot${ready.has(w.def.id) ? ' evo-ready' : ''}`, title: w.def.name }, h('img', { src: this.assets.weaponIcon(w.def.id), alt: w.def.name }), h('span', { class: `lv${max ? ' max' : ''}` }, w.def.isEvolution ? '✦' : max ? 'MAX' : String(w.level))));
+        const lv = max ? (w.def.isEvolution ? '✦MAX' : 'MAX') : w.def.isEvolution ? `✦${w.level}` : String(w.level);
+        wg.append(h('div', { class: `slot${ready.has(w.def.id) ? ' evo-ready' : ''}`, title: w.def.name }, h('img', { src: this.assets.weaponIcon(w.def.id), alt: w.def.name }), h('span', { class: `lv${max ? ' max' : ''}${w.def.isEvolution ? ' evo' : ''}` }, lv)));
       }
       const pg = h('div', { class: 'group' });
       const ps = [...p.passives];
@@ -379,7 +380,8 @@ export class DraftView {
     const p = g.player;
     const cards = options.map((o, i) => {
       const icon = o.kind === 'passive' ? this.assets.passiveIcon(o.refId) : o.kind === 'heal' ? this.assets.passiveIcon('funnel_cake') : o.kind === 'voucher' ? this.assets.passiveIcon('coin_purse') : this.assets.weaponIcon(o.kind === 'evolution' ? WEAPONS[o.refId].evolvesTo! : o.refId);
-      const lvlTxt = o.kind === 'evolution' ? 'EVOLUTION!' : o.kind === 'new_weapon' ? 'New weapon' : o.kind === 'passive' ? (o.isNew ? 'New passive' : `Level ${o.level}`) : o.kind === 'heal' ? 'A small mercy' : o.kind === 'voucher' ? 'Permanent currency' : `Level ${o.level}${o.level === 8 ? ' — MAX' : ''}`;
+      const evoLv = o.kind === 'level_weapon' && WEAPONS[o.refId]?.isEvolution;
+      const lvlTxt = o.kind === 'evolution' ? 'EVOLUTION!' : o.kind === 'new_weapon' ? 'New weapon' : o.kind === 'passive' ? (o.isNew ? 'New passive' : `Level ${o.level}`) : o.kind === 'heal' ? 'A small mercy' : o.kind === 'voucher' ? 'Permanent currency' : `${evoLv ? '✦ Evo Level' : 'Level'} ${o.level}${o.level === 8 ? ' — MAX' : ''}`;
       let hint = '';
       if (o.kind === 'new_weapon' || o.kind === 'level_weapon') {
         const d = WEAPONS[o.refId];
@@ -399,10 +401,18 @@ export class DraftView {
         hint ? h('div', { class: 'evo-hint' }, hint) : null,
         h('div', { class: 'key' }, String(i + 1)));
     });
+    // big, readable actions (D-61): an icon, what it does, how many are left, and its key
+    const act = (cls: string, ico: string, label: string, sub: string, count: number | null, key: string, on: () => void) =>
+      h('button', { class: `btn act ${cls}`, 'data-nav': '', onclick: on },
+        h('span', { class: 'ico' }, ico),
+        h('span', { class: 'lbl' }, h('b', {}, label), h('small', {}, sub)),
+        count !== null ? h('span', { class: 'count', title: 'left tonight' }, String(count)) : null,
+        h('span', { class: 'kbd' }, key));
     const actions = h('div', { class: 'draft-actions' });
-    if (p.rerolls > 0) actions.append(h('button', { class: 'btn small purple', 'data-nav': '', onclick: () => this.onReroll() }, `Reroll (${p.rerolls}) `, h('span', { class: 'kbd' }, 'R')));
-    if (p.banishes > 0) actions.append(h('button', { class: `btn small red${this.banishMode ? ' focus' : ''}`, 'data-nav': '', onclick: () => this.toggleBanish() }, this.banishMode ? 'Choose a card to banish…' : `Banish (${p.banishes}) `, h('span', { class: 'kbd' }, 'B')));
-    if (p.canSkip) actions.append(h('button', { class: 'btn small', 'data-nav': '', onclick: () => this.onSkip() }, 'Skip (+10 HP) ', h('span', { class: 'kbd' }, 'X')));
+    if (p.rerolls > 0) actions.append(act('purple reroll', '↻', 'Reroll', 'deal a fresh hand', p.rerolls, 'R', () => this.onReroll()));
+    if (p.banishes > 0) actions.append(act(`red banish${this.banishMode ? ' on' : ''}`, '⊘', ...this.banishText(), p.banishes, 'B', () => this.toggleBanish()));
+    if (p.canSkip) actions.append(act('skip', '♥', 'Skip', 'take +10 HP instead', null, 'X', () => this.onSkip()));
+    this.root.classList.toggle('banishing', this.banishMode);
     this.root.replaceChildren(
       h('h2', { class: 'title-text' }, 'LEVEL UP!'),
       h('div', { class: 'lvl-sub' }, `Level ${g.level} — pick your prize`),
@@ -413,9 +423,17 @@ export class DraftView {
     this.nav.ensure();
   }
 
+  private banishText(): [string, string] {
+    return this.banishMode ? ['Pick a card', 'it leaves for the night'] : ['Banish', 'strike a card for the night'];
+  }
+
   toggleBanish(): void {
     this.banishMode = !this.banishMode;
-    this.root.querySelector('.draft-actions .btn.red')?.replaceChildren(this.banishMode ? 'Choose a card to banish…' : 'Banish ', h('span', { class: 'kbd' }, 'B'));
+    this.root.classList.toggle('banishing', this.banishMode);
+    const b = this.root.querySelector('.draft-actions .banish');
+    b?.classList.toggle('on', this.banishMode);
+    const [label, sub] = this.banishText();
+    b?.querySelector('.lbl')?.replaceChildren(h('b', {}, label), h('small', {}, sub));
   }
 
   private doBanish(i: number): void {
@@ -425,6 +443,7 @@ export class DraftView {
 
   hide(): void {
     this.banishMode = false;
+    this.root.classList.remove('banishing');
     this.root.classList.add('hidden');
   }
   get visible(): boolean {
