@@ -5,7 +5,7 @@ import { clamp, dist2, TAU } from '../core/math';
 import { PROPS } from '../data/map';
 import type { Enemy } from './entities';
 import type { Game } from './game';
-import { VIEW_HALF_X, VIEW_HALF_Y } from './game';
+import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
 const P = (e: Enemy, k: string, d: number): number => {
   const v = e.def.params[k];

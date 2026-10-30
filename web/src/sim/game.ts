@@ -25,10 +25,8 @@ import { FxQueue } from './fx';
 import { Player } from './player';
 import { Weapons } from './weapons';
 
-export const TICK = 1 / 60;
-/** On-screen half extent in world units — spawn band & leash reference (Godot VIEW_HALF). */
-export const VIEW_HALF_X = 980;
-export const VIEW_HALF_Y = 560;
+import { TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
+export { TICK, VIEW_HALF_X, VIEW_HALF_Y };
 const GEM_CAP = 400;
 const IFRAMES = 0.45;
 

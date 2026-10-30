@@ -6,7 +6,7 @@ import { clamp, dist2, inSector, TAU } from '../core/math';
 import { WEAPONS, weaponLevelSum, type WeaponDef } from '../data/weapons';
 import { HitTracker, type Enemy, type PlayerProjectile, type Summon, type Target } from './entities';
 import type { Game } from './game';
-import { VIEW_HALF_X, VIEW_HALF_Y } from './game';
+import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
 export const MAX_WEAPONS = 4;
 export const MAX_PASSIVES = 4;

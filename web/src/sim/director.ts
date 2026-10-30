@@ -11,7 +11,7 @@ import { ENDLESS_WAVE, VICTORY_LAP_WAVE, WAVES, type WaveDef } from '../data/wav
 import { createBoss } from './bosses';
 import type { Enemy } from './entities';
 import type { Game } from './game';
-import { VIEW_HALF_X, VIEW_HALF_Y } from './game';
+import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
 export interface Formation {
   id: number;

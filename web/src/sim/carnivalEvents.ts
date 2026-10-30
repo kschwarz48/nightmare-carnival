@@ -7,7 +7,7 @@ import { EVENTS, SCHEDULED_EVENTS, type EventId } from '../data/events';
 import { PROPS } from '../data/map';
 import type { Enemy } from './entities';
 import type { Game } from './game';
-import { VIEW_HALF_X, VIEW_HALF_Y } from './game';
+import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
 interface Running {
   id: EventId;
@@ -270,4 +270,3 @@ export class CarnivalEvents {
   }
 }
 
-export const _unused = VIEW_HALF_Y;

@@ -7,7 +7,7 @@ import type { Game } from '../game';
 import type { Co } from '../script';
 import { BossBase, type Attack, type BossOpts } from './boss';
 
-export const FERRIS_HOME = { x: 1250, y: -1840 };
+export const FERRIS_HOME = { x: 1250, y: -1890 };
 
 export class FerrisBoss extends BossBase {
   spin = 0; // wheel rotation (render + gondola positions)

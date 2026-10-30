@@ -103,3 +103,9 @@ Doc 06 lists Cotton-Candy / Snow-Cone / Hot-Dog as `forward` (movement direction
 
 ### D-26 · Chest economy
 Miniboss (Carnival Brute) chests roll **1** upgrade (Godot: 1–7) and elites drop a 1-roll chest 8% of the time (doc: ~25%). Accelerated runs showed evolutions arriving by 5:30 with the generous values, collapsing the build arc; with these values the first evolution lands around 9–12 minutes for a focused build.
+
+### D-27 · Ticket colours
+Doc 03 (implemented) used blue → green → **red** for small → large Ticket gems, but doc 02's readability law forbids the danger colour on any pickup. Large gems and the Ticket Bank are **magenta**; the Golden Ticket is gold. Pickups render unlit so their colour coding survives darkness and the Lights Out event.
+
+### D-28 · Boss framing
+While a boss is awake the camera biases ~30% toward it so its body and telegraphs stay on screen instead of hiding under the top HUD.
