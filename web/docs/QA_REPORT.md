@@ -115,6 +115,37 @@ understate that character.
 
 ---
 
+## Parties of six, music, quest and boss polish — 2026-10-30 (D-54 … D-56)
+
+**Automated:** 175 tests pass (typecheck clean, production build OK). New: a melody-lamp test (red and
+untriggerable until a wrong note; a whisper per true note); a stalled-tab keepalive test, confirmed to
+fail on the old code; and six-player party tests over the lossy loopback:
+- compact seats, a seventh player refused, repeated characters;
+- a 40 s six-player night at 45 ± 15 ms with 3% loss: every mirror tracks the host, all five guests'
+  inputs land, drafts wait for all; host upload ~116 KB/s for five guests, 3 inputs dropped;
+- one guest's drop holds the night for everyone and its rejoin restarts only its own stream;
+- the slot table; fair chest split; inhale reach and guest pull prediction.
+
+**Live (dev server, in-app Chromium):**
+- **Melody.** Lamps turn red when played, a played lamp stays silent, a wrong lamp resets them to
+  green, and both whispers show.
+- **Dead tent.** The Big Top becomes a flat striped tarp the player walks straight across, with no
+  artifacts at close zoom.
+- **First chest.** No shader programs compile when the first chest opens: 51 → 51, down from 12 new
+  programs before the fix. Frame times couldn't be measured reliably in the throttled pane.
+- **Three-tab party over real PeerJS** (host + two guests): six-seat lobby, duplicate characters, a
+  three-player night with 3 + 3 slots, partner cards and colour name tags, guest mirrors matching the
+  host, hold notes.
+- **Defect found and fixed.** Both guests in background tabs dropped out with "Lost connection" (stale
+  last-heard stamps). After the fix, both stayed connected through 30 s in the background and the
+  night.
+- **Music routing**, checked by state: Bradley's track on menus and bosses, the waltz in Acts, the
+  quest dip to 28%. Nobody has listened to the new waltz yet.
+
+**Not verified:** six real machines; anything across different networks; how the waltz sounds.
+
+---
+
 ## Online co-op QA — 2026-10-30 (D-51 … D-53)
 
 **Automated (headless, deterministic):** `tests/coop.test.ts` (12) for the co-op rules in the sim, and

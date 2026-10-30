@@ -273,6 +273,47 @@ describe('the Last Song (D-32)', () => {
     expect(cues).toContain('complete');
   });
 
+  it('melody: a played lamp burns red and stays silent until a wrong note resets the song; true notes are announced', () => {
+    const g = makeGame({ godMode: true, seed: 4242 });
+    g.weapons.list.length = 0;
+    const ls = g.quests.get<LastSongChain>('last_song')!;
+    const cues: { event: string; a?: number }[] = [];
+    g.bus.on('quest', (q) => cues.push({ event: q.event, a: q.a }));
+    const lampCues = () => cues.filter((q) => ['note', 'note_true', 'sour', 'hum', 'melody_solved'].includes(q.event));
+    ls.stage = LS.Melody;
+    ls.lit = [true, true, true, true];
+    const touch = (i: number) => {
+      walkTo(g, LAST_SONG.lamps[i].x, LAST_SONG.lamps[i].y);
+      walkTo(g, NEUTRAL.x, NEUTRAL.y);
+    };
+    const [a, , c] = ls.order;
+    touch(a);
+    expect(ls.progress).toBe(1);
+    expect(ls.played(a)).toBe(true);
+    expect(lampCues().find((q) => q.event === 'note_true')?.a).toBe(1);
+    // the played lamp can't be triggered again: no note, no reset
+    cues.length = 0;
+    touch(a);
+    expect(lampCues()).toEqual([]);
+    expect(ls.progress).toBe(1);
+    // a wrong lamp resets the song and every lamp goes back to unplayed
+    touch(c);
+    expect(lampCues().map((q) => q.event)).toContain('sour');
+    expect(ls.progress).toBe(0);
+    expect([0, 1, 2, 3].some((i) => ls.played(i))).toBe(false);
+    // the right order announces each true note, then the song is solved
+    cues.length = 0;
+    for (const i of ls.order) touch(i);
+    expect(lampCues().filter((q) => q.event === 'note_true').map((q) => q.a)).toEqual([1, 2, 3]);
+    expect(lampCues().map((q) => q.event)).toContain('melody_solved');
+    expect(ls.stage).toBe(LS.Calling);
+    expect([0, 1, 2, 3].every((i) => ls.played(i))).toBe(true);
+    // once sung, the lamps stay red and silent
+    cues.length = 0;
+    touch(a);
+    expect(lampCues()).toEqual([]);
+  });
+
   it('the Calliope reaches all three movements and dies', () => {
     const g = makeGame({ godMode: true, seed: 9 });
     const ls = g.quests.get<LastSongChain>('last_song')!;

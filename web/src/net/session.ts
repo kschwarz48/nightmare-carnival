@@ -1,7 +1,7 @@
-// Online co-op sessions (D-52). The host's browser is authoritative: it runs the only simulation,
-// seats one guest, applies the guest's inputs through a small jitter buffer, and streams snapshots
-// plus the gameplay events the guest's UI needs. The guest keeps a mirror Game fed by a Replica and
-// predicts only its own character. Both classes are UI-free and transport-free (they speak NetLink),
+// Online co-op sessions (D-52, D-54). The host's browser is authoritative: it runs the only simulation,
+// seats up to five guests, applies each guest's inputs through a small jitter buffer, and streams each
+// its own snapshots plus the gameplay events its UI needs. A guest keeps a mirror Game fed by a Replica
+// and predicts only its own character. Both classes are UI-free and transport-free (they speak NetLink),
 // so the whole flow — lobby, start, drafts, prize wheel, pause, disconnect, reconnect — runs headless
 // in tests over the loopback network.
 
@@ -11,9 +11,9 @@ import { StringDict, Writer } from './codec';
 import { randomToken } from './codes';
 import type { NetLink } from './link';
 import {
-  BIN_INPUT, BIN_SNAPSHOT, FORWARDED_EVENTS, INPUT_REDUNDANCY, PROTO, REJECT_TEXT, RateLimiter, SNAPSHOT_HZ,
+  BIN_INPUT, BIN_SNAPSHOT, FORWARDED_EVENTS, INPUT_REDUNDANCY, MAX_PLAYERS, PROTO, REJECT_TEXT, RateLimiter, SNAPSHOT_HZ,
   binType, decodeInputPacket, encodeInputPacket, parseGuestMsg, parseHostMsg,
-  type GuestMsg, type GuestProfile, type HostMsg, type LobbyState, type NetInput, type RejectReason, type StartCfg,
+  type GuestMsg, type GuestProfile, type HoldWhy, type HostMsg, type LobbyState, type NetInput, type RejectReason, type StartCfg,
 } from './protocol';
 import { Replica } from './replica';
 import { SnapshotEncoder, decodeSnapshot, type SfxEvt } from './snapshot';
@@ -23,7 +23,7 @@ export const LINK_TIMEOUT = 10000;
 export const PING_EVERY = 1000;
 /** How long the host's run waits (paused) for a dropped guest before carrying on without them. */
 export const RECONNECT_WAIT = 20000;
-/** Longest the host waits for the guest to finish watching a prize wheel. */
+/** Longest the host waits for the guests to finish watching a prize wheel. */
 export const PRIZE_WAIT = 30000;
 
 export interface HostProfile {
@@ -36,6 +36,8 @@ export interface HostProfile {
 }
 
 interface Seat {
+  /** player index (1..5) */
+  index: number;
   link: NetLink | null;
   profile: GuestProfile;
   token: string;
@@ -43,6 +45,8 @@ interface Seat {
   ready: boolean;
   connected: boolean;
   lastHeard: number;
+  /** something arrived since the last update (stamped there, so a stalled tab never fakes a timeout) */
+  heard: boolean;
   rtt: number;
   view: { hx: number; hy: number };
   queue: NetInput[];
@@ -62,6 +66,17 @@ interface Seat {
   lastInputAt: number;
   /** consecutive ticks covered by repeating the last input while the buffer was empty */
   repeats: number;
+  /** dropped mid-run: the night waits for them until this time (0 = not waiting) */
+  waitUntil: number;
+  /** prize wheels this guest still has to finish watching */
+  prize: number;
+  /** each guest has its own delta stream: what it has been sent, its sequence, its queued cosmetics */
+  enc: SnapshotEncoder;
+  snapSeq: number;
+  snapAcc: number;
+  fx: FxEvent[];
+  sfx: SfxEvt[];
+  stats: { bytes: number; snaps: number; winStart: number; bps: number; rate: number; last: number; skipped: number; starved: number; dropped: number };
 }
 
 export interface NetDiag {
@@ -84,6 +99,8 @@ export interface NetDiag {
   predErr: number;
   interval: number;
   invalid: number;
+  /** host: one line per connected guest */
+  peers?: { name: string; rtt: number; kbps: number; route: string; queue: number }[];
 }
 
 const blankDiag = (role: 'host' | 'guest'): NetDiag => ({ role, rtt: 0, connected: false, unreliable: false, route: '', inputQueue: 0, starved: 0, dropped: 0, snapBytes: 0, skipped: 0, bytesPerSec: 0, snapRate: 0, snapLost: 0, predErr: 0, interval: 0, invalid: 0 });
@@ -108,33 +125,31 @@ export function runConfigFromStart(c: StartCfg): RunConfig {
 }
 
 // =================================================================================== host
+/** Why the night is held and for whom (player indices); every screen shows it as a waiting note. */
+export interface HoldStatus {
+  why: HoldWhy;
+  who: number[];
+}
+
 export class HostSession {
   readonly lobby: LobbyState;
-  seat: Seat | null = null;
+  /** guest seats by player index (index 0 is the host and stays empty); compact while in the lobby */
+  readonly seats: (Seat | null)[] = Array.from({ length: MAX_PLAYERS }, () => null);
   game: Game | null = null;
   startCfg: StartCfg | null = null;
   hostCharacter: string | null = null;
   hostReady = false;
   hostPaused = false;
-  /** a dropped guest: the run pauses until they return, the wait expires, or the host carries on */
-  waitingFor: string | null = null;
-  private waitUntil = 0;
+  /** what the night is waiting on right now (recomputed every update, sent to the guests on change) */
+  hold: HoldStatus = { why: '', who: [] };
+  private holdKey = '';
   private pending: { link: NetLink; at: number }[] = [];
   private dict = new StringDict();
-  private enc = new SnapshotEncoder();
-  private snapSeq = 0;
-  private snapAcc = 0;
-  private fx: FxEvent[] = [];
-  private sfx: SfxEvt[] = [];
   private unsub: (() => void)[] = [];
   private lastPing = 0;
   private now = 0;
-  private bytesWin = 0;
-  private winStart = 0;
-  private snapsWin = 0;
-  // prize wheel: open presentations each side still has to finish
+  // prize wheel: open presentations the host still has to finish (each seat counts its own)
   private prizeHost = 0;
-  private prizeGuest = 0;
   private prizeHostDoneAt = 0;
   /** when the night last advanced (inputs that arrive while it is frozen are spent, see update) */
   private lastTickAt = 0;
@@ -147,26 +162,27 @@ export class HostSession {
   onClosed: (reason: string) => void = () => {};
 
   constructor(code: string, readonly self: HostProfile) {
-    this.lobby = { code, players: [this.lobbyHost(), null], difficulty: 'midway', curse: false, inRun: false };
+    this.lobby = { code, players: [this.lobbyHost(), ...Array.from({ length: MAX_PLAYERS - 1 }, () => null)], difficulty: 'midway', curse: false, inRun: false };
   }
 
-  get guestName(): string {
-    return this.seat?.profile.name ?? 'Partner';
+  /** Every seated guest, connected or not, in player order. */
+  get guests(): Seat[] {
+    return this.seats.filter((s): s is Seat => !!s);
   }
-  get guestConnected(): boolean {
-    return !!this.seat?.connected;
+  private get live(): Seat[] {
+    return this.seats.filter((s): s is Seat => !!s?.connected);
+  }
+  /** Is player `i` here? (The host always is.) */
+  connected(i: number): boolean {
+    return i === 0 || !!this.seats[i]?.connected;
   }
   /** The run must not advance: someone paused, or we are waiting for a dropped guest. */
   get paused(): boolean {
-    return this.hostPaused || !!(this.seat?.connected && this.seat.paused) || !!this.waitingFor;
+    return this.hostPaused || this.live.some((s) => s.paused) || this.guests.some((s) => s.waitUntil > 0);
   }
-  /** Every open prize wheel has been watched on both screens. */
+  /** Every open prize wheel has been watched on every screen. */
   get prizeReady(): boolean {
-    return this.prizeHost <= 0 && this.prizeGuest <= 0;
-  }
-  /** The host finished its wheel but the guest is still watching theirs. */
-  get prizeWaitingOnGuest(): boolean {
-    return this.prizeHost <= 0 && this.prizeGuest > 0;
+    return this.prizeHost <= 0 && this.live.every((s) => s.prize <= 0);
   }
 
   private lobbyHost() {
@@ -174,23 +190,27 @@ export class HostSession {
   }
 
   private broadcastLobby(): void {
-    const s = this.seat;
     this.lobby.players[0] = this.lobbyHost();
-    this.lobby.players[1] = s ? { name: s.profile.name, character: s.character, ready: s.ready, connected: s.connected, rtt: Math.round(s.rtt) } : null;
-    this.send({ t: 'lobby', lobby: this.lobby });
+    for (let i = 1; i < MAX_PLAYERS; i++) {
+      const s = this.seats[i];
+      this.lobby.players[i] = s ? { name: s.profile.name, character: s.character, ready: s.ready, connected: s.connected, rtt: Math.round(s.rtt) } : null;
+    }
+    // each guest also learns its own seat (seats close up when someone leaves the lobby)
+    for (const s of this.live) this.sendTo(s, { t: 'lobby', lobby: this.lobby, you: s.index });
     this.onLobby(this.lobby);
   }
 
-  private send(m: HostMsg): void {
-    const l = this.seat?.link;
-    if (l && this.seat!.connected) l.sendMsg(m);
+  private sendTo(s: Seat, m: HostMsg): void {
+    if (s.connected && s.link) s.link.sendMsg(m);
+  }
+  private broadcast(m: HostMsg): void {
+    for (const s of this.live) this.sendTo(s, m);
   }
 
   // ------------------------------------------------------------------ lobby
   setCharacter(id: string | null): boolean {
     if (this.lobby.inRun) return false;
-    if (id && this.seat?.character === id) return false; // characters are exclusive (VS rule)
-    this.hostCharacter = id;
+    this.hostCharacter = id; // characters may repeat: a party of six outnumbers most saves' unlocks
     this.hostReady = false;
     this.broadcastLobby();
     return true;
@@ -207,44 +227,44 @@ export class HostSession {
     this.broadcastLobby();
   }
   canStart(): boolean {
-    const s = this.seat;
-    return !this.lobby.inRun && this.hostReady && !!this.hostCharacter && !!s && s.connected && s.ready && !!s.character && s.character !== this.hostCharacter;
+    const g = this.live;
+    return !this.lobby.inRun && this.hostReady && !!this.hostCharacter && g.length > 0 && g.length === this.guests.length && g.every((s) => s.ready && !!s.character);
   }
 
-  /** Lock the lobby and tell the guest to build its mirror. Returns the shared run definition. */
+  /** Lock the lobby and tell every guest to build its mirror. Returns the shared run definition. */
   start(o: { seed: number; unlocked: string[]; questMemory: Record<string, number> }): StartCfg | null {
     if (!this.canStart()) return null;
-    const s = this.seat!;
     const me = this.self;
+    const entry = (character: string, name: string, p: HostProfile | GuestProfile) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip });
     this.startCfg = {
       seed: o.seed >>> 0,
       difficulty: this.lobby.difficulty,
       curse: this.lobby.curse,
       unlocked: o.unlocked,
       questMemory: o.questMemory,
-      players: [
-        { character: this.hostCharacter!, name: me.name, meta: me.meta, aimMode: me.aimMode, rerolls: me.rerolls, banishes: me.banishes, canSkip: me.canSkip },
-        { character: s.character!, name: s.profile.name, meta: s.profile.meta, aimMode: s.profile.aimMode, rerolls: s.profile.rerolls, banishes: s.profile.banishes, canSkip: s.profile.canSkip },
-      ],
+      // seats are compact in the lobby, so seat index = player index
+      players: [entry(this.hostCharacter!, me.name, me), ...this.guests.map((s) => entry(s.character!, s.profile.name, s.profile))],
     };
     this.lobby.inRun = true;
     this.broadcastLobby();
-    this.send({ t: 'start', cfg: this.startCfg });
+    for (const s of this.live) this.sendTo(s, { t: 'start', cfg: this.startCfg, slot: s.index });
     return this.startCfg;
   }
 
-  /** After a run: everyone back to the lobby, connection kept. */
+  /** After a run: everyone back to the lobby, connections kept, empty seats closed up. */
   backToLobby(): void {
     this.detachGame();
     this.lobby.inRun = false;
     this.hostReady = false;
-    this.waitingFor = null;
-    if (this.seat) {
-      this.seat.ready = false;
-      this.seat.paused = false;
-      if (!this.seat.connected) this.seat = null;
+    this.hostPaused = false;
+    for (const s of this.guests) {
+      s.ready = false;
+      s.paused = false;
+      s.waitUntil = 0;
+      s.prize = 0;
+      if (!s.connected) this.removeSeat(s);
     }
-    this.send({ t: 'to_lobby' });
+    this.broadcast({ t: 'to_lobby' });
     this.broadcastLobby();
   }
 
@@ -277,57 +297,88 @@ export class HostSession {
 
   private hello(link: NetLink, m: Extract<GuestMsg, { t: 'hello' }>): void {
     if (m.v !== PROTO) return this.refuse(link, 'version');
-    const s = this.seat;
-    const reconnect = !!s && !!m.token && m.token === s.token;
-    if (s && s.connected && !reconnect) return this.refuse(link, 'full');
-    if (this.lobby.inRun && !reconnect) return this.refuse(link, 'in_run');
-    if (s && reconnect) {
-      // the same guest, back after a drop: new link, same seat
-      if (s.link && s.link !== link) {
-        s.link.onClose = null;
-        s.link.close('replaced');
-      }
-      this.bind(s, link);
-      s.profile = { ...m.profile, name: s.profile.name };
-      s.queue.length = 0;
-      s.lastQueued = s.lastApplied = 0;
-      s.lastInput = null;
-      s.dictAck = 0;
-      s.paused = false;
-      link.sendMsg({ t: 'welcome', v: PROTO, slot: 1, token: s.token, lobby: this.lobby } satisfies HostMsg);
-      if (this.lobby.inRun && this.startCfg) {
-        // the guest rebuilds its mirror from scratch: fresh dictionary, full first snapshot
-        this.dict = new StringDict();
-        this.enc = new SnapshotEncoder();
-        s.ackSnap = 0;
-        link.sendMsg({ t: 'start', cfg: this.startCfg, resume: true } satisfies HostMsg);
-        this.resendDraft();
-        if (this.hostPaused) link.sendMsg({ t: 'pause', by: this.self.name } satisfies HostMsg);
-        this.prizeGuest = 0;
-      }
-      if (this.waitingFor) this.waitingFor = null;
-      this.onNotice(`${s.profile.name} reconnected`, 'info');
-      this.broadcastLobby();
-      return;
-    }
-    // a new guest takes the seat (any previous, disconnected guest's seat is released)
+    const back = m.token ? this.guests.find((s) => s.token === m.token) : undefined;
+    if (back) return this.rejoin(back, link, m);
+    if (this.lobby.inRun) return this.refuse(link, 'in_run');
+    const index = this.seats.findIndex((s, i) => i > 0 && !s);
+    if (index < 0) return this.refuse(link, 'full');
     const seat: Seat = {
-      link: null, profile: m.profile, token: randomToken(), character: null, ready: false, connected: false, lastHeard: this.now, rtt: 0,
+      index, link: null, profile: { ...m.profile, name: this.uniqueName(m.profile.name) }, token: randomToken(), character: null, ready: false, connected: false, lastHeard: this.now, heard: false, rtt: 0,
       view: { hx: 900, hy: 700 }, queue: [], lastQueued: 0, lastApplied: 0, lastInput: null, ackSnap: 0, dictAck: 0, invalid: 0,
       limiter: new RateLimiter(40, 80, this.now), binLimiter: new RateLimiter(180, 240, this.now), paused: false, goneAt: 0, deepTicks: 0, lastInputAt: 0, repeats: 0,
+      waitUntil: 0, prize: 0, enc: new SnapshotEncoder(), snapSeq: 0, snapAcc: 0, fx: [], sfx: [],
+      stats: { bytes: 0, snaps: 0, winStart: this.now, bps: 0, rate: 0, last: 0, skipped: 0, starved: 0, dropped: 0 },
     };
-    if (m.profile.name === this.self.name) seat.profile.name = `${m.profile.name} 2`.slice(0, 16);
-    this.seat = seat;
+    this.seats[index] = seat;
     this.bind(seat, link);
-    link.sendMsg({ t: 'welcome', v: PROTO, slot: 1, token: seat.token, lobby: this.lobby } satisfies HostMsg);
+    link.sendMsg({ t: 'welcome', v: PROTO, slot: index, token: seat.token, lobby: this.lobby } satisfies HostMsg);
     this.onNotice(`${seat.profile.name} joined`, 'info');
     this.broadcastLobby();
+  }
+
+  /** The same guest, back after a drop (or a refresh): new link, same seat and player. */
+  private rejoin(s: Seat, link: NetLink, m: Extract<GuestMsg, { t: 'hello' }>): void {
+    if (s.link && s.link !== link) {
+      s.link.onClose = null;
+      s.link.close('replaced');
+    }
+    this.bind(s, link);
+    s.profile = { ...m.profile, name: s.profile.name };
+    s.queue.length = 0;
+    s.lastQueued = s.lastApplied = 0;
+    s.lastInput = null;
+    s.paused = false;
+    s.waitUntil = 0;
+    this.resetStream(s);
+    link.sendMsg({ t: 'welcome', v: PROTO, slot: s.index, token: s.token, lobby: this.lobby } satisfies HostMsg);
+    if (this.lobby.inRun && this.startCfg) {
+      // the guest rebuilds its mirror from scratch: its stream restarts with a full snapshot and the
+      // whole dictionary (the other guests' streams are untouched)
+      link.sendMsg({ t: 'start', cfg: this.startCfg, resume: true, slot: s.index } satisfies HostMsg);
+      this.resendDraft(s);
+      if (this.hostPaused) link.sendMsg({ t: 'pause', by: this.self.name } satisfies HostMsg);
+      s.prize = 0;
+      this.holdKey = ''; // and hears what the night is waiting on
+    }
+    this.onNotice(`${s.profile.name} reconnected`, 'info');
+    this.broadcastLobby();
+  }
+
+  /** Start a guest's delta stream over: its next snapshot is complete and carries every dictionary entry. */
+  private resetStream(s: Seat): void {
+    s.enc = new SnapshotEncoder();
+    s.snapSeq = 0;
+    s.ackSnap = 0;
+    s.dictAck = 0;
+    s.snapAcc = 0;
+    s.fx.length = 0;
+    s.sfx.length = 0;
+  }
+
+  private uniqueName(name: string): string {
+    const taken = new Set([this.self.name, ...this.guests.map((s) => s.profile.name)]);
+    if (!taken.has(name)) return name;
+    for (let k = 2; ; k++) {
+      const n = `${name.slice(0, 13)} ${k}`;
+      if (!taken.has(n)) return n;
+    }
+  }
+
+  /** Lobby only: free a seat and close the gap, so seat index = player index when the night starts. */
+  private removeSeat(s: Seat): void {
+    const rest = this.guests.filter((x) => x !== s);
+    this.seats.fill(null);
+    rest.forEach((x, k) => {
+      x.index = k + 1;
+      this.seats[k + 1] = x;
+    });
   }
 
   private bind(s: Seat, link: NetLink): void {
     s.link = link;
     s.connected = true;
     s.lastHeard = this.now;
+    s.heard = true;
     s.goneAt = 0;
     link.onMsg = (raw) => this.onMsg(s, link, raw);
     link.onBin = (buf) => this.onBin(s, link, buf);
@@ -336,7 +387,7 @@ export class HostSession {
     };
   }
 
-  /** The guest's link went away (closed, timed out, or they left). */
+  /** A guest's link went away (closed, timed out, or they left). */
   private lost(s: Seat, why: string): void {
     if (!s.connected) return;
     s.connected = false;
@@ -344,31 +395,33 @@ export class HostSession {
     s.link = null;
     s.goneAt = this.now;
     s.queue.length = 0;
-    this.prizeGuest = 0;
+    s.prize = 0;
+    s.paused = false;
     if (this.lobby.inRun) {
       if (why === 'left') this.onNotice(`${s.profile.name} left the run`, 'warn');
       else {
-        this.waitingFor = s.profile.name;
-        this.waitUntil = this.now + RECONNECT_WAIT;
+        s.waitUntil = this.now + RECONNECT_WAIT;
         this.onNotice(`${s.profile.name} lost connection — waiting for them to rejoin`, 'warn');
       }
     } else {
-      this.seat = null;
+      this.removeSeat(s);
       this.onNotice(`${s.profile.name} ${why === 'left' ? 'left' : 'disconnected'}`, 'warn');
     }
     this.broadcastLobby();
   }
 
-  /** Stop waiting for a dropped guest and carry on alone (their character stands idle). */
+  /** Stop waiting for dropped guests and carry on without them (their characters stand idle). */
   continueWithout(): void {
-    this.waitingFor = null;
+    for (const s of this.guests) s.waitUntil = 0;
   }
 
-  kick(): void {
-    const s = this.seat;
-    if (!s) return;
+  kick(i: number): void {
+    const s = this.seats[i];
+    if (!s || i === 0) return;
     if (s.link) this.refuse(s.link, 'kicked');
-    this.seat = null;
+    s.link = null;
+    s.connected = false;
+    if (!this.lobby.inRun) this.removeSeat(s);
     this.broadcastLobby();
   }
 
@@ -376,13 +429,13 @@ export class HostSession {
     this.detachGame();
     for (const p of this.pending) p.link.close('closed');
     this.pending = [];
-    const s = this.seat;
-    if (s?.link) {
+    for (const s of this.guests) {
+      if (!s.link) continue;
       s.link.onClose = null;
       s.link.sendMsg({ t: 'bye', reason } satisfies HostMsg);
       s.link.close('closed');
     }
-    this.seat = null;
+    this.seats.fill(null);
     this.onClosed(reason);
   }
 
@@ -392,13 +445,12 @@ export class HostSession {
     if (!s.limiter.take(this.now)) return this.strike(s, 2);
     const m = parseGuestMsg(raw);
     if (!m) return this.strike(s, 1);
-    s.lastHeard = this.now;
+    s.heard = true;
     switch (m.t) {
       case 'hello':
         return;
       case 'pick':
         if (this.lobby.inRun) return;
-        if (m.character && m.character === this.hostCharacter) return this.broadcastLobby(); // taken: echo the truth back
         s.character = m.character;
         s.ready = false;
         return this.broadcastLobby();
@@ -410,9 +462,9 @@ export class HostSession {
         s.view = { hx: m.hx, hy: m.hy };
         return;
       case 'draft':
-        return this.guestDraft(m);
+        return this.guestDraft(s, m);
       case 'prize_done':
-        this.prizeGuest = Math.max(0, this.prizeGuest - 1);
+        s.prize = Math.max(0, s.prize - 1);
         return;
       case 'pause':
         if (!this.lobby.inRun || s.paused === m.on) return;
@@ -435,7 +487,6 @@ export class HostSession {
   /** Malformed or flooding traffic: tolerated a little (bugs happen), then the guest is dropped. */
   private strike(s: Seat, n: number): void {
     s.invalid += n;
-    this.diag.invalid = s.invalid;
     if (s.invalid > 60 && s.link) {
       this.onNotice(`${s.profile.name} was disconnected (invalid network traffic)`, 'warn');
       const l = s.link;
@@ -450,9 +501,9 @@ export class HostSession {
     if (binType(buf) !== BIN_INPUT) return this.strike(s, 1);
     const pk = decodeInputPacket(buf);
     if (!pk) return this.strike(s, 1);
-    s.lastHeard = this.now;
+    s.heard = true;
     if (pk.dictSize <= this.dict.size) s.dictAck = Math.max(s.dictAck, pk.dictSize);
-    s.ackSnap = Math.max(s.ackSnap, Math.min(pk.ackSnap, this.snapSeq));
+    s.ackSnap = Math.max(s.ackSnap, Math.min(pk.ackSnap, s.snapSeq));
     for (const i of pk.inputs) {
       if (i.seq <= s.lastQueued) continue; // redundant copy or reordered duplicate
       if (s.lastQueued && i.seq > s.lastQueued + 120) continue; // implausible jump
@@ -462,31 +513,37 @@ export class HostSession {
     }
   }
 
-  private guestDraft(m: Extract<GuestMsg, { t: 'draft' }>): void {
+  private guestDraft(s: Seat, m: Extract<GuestMsg, { t: 'draft' }>): void {
     const g = this.game;
-    if (!g || !g.draftPending(1)) return;
-    const hand = g.drafts[1]!;
+    const pi = s.index;
+    if (!g || !g.draftPending(pi)) return;
+    const hand = g.drafts[pi]!;
     switch (m.op) {
       case 'choose':
-        if (m.index! < hand.length && !hand[m.index!].disabled) g.chooseDraft(m.index!, 1);
+        if (m.index! < hand.length && !hand[m.index!].disabled) g.chooseDraft(m.index!, pi);
         break;
       case 'skip':
-        g.skipDraft(1);
+        g.skipDraft(pi);
         break;
       case 'reroll':
-        g.rerollDraft(1);
+        g.rerollDraft(pi);
         break;
       case 'banish':
-        g.banishDraft(m.index!, 1);
+        g.banishDraft(m.index!, pi);
         break;
     }
     // a refused choice (stale, disabled, out of tokens): show the guest their real hand again
-    if ((m.op === 'choose' || m.op === 'skip') && g.draftPending(1)) this.resendDraft();
+    if ((m.op === 'choose' || m.op === 'skip') && g.draftPending(pi)) this.resendDraft(s);
   }
 
-  private resendDraft(): void {
+  private resendDraft(s: Seat): void {
     const g = this.game;
-    if (g?.draftPending(1)) this.forward('draft', { options: g.drafts[1]!, player: 1 });
+    if (g?.draftPending(s.index)) this.sendTo(s, this.draftMsg(g, s.index, g.drafts[s.index]!));
+  }
+
+  private draftMsg(g: Game, i: number, options: unknown): HostMsg {
+    const p = g.players[i];
+    return { t: 'ev', type: 'draft', e: { options, player: i, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, level: g.level } };
   }
 
   // ------------------------------------------------------------------ the run
@@ -494,26 +551,25 @@ export class HostSession {
     this.detachGame();
     this.game = g;
     this.dict = new StringDict();
-    this.enc = new SnapshotEncoder();
-    this.snapSeq = 0;
     this.lastTickAt = this.now;
-    this.prizeHost = this.prizeGuest = 0;
-    if (this.seat) {
-      this.seat.dictAck = 0;
-      this.seat.ackSnap = 0;
-      this.seat.queue.length = 0;
-      this.seat.lastQueued = this.seat.lastApplied = 0;
-      this.seat.lastInput = null;
+    this.prizeHost = 0;
+    this.holdKey = '';
+    for (const s of this.guests) {
+      this.resetStream(s);
+      s.queue.length = 0;
+      s.lastQueued = s.lastApplied = 0;
+      s.lastInput = null;
+      s.prize = 0;
     }
     for (const type of FORWARDED_EVENTS) {
       this.unsub.push(g.bus.on(type as keyof GameEvents, (e) => this.forward(type, e)));
     }
     this.unsub.push(g.bus.on('chest', () => {
       this.prizeHost++;
-      if (this.seat?.connected) this.prizeGuest++;
+      for (const s of this.live) s.prize++;
     }));
     this.unsub.push(g.bus.on('sfx', (e) => {
-      if (this.sfx.length < 120) this.sfx.push(e);
+      for (const s of this.live) if (s.sfx.length < 120) s.sfx.push(e);
     }));
   }
 
@@ -521,76 +577,79 @@ export class HostSession {
     for (const u of this.unsub) u();
     this.unsub = [];
     this.game = null;
-    this.fx.length = 0;
-    this.sfx.length = 0;
+    for (const s of this.guests) {
+      s.fx.length = 0;
+      s.sfx.length = 0;
+    }
   }
 
-  /** Forward one host-side game event to the guest (per-player events only to their owner). */
+  /** Forward one host-side game event (per-player events only to the player they are about). */
   private forward(type: string, e: unknown): void {
     const g = this.game;
-    if (!g || !this.seat?.connected) return;
-    const ev = e as { player?: number; options?: unknown };
+    if (!g) return;
+    const ev = e as { player?: number; options?: unknown; stats?: unknown };
     const pl = ev?.player ?? 0;
     switch (type) {
       case 'draft': {
-        if (pl !== 1) return;
-        const p1 = g.players[1];
-        this.send({ t: 'ev', type, e: { options: ev.options, player: 1, rerolls: p1.rerolls, banishes: p1.banishes, canSkip: p1.canSkip, level: g.level } });
+        const s = this.seats[pl];
+        if (s) this.sendTo(s, this.draftMsg(g, pl, ev.options));
         return;
       }
       case 'draft_done':
       case 'player_hurt':
       case 'shield_pop':
       case 'meta_currency':
-      case 'pickup':
-        if (pl !== 1) return;
-        break;
+      case 'pickup': {
+        const s = this.seats[pl];
+        if (s) this.sendTo(s, { t: 'ev', type, e });
+        return;
+      }
       case 'run_end':
-        this.send({ t: 'ev', type, e: { stats: g.endStatsAll[1] ?? (e as { stats: unknown }).stats } });
+        for (const s of this.live) this.sendTo(s, { t: 'ev', type, e: { stats: g.endStatsAll[s.index] ?? ev.stats } });
         return;
     }
-    this.send({ t: 'ev', type, e });
+    this.broadcast({ t: 'ev', type, e });
   }
 
-  /** Feed the guest's next buffered input into their slot; call right before every `g.tick()`. */
+  /** Feed each guest's next buffered input into their player; call right before every `g.tick()`. */
   beforeTick(g: Game): void {
-    const s = this.seat;
-    const inp = g.inputs[1];
     this.lastTickAt = this.now;
-    if (!s || !inp) return;
-    if (!s.connected) {
-      inp.moveX = inp.moveY = 0;
-      inp.aimActive = false;
-      return;
-    }
-    // Every guest input should be applied exactly once, in order. Frames on either machine arrive
-    // unevenly (a 144 Hz display ticks on some frames and not others; a busy frame runs several
-    // ticks), so the buffer breathes; only a backlog that persists — latency the guest would feel —
-    // is shaved, one input at a time, and only a huge one (a stall) is cut at once.
-    if (s.queue.length > 30) this.dropInputs(s, s.queue.length - 4);
-    if (s.queue.length > 4) {
-      if (++s.deepTicks > 30) {
-        this.dropInputs(s, 1);
-        s.deepTicks = 20;
+    for (let i = 1; i < g.players.length; i++) {
+      const inp = g.inputs[i];
+      const s = this.seats[i];
+      if (!inp) continue;
+      if (!s?.connected) {
+        inp.moveX = inp.moveY = 0;
+        inp.aimActive = false;
+        continue;
       }
-    } else s.deepTicks = 0;
-    let next = s.queue.shift();
-    if (next) {
-      s.lastApplied = next.seq;
-      s.lastInput = next;
-      s.repeats = 0;
-    } else if (s.lastInput && s.repeats < 2 && this.now - s.lastInputAt < 250) {
-      // a packet a tick or two late: keep doing what they were doing (prediction absorbs it)
-      s.repeats++;
-      this.diag.starved++;
-      next = s.lastInput;
-    } else {
-      // nothing to apply: stand still until their next input arrives
-      inp.moveX = inp.moveY = 0;
-      inp.aimActive = false;
-      return;
-    }
-    if (next) {
+      // Every guest input should be applied exactly once, in order. Frames on either machine arrive
+      // unevenly (a 144 Hz display ticks on some frames and not others; a busy frame runs several
+      // ticks), so the buffer breathes; only a backlog that persists — latency the guest would feel —
+      // is shaved, one input at a time, and only a huge one (a stall) is cut at once.
+      if (s.queue.length > 30) this.dropInputs(s, s.queue.length - 4);
+      if (s.queue.length > 4) {
+        if (++s.deepTicks > 30) {
+          this.dropInputs(s, 1);
+          s.deepTicks = 20;
+        }
+      } else s.deepTicks = 0;
+      let next = s.queue.shift();
+      if (next) {
+        s.lastApplied = next.seq;
+        s.lastInput = next;
+        s.repeats = 0;
+      } else if (s.lastInput && s.repeats < 2 && this.now - s.lastInputAt < 250) {
+        // a packet a tick or two late: keep doing what they were doing (prediction absorbs it)
+        s.repeats++;
+        s.stats.starved++;
+        next = s.lastInput;
+      } else {
+        // nothing to apply: stand still until their next input arrives
+        inp.moveX = inp.moveY = 0;
+        inp.aimActive = false;
+        continue;
+      }
       inp.moveX = next.mx;
       inp.moveY = next.my;
       inp.aimX = next.ax;
@@ -601,98 +660,141 @@ export class HostSession {
 
   private dropInputs(s: Seat, n: number): void {
     const gone = s.queue.splice(0, n);
-    this.diag.dropped += gone.length;
+    s.stats.dropped += gone.length;
     if (gone.length) s.lastApplied = gone[gone.length - 1].seq;
   }
 
-  /** Keep the frame's cosmetic events for the next snapshot (call before the renderer drains them). */
+  /** Keep the frame's cosmetic events for each guest's next snapshot (call before the renderer drains them). */
   captureFx(events: FxEvent[]): void {
-    if (!this.seat?.connected) return;
-    for (const e of events) if (this.fx.length < 400) this.fx.push(e);
+    for (const s of this.live) for (const e of events) if (s.fx.length < 400) s.fx.push(e);
   }
 
   /** The host finished watching a prize wheel. */
   prizeHostDone(): void {
     this.prizeHost = Math.max(0, this.prizeHost - 1);
     if (this.prizeHost === 0) this.prizeHostDoneAt = this.now;
-    if (this.prizeGuest > 0) this.send({ t: 'prize_wait', waiting: true });
+    for (const s of this.live) if (s.prize > 0) this.sendTo(s, { t: 'prize_wait', waiting: true });
   }
 
   setPaused(on: boolean): void {
     if (this.hostPaused === on) return;
     this.hostPaused = on;
-    this.send({ t: 'pause', by: on ? this.self.name : null });
+    this.broadcast({ t: 'pause', by: on ? this.self.name : null });
   }
 
-  /** Per frame: timeouts, pings, snapshots. `now` in ms. */
+  /** Per frame: timeouts, pings, waits, snapshots. `now` in ms. */
   update(now: number, dtMs: number): void {
     this.now = now;
     for (const p of [...this.pending]) if (now - p.at > HELLO_TIMEOUT) this.refuse(p.link, 'bad_hello');
-    const s = this.seat;
-    if (s?.connected) {
+    const ping = now - this.lastPing > PING_EVERY;
+    if (ping) this.lastPing = now;
+    for (const s of this.live) {
+      // messages are stamped here, not on arrival: if this tab stalled, traffic that came in meanwhile
+      // still counts as fresh rather than as ten silent seconds
+      if (s.heard) {
+        s.lastHeard = now;
+        s.heard = false;
+      }
       if (now - s.lastHeard > LINK_TIMEOUT) this.lost(s, 'timeout');
-      else if (now - this.lastPing > PING_EVERY) {
-        this.lastPing = now;
-        this.send({ t: 'ping', at: now });
-        if (!this.lobby.inRun) this.broadcastLobby(); // refresh the latency readout
+      else if (ping) this.sendTo(s, { t: 'ping', at: now });
+    }
+    if (ping && !this.lobby.inRun && this.live.length) this.broadcastLobby(); // refresh the latency readouts
+    for (const s of this.guests) {
+      if (s.waitUntil && now > s.waitUntil) {
+        this.onNotice(`Carrying on without ${s.profile.name}`, 'warn');
+        s.waitUntil = 0;
       }
     }
-    if (this.waitingFor && now > this.waitUntil) {
-      this.onNotice(`Carrying on without ${this.waitingFor}`, 'warn');
-      this.waitingFor = null;
-    }
     const g = this.game;
-    if (g && s && !s.connected && !this.waitingFor && g.draftPending(1)) {
-      // an absent partner's level-up must not hold the night: take their first card for them
-      g.chooseDraft(Math.max(0, g.drafts[1]!.findIndex((o) => !o.disabled)), 1);
+    if (g) {
+      for (const s of this.guests) {
+        // an absent player's level-up must not hold the night: take their first card for them
+        if (!s.connected && !s.waitUntil && g.draftPending(s.index)) g.chooseDraft(Math.max(0, g.drafts[s.index]!.findIndex((o) => !o.disabled)), s.index);
+        // the night is frozen (draft, prize wheel, pause): inputs that arrive now were predicted by a
+        // guest who had not heard yet — count them as spent so its prediction snaps to the truth
+        if (s.queue.length && now - this.lastTickAt > 150) this.dropInputs(s, s.queue.length);
+      }
+      // a guest who never finishes watching a prize wheel cannot hold the night forever
+      if (this.prizeHost === 0 && now - this.prizeHostDoneAt > PRIZE_WAIT) for (const s of this.live) s.prize = 0;
     }
-    if (g && s && s.queue.length && now - this.lastTickAt > 150) {
-      // the night is frozen (draft, prize wheel, pause): inputs that arrive now were predicted by a
-      // guest who had not heard yet — count them as spent so its prediction snaps to the truth
-      this.dropInputs(s, s.queue.length);
-    }
-    if (this.prizeGuest > 0 && this.prizeHost === 0 && now - this.prizeHostDoneAt > PRIZE_WAIT) this.prizeGuest = 0;
-    this.diag.connected = !!s?.connected;
-    this.diag.rtt = s?.rtt ?? 0;
-    this.diag.inputQueue = s?.queue.length ?? 0;
-    if (s?.link) {
-      const st = s.link.stats();
-      this.diag.unreliable = st.unreliable;
-      this.diag.route = st.route;
-    }
-    this.snapshots(now, dtMs);
+    this.updateHold();
+    this.updateDiag();
+    for (const s of this.live) this.snapshot(s, now, dtMs);
   }
 
-  private snapshots(now: number, dtMs: number): void {
-    const g = this.game, s = this.seat;
-    if (!g || !s?.connected || !s.link) return;
-    this.snapAcc += dtMs;
-    // very busy nights send a little less often (interpolation covers it); prediction keeps the
-    // guest's own movement immediate either way
-    const hz = this.diag.snapBytes > 12000 ? 12 : this.diag.snapBytes > 6000 ? 15 : SNAPSHOT_HZ;
+  /** Work out what the night is waiting on; tell the guests when that changes. */
+  private updateHold(): void {
+    const g = this.game;
+    let why: HoldWhy = '';
+    let who: number[] = [];
+    if (g) {
+      const gone = this.guests.filter((s) => s.waitUntil > 0).map((s) => s.index);
+      const paused = [...(this.hostPaused ? [0] : []), ...this.live.filter((s) => s.paused).map((s) => s.index)];
+      if (gone.length) [why, who] = ['reconnect', gone];
+      else if (paused.length) [why, who] = ['pause', paused];
+      else if (g.phase === 'draft') [why, who] = ['draft', g.players.filter((p) => g.draftPending(p.index)).map((p) => p.index)];
+      else if (!this.prizeReady) [why, who] = ['prize', [...(this.prizeHost > 0 ? [0] : []), ...this.live.filter((s) => s.prize > 0).map((s) => s.index)]];
+    }
+    this.hold = { why, who };
+    const key = `${why}:${who.join(',')}`;
+    if (key !== this.holdKey) {
+      this.holdKey = key;
+      this.broadcast({ t: 'hold', why, who });
+    }
+  }
+
+  /** The F3 panel: totals across guests, the slowest link's latency, and a line per guest. */
+  private updateDiag(): void {
+    const d = this.diag, live = this.live;
+    const sum = (f: (s: Seat) => number) => live.reduce((t, s) => t + f(s), 0);
+    const max = (f: (s: Seat) => number) => live.reduce((t, s) => Math.max(t, f(s)), 0);
+    d.connected = live.length > 0;
+    d.rtt = max((s) => s.rtt);
+    d.inputQueue = max((s) => s.queue.length);
+    d.bytesPerSec = sum((s) => s.stats.bps);
+    d.snapRate = live.length ? sum((s) => s.stats.rate) / live.length : 0;
+    d.snapBytes = max((s) => s.stats.last);
+    d.skipped = sum((s) => s.stats.skipped);
+    d.starved = sum((s) => s.stats.starved);
+    d.dropped = sum((s) => s.stats.dropped);
+    d.invalid = this.guests.reduce((t, s) => t + s.invalid, 0);
+    const links = live.map((s) => s.link!.stats());
+    d.unreliable = links.length > 0 && links.every((l) => l.unreliable);
+    d.route = [...new Set(links.map((l) => l.route || '?'))].join('/');
+    d.peers = live.map((s, k) => ({ name: s.profile.name, rtt: s.rtt, kbps: s.stats.bps / 1024, route: links[k].route, queue: s.queue.length }));
+  }
+
+  private snapshot(s: Seat, now: number, dtMs: number): void {
+    const g = this.game;
+    const p = g?.players[s.index];
+    if (!g || !p || !s.link) return;
+    const st = s.stats;
+    s.snapAcc += dtMs;
+    // very busy nights send a little less often (interpolation covers it), and so does a big party
+    // sharing the host's upload; prediction keeps each guest's own movement immediate either way
+    const hz = st.last > 12000 ? 12 : st.last > 6000 || (this.live.length >= 3 && st.last > 3000) ? 15 : SNAPSHOT_HZ;
     const every = 1000 / hz;
-    if (this.snapAcc < every) return;
-    this.snapAcc = Math.min(this.snapAcc - every, every);
+    if (s.snapAcc < every) return;
+    s.snapAcc = Math.min(s.snapAcc - every, every);
     if ((s.link.pressure?.() ?? 0) > 128 * 1024) {
       // the network is not keeping up: skip this one rather than queue stale state
-      this.diag.skipped++;
+      st.skipped++;
       return;
     }
-    const p = g.players[1];
     const view = { x: p.x, y: p.y, hx: s.view.hx, hy: s.view.hy };
-    const buf = this.enc.encode(g, { seq: ++this.snapSeq, ackInput: s.lastApplied, ackSnap: s.ackSnap, dict: this.dict, dictFrom: s.dictAck, view, fx: this.fx, sfx: this.sfx, frozen: this.paused || !this.prizeReady });
-    this.fx.length = 0;
-    this.sfx.length = 0;
+    const buf = s.enc.encode(g, { seq: ++s.snapSeq, ackInput: s.lastApplied, ackSnap: s.ackSnap, dict: this.dict, dictFrom: s.dictAck, view, fx: s.fx, sfx: s.sfx, frozen: this.paused || !this.prizeReady });
+    s.fx.length = 0;
+    s.sfx.length = 0;
     s.link.sendBin(buf);
-    this.diag.snapBytes = buf.byteLength;
-    this.bytesWin += buf.byteLength;
-    this.snapsWin++;
-    if (now - this.winStart >= 1000) {
-      const k = 1000 / Math.max(1, now - this.winStart);
-      this.diag.bytesPerSec = this.bytesWin * k;
-      this.diag.snapRate = this.snapsWin * k;
-      this.bytesWin = this.snapsWin = 0;
-      this.winStart = now;
+    st.last = buf.byteLength;
+    st.bytes += buf.byteLength;
+    st.snaps++;
+    if (now - st.winStart >= 1000) {
+      const k = 1000 / Math.max(1, now - st.winStart);
+      st.bps = st.bytes * k;
+      st.rate = st.snaps * k;
+      st.bytes = st.snaps = 0;
+      st.winStart = now;
     }
   }
 }
@@ -711,6 +813,8 @@ export class GuestSession {
   pausedBy: string | null = null;
   /** the host finished its prize wheel and is waiting for ours */
   prizeWait = false;
+  /** what the host's night is waiting on (player indices), for the waiting note */
+  hold: { why: HoldWhy; who: number[] } = { why: '', who: [] };
   partnerConnected = true;
   closeReason = '';
   private seq = 0;
@@ -718,6 +822,8 @@ export class GuestSession {
   private writer = new Writer(128);
   private lastPing = 0;
   private lastHeard = 0;
+  /** something arrived since the last update (stamped there, so a stalled tab never fakes a timeout) */
+  private heard = false;
   private lastSend = 0;
   private now = 0;
   private bytesWin = 0;
@@ -786,7 +892,7 @@ export class GuestSession {
   private onMsg(raw: unknown): void {
     const m = parseHostMsg(raw);
     if (!m) return;
-    this.lastHeard = this.now;
+    this.heard = true;
     switch (m.t) {
       case 'welcome':
         this.slot = m.slot;
@@ -802,10 +908,13 @@ export class GuestSession {
         return;
       case 'lobby':
         this.lobby = m.lobby;
+        if (m.you && !m.lobby.inRun) this.slot = m.you; // seats close up when someone leaves the lobby
         this.onLobby(m.lobby);
         return;
       case 'start': {
+        if (m.slot) this.slot = m.slot;
         this.startCfg = m.cfg;
+        this.hold = { why: '', who: [] };
         this.pausedBy = null;
         this.prizeWait = false;
         this.seq = 0;
@@ -839,6 +948,9 @@ export class GuestSession {
       case 'prize_wait':
         this.prizeWait = m.waiting;
         return;
+      case 'hold':
+        this.hold = { why: m.why, who: m.who };
+        return;
       case 'partner':
         this.partnerConnected = m.connected;
         return;
@@ -868,7 +980,7 @@ export class GuestSession {
     if (!(buf instanceof ArrayBuffer) || buf.byteLength > 1 << 20 || binType(buf) !== BIN_SNAPSHOT) return;
     const r = this.replica;
     if (!r) return;
-    this.lastHeard = this.now;
+    this.heard = true;
     try {
       r.apply(decodeSnapshot(buf, r.dict), this.now);
     } catch {
@@ -904,6 +1016,10 @@ export class GuestSession {
   update(now: number): void {
     this.now = now;
     if (this.state === 'closed') return;
+    if (this.heard) {
+      this.lastHeard = now;
+      this.heard = false;
+    }
     if (now - this.lastHeard > LINK_TIMEOUT && this.state !== 'connecting') {
       this.link.onClose = null;
       this.link.close('timeout');

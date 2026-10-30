@@ -166,7 +166,7 @@ export class CalliopeBoss extends BossBase {
     this.hz('circle', 'inhale_warn', this.x, this.y, { r: 420, tele: t, active: 0.01, dmg: 0, safe: true });
     this.sfx('inhale', 0.9, 0.7);
     yield t;
-    this.hz('circle', 'maw', this.x, this.y, { r: 60, tele: 0.01, active: 2.2, dmg: 18, tick: 0.5, pull: 120 });
+    this.hz('circle', 'maw', this.x, this.y, { r: 60, tele: 0.01, active: 2.2, dmg: 18, tick: 0.5, pull: 150, pullR: 420 });
     yield 2.2;
     this.pose.mouth = 1;
     const base = this.angleToPlayer();

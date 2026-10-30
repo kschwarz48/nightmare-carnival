@@ -203,6 +203,35 @@ export class PrizeWheel {
     for (const o of [boardMesh]) o.renderOrder = 21;
   }
 
+  /**
+   * Showing the booth adds its spot and fill lights to the scene, and three.js then rebuilds every
+   * visible material's shader for the new light count — a multi-second stall on the night's first chest.
+   * Compile those programs ahead of time instead: the booth counts as shown for one asynchronous compile
+   * pass (which gathers the scene synchronously) and is hidden again before any frame draws. `target`
+   * must be the render target the scene really draws into (the post chain's linear buffer): a program's
+   * output colour space and tone mapping depend on it, so compiling for the canvas would miss.
+   */
+  prewarm(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, target: THREE.WebGLRenderTarget | null): Promise<unknown> {
+    if (this.root.visible) return Promise.resolve();
+    const prev = renderer.getRenderTarget();
+    this.root.visible = this.card.visible = true;
+    renderer.setRenderTarget(target);
+    // the prize icons only get their pictures when a chest opens: compile them as textured too
+    const icons = [...this.iconMeshes, this.cardIcon].map((m) => m.material as THREE.MeshBasicMaterial).filter((m) => !m.map);
+    const blank = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    blank.colorSpace = THREE.SRGBColorSpace;
+    blank.needsUpdate = true;
+    for (const m of icons) m.map = blank;
+    try {
+      return renderer.compileAsync(scene, camera).catch(() => undefined);
+    } finally {
+      for (const m of icons) m.map = null;
+      blank.dispose();
+      renderer.setRenderTarget(prev);
+      this.root.visible = this.card.visible = false;
+    }
+  }
+
   get active(): boolean {
     return this.phase !== 'idle';
   }

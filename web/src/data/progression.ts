@@ -106,23 +106,28 @@ export const PACING = {
  * night resumes only when everyone has chosen; an item owned by one player leaves the others' pools
  * (evolutions may use a teammate's passive); a fallen player leaves a coffin that revives over time,
  * faster with a teammate standing beside it. Chest rolls are split between the players.
+ * Online parties go up to six (D-54).
  */
 export const COOP = {
-  maxPlayers: 2,
-  /** weapon and passive slots per player, by party size (index = player count) */
-  slots: [6, 6, 4, 3, 2] as number[],
+  maxPlayers: 6,
+  /**
+   * weapon and passive slots per player, by party size (index = player count). Vampire Survivors: 6 solo,
+   * 4 for two, one fewer for each extra player (3, 2). VS stops at four players, where its rule would
+   * run out at six (0), so five and six players hold at its floor of 2 (D-54).
+   */
+  slots: [6, 6, 4, 3, 2, 2, 2] as number[],
   /** coffin revive: seconds alone, seconds with a teammate within `reviveRadius` */
   reviveAlone: 40,
   reviveAssisted: 6,
   reviveRadius: 95,
   reviveHpFrac: 0.5,
   /** crowd density multiplier by party size (more bodies to chase, more to feed shared XP) */
-  density: [1, 1, 1.25, 1.45, 1.6] as number[],
+  density: [1, 1, 1.25, 1.45, 1.6, 1.72, 1.82] as number[],
   /**
    * enemy and boss HP multiplier by party size. Two players bring roughly twice the weapons early and
    * ~1.3x a solo build once their 4 slots are full (vs 6 solo), so HP rises less than linearly.
    */
-  hp: [1, 1, 1.3, 1.5, 1.7] as number[],
+  hp: [1, 1, 1.3, 1.5, 1.7, 1.85, 2] as number[],
   /** a boss re-picks the nearest living player at most this often (seconds) */
   bossRetarget: 2.5,
 };

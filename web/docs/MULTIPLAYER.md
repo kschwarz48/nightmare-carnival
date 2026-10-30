@@ -1,11 +1,13 @@
-# Online Co-op — Two-Player Alpha
+# Online Co-op — up to six players (alpha)
 
-Two players, one night, real time, over the internet, with no game server. One browser **hosts**. It runs
-the only simulation. The other **joins** with a six-character code and plays the same night.
+Up to six players, one night, real time, over the internet, with no game server. One browser **hosts**.
+It runs the only simulation. Up to five friends **join** with a six-character code and play the same
+night (D-54).
 Matchmaking uses the free PeerJS signalling service. The game traffic itself goes peer-to-peer over
 WebRTC data channels.
 
-Design decisions: D-51 (co-op rules), D-52 (netcode), D-53 (party scaling and co-op UX) in
+Design decisions: D-51 (co-op rules), D-52 (netcode), D-53 (party scaling and co-op UX), D-54 (parties
+of six) in
 [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md). Test status: [§6](#6-what-has-been-tested). Do read it:
 cross-network play has **not** been verified yet.
 
@@ -19,23 +21,24 @@ cross-network play has **not** been verified yet.
    HTTPS).
 2. **Host:** title screen → **Multiplayer** → enter a name → **Host a Game**. A lobby opens with a
    code like `K7M2QP`. **Copy** it and send it to your friend.
-3. **Guest:** **Multiplayer** → name → **Join a Game** → type the code → **Join**.
-4. Each player picks a character; each character can be taken by only one player. Then press **Ready!**
-   The host chooses the difficulty and pulls **Start the Night!** once both are ready.
+3. **Guests (up to five):** **Multiplayer** → name → **Join a Game** → type the code → **Join**.
+4. Each player picks a character (friends may pick the same one; coloured dots show who picked what).
+   Then press **Ready!** The host chooses the difficulty and pulls **Start the Night!** once everyone
+   is ready.
 
 The rules follow Vampire Survivors co-op:
 
 | | |
 |---|---|
 | Experience | **Shared.** Either player's tickets fill one bar and level the whole party. |
-| Level-ups | Each player drafts **their own** card. The night stays frozen until **both** have chosen. A "Waiting for …" note shows who is still choosing. |
-| Builds | **Independent.** An item one player owns never appears in the other's draft. An evolution may use your partner's passive. |
-| Slots | 6 weapons + 6 passives solo; **4 + 4 each** with two players (VS: 6 / 4 / 3 / 2). |
-| Prize chests | **One wheel, split prizes.** Both players watch the same wheel. Each prize is tagged with its owner's name. The night resumes when both have finished watching. |
-| Falling | A player at 0 HP drops into a **coffin**. It opens by itself in 40 s, or in 6 s with the partner standing next to it. The revived player gets back half their health. If both players are down, the night ends. |
-| Pause | Either player can pause. It pauses the night for **both**, and the other sees "Paused by …". |
+| Level-ups | Each player drafts **their own** card. The night stays frozen until **everyone** has chosen. A "Waiting for …" note names who is still choosing. |
+| Builds | **Independent.** An item one player owns never appears in the others' drafts. An evolution may use a teammate's passive. |
+| Slots | Weapons + passives each, by party size: **6 / 4 / 3 / 2 / 2 / 2** for 1–6 players. VS stops at four (2); five and six hold there. |
+| Prize chests | **One wheel, split prizes.** Everyone watches the same wheel; each prize is tagged with its owner's name. Prizes go to whoever has had the fewest so far tonight. The night resumes when everyone has finished watching. |
+| Falling | A player at 0 HP drops into a **coffin**. It opens by itself in 40 s, or in 6 s with a teammate standing next to it. The revived player gets back half their health. If everyone is down, the night ends. |
+| Pause | Anyone can pause. It pauses the night for **everyone**, and the others see "Paused by …". |
 | Rewards | Each player banks **their own** Lost Tickets and achievements into their own save. The Last Song's reward unlocks for both. |
-| Difficulty | A duo faces a 25% denser crowd, and enemies and bosses have 30% more health. |
+| Difficulty | Crowd density ×1.25 / 1.45 / 1.6 / 1.72 / 1.82 and enemy + boss HP ×1.3 / 1.5 / 1.7 / 1.85 / 2.0 for 2–6 players (guesses to tune). |
 
 After the night, the host can press **Back to the Lobby** for another round with the same connection.
 
@@ -46,8 +49,8 @@ and prediction error. A small **● NN ms** latency readout is always shown in c
 
 - **"No lobby with that code."** Check the code. The host must keep the lobby open: closing that tab
   closes the lobby.
-- **Guest refreshes or drops mid-night.** The host's night pauses for up to 20 s with "…lost connection —
-  waiting for them to rejoin" and a **Carry on alone** button. The guest rejoins the same seat by
+- **A guest refreshes or drops mid-night.** The night pauses for everyone for up to 20 s with "…lost
+  connection — waiting for them to rejoin" and, on the host, a **Carry on without them** button. The guest rejoins the same seat by
   joining with the same code from the same tab.
 - **The host leaves.** The night ends, and the guest sees "The host ended the night." There is no host
   migration in the alpha.
@@ -198,6 +201,21 @@ You can set these instead, in the environment or `web/.env.local`:
 
 ---
 
+### Parties of three to six (D-54)
+
+- **One stream per guest.** Each guest gets its own snapshot encoder, sequence numbers and cosmetic
+  queues: interest management means guests see different entities, so "already sent" is per receiver.
+  The string dictionary is shared and acknowledged per guest. A guest who rejoins restarts only its
+  own stream.
+- **Hold status.** The host works out what the night is waiting on (`draft`, `prize`, `reconnect`,
+  `pause`) and for whom, and broadcasts it when it changes. Every screen words its waiting note from it.
+- **Upload.** The host uploads one stream per guest. Measured in a 40 s six-player test at the start of
+  a night: ~116 KB/s total (about 20–25 KB/s per guest). Late-night snapshots are bigger, so expect up
+  to several hundred KB/s with five guests at the densest moments. With three or more players, big
+  snapshots (>3 KB) drop to 15 Hz. The host should be the player with the best upload.
+- **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
+  animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
+
 ## 4. Deploying the alpha (static hosting)
 
 ```bash
@@ -329,9 +347,11 @@ Two people, **two different networks**: e.g. one on home Wi-Fi, one on a phone h
 
 | Scope | Status |
 |---|---|
-| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 166 tests in the whole suite |
+| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 175 tests in the whole suite |
 | Two browser tabs on **one machine**, real PeerJS Cloud signalling and WebRTC | **Done**: see the list below |
 | The **deployed site** (Netlify), two tabs on one machine | **Done**: see below |
+| **Three** tabs on one machine (host + two guests), real PeerJS, dev server | **Done** (2026-10-30): six-seat lobby, shared characters, 3 + 3 slots, party HUD, both guests kept alive in background tabs, mirrors matched the host |
+| **Six** players | **Simulated only** (loopback, 3% loss): see `tests/net.test.ts` "parties of up to six" |
 | Two machines on the **same LAN** | **Not yet tested** |
 | Two machines on **different networks** (the alpha goal) | **Not yet verified.** Needs the checklist above, ideally with someone behind a strict NAT to exercise TURN |
 | Safari / Firefox / mobile browsers | **Not yet tested** (developed in Chromium) |
@@ -364,8 +384,8 @@ Two real bugs found there are fixed and covered by tests:
 
 ## 7. Known limitations (alpha)
 
-- **Two players.** The simulation and wire format support more (slot tables go to 4), but the lobby
-  and HUD are built for a duo.
+- **Six players** have only been run in the simulated network tests and with three tabs on one machine;
+  a real six-machine night is the next test. The host's upload is the limit (§2).
 - **No host migration.** The host's tab is the server, and closing it ends the night.
 - **Netlify's free plan** shows a "Powered by Netlify" badge in the bottom-right corner (§4).
 - **PeerJS Cloud** is a shared free service with no uptime guarantee. The default TURN relays are best
@@ -378,7 +398,7 @@ Two real bugs found there are fixed and covered by tests:
 - **What the guest sees.** The guest sees other entities ~50–100 ms in the past (interpolation). The
   host sees the guest as simulated. Under heavy jitter, the guest's character can look slightly uneven
   on the host's screen.
-- **Unpredicted movement.** The bumper-car dash, pulls and knockback on the guest arrive as smoothed
-  corrections.
+- **Unpredicted movement.** The bumper-car dash and knockback on the guest arrive as smoothed
+  corrections. Inhale pulls are predicted (D-56).
 - **Tab suspension.** If a browser suspends a tab entirely (mobile, battery saver), that player drops
   and the rejoin rules apply.

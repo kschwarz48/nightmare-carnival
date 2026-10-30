@@ -45,6 +45,7 @@ export interface PickupM { x: number; y: number }
 export interface HazardS {
   gen: number; shape: string; style: string; r2: number; half: number; teleMax: number; activeMax: number; flags: number; gapHalf: number; tag: number;
   vx: number; vy: number; grow: number; spinRate: number; len: number; holeX: number; holeY: number; holeR: number;
+  pull: number; pullR: number;
 }
 export interface HazardM { x: number; y: number; x2: number; y2: number; r: number; angle: number; tele: number; active: number }
 export interface ZoneS { gen: number; kind: string; r: number; harmful: boolean }
@@ -242,6 +243,8 @@ const POOLS = {
         w.pos(h.holeX);
         w.pos(h.holeY);
         w.u16(h.holeR * 4);
+        w.i16(h.pull);
+        w.u16(h.pullR);
       },
       (w, h) => {
         w.pos(h.x);
@@ -614,6 +617,7 @@ const READERS: Record<PoolName, PartReader[]> = {
       Object.assign(o, {
         r2: r.i16() / 4, half: r.u16() / 1000, teleMax: r.u16() / 1000, activeMax: r.u16() / 1000, flags: r.u8(), gapHalf: r.u16() / 1000, tag: r.i8(),
         vx: r.i16(), vy: r.i16(), grow: r.i16(), spinRate: r.i16() / 1000, len: r.u16() / 4, holeX: r.pos(), holeY: r.pos(), holeR: r.u16() / 4,
+        pull: r.i16(), pullR: r.u16(),
       });
       return o;
     },

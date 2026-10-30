@@ -102,7 +102,8 @@ export class PropSet {
   private animated: { batch: StaticBatch; props: Prop[] }[] = [];
   private lamps: StaticBatch | null = null;
   private lampProps: Prop[] = [];
-  private ghost: StaticBatch | null = null;
+  /** Soul lamps, re-batched each frame: [cold/green glass, played/red glass]. */
+  private ghost: [ActorBatch, ActorBatch] | null = null;
   private ghostProps: Prop[] = [];
   private zoltana: StaticBatch | null = null;
   private pad: StaticBatch | null = null;
@@ -134,6 +135,16 @@ export class PropSet {
       gr.props.push(p);
     }
     for (const [key, gr] of groups) {
+      if (key === 'ghost_lamp') {
+        // a lamp whose note has been played swaps to its red-glass twin, so these re-batch every frame
+        this.ghostProps = gr.props;
+        this.ghost = [false, true].map((red) => {
+          const b = new ActorBatch(P.lampPost(true, red), actorMaterial({ dither: gr.spec.dither, emitBoost: 2.6, envIntensity: 0.5, detail: true }), gr.props.length, { shadow: true });
+          scene.add(b.mesh);
+          return b;
+        }) as [ActorBatch, ActorBatch];
+        continue;
+      }
       const geo = gr.spec.build(gr.props[0]);
       const mat = actorMaterial({ dither: gr.spec.dither, emitBoost: 2.6, envIntensity: 0.5, detail: true });
       const b = new StaticBatch(geo, mat, gr.props.length, { shadow: true });
@@ -142,7 +153,6 @@ export class PropSet {
       b.freeze();
       scene.add(b.mesh);
       if (key === 'lamp') { this.lamps = b; this.lampProps = gr.props; }
-      else if (key === 'ghost_lamp') { this.ghost = b; this.ghostProps = gr.props; }
       else if (key === 'fortune_machine') this.zoltana = b;
       else if (key === 'striker_pad') this.pad = b;
       else if (gr.spec.anim) this.animated.push({ batch: b, props: gr.props });
@@ -261,16 +271,24 @@ export class PropSet {
       }
       this.lamps.refresh();
     }
-    // soul lamps: dark glass that fills with ghost-light as souls are fed; lit lamps burn green
+    // soul lamps: dark glass that fills with ghost-light as souls are fed; lit lamps burn green, and a
+    // lamp whose note has been played burns red until a wrong note resets the melody
     if (this.ghost) {
+      const [cold, red] = this.ghost;
+      cold.begin();
+      red.begin();
       for (let i = 0; i < this.ghostProps.length; i++) {
-        const li = LAST_SONG.lamps.findIndex((l) => l.x === this.ghostProps[i].x && l.y === this.ghostProps[i].y);
+        const p = this.ghostProps[i];
+        const li = LAST_SONG.lamps.findIndex((l) => l.x === p.x && l.y === p.y);
         const lit = ls?.lit[li] ?? false;
+        const played = !!ls && li >= 0 && ls.played(li);
         const fill = ls ? ls.souls[li] / LAST_SONG.soulsPerLamp : 0;
-        const e = lit ? 0.85 + 0.15 * Math.sin(t * 3 + i) : stage >= LS.Souls ? 0.05 + fill * 0.55 * (0.8 + 0.2 * Math.sin(t * 6 + i)) : 0.04;
-        this.ghost.tint(i, 1, 1, 1, e);
+        const e = played ? 0.7 : lit ? 0.85 + 0.15 * Math.sin(t * 3 + i) : stage >= LS.Souls ? 0.05 + fill * 0.55 * (0.8 + 0.2 * Math.sin(t * 6 + i)) : 0.04;
+        const b = played ? red : cold;
+        b.tint(b.add(p.x, p.y, 0, 0, 1), 1, 1, 1, e);
       }
-      this.ghost.refresh();
+      cold.end();
+      red.end();
     }
     // Zoltana's eyes: half-asleep until spoken to; bright whenever she has something new to say
     if (this.zoltana) {
@@ -359,7 +377,8 @@ export class PropSet {
     for (let i = 0; i < this.ghostProps.length; i++) {
       const p = this.ghostProps[i];
       const li = LAST_SONG.lamps.findIndex((l) => l.x === p.x && l.y === p.y);
-      if (ls?.lit[li]) pool.add(p.x, p.y, 300, 1.0 + 0.2 * Math.sin(time * 3 + i), 0.45, 1, 0.7, LAMP_LIGHT_H, 2);
+      if (ls && li >= 0 && ls.played(li)) pool.add(p.x, p.y, 300, 1.4, 1, 0.16, 0.1, LAMP_LIGHT_H, 2);
+      else if (ls?.lit[li]) pool.add(p.x, p.y, 300, 1.0 + 0.2 * Math.sin(time * 3 + i), 0.45, 1, 0.7, LAMP_LIGHT_H, 2);
       else if (ls && ls.stage >= LS.Souls && ls.souls[li] > 0) pool.add(p.x, p.y, 160, 0.25 + 0.5 * (ls.souls[li] / LAST_SONG.soulsPerLamp), 0.45, 1, 0.7, LAMP_LIGHT_H);
     }
     // a few soft pools along each string-light run

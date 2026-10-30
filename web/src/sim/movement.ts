@@ -33,6 +33,20 @@ export function moveBody(p: Player, mx: number, my: number, speed: number, dt: n
   collideBody(p, bodies);
 }
 
+/**
+ * An inhale's pull on a player (units/s toward the hazard, consumed by the next moveBody): it reaches
+ * `pullR` (default four radii) and is twice as strong at the centre as at the rim.
+ */
+export function addHazardPull(p: Player, h: { x: number; y: number; r: number; pull: number; pullR: number }): void {
+  const R = h.pullR || h.r * 4;
+  const dx = h.x - p.x, dy = h.y - p.y;
+  const d = Math.hypot(dx, dy) || 1;
+  if (d >= R) return;
+  const k = h.pull * (1 - 0.5 * (d / R));
+  p.pullX += (dx / d) * k;
+  p.pullY += (dy / d) * k;
+}
+
 /** Normalised steering from raw input; updates facing. Returns [mx, my]. */
 export function steer(p: Player, ix: number, iy: number): [number, number] {
   let mx = ix, my = iy;

@@ -10,7 +10,9 @@ import { PERKS } from '../data/meta';
 import { Reader, Writer } from './codec';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 4;
+export const PROTO = 5;
+/** Party size cap: the host plus five guests (D-54). */
+export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
 export const MAX_INPUT_BYTES = 256;
 /** Snapshot rate (Hz) and the inputs repeated in every input packet (loss cover). */
@@ -76,8 +78,9 @@ export type GuestMsg =
 export type HostMsg =
   | { t: 'welcome'; v: number; slot: number; token: string; lobby: LobbyState }
   | { t: 'reject'; reason: RejectReason; detail?: string }
-  | { t: 'lobby'; lobby: LobbyState }
-  | { t: 'start'; cfg: StartCfg; resume?: boolean }
+  | { t: 'lobby'; lobby: LobbyState; you?: number }
+  | { t: 'start'; cfg: StartCfg; resume?: boolean; slot?: number }
+  | { t: 'hold'; why: HoldWhy; who: number[] }
   | { t: 'ev'; type: string; e: unknown }
   | { t: 'pause'; by: string | null }
   | { t: 'prize_wait'; waiting: boolean }
@@ -88,9 +91,12 @@ export type HostMsg =
   | { t: 'bye'; reason: string };
 
 export type RejectReason = 'full' | 'version' | 'in_run' | 'bad_hello' | 'kicked' | 'closed';
+/** Why the night is held (and for whom, by player index): shown as a waiting note on every screen. */
+export type HoldWhy = '' | 'draft' | 'prize' | 'reconnect' | 'pause';
+const HOLD_WHY: readonly HoldWhy[] = ['', 'draft', 'prize', 'reconnect', 'pause'];
 
 export const REJECT_TEXT: Record<RejectReason, string> = {
-  full: 'That lobby is already full (two players).',
+  full: 'That lobby is already full (six players).',
   version: 'Your game version does not match the host’s. Both players should reload the page.',
   in_run: 'That lobby has already started a run.',
   bad_hello: 'The host could not understand this client.',
@@ -201,17 +207,21 @@ export function parseHostMsg(raw: unknown): HostMsg | null {
   if (!isObj(m) || !isStr(m.t, 16)) return null;
   switch (m.t) {
     case 'welcome':
-      return isInt(m.v, 0, 1e6) && isInt(m.slot, 1, 3) && isStr(m.token, 64) && cleanLobby(m.lobby) ? { t: 'welcome', v: m.v, slot: m.slot, token: m.token, lobby: cleanLobby(m.lobby)! } : null;
+      return isInt(m.v, 0, 1e6) && isInt(m.slot, 1, MAX_PLAYERS - 1) && isStr(m.token, 64) && cleanLobby(m.lobby) ? { t: 'welcome', v: m.v, slot: m.slot, token: m.token, lobby: cleanLobby(m.lobby)! } : null;
     case 'reject':
       return isStr(m.reason, 16) && m.reason in REJECT_TEXT ? { t: 'reject', reason: m.reason as RejectReason, detail: isStr(m.detail, 200) ? m.detail : undefined } : null;
     case 'lobby': {
       const lobby = cleanLobby(m.lobby);
-      return lobby ? { t: 'lobby', lobby } : null;
+      return lobby ? { t: 'lobby', lobby, you: isInt(m.you, 1, MAX_PLAYERS - 1) ? m.you : undefined } : null;
     }
     case 'start': {
       const cfg = cleanStart(m.cfg);
-      return cfg ? { t: 'start', cfg, resume: m.resume === true } : null;
+      return cfg ? { t: 'start', cfg, resume: m.resume === true, slot: isInt(m.slot, 1, cfg.players.length - 1) ? m.slot : undefined } : null;
     }
+    case 'hold':
+      return HOLD_WHY.includes(m.why as HoldWhy) && Array.isArray(m.who) && m.who.length <= MAX_PLAYERS && m.who.every((i) => isInt(i, 0, MAX_PLAYERS - 1))
+        ? { t: 'hold', why: m.why as HoldWhy, who: m.who as number[] }
+        : null;
     case 'ev':
       return isStr(m.type, 24) && FORWARDED_EVENTS.has(m.type) ? { t: 'ev', type: m.type, e: m.e } : null;
     case 'pause':
@@ -232,7 +242,7 @@ export function parseHostMsg(raw: unknown): HostMsg | null {
 }
 
 function cleanLobby(v: unknown): LobbyState | null {
-  if (!isObj(v) || !Array.isArray(v.players) || v.players.length > 4) return null;
+  if (!isObj(v) || !Array.isArray(v.players) || v.players.length > MAX_PLAYERS) return null;
   const players = v.players.map((p) =>
     isObj(p)
       ? {
@@ -254,7 +264,7 @@ function cleanLobby(v: unknown): LobbyState | null {
 }
 
 function cleanStart(v: unknown): StartCfg | null {
-  if (!isObj(v) || !isInt(v.seed, 0, 2 ** 32) || !Array.isArray(v.players) || v.players.length < 1 || v.players.length > 4) return null;
+  if (!isObj(v) || !isInt(v.seed, 0, 2 ** 32) || !Array.isArray(v.players) || v.players.length < 1 || v.players.length > MAX_PLAYERS) return null;
   const players: StartCfg['players'] = [];
   for (const p of v.players) {
     if (!isObj(p) || !isStr(p.character, 32) || !CHARACTER_MAP[p.character as keyof typeof CHARACTER_MAP]) return null;

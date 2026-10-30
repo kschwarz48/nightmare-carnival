@@ -54,9 +54,11 @@ to learn it:
 * **Look:** the carousel canopy carries plaques. Starting from the **brass skull**, the next four
   plaques show the lamp emblems in the night's order (moon/key/eye/crown); stars fill the rest.
 
-Walk into each lit lamp (within **85** units) in that order. Each touch sings the lamp's note; a
-wrong lamp plays a sour chord and resets progress (touching the *first* lamp of the order after a
-mistake counts as step 1). After the fourth correct lamp the stage advances and Zoltana calls.
+Walk into each lit lamp (within **85** units) in that order. Each touch sings the lamp's note. A
+right note turns the lamp **red**, and it can't be triggered again; a whisper says *"The note rings
+true — one of four"* (two, three). A wrong (still green) lamp plays a sour chord, whispers *"The melody
+falters — begin again"* and resets the song: every lamp goes back to green. After the fourth correct
+lamp the stage advances and Zoltana calls; the lamps stay red and silent for the rest of the night.
 
 ### 3 → 4 · Return to Zoltana
 Visit her again: *"The song is sung, but the bell is mute. Strike when the light kisses the crown —

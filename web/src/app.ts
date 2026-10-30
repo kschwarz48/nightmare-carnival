@@ -37,20 +37,38 @@ import { VIEW_HALF_X, VIEW_HALF_Y } from './sim/constants';
 type NetCtx = { role: 'host'; host: HostSession; handle: HostHandle | null } | { role: 'guest'; guest: GuestSession; code: string };
 type CoopStatus = { text: string; action?: { label: string; fn: () => void } } | null;
 
+/** How long each secret-quest sound dips the music, in seconds (souls come too often to duck for). */
+const QUEST_DUCK: Record<string, number> = {
+  awaken: 2.5, lamp_lit: 2.6, carousel_wakes: 3, musicbox: 2.6, hum: 1.4, note: 1.6, note_true: 1.6, sour: 1.8,
+  melody_solved: 3.4, ding: 1.4, clunk: 1, ticket: 2.6, finale: 3.2, calliope_rises: 2.4, complete: 3,
+};
+
+/** "Ann", "Ann and Bo", "Ann, Bo and Cy". */
+function listNames(names: string[]): string {
+  return names.length <= 1 ? names[0] ?? '' : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/** The night's opening line for a party: who is with you. */
+function withYou(names: string[]): string {
+  return names.length === 1 ? `${names[0]} is with you — the gates lock behind you both…` : `${listNames(names)} are with you — the gates lock behind you all…`;
+}
+
 /**
- * A clock that keeps ticking while the tab is hidden: browsers stop requestAnimationFrame and
+ * A clock that keeps ticking while the page is not drawing: browsers stop requestAnimationFrame and
  * throttle timers in background tabs, which would freeze the host's night (and drop the guest's
- * keepalives) whenever someone alt-tabs. Messages from a worker keep arriving at full rate.
+ * keepalives) whenever someone alt-tabs. Messages from a worker keep arriving at full rate. It runs
+ * whenever frames have stalled, not only when the tab says it is hidden: a covered window or an
+ * embedded browser can stop drawing while still reporting itself visible.
  */
 class BackgroundClock {
   private w: Worker | null = null;
   private url = '';
-  constructor(fn: () => void, ms = 16) {
+  constructor(fn: () => void, stalled: () => boolean, ms = 16) {
     try {
       this.url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${ms});`], { type: 'text/javascript' }));
       this.w = new Worker(this.url);
       this.w.onmessage = () => {
-        if (document.hidden) fn();
+        if (document.hidden || stalled()) fn();
       };
     } catch {
       /* no workers: a hidden tab simply pauses (documented) */
@@ -107,6 +125,8 @@ export class App {
   private netDesc = '';
   private bgClock: BackgroundClock | null = null;
   private bgLast = 0;
+  /** when the animation-frame loop last ran (the background clock takes over when it stalls) */
+  private lastFrameAt = 0;
   /** guest: finished its prize wheel at this mirror time, waiting for the host's night to resume */
   private guestPrizeAt = -1;
   private chestQueue: (() => void)[] = [];
@@ -171,6 +191,7 @@ export class App {
     this.makeDemo();
     ld.el.remove();
     this.go('press');
+    this.prewarmPrize();
     if (import.meta.env.DEV) import('./dev').then((m) => m.installDevTools(this));
     requestAnimationFrame((t) => this.frame(t));
   }
@@ -352,9 +373,20 @@ export class App {
     this.acc = 0;
     this.runStart = performance.now();
     this.go('playing');
+    this.prewarmPrize();
     this.audio.setCue('act1');
     this.hud.banner(title, sub, 'gold', 3);
     this.tutorial('move', 'Move with <b>WASD</b>, the <b>arrow keys</b> or the <b>left stick</b>. Your weapons fire on their own.');
+  }
+
+  /**
+   * Compile the prize booth's shader variants a couple of frames from now, once the scene holds what is
+   * about to be on screen, so the first chest opens without a stall (cached programs make repeats cheap).
+   */
+  private prewarmPrize(): void {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!this.prize.active) void this.prize.prewarm(this.renderer.renderer, this.renderer.scene, this.renderer.camera, this.renderer.post.composer.readBuffer);
+    }));
   }
 
   private wireGame(g: Game): void {
@@ -398,7 +430,7 @@ export class App {
     });
     g.bus.on('player_downed', (e) => {
       a.play('toll', { vol: 0.7 });
-      if (mine(e.player)) this.hud.banner('IN A COFFIN', `The lid creaks open on its own — faster with ${nameOf(1 - this.localIndex)} beside you`, 'danger', 3.4);
+      if (mine(e.player)) this.hud.banner('IN A COFFIN', `The lid creaks open on its own — faster with ${g.players.length > 2 ? 'a friend' : nameOf(1 - this.localIndex)} beside you`, 'danger', 3.4);
       else this.hud.banner(`${nameOf(e.player).toUpperCase()} HAS FALLEN!`, 'Stand by their coffin to bring them back', 'danger', 3.4);
     });
     g.bus.on('boss_warning', (e) => {
@@ -521,6 +553,9 @@ export class App {
     const pan = (x?: number) => (x === undefined ? 0 : Math.max(-1, Math.min(1, (x - this.renderer.camX) / (this.renderer.viewWidth * 0.6))));
     const bell = (note: number, vol = 0.45, x?: number) => a.play('bellnote', { vol, pitch: note / 523.25, pan: pan(x) });
     const fx = (type: string, x: number, y: number, style: string, aa = 1) => this.renderer.fx.handle([{ type: type as never, x, y, a: aa, b: 0, c: 0, style }]);
+    // the secret quest's chimes and fortunes must carry over the music (D-55)
+    const duck = QUEST_DUCK[q.event] ?? (q.text ? 2.2 : 0);
+    if (duck) a.duckMusic(duck);
     if (q.text) {
       this.fortune.show(q.text, q.event === 'idle' ? 6 : 10);
       a.play('fortune', { vol: 0.6 });
@@ -569,6 +604,9 @@ export class App {
       case 'note':
         if (q.b) bell(q.b, 0.6, q.x);
         if (q.x !== undefined && q.y !== undefined) fx('ring', q.x, q.y, 'gravity', 90);
+        break;
+      case 'note_true':
+        this.hud.whisper('The note rings true.', `${['', 'one', 'two', 'three'][q.a ?? 0] ?? ''} of four`, 2.6);
         break;
       case 'sour':
         this.hud.whisper('The melody falters.', 'begin again', 2.6);
@@ -802,6 +840,7 @@ export class App {
   // =================================================================== main loop
   private frame(t: number): void {
     requestAnimationFrame((tt) => this.frame(tt));
+    this.lastFrameAt = performance.now();
     let dt = (t - this.last) / 1000;
     this.last = t;
     if (dt > 0.25) dt = 0.25;
@@ -896,7 +935,7 @@ export class App {
   private startBgClock(): void {
     if (this.bgClock) return;
     this.bgLast = performance.now();
-    this.bgClock = new BackgroundClock(() => this.background());
+    this.bgClock = new BackgroundClock(() => this.background(), () => performance.now() - this.lastFrameAt > 250);
   }
 
   /** Runs only while the tab is hidden: keep the host's night (and everyone's keepalives) going. */
@@ -1051,9 +1090,10 @@ export class App {
     const lobby = n?.role === 'host' ? n.host.lobby : n?.guest.lobby;
     if (!lobby) return;
     if (this.lobbyKeyOf() === this.lobbyKey) {
-      const other = lobby.players[1 - this.localIndex];
-      const ping = this.screenEl?.querySelector(`.mp-card.p${2 - this.localIndex} .mp-ping`);
-      if (ping && other?.rtt) ping.textContent = `${other.rtt} ms`;
+      lobby.players.forEach((p, i) => {
+        const ping = this.screenEl?.querySelector(`.mp-card.p${i + 1} .mp-ping`);
+        if (ping && p?.rtt) ping.textContent = `${p.rtt} ms`;
+      });
       return;
     }
     this.go('lobby');
@@ -1082,7 +1122,7 @@ export class App {
     this.localIndex = 0;
     const g = new Game(runConfigFromStart(cfg));
     hs.attachGame(g);
-    this.beginRun(g, cfg.players[0].character, 'MIDNIGHT', `${cfg.players[1].name} is with you — the gates lock behind you both…`);
+    this.beginRun(g, cfg.players[0].character, 'MIDNIGHT', withYou(cfg.players.slice(1).map((p) => p.name)));
   }
 
   /** Guest: the host started (or we rejoined) a night — build the mirror the session will feed. */
@@ -1090,10 +1130,11 @@ export class App {
     void this.audio.unlock();
     this.mpStatus = '';
     this.mpBusy = false;
-    this.localIndex = 1;
+    const me = this.net?.role === 'guest' ? this.net.guest.slot : 1;
+    this.localIndex = me;
     if (this.game) this.endRunView();
     const g = new Game(runConfigFromStart(cfg));
-    this.beginRun(g, cfg.players[1].character, resume ? 'BACK IN THE NIGHT' : 'MIDNIGHT', resume ? 'Reconnected to the host' : `${cfg.players[0].name} is with you — the gates lock behind you both…`);
+    this.beginRun(g, cfg.players[me].character, resume ? 'BACK IN THE NIGHT' : 'MIDNIGHT', resume ? 'Reconnected to the host' : withYou(cfg.players.filter((_, i) => i !== me).map((p) => p.name)));
     setTimeout(() => this.sendView(), 0);
     return g;
   }
@@ -1163,33 +1204,30 @@ export class App {
       this.hud.coopInfo = null;
       return;
     }
-    const other = g.players[1 - this.localIndex];
-    let status: CoopStatus = null;
-    let gone = false;
+    const me = this.localIndex;
     const d = n.role === 'host' ? n.host.diag : n.guest.diag;
-    if (n.role === 'host') {
-      const hs = n.host;
-      gone = !hs.guestConnected;
-      if (hs.waitingFor) status = { text: `${hs.waitingFor} lost connection — waiting for them to rejoin…`, action: { label: 'Carry on alone', fn: () => hs.continueWithout() } };
-      else if (hs.seat?.paused && hs.guestConnected) status = { text: `Paused by ${hs.guestName}` };
-      else if (g.phase === 'draft' && !g.draftPending(0) && g.draftPending(1)) status = { text: `Waiting for ${hs.guestName} to choose…` };
-      else if (hs.prizeWaitingOnGuest && !this.prize.active) status = { text: `Waiting for ${hs.guestName} at the prize wheel…` };
-    } else {
-      const gs = n.guest;
-      if (this.guestPrizeAt >= 0 && g.time !== this.guestPrizeAt) this.guestPrizeAt = -1;
-      if (gs.pausedBy) status = { text: `Paused by ${gs.pausedBy}` };
-      else if (g.phase === 'draft' && !this.draft.visible) status = { text: `Waiting for ${other.name} to choose…` };
-      else if (gs.replica?.frozen && !this.prize.active) status = { text: this.guestPrizeAt >= 0 ? `Waiting for ${other.name} at the prize wheel…` : `Waiting for ${other.name}…` };
-    }
+    // what the night is waiting on comes from the host (its own sessions, or the 'hold' it broadcasts)
+    const hold = n.role === 'host' ? n.host.hold : n.guest.hold;
+    const lobby = n.role === 'host' ? n.host.lobby : n.guest.lobby;
+    const gone = g.players.filter((p) => p.index !== me && lobby?.players[p.index]?.connected === false).map((p) => p.index);
+    const others = hold.who.filter((i) => i !== me);
+    const names = listNames(others.map((i) => g.players[i]?.name ?? `Player ${i + 1}`));
+    let status: CoopStatus = null;
+    if (hold.why === 'reconnect' && others.length) {
+      status = { text: `${names} lost connection — waiting for them to rejoin…`, action: n.role === 'host' ? { label: 'Carry on without them', fn: () => n.host.continueWithout() } : undefined };
+    } else if (hold.why === 'pause' && others.length) status = { text: `Paused by ${names}` };
+    else if (hold.why === 'draft' && others.length && !this.draft.visible) status = { text: `Waiting for ${names} to choose…` };
+    else if (hold.why === 'prize' && others.length && !this.prize.active) status = { text: `Waiting for ${names} at the prize wheel…` };
     const diag = this.showNetDiag
       ? [
           `${d.role.toUpperCase()}  rtt ${d.rtt.toFixed(0)} ms  ${d.unreliable ? 'datagram channel' : 'reliable channel only'}  route ${d.route || '?'}`,
           `snapshots ${d.snapRate.toFixed(1)} Hz  ${(d.bytesPerSec / 1024).toFixed(1)} KB/s  last ${d.snapBytes} B  lost ${d.snapLost}  skipped ${d.skipped}`,
           n.role === 'host' ? `guest inputs: queue ${d.inputQueue}  starved ${d.starved}  dropped ${d.dropped}  invalid ${d.invalid}` : `prediction error ${d.predErr.toFixed(1)}  interval ${d.interval.toFixed(0)} ms  invalid ${d.invalid}`,
+          ...(d.peers && d.peers.length > 1 ? d.peers.map((q) => `  ${q.name}: ${q.rtt.toFixed(0)} ms  ${q.kbps.toFixed(1)} KB/s  ${q.route || '?'}  queue ${q.queue}`) : []),
           this.netDesc,
         ].join('\n')
       : null;
-    this.hud.coopInfo = { local: this.localIndex, partnerGone: gone, ping: d.rtt, diag, status };
+    this.hud.coopInfo = { local: me, gone, ping: d.rtt, diag, status };
   }
 
   /** Host, after a co-op night: everyone back to the lobby, connection kept. */

@@ -21,6 +21,8 @@ See `QA_REPORT.md` for evidence and limitations.
 - [x] Dev tools (dev-only) and accelerated test harness; production build
 - [x] Online two-player co-op alpha (D-51…D-53): VS rules in the sim, host-authoritative WebRTC netcode
       with delta snapshots and prediction, lobby/codes/reconnect, co-op HUD — `MULTIPLAYER.md`
+- [x] Online parties of up to six (D-54); music by Bradley on menus and bosses, waltz between (D-55);
+      melody lamps, tent inhale and tarp, first-chest pre-warm (D-56)
 - [x] Alpha deployed on Netlify: https://nightmare-carnival.netlify.app — `MULTIPLAYER.md` §4
 
 ## Outstanding / recommended next steps

@@ -12,11 +12,15 @@ import type { DraftOption } from '../sim/draft';
 import { readyEvolutions } from '../sim/draft';
 import { FocusNav, fmtTime, h } from './dom';
 
+/** Player colours for UI (Player 1 lamp-gold, 2 ghost-teal, 3 rose, 4 lime, 5 violet, 6 tangerine); match PLAYER_COLS and `.p1`…`.p6` in style.css. */
+export const PLAYER_CSS = ['#ffd27a', '#8af4ff', '#ff8fb0', '#a8ff7a', '#c7a2ff', '#ffb066'];
+
 /** What the co-op layer of the HUD shows (set by the app every frame during an online run). */
 export interface CoopHud {
   /** this machine's player slot */
   local: number;
-  partnerGone?: boolean;
+  /** players who dropped and are reconnecting */
+  gone?: number[];
   /** round-trip latency to the other machine (ms) */
   ping?: number;
   /** multi-line diagnostics text, or null when the panel is closed */
@@ -82,7 +86,7 @@ export class Hud {
     this.toast = h('div', { class: 'toast' });
     this.fpsEl = h('div', { class: 'fps hidden' });
     this.indicators = h('div', { class: 'passthrough' });
-    this.partner = h('div', { class: 'coop-partner hidden' });
+    this.partner = h('div', { class: 'coop-party hidden' });
     this.tags = h('div', { class: 'passthrough' });
     this.statusEl = h('div', { class: 'coop-status hidden' });
     this.pingEl = h('div', { class: 'net-ping hidden' });
@@ -215,14 +219,23 @@ export class Hud {
       this.statusKey = '';
       return;
     }
-    const other = g.players.find((q) => q.index !== info.local) ?? g.players[0];
-    const pct = Math.max(0, Math.min(100, (other.hp / other.stats.maxHp()) * 100));
-    const st = info.partnerGone ? 'Reconnecting…' : other.downed ? 'In a coffin — stand by to revive!' : other.dead ? 'Down' : '';
-    const pk = `${other.index}|${other.char.id}|${other.name}|${Math.round(pct)}|${st}`;
+    // a card per teammate: portrait, health, and what is happening to them
+    const others = g.players.filter((q) => q.index !== info.local);
+    const cards = others.map((q) => {
+      const gone = !!info.gone?.includes(q.index);
+      const pct = Math.max(0, Math.min(100, (q.hp / q.stats.maxHp()) * 100));
+      const st = gone ? 'Reconnecting…' : q.downed ? (others.length > 2 ? 'In a coffin!' : 'In a coffin — stand by to revive!') : q.dead ? 'Down' : '';
+      return { q, gone, pct, st };
+    });
+    const pk = cards.map((c) => `${c.q.index}|${c.q.char.id}|${c.q.name}|${Math.round(c.pct)}|${c.st}`).join(';');
     if (pk !== this.partnerKey) {
       this.partnerKey = pk;
-      this.partner.className = `coop-partner p${other.index + 1}${other.downed || info.partnerGone ? ' down' : ''}`;
-      this.partner.replaceChildren(h('img', { src: this.assets.portrait(other.char.id), alt: '' }), h('div', {}, h('div', {}, other.name), h('div', { class: 'bar' }, h('i', { style: { width: `${pct}%` } })), st ? h('div', { class: 'st' }, st) : null));
+      this.partner.classList.toggle('many', others.length > 2);
+      this.partner.replaceChildren(...cards.map(({ q, gone, pct, st }) =>
+        h('div', { class: `coop-partner p${q.index + 1}${q.downed || gone ? ' down' : ''}` },
+          h('img', { src: this.assets.portrait(q.char.id), alt: '' }),
+          h('div', {}, h('div', {}, q.name), h('div', { class: 'bar' }, h('i', { style: { width: `${pct}%` } })), st ? h('div', { class: 'st' }, st) : null),
+        )));
     }
     // name tags over the other players, or an arrow at the screen edge when they are off-screen
     const kids: HTMLElement[] = [];
@@ -234,7 +247,7 @@ export class Hud {
       else {
         const m = 30;
         const x = Math.max(m, Math.min(screen.w - m, s.x)), y = Math.max(m + 100, Math.min(screen.h - m - 70, s.y));
-        kids.push(h('div', { class: 'indicator', style: { left: `${x}px`, top: `${y}px` } }, h('i', { style: { background: q.index === 0 ? '#ffd27a' : '#8af4ff', color: '#17110e' } }, q.downed ? '⚰' : q.name.slice(0, 1).toUpperCase())));
+        kids.push(h('div', { class: 'indicator', style: { left: `${x}px`, top: `${y}px` } }, h('i', { style: { background: PLAYER_CSS[q.index % PLAYER_CSS.length], color: '#17110e' } }, q.downed ? '⚰' : q.name.slice(0, 1).toUpperCase())));
       }
     }
     this.tags.replaceChildren(...kids);

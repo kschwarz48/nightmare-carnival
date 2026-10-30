@@ -25,6 +25,7 @@ float aFbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += 
 
 // ------------------------------------------------------------------ volumetric lamp shafts
 interface Shaft { x: number; y: number; h: number; r: number; col: [number, number, number]; flicker: number; k: number; kind: 'lamp' | 'ghost' | 'light' }
+const PLAYED_COL: [number, number, number] = [1, 0.2, 0.14];
 
 export class LightShafts {
   mesh: THREE.InstancedMesh;
@@ -92,7 +93,7 @@ export class LightShafts {
     scene.add(this.mesh);
   }
 
-  update(time: number, darkness: number, dawn: number, ghostLit: (x: number, y: number) => number): void {
+  update(time: number, darkness: number, dawn: number, ghostLit: (x: number, y: number) => number, ghostPlayed?: (x: number, y: number) => boolean): void {
     this.uTime.value = time;
     const on = (1 - darkness * 0.92) * (1 - dawn);
     this.shafts.forEach((s, i) => {
@@ -103,10 +104,12 @@ export class LightShafts {
         k *= 1 - s.flicker * (Math.sin(t) * 0.5 + 0.5) * (Math.sin(t * 2.7) > 0.6 ? 1 : 0.15);
       }
       if (s.kind === 'ghost') k *= ghostLit(s.x, s.y);
+      // a soul lamp whose melody note has been played shines red
+      const col = s.kind === 'ghost' && ghostPlayed?.(s.x, s.y) ? PLAYED_COL : s.col;
       const o = i * 4;
-      this.col[o] = s.col[0];
-      this.col[o + 1] = s.col[1];
-      this.col[o + 2] = s.col[2];
+      this.col[o] = col[0];
+      this.col[o + 1] = col[1];
+      this.col[o + 2] = col[2];
       this.col[o + 3] = k * (s.kind === 'ghost' ? 1 : on);
     });
     this.aCol.needsUpdate = true;

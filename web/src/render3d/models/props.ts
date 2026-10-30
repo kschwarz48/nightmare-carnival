@@ -468,9 +468,9 @@ export const LAMP_LIGHT_H = LANTERN_Y * LAMP_SCALE;
 /**
  * A Victorian street lamp (after the art reference): stepped plinth, fluted iron post with knobbed
  * collars, scroll brackets, and a four-paned lantern whose warm glass and bulb are the visible light
- * source, under a flared roof and finial. Soul lamps carry ghost-green glass and a skull keystone.
+ * source, under a flared roof and finial. Soul lamps carry ghost-green glass (red once their note is played) and a skull keystone.
  */
-export function lampPost(ghost: boolean): THREE.BufferGeometry {
+export function lampPost(ghost: boolean, red = false): THREE.BufferGeometry {
   const m = new ModelBuilder();
   const H = LANTERN_Y;
   const iron = C(0x221e20), ironS = SURF.iron;
@@ -498,7 +498,7 @@ export function lampPost(ghost: boolean): THREE.BufferGeometry {
   m.add(cyl(2.3, 2.7, 4, 8), { col: iron, pos: [0, 120.5, 0], surf: ironS });
   // lantern: cup, frames, four frosted panes glowing hottest around the mantle, corner mullions
   m.add(lathe([[0, 0], [5.2, 0], [8, 2.6], [7.6, 3.8], [0, 3.8]], 4), { col: iron, pos: [0, H - 15.2, 0], rot: [0, Math.PI / 4, 0], surf: ironS });
-  const edge = C(ghost ? 0x2fb877 : 0xd96f26), hot = C(ghost ? 0xd8ffe8 : 0xffdca6), tmp = new THREE.Color();
+  const edge = C(ghost ? (red ? 0xa8101a : 0x2fb877) : 0xd96f26), hot = C(ghost ? (red ? 0xff3b2a : 0xd8ffe8) : 0xffdca6), tmp = new THREE.Color();
   const frosted: ColorFn = (p) => {
     const r = Math.hypot(p.x, p.z) - 5.2, dy = (p.y - (H - 1)) / 8.5;
     return tmp.copy(edge).lerp(hot, Math.exp(-dy * dy - (r * r) / 5));

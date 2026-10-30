@@ -23,7 +23,7 @@ npm run dev        # http://127.0.0.1:5173
 | Command | What it does |
 |---|---|
 | `npm run dev` | Vite dev server with hot reload and the dev-only testing tools |
-| `npm test` | Vitest suite (166 tests, including an accelerated full 25-minute run and the online co-op netcode over a simulated lossy network) |
+| `npm test` | Vitest suite (175 tests, including an accelerated full 25-minute run and the online co-op netcode over a simulated lossy network) |
 | `npm run typecheck` | TypeScript `--noEmit` |
 | `npm run build` | Type-checks, then produces a static production build in `web/dist/` |
 | `npm run preview` | Serves `web/dist/` locally to check the production build |
@@ -41,9 +41,9 @@ The alpha is live on Netlify at **https://nightmare-carnival.netlify.app**. `net
 
 ### Online co-op (alpha)
 
-Title screen → **Multiplayer**: one player hosts and shares a six-character code, the other joins.
-Vampire Survivors rules — shared XP, everyone drafts before the night resumes, 4 + 4 slots each, split
-prize wheels, coffin revives. Peer-to-peer over WebRTC with free PeerJS matchmaking; the host's browser
+Title screen → **Multiplayer**: one player hosts and shares a six-character code, up to five friends
+join. Vampire Survivors rules — shared XP, everyone drafts before the night resumes, slots shrinking
+with the party (4 + 4 each for two, down to 2 + 2 for four to six), split prize wheels, coffin revives. Peer-to-peer over WebRTC with free PeerJS matchmaking; the host's browser
 runs the night. Same-machine testing is done, on the dev server and on the deployed site;
 **cross-network play still needs to be verified** — see
 [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md) for how it works, deployment, TURN and the tester checklist.

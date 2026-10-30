@@ -79,9 +79,8 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
   const s = c.save;
   const host = me === 0;
   const mine = lobby.players[me];
-  const other = lobby.players[1 - me];
   const myChar = mine?.character ?? null;
-  const theirChar = other?.character ?? null;
+  const guests = lobby.players.filter((p, i) => p && i > 0).length;
   const copy = () => {
     void navigator.clipboard?.writeText(lobby.code).then(
       () => (copyBtn.textContent = 'Copied!'),
@@ -91,7 +90,7 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
   const copyBtn = btn('Copy', () => { c.click(); copy(); }, 'small purple');
   const card = (i: number) => {
     const p = lobby.players[i];
-    if (!p) return h('div', { class: 'mp-card empty' }, h('div', { class: 'mp-who' }, 'Player 2'), h('div', { class: 'mp-wait' }, 'Waiting for a friend to join…'), h('div', { class: 'muted' }, 'Send them the code above.'));
+    if (!p) return h('div', { class: 'mp-card empty' }, h('div', { class: 'mp-who' }, `Player ${i + 1}`), h('div', { class: 'mp-wait' }, 'Open seat'), i === guests + 1 ? h('div', { class: 'muted' }, 'Send a friend the code above.') : null);
     const ch = p.character ? CHARACTER_MAP[p.character] : null;
     return h('div', { class: `mp-card p${i + 1}${p.ready ? ' ready' : ''}${p.connected ? '' : ' gone'}` },
       h('div', { class: 'mp-who' }, `Player ${i + 1}${i === me ? ' (you)' : ''}${i === 0 ? ' · Host' : ''}`),
@@ -104,19 +103,20 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
   };
   const grid = h('div', { class: 'mp-grid' }, ...CHARACTERS.map((ch) => {
     const avail = s.characterAvailable(ch.id);
-    const taken = ch.id === theirChar;
     const sel = ch.id === myChar;
+    // characters may repeat in a party: dots show who else picked this one
+    const pickers = lobby.players.map((p, i) => (p?.character === ch.id && i !== me ? i : -1)).filter((i) => i >= 0);
     return h('div', {
-      class: `char-card${sel ? ' sel' : ''}${avail && !taken ? '' : ' locked'}`,
-      'data-nav': avail && !taken ? '' : undefined,
-      title: taken ? `${other?.name ?? 'Your partner'} picked ${ch.name}` : avail ? ch.title : 'Locked on this save',
-      onclick: () => { if (!avail || taken || lobby.inRun) return; c.click(); o.actions.pick(ch.id); },
-    }, h('img', { src: c.assets.portrait(ch.id), alt: ch.name }), h('div', { class: 'nm' }, taken ? `${other?.name ?? 'Taken'}` : avail ? ch.name.replace('The ', '') : '???'));
+      class: `char-card${sel ? ' sel' : ''}${avail ? '' : ' locked'}`,
+      'data-nav': avail ? '' : undefined,
+      title: avail ? ch.title + (pickers.length ? ` — also picked by ${pickers.map((i) => lobby.players[i]!.name).join(', ')}` : '') : 'Locked on this save',
+      onclick: () => { if (!avail || lobby.inRun) return; c.click(); o.actions.pick(ch.id); },
+    }, h('img', { src: c.assets.portrait(ch.id), alt: ch.name }), pickers.length ? h('div', { class: 'picked' }, ...pickers.map((i) => h('i', { class: `p${i + 1}` }))) : null, h('div', { class: 'nm' }, avail ? ch.name.replace('The ', '') : '???'));
   }));
   const chDef = myChar ? CHARACTER_MAP[myChar] : null;
   const detail = chDef
     ? h('div', { class: 'mp-detail' }, h('b', {}, chDef.name), ' — ', chDef.quirkName, h('div', { class: 'muted' }, `Starts with ${WEAPONS[chDef.startWeapon].name}. ${chDef.quirkDesc}`))
-    : h('div', { class: 'mp-detail muted' }, 'Pick your fool. Each player needs a different character.');
+    : h('div', { class: 'mp-detail muted' }, 'Pick your fool. Friends may pick the same one.');
   const diffRow = host
     ? h('div', { class: 'diff-row' }, ...DIFFICULTIES.map((d) => {
         const ok = s.difficultyAvailable(d.id);
@@ -130,14 +130,14 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
     host ? btn('Start the Night!', () => { if (!o.canStart) return; c.click(); o.actions.start(); }, '', { disabled: !o.canStart || undefined, 'data-default': '' }) : null,
   );
   const hint = host
-    ? o.canStart ? 'Both players are ready — pull the lever!' : !other ? 'Share the code; your friend joins from Multiplayer → Join a Game.' : 'Start unlocks when both players have picked a character and are ready.'
-    : 'The host starts the night when both players are ready.';
+    ? o.canStart ? 'Everyone is ready — pull the lever!' : !guests ? 'Share the code; friends join from Multiplayer → Join a Game (up to six players).' : 'Start unlocks when everyone has picked a character and is ready.'
+    : 'The host starts the night when everyone is ready.';
   return h('div', { class: 'screen dim mp lobby' }, h('div', { class: 'panel bulbs mp-lobby' },
     h('div', { class: 'mp-head' },
       h('h2', { class: 'title-text' }, 'The Midway Lobby'),
       h('div', { class: 'mp-code' }, h('small', {}, 'LOBBY CODE'), h('b', {}, lobby.code || '······'), host ? copyBtn : null),
     ),
-    h('div', { class: 'mp-cards' }, card(0), card(1)),
+    h('div', { class: 'mp-cards six' }, ...lobby.players.map((_, i) => card(i))),
     grid,
     detail,
     diffRow,

@@ -218,3 +218,59 @@ Sessions speak to a `NetLink` interface, so the whole flow is tested headless ov
   - A guest who drops or refreshes mid-night holds their seat with a token in that tab's `sessionStorage`. The host's night pauses for up to 20 s ("Carry on alone" skips the wait), and the guest rejoins the same seat with a full first snapshot.
   - While a guest is absent past the wait, the host auto-picks their level-up cards so the night is never held.
 - **Excluded modes.** Endless and the Daily Run stay solo.
+
+### D-54 · Online parties of up to six
+- **Seats.** The host plus up to five guests (`MAX_PLAYERS`). Seats close up in the lobby when someone
+  leaves, so seat index = player index when the night starts; every lobby message tells each guest
+  its seat. A seventh connection is refused ("full").
+- **Slots.** Vampire Survivors gives 6 weapons + 6 passives solo, 4 each for two, and one fewer for
+  every extra player (3, 2). VS stops at four players, and its rule would hit 0 at six, so five and six
+  players hold at its floor of **2 + 2** (`COOP.slots` = 6/6/4/3/2/2/2 by party size).
+- **Characters may repeat.** There are six fools and most saves unlock fewer, so a party of six could
+  not start with exclusive characters. Player colours (gold, teal, rose, lime, violet, tangerine) keep
+  duplicates apart: name tags, partner cards, prize owner tags, lobby seats.
+- **Chests.** Each roll goes to whoever has been dealt the fewest chest prizes so far tonight, with ties
+  going round from the opener. A duo still alternates, opener first. A party of six shares 1–5-roll
+  chests evenly over the night (everyone within one prize).
+- **Scaling.** Density ×1.72 / ×1.82 and enemy HP ×1.85 / ×2.0 for five / six players, continuing D-53's
+  curve. A guess, like D-53's, to tune from play.
+- **Netcode.** Each guest has its own delta stream (encoder, sequence, cosmetic queues): the encoder's
+  "already sent" tracking is per receiver, because interest management means guests see different
+  entities. The string dictionary stays shared (append-only, acknowledged per guest). A rejoining
+  guest restarts only its own stream. The host broadcasts a **hold status** (`draft` / `prize` /
+  `reconnect` / `pause` plus the players being waited on), and every screen words its waiting note from
+  it ("Waiting for Ann and Bo to choose…"). With three or more players, big snapshots drop to 15 Hz to
+  share the host's upload.
+- **Keepalive.** A message's arrival is stamped at the next update rather than with the session's
+  cached clock. A tab whose loop stalled no longer wakes up, sees a stale stamp and drops a live link.
+  The background clock also runs whenever animation frames stall, not only when the tab reports
+  itself hidden.
+
+### D-55 · Music: Bradley's score for menus and bosses, a quieter waltz between
+- "Freaky Funk Circus" (Bradley Schwarz) plays on the menus, results and dawn, and through **every boss
+  fight**, a little faster in the Ringmaster's later phases. The procedural big-band boss themes are
+  gone.
+- Between bosses, a procedural **music-box waltz** in a minor key (3/4, 72–90 BPM) carries the night:
+  a slightly out-of-tune music box, a hushed oom-pah-pah, then a detuned calliope, a heartbeat on the
+  downbeat and more pitch wobble as the Acts deepen. Less frantic than the funk track, still creepy.
+- **Quest sounds carry.** Every secret-quest cue and fortune dips the music bus to ~28% for 1–3.4 s
+  (`QUEST_DUCK`), so the lamp chimes, the carousel's music box and the striker's bell are heard over
+  the score. Soul pickups don't duck: they come too often.
+
+### D-56 · Quest and boss polish from the first alpha session
+- **Melody lamps.** A lamp whose note has been played in the current attempt turns **red** (glass,
+  ground light, light shaft) and can't be triggered again; a wrong lamp resets the song and every lamp
+  goes back to green. Each true note whispers "The note rings true — one/two/three of four", like the
+  "The melody falters" whisper for a wrong one. Once the song is sung, the lamps stay red and silent.
+- **Tent inhale.** The pull now reaches the whole 420-unit warning circle (it stopped at 280 before)
+  and grows toward the maw: 85 units/s at the rim to 170 at the centre. That's enough to drag a
+  standing player in, but under the slowest fool's 187 so anyone walking away escapes. The Calliope's
+  inhale gets the same reach. Guests predict the pull with the same formula
+  (`addHazardPull`), so it feels the same on every screen.
+- **Dead tent.** The Big Top's remains are a flat, crumpled striped tarp lying 1.5–5.5 units above the
+  ground, walkable. The old wreck touched the ground at its rim (z-fighting) and shadowed itself (acne):
+  both caused the flicker. The tarp casts no shadow and is depth-offset.
+- **First chest.** Showing the prize booth added two lights, and three.js rebuilt every material's
+  shader for the new light count: a multi-second stall on the night's first chest. The booth's shader
+  variants are compiled ahead of time (at boot and at the start of each night) against the post chain's
+  real render target, including the icons' textured variant.

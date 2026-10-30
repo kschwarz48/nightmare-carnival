@@ -352,11 +352,19 @@ export class GameRenderer3D {
     shared.uMistWind.value.set(Math.cos(g.director.wind), Math.sin(g.director.wind));
     shared.uMistDensity.value = (this.settings.quality === 'low' ? 0.28 : 0.36) * (1 + g.darkness * 0.5) * (1 - this.dawn * 0.6);
     const lsq = g.quests?.get<LastSongChain>('last_song');
-    this.shafts.update(this.time, g.darkness, this.dawn, (x, y) => {
-      const li = LAST_SONG.lamps.findIndex((l) => l.x === x && l.y === y);
-      if (!lsq || li < 0) return 0;
-      return lsq.lit[li] ? 1.2 : (lsq.souls[li] / LAST_SONG.soulsPerLamp) * 0.5;
-    });
+    const lampAt = (x: number, y: number) => LAST_SONG.lamps.findIndex((l) => l.x === x && l.y === y);
+    this.shafts.update(
+      this.time, g.darkness, this.dawn,
+      (x, y) => {
+        const li = lampAt(x, y);
+        if (!lsq || li < 0) return 0;
+        return lsq.lit[li] ? 1.2 : (lsq.souls[li] / LAST_SONG.soulsPerLamp) * 0.5;
+      },
+      (x, y) => {
+        const li = lampAt(x, y);
+        return !!lsq && li >= 0 && lsq.played(li);
+      },
+    );
 
     // occluder dithering focus: the player's framebuffer position and view depth
     const sp = this.worldToScreen(px, py, this.cssW, this.cssH, 40);
@@ -1129,7 +1137,7 @@ export class GameRenderer3D {
 }
 
 /** Co-op player colours: Player 1 lamp-gold, Player 2 ghost-teal. */
-export const PLAYER_COLS: [number, number, number][] = [[1, 0.78, 0.35], [0.4, 0.95, 1], [1, 0.45, 0.6], [0.6, 1, 0.45]];
+export const PLAYER_COLS: [number, number, number][] = [[1, 0.78, 0.35], [0.4, 0.95, 1], [1, 0.45, 0.6], [0.6, 1, 0.45], [0.75, 0.6, 1], [1, 0.62, 0.3]];
 
 const BALLOON_TINTS: [number, number, number][] = [
   [0.5, 0.08, 0.07], [0.52, 0.37, 0.1], [0.1, 0.27, 0.28], [0.3, 0.11, 0.34], [0.5, 0.45, 0.33], [0.2, 0.3, 0.1],

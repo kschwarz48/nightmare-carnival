@@ -184,7 +184,7 @@ export class TentBoss extends BossBase {
     const t = this.tele(0.8);
     this.hz('circle', 'inhale_warn', this.mawX, this.mawY, { r: 420, tele: t, active: 0.01, dmg: 0, safe: true });
     yield t;
-    const maw = this.hz('circle', 'maw', this.mawX, this.mawY, { r: 70, tele: 0.01, active: 3.2, dmg: 30, tick: 0.5, pull: 140 });
+    const maw = this.hz('circle', 'maw', this.mawX, this.mawY, { r: 70, tele: 0.01, active: 3.2, dmg: 30, tick: 0.5, pull: 170, pullR: 420 });
     for (let i = 0; i < 190; i++) {
       this.pose.inhale = 1;
       this.pose.maw = 1;

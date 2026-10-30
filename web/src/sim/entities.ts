@@ -231,6 +231,7 @@ export class Hazard {
   spinRate = 0; // rotation / s (lines about x,y)
   len = 0; // line length (rotating lines)
   pull = 0; // pull strength toward (x,y) on player
+  pullR = 0; // pull reach (0 = four times the radius)
   slow = 0;
   burn = 0;
   owner = 0; // boss uid (cleared when boss dies)

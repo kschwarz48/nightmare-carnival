@@ -16,6 +16,8 @@ import {
   type GuestProfile,
 } from '../src/net/protocol';
 import { GuestSession, HostSession, LINK_TIMEOUT, RECONNECT_WAIT, runConfigFromStart, type HostProfile } from '../src/net/session';
+import { COOP } from '../src/data/progression';
+import { addHazardPull } from '../src/sim/movement';
 
 const UNLOCKED = ['w_orbs', 'w_cannon', 'w_laser', 'w_bell', 'w_mirror', 'p_season_pass', 'p_coin_purse', 'p_rabbits_foot'];
 const duo = (seed = 99, o: Parameters<typeof makeGame>[0] = {}) =>
@@ -497,16 +499,16 @@ class Harness {
 }
 
 describe('lobby and session flow', () => {
-  it('seats a guest, enforces distinct characters and readiness, then starts both machines', () => {
+  it('seats a guest, lets characters repeat, requires readiness, then starts both machines', () => {
     const h = new Harness({ latency: 40 });
     h.run(300);
     expect(h.guest.state).toBe('lobby');
     expect(h.host.lobby.players[1]?.name).toBe('Brother');
     h.host.setCharacter('carny');
     h.run(200);
-    h.guest.pick('carny'); // taken
+    h.guest.pick('carny'); // the same fool as the host is fine (D-54)
     h.run(200);
-    expect(h.host.lobby.players[1]?.character).toBeNull();
+    expect(h.host.lobby.players[1]?.character).toBe('carny');
     h.guest.pick('strongman');
     h.guest.setReady(true);
     h.run(200);
@@ -532,17 +534,23 @@ describe('lobby and session flow', () => {
     expect(h.guest.replica).toBeTruthy();
   });
 
-  it('refuses a third player, a wrong version, and strangers once the run has begun', () => {
+  it('refuses a seventh player, a wrong version, and strangers once the run has begun', () => {
     const h = new Harness();
     h.run(100);
-    const first = h.guest;
-    const third = h.connect(null, 'Intruder');
+    const party = [h.guest];
+    for (let k = 2; k <= 5; k++) {
+      party.push(h.connect(null, `Friend ${k}`));
+      h.run(100);
+    }
+    expect(party.map((gs) => gs.state)).toEqual(['lobby', 'lobby', 'lobby', 'lobby', 'lobby']);
+    expect(party.map((gs) => gs.slot)).toEqual([1, 2, 3, 4, 5]);
+    const seventh = h.connect(null, 'Intruder');
     let reason = '';
-    third.onClosed = (r) => (reason = r);
+    seventh.onClosed = (r) => (reason = r);
     h.run(100);
-    expect(third.state).toBe('closed');
+    expect(seventh.state).toBe('closed');
     expect(reason).toMatch(/full/);
-    expect(first.state).toBe('lobby');
+    expect(party[0].state).toBe('lobby');
 
     // wrong protocol version
     const [a, b] = h.net.pair();
@@ -563,12 +571,38 @@ describe('lobby and session flow', () => {
     expect(rej2).toMatch(/bad_hello/);
   });
 
+  it('a tab whose loop stalls (no updates for a while) does not mistake its own sleep for a dead link', () => {
+    const h = new Harness({ latency: 30 });
+    h.run(300);
+    expect(h.guest.state).toBe('lobby');
+    // the guest's loop stops for 12 s; the host keeps pinging and the guest's link still answers
+    let end = h.now + 12000;
+    while (h.now < end) {
+      h.now += 1000 / 60;
+      h.net.pump(h.now);
+      h.host.update(h.now, 1000 / 60);
+    }
+    h.guest.update(h.now);
+    expect(h.guest.state).toBe('lobby');
+    expect(h.host.connected(1)).toBe(true);
+    // and the other way round: the host's loop stalls while the guest keeps talking
+    end = h.now + 12000;
+    while (h.now < end) {
+      h.now += 1000 / 60;
+      h.net.pump(h.now);
+      h.guest.update(h.now);
+    }
+    h.host.update(h.now, 1000 / 60);
+    expect(h.host.connected(1)).toBe(true);
+    expect(h.guest.state).toBe('lobby');
+  });
+
   it('drops a guest that floods invalid traffic', () => {
     const h = new Harness();
     h.run(100);
     for (let i = 0; i < 80; i++) h.guestLink.sendRaw('{"t":"draft","op":"explode"}');
     h.run(100);
-    expect(h.host.seat).toBeNull();
+    expect(h.host.guests.length).toBe(0);
     expect(h.guest.state).toBe('closed');
   });
 
@@ -577,7 +611,7 @@ describe('lobby and session flow', () => {
     h.run(100);
     h.guest.leave();
     h.run(100);
-    expect(h.host.seat).toBeNull();
+    expect(h.host.guests.length).toBe(0);
     const g2 = h.connect(null, 'Again');
     h.run(100);
     expect(g2.state).toBe('lobby');
@@ -781,8 +815,8 @@ describe('a synchronized co-op run over a lossy network', () => {
     h.guestLink.severed = true;
     h.hostLink.severed = true;
     h.run(LINK_TIMEOUT + 1500, frame);
-    expect(h.host.guestConnected).toBe(false);
-    expect(h.host.waitingFor).toBe('Brother');
+    expect(h.host.connected(1)).toBe(false);
+    expect(h.host.hold).toEqual({ why: 'reconnect', who: [1] });
     expect(h.host.paused).toBe(true);
     const tWait = g.time;
     h.run(2000, frame);
@@ -790,8 +824,8 @@ describe('a synchronized co-op run over a lossy network', () => {
     // rejoin with the same token: back in the same seat with a fresh mirror
     const back = h.connect(token, 'Brother');
     h.run(800, frame);
-    expect(h.host.guestConnected).toBe(true);
-    expect(h.host.waitingFor).toBeNull();
+    expect(h.host.connected(1)).toBe(true);
+    expect(h.host.hold.why).not.toBe('reconnect');
     expect(back.state).toBe('run');
     expect(back.game).not.toBeNull();
     h.run(3000, frame);
@@ -809,7 +843,7 @@ describe('a synchronized co-op run over a lossy network', () => {
     h.guestLink.severed = true;
     h.hostLink.severed = true;
     h.run(LINK_TIMEOUT + RECONNECT_WAIT + 2000, frame);
-    expect(h.host.waitingFor).toBeNull();
+    expect(h.host.hold.why).not.toBe('reconnect');
     expect(h.host.paused).toBe(false);
     const t = g.time;
     h.run(2000, frame);
@@ -842,5 +876,248 @@ describe('a synchronized co-op run over a lossy network', () => {
     expect(guestStats).not.toBeNull();
     expect(guestStats!.character).toBe('strongman');
     expect(g.endStatsAll[0].character).toBe('carny');
+  });
+});
+
+// ===================================================================================== parties of six (D-54)
+/** A host and up to five guests over one lossy loopback network, each guest with its own "UI". */
+class Party {
+  now = 1000;
+  net: LoopbackNet;
+  host = new HostSession('PARTY6', hostProfile);
+  guests: { gs: GuestSession; link: LoopbackLink; hostLink: LoopbackLink; name: string }[] = [];
+  game: Game | null = null;
+  constructor(n: number, opts: ConstructorParameters<typeof LoopbackNet>[0] = {}) {
+    this.net = new LoopbackNet(opts);
+    for (let k = 0; k < n; k++) this.join(`Friend ${k + 1}`);
+  }
+  join(name: string, token?: string | null): GuestSession {
+    const [h, g] = this.net.pair();
+    this.host.accept(h);
+    const gs = new GuestSession(g, guestProfile(name), token, this.now);
+    gs.onStart = (cfg) => new Game(runConfigFromStart(cfg));
+    gs.onEvent = (type, e) => {
+      gs.game?.bus.emit(type as never, e as never);
+      if (type === 'draft') gs.draft('choose', 0);
+      if (type === 'chest') gs.prizeDone();
+    };
+    const entry = { gs, link: g, hostLink: h, name };
+    const old = this.guests.findIndex((x) => x.name === name);
+    if (old >= 0) this.guests[old] = entry;
+    else this.guests.push(entry);
+    return gs;
+  }
+  run(ms: number, frame?: () => void): void {
+    const end = this.now + ms;
+    while (this.now < end) {
+      this.now += 1000 / 60;
+      this.net.pump(this.now);
+      frame?.();
+      this.host.update(this.now, 1000 / 60);
+      for (const x of this.guests) x.gs.update(this.now);
+    }
+  }
+  startRun(chars: string[]): Game {
+    this.host.setCharacter(chars[0]);
+    this.guests.forEach((x, k) => x.gs.pick(chars[k + 1]));
+    this.run(200);
+    this.host.setReady(true);
+    for (const x of this.guests) x.gs.setReady(true);
+    this.run(200);
+    const cfg = this.host.start({ seed: 606, unlocked: UNLOCKED, questMemory: {} })!;
+    expect(cfg).toBeTruthy();
+    const g = new Game({ ...runConfigFromStart(cfg), godMode: true });
+    g.bus.on('chest', () => this.host.prizeHostDone());
+    this.host.attachGame(g);
+    this.game = g;
+    this.run(300);
+    return g;
+  }
+  /** Every guest walks its own circle; the host ticks whenever nothing holds the night. */
+  frame = (): void => {
+    const g = this.game!;
+    this.guests.forEach((x, k) => {
+      const gs = x.gs;
+      if (gs.state === 'run' && gs.game && gs.game.phase === 'play' && !gs.pausedBy && !gs.replica?.frozen) {
+        const a = g.realTime * 0.6 + k * 1.1;
+        gs.step(Math.cos(a) * 0.8, Math.sin(a) * 0.8, 0, 0, false);
+        gs.replica!.frame(1 / 60);
+      }
+    });
+    if (!this.host.paused && this.host.prizeReady && g.phase === 'play') {
+      g.inputs[0].moveX = Math.cos(g.realTime * 0.5) * 0.7 - g.players[0].x / 1500;
+      g.inputs[0].moveY = Math.sin(g.realTime * 0.5) * 0.7 - g.players[0].y / 1500;
+      this.host.beforeTick(g);
+      g.tick();
+      this.host.captureFx(g.fx.events);
+      g.fx.drain();
+    }
+    if (g.phase === 'draft' && g.draftPending(0)) g.chooseDraft(0, 0);
+  };
+}
+
+const SIX = ['carny', 'carny', 'strongman', 'strongman', 'fortune_teller', 'carny'];
+const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+
+describe('parties of up to six players (D-54)', () => {
+  it('seats five guests in compact seats and starts a six-player night with repeated characters', () => {
+    const p = new Party(5, { latency: 30 });
+    p.run(300);
+    expect(p.guests.map((x) => x.gs.slot)).toEqual([1, 2, 3, 4, 5]);
+    // a guest leaving the lobby closes the gap: the seats behind it move up
+    p.guests[1].gs.leave();
+    p.run(200);
+    p.guests.splice(1, 1);
+    expect(p.guests.map((x) => x.gs.slot)).toEqual([1, 2, 3, 4]);
+    p.join('Late Friend');
+    p.run(300);
+    expect(p.guests.map((x) => x.gs.slot)).toEqual([1, 2, 3, 4, 5]);
+    const g = p.startRun(SIX);
+    expect(g.players.map((pl) => pl.char.id)).toEqual(SIX);
+    expect(g.players.map((pl) => pl.name)).toEqual(['Kevin', 'Friend 1', 'Friend 3', 'Friend 4', 'Friend 5', 'Late Friend']);
+    for (const x of p.guests) {
+      expect(x.gs.state).toBe('run');
+      expect(x.gs.game!.players.length).toBe(6);
+      expect(x.gs.game!.players[x.gs.slot].name).toBe(x.name); // each mirror predicts its own player
+    }
+    expect(g.slots).toEqual({ weapons: 2, passives: 2 });
+  });
+
+  it('plays a six-player night over a lossy network: every mirror tracks the host, inputs land, drafts wait for all', () => {
+    const p = new Party(5, { latency: 45, jitter: 15, loss: 0.03, dupe: 0.01, seed: 11 });
+    p.run(300);
+    const g = p.startRun(SIX);
+    const start = g.players.map((pl) => ({ x: pl.x, y: pl.y }));
+    const lvl0 = g.level;
+    const gaps: number[] = [];
+    p.run(40000, () => {
+      p.frame();
+      if (g.phase !== 'play') return;
+      for (const x of p.guests) {
+        const i = x.gs.slot, rep = x.gs.replica!;
+        if (rep.last && g.players[i].dashT <= 0) gaps.push(dist(rep.localDrawPos(), g.players[i]));
+      }
+    });
+    expect(g.level).toBeGreaterThan(lvl0 + 2); // shared XP levelled the party, and every draft resolved
+    expect(g.phase).toBe('play');
+    for (let i = 1; i < 6; i++) {
+      expect(dist(g.players[i], start[i]), `player ${i} moved`).toBeGreaterThan(100);
+      expect(g.players[i].weapons.list.length + g.players[i].passives.size, `player ${i} drafted`).toBeGreaterThan(1);
+    }
+    // every guest sees the whole party where the host has it (the others ~100 ms behind)
+    for (const x of p.guests) {
+      const m = x.gs.game!;
+      for (let i = 0; i < 6; i++) if (i !== x.gs.slot) expect(dist(m.players[i], g.players[i]), `guest ${x.gs.slot} sees player ${i}`).toBeLessThan(60);
+      expect(m.level).toBe(g.level);
+    }
+    gaps.sort((a, b) => a - b);
+    const med = gaps[gaps.length >> 1], p90 = gaps[Math.floor(gaps.length * 0.9)];
+    const d = p.host.diag;
+    console.log(`[net] six players, 40 s over 45±15 ms, 3% loss: host upload ${(d.bytesPerSec / 1024).toFixed(1)} KB/s for ${d.peers?.length} guests (${d.peers?.map((q) => q.kbps.toFixed(1)).join(' / ')}), biggest snapshot ${d.snapBytes} B, dropped inputs ${d.dropped}; drawn-vs-host gap median ${med.toFixed(1)} p90 ${p90.toFixed(1)}`);
+    expect(d.peers?.length).toBe(5);
+    expect(d.dropped).toBeLessThan(30);
+    expect(med).toBeLessThan(30);
+  });
+
+  it('holds the night for everyone while one guest reconnects; its rejoin restarts only its own stream', () => {
+    const p = new Party(5, { latency: 30 });
+    p.run(300);
+    const g = p.startRun(SIX);
+    p.run(3000, p.frame);
+    const victim = p.guests[2];
+    const token = victim.gs.token;
+    victim.link.severed = true;
+    victim.hostLink.severed = true;
+    p.run(LINK_TIMEOUT + 1500, p.frame);
+    expect(p.host.hold).toEqual({ why: 'reconnect', who: [3] });
+    expect(p.guests[0].gs.hold).toEqual({ why: 'reconnect', who: [3] }); // the others are told who
+    const tWait = g.time;
+    const seqBefore = p.guests[0].gs.replica!.last!.seq;
+    p.run(1500, p.frame);
+    expect(g.time).toBe(tWait); // held
+    expect(p.guests[0].gs.replica!.last!.seq).toBeGreaterThan(seqBefore); // the others still get snapshots
+    const back = p.join(victim.name, token);
+    p.run(1000, p.frame);
+    expect(back.state).toBe('run');
+    expect(back.slot).toBe(3);
+    expect(p.host.hold.why).not.toBe('reconnect');
+    p.run(3000, p.frame);
+    expect(g.time).toBeGreaterThan(tWait + 2);
+    for (const x of p.guests) for (let i = 0; i < 6; i++) if (i !== x.gs.slot) expect(dist(x.gs.game!.players[i], g.players[i])).toBeLessThan(60);
+  });
+
+  it('follows Vampire Survivors slot scaling and holds at its floor of two beyond four players', () => {
+    expect([1, 2, 3, 4, 5, 6].map((n) => COOP.slots[n])).toEqual([6, 4, 3, 2, 2, 2]);
+    for (const n of [5, 6]) {
+      const g = makeGame({ seed: 3, players: Array.from({ length: n }, (_, i) => ({ character: 'carny', name: `P${i}` })) });
+      expect(g.players.length).toBe(n);
+      expect(g.slots).toEqual({ weapons: 2, passives: 2 });
+      expect(g.partyScale.density).toBeGreaterThan(COOP.density[4]);
+    }
+  });
+
+  it('shares small chests fairly across a party of six', () => {
+    const g = makeGame({ seed: 8, players: Array.from({ length: 6 }, (_, i) => ({ character: 'carny', name: `P${i}` })) });
+    const got = [0, 0, 0, 0, 0, 0];
+    for (let k = 0; k < 12; k++) {
+      g.setCtx(g.players[k % 2]); // the same two players keep opening the chests
+      const r = g.openChest([1, 3, 5][k % 3]);
+      for (const e of r.entries) got[e.player!]++;
+    }
+    expect(Math.max(...got) - Math.min(...got)).toBeLessThanOrEqual(1);
+  });
+
+  it('pulls players into an inhale across its whole warning circle, and the guest predicts the same pull', () => {
+    const g = makeGame({ seed: 5, godMode: true });
+    g.weapons.list.length = 0;
+    const p = g.player;
+    const maw = { x: p.x - 300, y: p.y, r: 70, pull: 170, pullR: 420 };
+    // the pull reaches the warning circle's edge and grows toward the maw
+    p.pullX = p.pullY = 0;
+    addHazardPull(p, maw);
+    const out300 = Math.hypot(p.pullX, p.pullY);
+    expect(out300).toBeGreaterThan(100);
+    p.pullX = p.pullY = 0;
+    addHazardPull(p, { ...maw, x: p.x - 100 });
+    expect(Math.hypot(p.pullX, p.pullY)).toBeGreaterThan(out300);
+    p.pullX = p.pullY = 0;
+    addHazardPull(p, { ...maw, x: p.x - 500 });
+    expect(p.pullX).toBe(0); // beyond its reach
+    expect(maw.pull).toBeLessThan(187); // even at the maw, the slowest fool (the Strongman) can walk out
+    // in the sim, a player standing 300 units out is dragged a long way in a second
+    const x0 = p.x;
+    const h = g.spawnHazard('circle', 'maw', p.x - 300, p.y, { r: 70, tele: 0.01, active: 3, dmg: 0, pull: 170, pullR: 420 });
+    for (let i = 0; i < 60; i++) g.tick();
+    expect(x0 - p.x).toBeGreaterThan(90);
+    h.alive = false;
+  });
+
+  it('a guest predicts the inhale the host applies, so its drawn self stays with the host', () => {
+    const p = new Party(1, { latency: 40, jitter: 10, seed: 4 });
+    p.run(300);
+    const g = p.startRun(['carny', 'strongman']);
+    g.addXp(-1e9);
+    const gs = p.guests[0].gs;
+    const me = g.players[1];
+    g.spawnHazard('circle', 'maw', me.x - 320, me.y, { r: 70, tele: 0.01, active: 4, dmg: 0, pull: 170, pullR: 420, safe: false });
+    const x0 = me.x;
+    const gaps: number[] = [];
+    p.run(2500, () => {
+      // the guest stands still: only the pull moves it
+      if (gs.state === 'run' && gs.game?.phase === 'play' && !gs.replica?.frozen) {
+        gs.step(0, 0, 0, 0, false);
+        gs.replica!.frame(1 / 60);
+      }
+      if (!p.host.paused && p.host.prizeReady && g.phase === 'play') {
+        p.host.beforeTick(g);
+        g.tick();
+        g.fx.drain();
+      }
+      if (gs.replica?.last) gaps.push(dist(gs.replica.localDrawPos(), me));
+    });
+    expect(x0 - me.x).toBeGreaterThan(150); // the host dragged the guest's fool toward the maw
+    gaps.sort((a, b) => a - b);
+    // predicted, not corrected after the fact: the drawn self leads the host by about the inputs in flight
+    expect(gaps[Math.floor(gaps.length * 0.9)]).toBeLessThan(25);
   });
 });

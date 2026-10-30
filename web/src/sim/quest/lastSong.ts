@@ -181,13 +181,21 @@ export class LastSongChain extends QuestChain {
     }
   }
 
+  /** True once lamp `i`'s note has been played in the current attempt (it burns red; a wrong note clears it). */
+  played(i: number): boolean {
+    return this.order.indexOf(i) < this.progress;
+  }
+
   private onTouchLamp(i: number): void {
     const l = LAST_SONG.lamps[i];
     if (!this.lit[i]) return;
     if (this.stage !== LS.Melody) {
-      this.cue('hum', { x: l.x, y: l.y, a: i, b: l.note });
+      // before the song a lit lamp hums its note; once the song is sung every lamp has been played
+      if (this.stage < LS.Melody) this.cue('hum', { x: l.x, y: l.y, a: i, b: l.note });
       return;
     }
+    // a played lamp stays silent until a wrong note resets the song
+    if (this.played(i)) return;
     this.cue('note', { x: l.x, y: l.y, a: i, b: l.note });
     if (this.order[this.progress] === i) {
       this.progress++;
@@ -195,9 +203,9 @@ export class LastSongChain extends QuestChain {
         this.stage = LS.Calling;
         const m = LAST_SONG.machine;
         this.cue('melody_solved', { x: m.x, y: m.y });
-      }
+      } else this.cue('note_true', { x: l.x, y: l.y, a: this.progress });
     } else {
-      this.progress = this.order[0] === i ? 1 : 0;
+      this.progress = 0;
       this.cue('sour', { x: l.x, y: l.y, a: i });
     }
   }

@@ -643,8 +643,30 @@ class CalliopeRig extends Rig {
 function wreck(id: string): THREE.BufferGeometry | null {
   const m = new ModelBuilder();
   if (id === 'carnival_tent') {
-    m.add(lathe([[0, 30], [80, 26], [170, 6], [180, 0], [0, 0]], 24), { col: stripes(20, PAL.red, PAL.cream, 0, 0.6), surf: SURF.canvas, scale: [1, 1, 0.9] });
-    for (let i = 0; i < 4; i++) m.add(cyl(5, 6, 150, 8), { col: weather(PAL.woodPale, 0.5), pos: [-60 + i * 40, 12, (i % 2 ? 1 : -1) * 40], rot: [Math.PI / 2 - 0.1, i * 0.7, 0], surf: SURF.wood });
+    // the Big Top collapsed into a crumpled tarp lying on the ground: low folds radiating from the
+    // fallen centre pole, a ragged edge, scorched toward the middle. Every vertex stays 1.5+ units above
+    // the ground (no z-fighting) and the heap stays low enough to walk across.
+    const R = 175;
+    const tarp = new THREE.PlaneGeometry(1, 1, 72, 64);
+    tarp.rotateX(-Math.PI / 2);
+    const pos = tarp.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const u = pos.getX(i) * 2, v = pos.getZ(i) * 2; // −1..1
+      const ang = Math.atan2(v, u), rad = Math.hypot(u, v);
+      const edge = 0.88 + 0.08 * Math.sin(ang * 5 + 1.3) + 0.04 * Math.sin(ang * 11 + 0.4);
+      const rr = Math.min(rad, edge);
+      const k = rad > 1e-6 ? rr / rad : 0;
+      const fold = 0.5 + 0.5 * Math.sin(ang * 9 + rr * 7);
+      const y = 1.5 + (1 - rr / edge) * 2 + fold * 2 * Math.min(1, rr * 2.5);
+      pos.setXYZ(i, u * k * R, y, v * k * R * 0.92);
+    }
+    tarp.computeVertexNormals();
+    const canvas = stripes(20, PAL.red, PAL.cream, 0, 0.6);
+    const scorch = new THREE.Color();
+    m.add(tarp, {
+      col: (p, n) => scorch.copy(canvas(p, n) as THREE.Color).multiplyScalar(0.55 + 0.45 * Math.min(1, Math.hypot(p.x, p.z) / (R * 0.7))),
+      surf: SURF.canvas,
+    });
   } else if (id === 'ferris_wheel') {
     m.add(torus(140, 4, 6, 40), { col: weather(PAL.redDeep, 0.5, 0.04, PAL.iron), rot: [Math.PI / 2 - 0.08, 0, 0], pos: [0, 10, 0], surf: SURF.iron });
     for (let i = 0; i < 8; i++) {
@@ -668,6 +690,8 @@ export class BossRigs {
   private calliope: CalliopeRig;
   private wrecks = new Map<string, THREE.Mesh>();
   private wreckMat = actorMaterial({});
+  /** The tent's fallen tarp: both faces (folds), nudged toward the camera so it never fights the ground. */
+  private tarpMat = Object.assign(actorMaterial({ matte: true, side: THREE.DoubleSide }), { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
 
   constructor(private scene: THREE.Scene) {
     this.tent = new TentRig(scene);
@@ -706,10 +730,12 @@ export class BossRigs {
       if (this.wrecks.has(key)) continue;
       const geo = wreck(rm.id);
       if (!geo) continue;
-      const mesh = new THREE.Mesh(geo, this.wreckMat);
+      const tarp = rm.id === 'carnival_tent';
+      const mesh = new THREE.Mesh(geo, tarp ? this.tarpMat : this.wreckMat);
       mesh.position.set(rm.x, 0, rm.y + 20);
       mesh.receiveShadow = true;
-      mesh.castShadow = true;
+      // a near-flat sheet that shadows itself shimmers (acne): the tarp takes shadows but casts none
+      mesh.castShadow = !tarp;
       this.scene.add(mesh);
       this.wrecks.set(key, mesh);
     }

@@ -1,6 +1,7 @@
 // Web Audio engine (doc 02 §9). Buses: master → music / sfx / ambience / ui. The original score
-// ("Freaky Funk Circus" by Bradley Schwarz) plays on the menu and through the night, darkening per
-// Act; each boss gets a procedurally sequenced big-band theme; SFX are synthesized at boot.
+// ("Freaky Funk Circus" by Bradley Schwarz) plays on the menus and through every boss fight; the night
+// between bosses gets a quieter procedural music-box waltz that darkens with each Act (D-55). Quest
+// chimes dip the music so they always carry. SFX are synthesized at boot.
 
 import { RECIPES, SR } from './synth';
 
@@ -8,24 +9,31 @@ type Cue = 'menu' | 'act1' | 'act2' | 'act3' | 'act4' | 'boss_carnival_tent' | '
 
 const BASE = import.meta.env.BASE_URL ?? './';
 
-interface BossTheme {
+/** The procedural night score: a slow waltz in 3/4 led by a slightly broken music box. */
+interface NightTheme {
   bpm: number;
-  root: number; // MIDI note of tonic
-  motif: number[]; // scale degrees for the calliope melody (-1 = rest)
-  bass: number[]; // semitone offsets from root per beat
-  stabs: number[]; // eighth-note positions (0..7) of brass stabs per bar
-  intensity: number;
+  root: number; // MIDI note of the tonic
+  melody: number[]; // scale degree per beat (-1 = rest)
+  bass: number[]; // semitone offset of each bar's chord root
+  counter: number; // 0..1: a detuned calliope shadowing the tune an octave down
+  pulse: number; // 0..1: a heartbeat on the downbeat
+  warp: number; // music-box pitch wobble
+  vol: number;
 }
 
 const MINOR = [0, 2, 3, 5, 7, 8, 11, 12, 14, 15];
-const THEMES: Record<string, BossTheme> = {
-  boss_carnival_tent: { bpm: 138, root: 45, motif: [0, 2, 4, 2, 5, 4, 2, -1, 0, 2, 4, 7, 6, 4, 5, -1], bass: [0, 7, 0, 7, 5, 12, 5, 7], stabs: [1, 3, 6], intensity: 0.8 },
-  boss_ferris_wheel: { bpm: 150, root: 43, motif: [4, 3, 2, 1, 0, 1, 2, 4, 5, 4, 3, 2, 1, 2, 0, -1], bass: [0, 7, 3, 7, 5, 12, 7, 11], stabs: [0, 3, 5, 7], intensity: 0.9 },
-  boss_puppet_king: { bpm: 126, root: 41, motif: [0, -1, 0, 3, 2, -1, 1, 0, 4, -1, 4, 6, 5, -1, 4, 2], bass: [0, 0, 7, 7, 3, 3, 7, 11], stabs: [2, 6], intensity: 0.85 },
-  boss_ringmaster: { bpm: 146, root: 40, motif: [0, 4, 7, 4, 6, 4, 2, 4, 0, 4, 7, 8, 7, 6, 4, -1], bass: [0, 7, 0, 7, 3, 10, 5, 11], stabs: [1, 3, 5, 7], intensity: 1 },
-  boss_ringmaster_2: { bpm: 158, root: 40, motif: [7, 6, 4, 6, 7, 8, 7, 4, 2, 4, 6, 4, 2, 1, 0, -1], bass: [0, 7, 3, 7, 5, 12, 7, 11], stabs: [0, 2, 3, 5, 7], intensity: 1.1 },
-  boss_ringmaster_3: { bpm: 172, root: 39, motif: [0, 1, 0, 6, 0, 1, 2, 1, 0, 7, 6, 4, 6, 7, 8, 9], bass: [0, 1, 0, 7, 0, 1, 6, 7], stabs: [0, 1, 3, 4, 6, 7], intensity: 1.25 },
+const WALTZ = [4, -1, 2, 3, 2, 1, 0, -1, 4, 6, -1, -1, 4, -1, 7, 6, 5, 4, 3, 1, 2, 0, -1, -1];
+const WALTZ_LOW = [0, -1, 2, 3, -1, 1, 0, 6, -1, 4, -1, -1, 2, -1, 3, 1, 0, 6, 4, 3, 1, 0, -1, -1];
+const WALTZ_BASS = [0, 5, 0, 7, 0, 3, 5, 7];
+const NIGHT: Record<string, NightTheme> = {
+  act1: { bpm: 72, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0, pulse: 0, warp: 0.002, vol: 0.9 },
+  act2: { bpm: 76, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0.5, pulse: 0.25, warp: 0.004, vol: 0.95 },
+  act3: { bpm: 80, root: 56, melody: WALTZ_LOW, bass: WALTZ_BASS, counter: 0.8, pulse: 0.55, warp: 0.008, vol: 1 },
+  act4: { bpm: 86, root: 55, melody: WALTZ_LOW, bass: [0, 1, 0, 7, 0, 1, 6, 7], counter: 1, pulse: 0.8, warp: 0.012, vol: 1 },
+  endless: { bpm: 90, root: 55, melody: WALTZ_LOW, bass: [0, 1, 0, 7, 0, 1, 6, 7], counter: 1, pulse: 1, warp: 0.015, vol: 1 },
 };
+/** Bradley's loop runs a touch faster as the Ringmaster sheds his skins. */
+const BOSS_RATE: Record<string, number> = { boss_ringmaster_2: 1.03, boss_ringmaster_3: 1.06 };
 
 export class AudioEngine {
   ctx: AudioContext | null = null;
@@ -34,6 +42,8 @@ export class AudioEngine {
   private sfx!: GainNode;
   private amb!: GainNode;
   private musicFilter!: BiquadFilterNode;
+  /** dips the whole music bus under quest chimes (separate from the volume setting) */
+  private musicDuck!: GainNode;
   private buffers = new Map<string, AudioBuffer>();
   private tracks: { intro?: AudioBuffer; loop?: AudioBuffer; loopStart: number; loopEnd: number } = { loopStart: 0, loopEnd: 0 };
   private trackSrc: AudioBufferSourceNode | null = null;
@@ -41,9 +51,9 @@ export class AudioEngine {
   private currentTrack = '';
   private lastPlay = new Map<string, number>();
   private active = new Map<string, number>();
-  private bossTimer = 0;
-  private bossTheme: BossTheme | null = null;
-  private bossGain: GainNode | null = null;
+  private scoreTimer = 0;
+  private score: NightTheme | null = null;
+  private scoreGain: GainNode | null = null;
   private nextNote = 0;
   private step = 0;
   private ambSrc: AudioBufferSourceNode | null = null;
@@ -74,7 +84,8 @@ export class AudioEngine {
       this.musicFilter.type = 'lowpass';
       this.musicFilter.frequency.value = 20000;
       this.music = ctx.createGain();
-      this.music.connect(this.musicFilter).connect(this.master);
+      this.musicDuck = ctx.createGain();
+      this.music.connect(this.musicDuck).connect(this.musicFilter).connect(this.master);
       this.sfx = ctx.createGain();
       this.sfx.connect(this.master);
       this.amb = ctx.createGain();
@@ -181,6 +192,18 @@ export class AudioEngine {
   }
 
   // ---------------------------------------------------------------- music
+  /**
+   * Secret-quest chimes must be heard over the score: dip the music for `sec` seconds (it keeps
+   * playing underneath and swells back). Repeated calls extend the dip.
+   */
+  duckMusic(sec = 2, level = 0.28): void {
+    if (!this.unlocked) return;
+    const g = this.musicDuck.gain, t = this.ctx!.currentTime;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(level, t, 0.04);
+    g.setTargetAtTime(1, t + sec, 0.45);
+  }
+
   setCue(cue: Cue | string): void {
     const c = cue as Cue;
     if (c === this.cue) return;
@@ -189,18 +212,14 @@ export class AudioEngine {
     const ctx = this.ctx!;
     const t = ctx.currentTime;
     const boss = c.startsWith('boss_');
-    // boss score
-    if (boss) this.startBoss(c);
-    else this.stopBoss();
-    // main track routing
-    if (c === 'menu' || c === 'results') this.playTrack('intro', 1, 20000);
-    else if (c === 'act1') this.playTrack('loop', 1, 20000);
-    else if (c === 'act2') this.playTrack('loop', 0.985, 9000);
-    else if (c === 'act3') this.playTrack('loop', 0.97, 6500);
-    else if (c === 'act4') this.playTrack('loop', 1.045, 12000);
-    else if (c === 'endless') this.playTrack('loop', 1.08, 14000);
-    else if (c === 'dawn') this.playTrack('intro', 1, 20000);
-    else if (boss) this.duckTrack(0.12);
+    // Bradley Schwarz's "Freaky Funk Circus" scores the menus and the boss fights; the night between
+    // bosses gets the quieter waltz, which darkens with each Act
+    const night = NIGHT[c];
+    if (night) this.startScore(night);
+    else this.stopScore();
+    if (c === 'menu' || c === 'results' || c === 'dawn') this.playTrack('intro', 1, 20000);
+    else if (boss) this.playTrack('loop', BOSS_RATE[c] ?? 1, 20000);
+    else if (night) this.fadeOutTrack(2);
     else if (c === 'silence') this.duckTrack(0);
     // dread drone grows with the Act (doc 02 §9: motifs bent darker as the night deepens)
     const dread = c === 'act2' ? 0.15 : c === 'act3' ? 0.28 : c === 'act4' ? 0.38 : c === 'endless' ? 0.4 : 0;
@@ -266,41 +285,40 @@ export class AudioEngine {
     this.currentTrack = '';
   }
 
-  // ---------------------------------------------------------------- procedural boss score
-  private startBoss(cue: string): void {
-    const theme = THEMES[cue] ?? THEMES.boss_carnival_tent;
-    if (this.bossTheme === theme) return;
+  // ---------------------------------------------------------------- procedural night score
+  private startScore(theme: NightTheme): void {
+    if (this.score === theme) return;
     const ctx = this.ctx!;
-    if (!this.bossGain) {
-      this.bossGain = ctx.createGain();
-      this.bossGain.connect(this.music);
+    if (!this.scoreGain) {
+      this.scoreGain = ctx.createGain();
+      this.scoreGain.connect(this.music);
     }
-    this.bossGain.gain.setTargetAtTime(0.9, ctx.currentTime, 0.4);
-    const wasRunning = !!this.bossTheme;
-    this.bossTheme = theme;
+    this.scoreGain.gain.setTargetAtTime(0.85, ctx.currentTime, 0.8);
+    const wasRunning = !!this.score;
+    this.score = theme;
     if (!wasRunning) {
-      this.nextNote = ctx.currentTime + 0.1;
+      this.nextNote = ctx.currentTime + 0.4;
       this.step = 0;
-      window.clearInterval(this.bossTimer);
-      this.bossTimer = window.setInterval(() => this.scheduler(), 25);
+      window.clearInterval(this.scoreTimer);
+      this.scoreTimer = window.setInterval(() => this.scheduler(), 25);
     }
   }
 
-  private stopBoss(): void {
-    if (!this.bossTheme) return;
-    this.bossTheme = null;
-    window.clearInterval(this.bossTimer);
-    if (this.bossGain) this.bossGain.gain.setTargetAtTime(0, this.ctx!.currentTime, 0.6);
+  private stopScore(): void {
+    if (!this.score) return;
+    this.score = null;
+    window.clearInterval(this.scoreTimer);
+    if (this.scoreGain) this.scoreGain.gain.setTargetAtTime(0, this.ctx!.currentTime, 0.6);
   }
 
   private scheduler(): void {
     const ctx = this.ctx;
-    const th = this.bossTheme;
+    const th = this.score;
     if (!ctx || !th) return;
-    const eighth = 60 / th.bpm / 2;
-    while (this.nextNote < ctx.currentTime + 0.15) {
-      this.scheduleStep(th, this.step, this.nextNote, eighth);
-      this.nextNote += eighth;
+    const beat = 60 / th.bpm;
+    while (this.nextNote < ctx.currentTime + 0.2) {
+      this.scheduleNight(th, this.step, this.nextNote, beat);
+      this.nextNote += beat;
       this.step++;
     }
   }
@@ -313,7 +331,7 @@ export class AudioEngine {
     if (vib) {
       const l = ctx.createOscillator();
       const lg = ctx.createGain();
-      l.frequency.value = 6;
+      l.frequency.value = 5;
       lg.gain.value = freq * vib;
       l.connect(lg).connect(o.frequency);
       l.start(t);
@@ -324,61 +342,64 @@ export class AudioEngine {
     f.frequency.value = lp;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(f).connect(g).connect(this.bossGain!);
+    o.connect(f).connect(g).connect(this.scoreGain!);
     o.start(t);
     o.stop(t + dur + 0.02);
   }
 
-  private drum(t: number, kind: 'kick' | 'snare' | 'hat', vol: number): void {
+  /** A music-box tine: a bright pluck with a faint inharmonic overtone, ringing out. */
+  private chime(freq: number, t: number, dur: number, vol: number): void {
     const ctx = this.ctx!;
-    if (kind === 'kick') {
+    for (const [mult, v] of [[1, 1], [2.76, 0.18]] as const) {
       const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = freq * mult;
       const g = ctx.createGain();
-      o.frequency.setValueAtTime(140, t);
-      o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
-      g.gain.setValueAtTime(vol, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-      o.connect(g).connect(this.bossGain!);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol * v, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur * (mult > 1 ? 0.35 : 1));
+      o.connect(g).connect(this.scoreGain!);
       o.start(t);
-      o.stop(t + 0.2);
-      return;
+      o.stop(t + dur + 0.02);
     }
-    const buf = this.buffers.get(kind === 'snare' ? 'throw' : 'dart');
-    if (!buf) return;
-    const s = ctx.createBufferSource();
-    s.buffer = buf;
-    s.playbackRate.value = kind === 'snare' ? 0.8 : 1.6;
-    const g = ctx.createGain();
-    g.gain.value = vol;
-    s.connect(g).connect(this.bossGain!);
-    s.start(t);
   }
 
-  private scheduleStep(th: BossTheme, step: number, t: number, eighth: number): void {
-    const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
-    const inBar = step % 8;
-    const bar = Math.floor(step / 8);
-    const I = th.intensity;
-    // oompah: tuba bass on the beat, chord "pah" on the off-beat
-    if (inBar % 2 === 0) {
-      const off = th.bass[(bar * 4 + inBar / 2) % th.bass.length];
-      this.note(mtof(th.root - 12 + off), t, eighth * 1.6, 'sawtooth', 0.22 * I, 420);
-      this.drum(t, 'kick', 0.5 * I);
-    } else {
-      for (const iv of [12, 15, 19]) this.note(mtof(th.root + iv), t, eighth * 0.7, 'square', 0.035 * I, 1800);
-      this.drum(t, 'hat', 0.25 * I);
+  private heartbeat(t: number, vol: number): void {
+    const ctx = this.ctx!;
+    for (const [dt, v] of [[0, 1], [0.24, 0.6]] as const) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.frequency.setValueAtTime(70, t + dt);
+      o.frequency.exponentialRampToValueAtTime(38, t + dt + 0.16);
+      g.gain.setValueAtTime(vol * v, t + dt);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dt + 0.22);
+      o.connect(g).connect(this.scoreGain!);
+      o.start(t + dt);
+      o.stop(t + dt + 0.25);
     }
-    if (inBar === 2 || inBar === 6) this.drum(t, 'snare', 0.5 * I);
-    // brass stabs
-    if (th.stabs.includes(inBar) && bar % 2 === 1) for (const iv of [0, 3, 7, 10]) this.note(mtof(th.root + 12 + iv), t, eighth * 0.9, 'sawtooth', 0.05 * I, 2600);
-    // calliope melody (detuned, vibrato) — the warped carnival voice
-    const deg = th.motif[(step) % th.motif.length];
+  }
+
+  private scheduleNight(th: NightTheme, step: number, t: number, beat: number): void {
+    const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+    const inBar = step % 3;
+    const bar = Math.floor(step / 3);
+    const chord = th.root + th.bass[bar % th.bass.length];
+    // a hushed oom-pah-pah: a low bowed note on the downbeat, a soft minor chord on two and three
+    if (inBar === 0) {
+      this.note(mtof(chord - 24), t, beat * 2.8, 'triangle', 0.15 * th.vol, 360);
+      if (th.pulse) this.heartbeat(t, 0.3 * th.pulse);
+    } else {
+      for (const iv of [0, 3, 7]) this.note(mtof(chord - 12 + iv), t, beat * 0.6, 'triangle', 0.022 * th.vol, 1100);
+    }
+    // the music box carries the tune, a little out of tune, more so as the night deepens
+    const deg = th.melody[step % th.melody.length];
     if (deg >= 0) {
       const semis = MINOR[deg % MINOR.length] + (deg >= MINOR.length ? 12 : 0);
-      this.note(mtof(th.root + 24 + semis), t, eighth * 0.95, 'square', 0.06 * I, 3200, 0.012);
-      this.note(mtof(th.root + 24 + semis) * 1.006, t, eighth * 0.95, 'triangle', 0.04 * I, 4000);
+      const f = mtof(th.root + 12 + semis) * (1 + (Math.random() - 0.5) * th.warp);
+      this.chime(f, t, beat * 2.4, 0.09 * th.vol);
+      if (th.counter) this.note(f * 0.502, t, beat * 0.95, 'square', 0.018 * th.counter * th.vol, 1500, 0.006 + th.warp);
     }
   }
 
@@ -502,8 +523,8 @@ export class AudioEngine {
   /** Duck everything briefly (pause menu muffles the music). */
   setPausedFilter(paused: boolean): void {
     if (!this.unlocked) return;
-    this.musicFilter.frequency.setTargetAtTime(paused ? 700 : this.cue === 'act2' ? 9000 : this.cue === 'act3' ? 6500 : 20000, this.ctx!.currentTime, 0.2);
-    if (this.bossGain) this.bossGain.gain.setTargetAtTime(paused ? 0.25 : this.bossTheme ? 0.9 : 0, this.ctx!.currentTime, 0.2);
+    this.musicFilter.frequency.setTargetAtTime(paused ? 700 : 20000, this.ctx!.currentTime, 0.2);
+    if (this.scoreGain) this.scoreGain.gain.setTargetAtTime(paused ? 0.25 : this.score ? 0.85 : 0, this.ctx!.currentTime, 0.2);
   }
 }
 

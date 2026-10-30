@@ -18,12 +18,13 @@ _Updated 2026-10-30. Branch: `web-threejs-rebuild` (not pushed, no PR)._
 - Rendering is a **true 2.5D Three.js renderer** (`src/render3d/`): procedural 3D models (sculpted, rigged
   cast and enemies; kit-built architecture), an analytic relief ground, a practical-light pool, ground
   mist, soft bloom and a vintage grade. The latest graphics pass (D-45…D-50) is scored in `docs/VISUAL_QA.md`.
-- **Online two-player co-op (alpha)** with Vampire Survivors rules: host-authoritative, peer-to-peer
+- **Online co-op for up to six (alpha)** with Vampire Survivors rules: host-authoritative, peer-to-peer
   over WebRTC with PeerJS matchmaking, delta snapshots, client prediction, lobby codes, reconnect
-  (D-51…D-53, `docs/MULTIPLAYER.md`). **Deployed** at https://nightmare-carnival.netlify.app (Netlify; `netlify.toml`,
+  (D-51…D-54, `docs/MULTIPLAYER.md`). Music: Bradley's track on menus and bosses, a procedural waltz
+  between (D-55). **Deployed** at https://nightmare-carnival.netlify.app (Netlify; `netlify.toml`,
   `docs/MULTIPLAYER.md` §4). Verified with two tabs on one machine over real PeerJS, on the dev server and on
   the deployed site; **not yet verified across two networks**, which is the next job.
-- **166 tests pass**, typecheck is clean, `npm run build` produces a static site.
+- **175 tests pass**, typecheck is clean, `npm run build` produces a static site.
 - The **biggest open item is human playtesting** (balance and readability). All tuning so far used bots.
 - The original Godot project at the repo root is untouched. Two Godot files (`export_presets.cfg`,
   `project.godot`) had **uncommitted local edits before this work started** — they're the repo owner's,
@@ -193,7 +194,12 @@ and web fonts.
 9. **Co-op host frames tick unevenly** (a 144 Hz display has frames with no tick). Anything in
    `HostSession` that reasons about "the night is running" must be time-based, not per-frame — a per-frame
    check once dropped most of the guest's inputs.
-10. **Dev tools must stay dynamically imported** (`import('./dev')` inside `if (import.meta.env.DEV)`)
+10. **Stamp "last heard" at update time, never on arrival with a cached clock.** A stalled tab once
+    woke up, saw a stale stamp and dropped live guests (`HostSession`/`GuestSession` `heard` flags).
+11. **Pre-compile shaders against the real render target.** Program keys include output colour space
+    and tone mapping, and the scene draws into the post chain's linear buffer, not the canvas
+    (`PrizeWheel.prewarm`).
+12. **Dev tools must stay dynamically imported** (`import('./dev')` inside `if (import.meta.env.DEV)`)
    so they're stripped from production. Verify with a grep for `__nc.` in `dist/assets/*.js` (the only
    allowed hit is the `__nc_probe` localStorage key).
 

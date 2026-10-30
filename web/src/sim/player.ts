@@ -16,6 +16,8 @@ export class Player {
   /** Coffin revive progress 0..1, and whether a teammate is speeding it up. */
   reviveT = 0;
   reviveAssist = false;
+  /** co-op: chest prizes this player has been dealt so far tonight (small chests go to whoever has fewest) */
+  chestPrizes = 0;
   /** How this player's aimable weapons pick a direction (their own setting in co-op). */
   aimMode: 'auto' | 'hybrid' | 'manual' = 'auto';
   /** Draft cards this player has banished. */

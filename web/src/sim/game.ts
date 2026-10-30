@@ -27,7 +27,7 @@ import { CHESTS, COOP, HEALING, TICKETS, voucherValue, xpToNext } from '../data/
 import { FxQueue } from './fx';
 import { Player } from './player';
 import { Weapons } from './weapons';
-import { moveBody, steer } from './movement';
+import { addHazardPull, moveBody, steer } from './movement';
 
 import { TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 export { TICK, VIEW_HALF_X, VIEW_HALF_Y };
@@ -1203,6 +1203,7 @@ export class Game {
     h.spinRate = o.spinRate ?? 0;
     h.len = o.len ?? 0;
     h.pull = o.pull ?? 0;
+    h.pullR = o.pullR ?? 0;
     h.slow = o.slow ?? 0;
     h.burn = o.burn ?? 0;
     h.owner = o.owner ?? 0;
@@ -1258,18 +1259,8 @@ export class Game {
         continue;
       }
       if (h.safe) continue;
-      // Pull (Inhale): applies regardless of contact.
-      if (h.pull !== 0) {
-        for (const p of this.players) {
-          if (!this.isUp(p)) continue;
-          const dx = h.x - p.x, dy = h.y - p.y;
-          const d = Math.hypot(dx, dy) || 1;
-          if (d < h.r * 4) {
-            p.pullX += (dx / d) * h.pull;
-            p.pullY += (dy / d) * h.pull;
-          }
-        }
-      }
+      // Pull (Inhale): applies regardless of contact (shared with the co-op guest's prediction).
+      if (h.pull !== 0) for (const p of this.players) if (this.isUp(p)) addHazardPull(p, h);
       if (h.dmg <= 0) continue;
       if (h.tick > 0) {
         h.tickAcc -= dt;
@@ -1519,16 +1510,26 @@ export class Game {
   }
 
   /**
-   * Chest contents (D-34, D-51). Solo: every roll for the player. Co-op: the rolls are split between
-   * the players — dealt in turn starting with the opener — and every entry is tagged with its owner,
-   * so both prize wheels show the same wedges, split between the players.
+   * Chest contents (D-34, D-51, D-54). Solo: every roll for the player. Co-op: each roll goes to whoever
+   * has been dealt the fewest chest prizes so far tonight, ties going round from the opener (so a duo
+   * still alternates, opener first, and a party of six shares 1–5-roll chests evenly over the night);
+   * every entry is tagged with its owner, so every prize wheel shows the same wedges.
    */
   openChest(rolls: number): ReturnType<typeof grantChest> {
     const opener = this.player;
     if (this.players.length === 1) return grantChest(this, rolls);
     const n = this.players.length;
     const share = this.players.map(() => 0);
-    for (let k = 0; k < rolls; k++) share[(opener.index + k) % n]++;
+    for (let k = 0; k < rolls; k++) {
+      let pick = opener.index, best = Infinity;
+      for (let j = 0; j < n; j++) {
+        const i = (opener.index + j) % n;
+        const v = this.players[i].chestPrizes + share[i];
+        if (v < best) [best, pick] = [v, i];
+      }
+      share[pick]++;
+    }
+    for (const p of this.players) p.chestPrizes += share[p.index];
     const out: ReturnType<typeof grantChest> = { items: [], entries: [] };
     for (let k = 0; k < n; k++) {
       const pl = this.players[(opener.index + k) % n];
