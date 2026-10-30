@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to net-config.json next to index.html to override signalling / ICE at run time. Every field is optional; omit 'peer' to keep PeerJS Cloud. 'iceServers' replaces the default list. See docs/MULTIPLAYER.md.",
+  "peer": { "host": "peer.example.com", "port": 443, "path": "/", "secure": true, "key": "peerjs" },
+  "iceServers": [
+    { "urls": "stun:stun.l.google.com:19302" },
+    { "urls": ["turn:turn.example.com:3478", "turns:turn.example.com:5349"], "username": "alpha", "credential": "change-me" }
+  ],
+  "debug": 0
+}

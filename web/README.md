@@ -23,7 +23,7 @@ npm run dev        # http://127.0.0.1:5173
 | Command | What it does |
 |---|---|
 | `npm run dev` | Vite dev server with hot reload and the dev-only testing tools |
-| `npm test` | Vitest suite (106 tests, including an accelerated full 25-minute run) |
+| `npm test` | Vitest suite (166 tests, including an accelerated full 25-minute run and the online co-op netcode over a simulated lossy network) |
 | `npm run typecheck` | TypeScript `--noEmit` |
 | `npm run build` | Type-checks, then produces a static production build in `web/dist/` |
 | `npm run preview` | Serves `web/dist/` locally to check the production build |
@@ -33,7 +33,16 @@ npm run dev        # http://127.0.0.1:5173
 `npm run build` outputs a fully static site (`dist/index.html`, `dist/assets/*`, `dist/audio/*`).
 It uses relative paths (`base: './'`), so it can be dropped onto any static host — GitHub Pages,
 Netlify, itch.io (upload `dist/` as an HTML5 game zip), an S3 bucket, or any web server. No backend
-is required; progress is stored in the browser's `localStorage`.
+is required; progress is stored in the browser's `localStorage`. Serve it over **HTTPS** so online
+co-op (WebRTC) works; signalling/TURN options are in [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md).
+
+### Online co-op (alpha)
+
+Title screen → **Multiplayer**: one player hosts and shares a six-character code, the other joins.
+Vampire Survivors rules — shared XP, everyone drafts before the night resumes, 4 + 4 slots each, split
+prize wheels, coffin revives. Peer-to-peer over WebRTC with free PeerJS matchmaking; the host's browser
+runs the night. Same-machine testing is done; **cross-network play still needs to be verified** — see
+[`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md) for how it works, deployment, TURN and the tester checklist.
 
 ---
 
@@ -112,7 +121,8 @@ god-mode night with an autopilot completes in ~15 s of CPU time.
 Press <kbd>`</kbd> during a run for the dev panel, or use `window.__nc` in the console:
 `__nc.jump(seconds)`, `__nc.speed(x)`, `__nc.god()`, `__nc.auto()`, `__nc.advance(seconds)`,
 `__nc.bench(frames)`, `__nc.give('fireworks')`, `__nc.level(5)`, `__nc.bossHp(0.1)`,
-`__nc.unlockAll()`, `__nc.tickets(1000)`. These are imported dynamically under
+`__nc.unlockAll()`, `__nc.tickets(1000)`, and the two-tab co-op harness `__nc.coop.host()` /
+`__nc.coop.join(code)` / `__nc.coop.start()`. These are imported dynamically under
 `import.meta.env.DEV` and are stripped from production builds.
 
 ## Documentation
@@ -126,6 +136,7 @@ Press <kbd>`</kbd> during a run for the dev panel, or use `window.__nc` in the c
 - [`docs/VISUAL_QA.md`](docs/VISUAL_QA.md) — visual iteration workflow (seeded states, captures, metrics) and the latest scorecard
 - [`docs/PROGRESSION.md`](docs/PROGRESSION.md) — XP, economy and pacing maths with measurements
 - [`docs/EASTER_EGG_SOLUTION.md`](docs/EASTER_EGG_SOLUTION.md) — **developer-only spoilers**: the full Last Song solution
+- [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md) — online co-op: rules, netcode, signalling/TURN, deployment, testing status
 
 ## Credits
 

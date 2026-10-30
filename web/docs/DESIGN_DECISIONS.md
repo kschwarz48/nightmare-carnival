@@ -183,3 +183,38 @@ Danger fills became crawling caution-stripe hatching with scorched grain and lit
 
 ### D-50 · Death scenes and less goofy balloons
 Enemies no longer just vanish: the renderer keeps the last pose of each on-screen enemy and plays a short death beat when the sim removes it (balloons swell and burst; others topple, squash and sink under a fading flash) — no sim change. Balloons wear grimy, sun-faded latex darkening toward the knot, slanted deep sockets, a wide stitched grin and a mended tape patch, in a darker palette.
+
+---
+
+## Online co-op (D-51 … D-53)
+
+### D-51 · Co-op follows Vampire Survivors
+One authoritative `Game` holds the whole party. `g.player` / `g.input` / `g.weapons` are a *current player* context that the tick points at each player in turn: for their weapons, at the nearest standing player for each enemy, at a re-picked target (every 2.5 s at most) for each boss, and at the relevant player for drafts and pickups. Between ticks the context rests on player 0. Systems written for one player therefore work unchanged. The rules are VS's:
+- XP is shared, and each level-up gives every living player their own hand. The night stays frozen until all hands are chosen.
+- Weapon and passive slots shrink with party size: 6 solo, then 4 / 3 / 2 each, which raised the solo cap from 4 to 6 (`COOP.slots`).
+- An item owned by one player leaves the other players' pools. An evolution may use a teammate's passive.
+- Characters are exclusive.
+- A fallen player lies in a coffin that opens in 40 s, or 6 s with a teammate standing next to it, and gets back half their health. All players down ends the night.
+- A chest's rolls are dealt round-robin from the opener. The entries are tagged with their owner and shown on one split wheel that both players watch.
+- Food heals the collector, and Lost Tickets, achievements and run stats are paid per player (`endStatsAll`).
+
+### D-52 · Netcode: host-authoritative snapshots with prediction, over WebRTC
+The host's browser runs the only simulation and the guest is a thin client:
+- **Transport.** PeerJS does the signalling and opens a reliable, ordered DataConnection for JSON control messages. A pre-negotiated, unordered, zero-retransmit RTCDataChannel on the same peer connection carries binary snapshots (20 Hz) and inputs (60 Hz, each packet repeating the last 6). Binary falls back to the reliable connection if the datagram channel cannot open.
+- **Snapshots.** These are deltas against the newest snapshot the guest has acknowledged. Each entity's static, motion and state parts are re-sent only while the guest may lack their current bytes. Presence bitmaps mark live slots, bosses send only their changed JSON keys, and interest rings scale with the guest's view.
+- **The guest's world.** Snapshots are written into a mirror `Game` that is never ticked, so the solo renderer, HUD and audio run unchanged. Entities interpolate one snapshot behind and hazards extrapolate.
+- **Prediction.** The guest predicts its own movement with the host's movement code (`sim/movement.ts`) and reconciles against the acknowledged input, easing corrections out.
+- **Input buffer.** The host applies guest inputs once each, in order. It repeats the last one for at most 2 ticks when a packet is late, and only shaves a backlog that persists. A held night (draft, pause, prize wheel, dropped partner) counts arriving inputs as spent. The guest is told via a snapshot flag and stops predicting.
+- **Validation.** Everything received is size-capped, rate-limited and validated.
+
+Sessions speak to a `NetLink` interface, so the whole flow is tested headless over a deterministic loopback with latency, jitter, loss and duplication. The transport can be swapped (own signalling server, relay, WebSockets) without game changes. Details and measurements: `docs/MULTIPLAYER.md`.
+
+### D-53 · Co-op scaling and session behaviour
+- **Scaling (solo untouched).** A duo faces ×1.25 crowd density: cap, minimum alive and spawn rate (`COOP.density`). Enemy and boss HP is ×1.3 (`COOP.hp`). Two players bring about twice the weapons early but only ~1.3× a solo build once their 4 slots are full, so toughness rises less than linearly. This is untested by humans; tune after alpha.
+- **Pause.** A pause stops the night for both, and the other player sees who paused. The co-op group is two friends, so a shared pause beats VS's "pausing doesn't stop the game" for someone answering the door.
+- **Item pool.** The host's unlocks define the item pool. Each player may pick only characters their own save has unlocked. The guest's meta perks are clamped to what a real save could hold.
+- **Leaving and dropping.**
+  - The host leaving ends the night: there is no host migration in the alpha.
+  - A guest who drops or refreshes mid-night holds their seat with a token in that tab's `sessionStorage`. The host's night pauses for up to 20 s ("Carry on alone" skips the wait), and the guest rejoins the same seat with a full first snapshot.
+  - While a guest is absent past the wait, the host auto-picks their level-up cards so the night is never held.
+- **Excluded modes.** Endless and the Daily Run stay solo.

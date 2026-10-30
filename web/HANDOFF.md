@@ -3,7 +3,8 @@
 For the next engineer picking up the Three.js rebuild. Read this first, then `README.md` (how to run it)
 and `docs/DESIGN_DECISIONS.md` (why the numbers are what they are). Rendering: `docs/RENDERING.md`;
 visual QA loop and the latest scorecard: `docs/VISUAL_QA.md`; progression maths: `docs/PROGRESSION.md`;
-the secret quest (developer-only spoilers): `docs/EASTER_EGG_SOLUTION.md`.
+the secret quest (developer-only spoilers): `docs/EASTER_EGG_SOLUTION.md`; online co-op (rules, netcode,
+deployment, TURN, testing status): `docs/MULTIPLAYER.md`.
 
 _Updated 2026-10-30. Branch: `web-threejs-rebuild` (not pushed, no PR)._
 
@@ -17,7 +18,11 @@ _Updated 2026-10-30. Branch: `web-threejs-rebuild` (not pushed, no PR)._
 - Rendering is a **true 2.5D Three.js renderer** (`src/render3d/`): procedural 3D models (sculpted, rigged
   cast and enemies; kit-built architecture), an analytic relief ground, a practical-light pool, ground
   mist, soft bloom and a vintage grade. The latest graphics pass (D-45…D-50) is scored in `docs/VISUAL_QA.md`.
-- **126 tests pass**, typecheck is clean, `npm run build` produces a static site.
+- **Online two-player co-op (alpha)** with Vampire Survivors rules: host-authoritative, peer-to-peer
+  over WebRTC with PeerJS matchmaking, delta snapshots, client prediction, lobby codes, reconnect
+  (D-51…D-53, `docs/MULTIPLAYER.md`). Verified with two tabs on one machine over real PeerJS; **not yet
+  verified across two networks** — that is the next job, along with the owner's go-ahead to deploy.
+- **166 tests pass**, typecheck is clean, `npm run build` produces a static site.
 - The **biggest open item is human playtesting** (balance and readability). All tuning so far used bots.
 - The original Godot project at the repo root is untouched. Two Godot files (`export_presets.cfg`,
   `project.godot`) had **uncommitted local edits before this work started** — they're the repo owner's,
@@ -42,7 +47,8 @@ web/src/
   core/             math, seeded Rng, typed EventBus, SpatialGrid (linked-list cells)
   data/             ALL content and tuning numbers — this is where balance lives
   sim/              Render-free simulation (never imports three)
-    game.ts         The Game: pools, player, damage, pickups, XP/drafts, hazards, dawn/endless/end
+    game.ts         The Game: pools, party of players, damage, pickups, XP/drafts, hazards, dawn/endless/end
+    movement.ts     Player locomotion shared by the sim and the co-op guest's prediction
     director.ts     Waves, spawn band, leash, swarms, formations, boss gates, miniboss, endless
     enemyAI.ts      13 behaviours (switch on def.behavior)
     weapons.ts      All weapon logic (switch on def.kind), projectiles, summons, mirror replay
@@ -60,7 +66,10 @@ web/src/
     bosses.ts, prizeWheel.ts, post.ts
   render/           2D leftovers still used by the 3D side: particle/number atlas (art/, assets.ts), fx.ts
   audio/            audio.ts (engine, music, boss sequencer), synth.ts (SFX recipes)
-  ui/               hud.ts (HUD, draft, chest), screens.ts (menus), dom.ts, style.css
+  ui/               hud.ts (HUD + co-op layer, draft, chest), screens.ts (menus), lobby.ts (co-op menus/lobby), dom.ts, style.css
+  net/              Online co-op (D-52): codec, snapshot (delta encoder), replica (guest mirror + prediction),
+                    protocol (validation), session (Host/GuestSession), link (NetLink + loopback), peer (PeerJS),
+                    codes, config — see docs/MULTIPLAYER.md §2
   meta/save.ts      Versioned save (localStorage) with migrations + backup slot
   input/input.ts    Keyboard (rebindable), mouse aim, gamepad
 web/tests/          Vitest suite + autopilot helpers (helpers.ts)
@@ -97,6 +106,15 @@ then renders with an interpolation alpha. Entities keep `px/py` (previous positi
 attack and many enemy tells: shape + `tele` (warning time, no damage) + `active` + optional motion,
 pull, `onActivate` callback. The renderer draws them by `shape`/`style`. `owner` = boss/enemy uid so they
 get cleaned up on death.
+
+**Co-op (D-51/D-52).** `g.players` holds the party; `g.player`/`g.input`/`g.weapons` are a *context* the
+tick points at each player in turn (their weapons, each enemy's nearest target, a boss's target, a draft,
+a pickup) and that rests on player 0 between ticks — so single-player code works unchanged, but anything
+new that reads `g.player` outside the tick should ask "which player?". Per-player bus events carry
+`player`. Online, the host's `Game` is the only simulation: `HostSession.beforeTick()` feeds the guest's
+input into `g.inputs[1]`, snapshots go out from `update()`, and the guest's `Replica` writes them into a
+mirror `Game` that is never ticked (so render/HUD/audio code is shared). Keep any new gameplay-relevant
+state replicated in `net/snapshot.ts`, or the guest won't see it.
 
 **Bosses** extend `BossBase`. Each defines `attacks(phase)` returning weighted generator functions.
 The base handles waking, intro, attack loop (no immediate repeats), HP-threshold phase transitions,
@@ -135,6 +153,11 @@ and web fonts.
   - `tests/fullrun.test.ts`: god-mode autopilot plays a whole night; guards the end-to-end flow.
   - `tests/bosses.test.ts`: every boss through every phase, dawn rules, endless.
   - `tests/content.test.ts`: every weapon deals damage, every enemy runs, data/art integrity.
+  - `tests/coop.test.ts`: co-op rules in the sim; `tests/net.test.ts`: codec, delta replication under loss,
+    prediction, validation, lobby/session flows over a lossy loopback network, disconnect/reconnect.
+- **Two-tab co-op harness** (dev server): `await __nc.coop.host()` in tab A, `await __nc.coop.join(code)` in
+  tab B, `__nc.coop.start()` in A; `__nc.coop.autopick()` and `__nc.coop.diag()`. F3 in a co-op run shows
+  live network diagnostics.
 - **Balance proxy:** `npx vite-node scripts/survival.ts midway` (or `midway,carnival`) — the smart
   potential-field bot, 3 seeds × 6 characters, no god mode. `scripts/deaths.ts` breaks down damage sources.
 - **Dev tools** (dev server only): press <kbd>`</kbd> in a run for the panel, or use `window.__nc`:
@@ -164,7 +187,12 @@ and web fonts.
    stale — wait a second and re-shoot.
 7. **Line endings.** Some files were edited with tools that wrote CRLF; git normalises to LF and prints
    warnings on commit. Harmless.
-8. **Dev tools must stay dynamically imported** (`import('./dev')` inside `if (import.meta.env.DEV)`)
+8. **The byte codec clamps, never wraps** (`Writer.u8`). Decaying timers sit a hair below zero; masking
+   once turned −0.01 into 252 and gave the guest a permanent hurt vignette.
+9. **Co-op host frames tick unevenly** (a 144 Hz display has frames with no tick). Anything in
+   `HostSession` that reasons about "the night is running" must be time-based, not per-frame — a per-frame
+   check once dropped most of the guest's inputs.
+10. **Dev tools must stay dynamically imported** (`import('./dev')` inside `if (import.meta.env.DEV)`)
    so they're stripped from production. Verify with a grep for `__nc.` in `dist/assets/*.js` (the only
    allowed hit is the `__nc_probe` localStorage key).
 
@@ -206,6 +234,9 @@ Full list in `docs/DESIGN_DECISIONS.md`. The ones most likely to surprise you:
 
 ## 8. What's not done (priority order)
 
+0. **Online co-op alpha:** verify across two machines on **different networks** with the checklist in
+   `docs/MULTIPLAYER.md` §5 (note the F3 route — `relay` means TURN was needed), then deploy (static, HTTPS)
+   **once the repo owner approves**. Tune co-op scaling (`COOP.density`/`COOP.hp`) from what the duo reports.
 1. **Human playtests** — balance on all tiers and characters (bots under-represent melee and summoners),
    and **readability in heavy combat** after the graphics pass (telegraph striping, darker spaces between
    light pools, ground cover). See the honest-uncertainty notes in `docs/PROGRESSION.md`.

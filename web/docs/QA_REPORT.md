@@ -115,6 +115,32 @@ understate that character.
 
 ---
 
+## Online co-op QA — 2026-10-30 (D-51 … D-53)
+
+**Automated (headless, deterministic):** `tests/coop.test.ts` (12) for the co-op rules in the sim, and
+`tests/net.test.ts` (27) for the netcode over an in-memory network with latency, jitter, loss and
+duplication — codec edge cases, serialisation, delta replication through 20% snapshot loss with late acks
+(mirror matches host exactly), prediction convergence, hostile-message validation, lobby/seat rules, a 90 s
+synchronized night over 45 ± 15 ms with 3% loss (host ~16 KB/s at 20 Hz, 0 inputs dropped, guest's drawn
+self within a median 15 units of the host's truth), uneven host ticking (144 Hz, bursty frames), prize-wheel
+holds, pause, drop → wait → token rejoin, carry on alone, host leaving, per-player payouts. Full suite:
+**166 passing**; typecheck clean; production build OK (PeerJS lazy-loaded, 123 KB chunk).
+
+**Live, one machine, two browser tabs, real PeerJS Cloud + WebRTC** (in-app Chromium pane): host/join by
+code, character exclusivity, ready/start, datagram channel up (route `host`), 20 Hz snapshots ~700 B /
+~15 KB/s, coordinated drafts both ways, guest prediction equal to the host's result in four directions,
+split 4-prize wheel tagged by owner, coffin + assisted revive (back at 50% HP), both-down ends the night
+with per-player results, back to the lobby, guest refresh mid-night (host waited, guest rejoined its seat),
+host leaving (guest notified), malformed / unknown code errors. Defects found and fixed: byte codec wrapped
+negative timers (permanent hurt vignette on the guest); a per-frame idle check discarded most guest inputs
+on hosts whose frames don't all tick; the guest kept predicting while the host's prize wheel held the night;
+the guest's draft showed the previous level.
+
+**Not yet verified:** two machines on the same LAN; two machines on **different networks** (the alpha's
+real goal, including a TURN-relayed connection); Firefox/Safari/mobile. Checklist: `docs/MULTIPLAYER.md` §5.
+
+---
+
 ## Graphics pass QA — 2026-10-30 (D-45 … D-50)
 
 **Verified (actually done):**
