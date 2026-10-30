@@ -6,7 +6,6 @@ import { PASSIVES, WEAPONS, BASE_WEAPON_IDS, PASSIVE_IDS } from '../data/weapons
 import type { Game } from './game';
 import { HEALING, voucherValue } from '../data/progression';
 import { SECRET_UNLOCKS } from '../data/meta';
-import { MAX_PASSIVES, MAX_WEAPONS } from './weapons';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'evolution';
 
@@ -29,7 +28,8 @@ export function readyEvolutions(g: Game): string[] {
   for (const w of g.weapons.list) {
     const d = w.def;
     if (!d.evolvesTo || w.level < d.maxLevel) continue;
-    if (d.evoPassive && g.player.passiveLevel(d.evoPassive) < 1) continue;
+    // co-op (VS): a teammate's passive counts toward the evolution
+    if (d.evoPassive && !g.players.some((pl) => pl.passiveLevel(d.evoPassive!) >= 1)) continue;
     out.push(d.id);
   }
   return out;
@@ -50,11 +50,23 @@ function candidates(g: Game): Cand[] {
   const owned = g.weapons.list;
   const ownedIds = new Set(owned.map((w) => w.def.id));
   const evolvedFrom = new Set(owned.filter((w) => w.def.isEvolution).map((w) => w.def.evolvedFrom));
+  // co-op (VS): an item one player owns leaves everyone else's pool
+  const taken = new Set<string>();
+  for (const pl of g.players) {
+    if (pl === g.player) continue;
+    for (const w of pl.weapons.list) {
+      taken.add(w.def.id);
+      if (w.def.evolvedFrom) taken.add(w.def.evolvedFrom);
+    }
+    for (const id of pl.passives.keys()) taken.add(id);
+  }
+  const banished = g.player.banished;
+  const slots = g.slots;
 
   // Level owned weapons
   for (const w of owned) {
     if (w.def.isEvolution || w.level >= w.def.maxLevel) continue;
-    if (g.banished.has(w.def.id)) continue;
+    if (banished.has(w.def.id)) continue;
     const next = w.level + 1;
     const rarity: Rarity = next === w.def.maxLevel ? 'rare' : 'common';
     let rel = 1.5;
@@ -65,10 +77,10 @@ function candidates(g: Game): Cand[] {
     });
   }
   // New weapons
-  if (owned.length < MAX_WEAPONS) {
+  if (owned.length < slots.weapons) {
     for (const id of BASE_WEAPON_IDS) {
       const d = WEAPONS[id];
-      if (ownedIds.has(id) || evolvedFrom.has(id) || g.banished.has(id) || !isUnlocked(g, d.unlock)) continue;
+      if (ownedIds.has(id) || evolvedFrom.has(id) || taken.has(id) || banished.has(id) || !isUnlocked(g, d.unlock)) continue;
       const rarity: Rarity = d.weight < 1 ? 'uncommon' : 'common';
       // signature weapons of other characters are a little rarer
       const sig = d.signature && d.signature !== g.player.char.id ? 0.7 : 1;
@@ -83,8 +95,8 @@ function candidates(g: Game): Cand[] {
   for (const id of PASSIVE_IDS) {
     const d = PASSIVES[id];
     const lvl = g.player.passiveLevel(id);
-    if (lvl >= d.maxLevel || g.banished.has(id) || !isUnlocked(g, d.unlock)) continue;
-    if (lvl === 0 && heldPassives >= MAX_PASSIVES) continue;
+    if (lvl >= d.maxLevel || banished.has(id) || !isUnlocked(g, d.unlock)) continue;
+    if (lvl === 0 && (heldPassives >= slots.passives || taken.has(id))) continue;
     let rel = 1;
     if (lvl === 0) {
       for (const w of owned) if (w.def.evoPassive === id) rel = 2.5;
@@ -193,6 +205,8 @@ export interface ChestEntry {
   type: 'evolution' | 'level' | 'passive' | 'new' | 'voucher' | 'heal';
   id: string;
   label: string;
+  /** Co-op: the player this prize went to (D-51). */
+  player?: number;
 }
 
 export function grantChest(g: Game, rolls: number): { items: string[]; evolution?: string; entries: ChestEntry[] } {
@@ -235,7 +249,7 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
     }
     // Everything maxed: a new weapon if there's room, else a heal.
     if (g.weapons.hasRoom()) {
-      const cands = BASE_WEAPON_IDS.filter((id) => !g.weapons.has(id) && isUnlocked(g, WEAPONS[id].unlock) && !g.weapons.list.some((w) => w.def.evolvedFrom === id));
+      const cands = BASE_WEAPON_IDS.filter((id) => !g.players.some((pl) => pl.weapons.has(id) || pl.weapons.list.some((w) => w.def.evolvedFrom === id)) && isUnlocked(g, WEAPONS[id].unlock));
       if (cands.length) {
         const id = g.rng.pick(cands);
         g.weapons.add(id);

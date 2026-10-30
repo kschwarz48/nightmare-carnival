@@ -69,15 +69,19 @@ export function autopilot(g: Game): void {
 /** Resolve drafts automatically (prefer evolutions, then weapons in slot-order, then passives). */
 export function autoDraft(g: Game): void {
   if (g.phase !== 'draft') return;
-  const opts = g.draftOptions;
-  let idx = opts.findIndex((o) => o.kind === 'evolution');
-  if (idx < 0) idx = opts.findIndex((o) => o.kind === 'level_weapon');
-  if (idx < 0) idx = opts.findIndex((o) => o.kind === 'passive' && !o.isNew === false && ['spectacles', 'lucky_ticket', 'energy_drink', 'strongman_belt', 'extra_token', 'foam_finger'].includes(o.refId));
-  if (idx < 0) idx = opts.findIndex((o) => o.kind === 'new_weapon');
-  if (idx < 0) idx = 0;
-  g.chooseDraft(idx);
+  // every player with a hand open picks (co-op drafts resolve only when all have chosen)
+  for (let pi = 0; pi < g.players.length; pi++) {
+    const opts = g.drafts[pi];
+    if (!opts) continue;
+    let idx = opts.findIndex((o) => o.kind === 'evolution');
+    if (idx < 0) idx = opts.findIndex((o) => o.kind === 'level_weapon');
+    if (idx < 0) idx = opts.findIndex((o) => o.kind === 'passive' && !o.isNew === false && ['spectacles', 'lucky_ticket', 'energy_drink', 'strongman_belt', 'extra_token', 'foam_finger'].includes(o.refId));
+    if (idx < 0) idx = opts.findIndex((o) => o.kind === 'new_weapon');
+    if (idx < 0) idx = 0;
+    g.chooseDraft(idx, pi);
+    if (g.phase !== 'draft') return;
+  }
 }
-
 export function runFor(g: Game, seconds: number, opts: { auto?: boolean } = { auto: true }): void {
   const ticks = Math.round(seconds * 60);
   for (let i = 0; i < ticks; i++) {
@@ -85,6 +89,15 @@ export function runFor(g: Game, seconds: number, opts: { auto?: boolean } = { au
     if (opts.auto !== false) {
       autoDraft(g);
       autopilot(g);
+      // teammates circle wide around the first player
+      for (let k = 1; k < g.players.length; k++) {
+        const t = g.time * 0.9 + k * 2.1;
+        const p0 = g.players[0], pk = g.players[k];
+        const tx = p0.x + Math.cos(t) * 220 - pk.x, ty = p0.y + Math.sin(t) * 160 - pk.y;
+        const l = Math.hypot(tx, ty) || 1;
+        g.inputs[k].moveX = tx / l;
+        g.inputs[k].moveY = ty / l;
+      }
     }
     g.tick();
   }

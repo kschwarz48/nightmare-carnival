@@ -3,8 +3,21 @@
 import { CHARACTER_MAP, type CharacterDef } from '../data/characters';
 import { PASSIVES, type StatAxis } from '../data/weapons';
 import { PlayerStats } from './stats';
+import type { Weapons } from './weapons';
 
 export class Player {
+  /** Slot in the party (0 = host / solo). */
+  index = 0;
+  name = 'Player 1';
+  /** This player's arsenal (each player owns one; the game points `g.weapons` at it as context). */
+  weapons!: Weapons;
+  /** Co-op: fallen into a coffin, waiting to be revived (D-51). */
+  downed = false;
+  /** Coffin revive progress 0..1, and whether a teammate is speeding it up. */
+  reviveT = 0;
+  reviveAssist = false;
+  /** Draft cards this player has banished. */
+  banished = new Set<string>();
   char: CharacterDef;
   stats = new PlayerStats();
   x = 0;

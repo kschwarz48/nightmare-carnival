@@ -23,7 +23,7 @@ import {
 import { CarnivalEvents } from './carnivalEvents';
 import { QuestSystem, type QuestCue } from './quest';
 import { MAP_ID } from '../data/quests';
-import { CHESTS, HEALING, TICKETS, voucherValue, xpToNext } from '../data/progression';
+import { CHESTS, COOP, HEALING, TICKETS, voucherValue, xpToNext } from '../data/progression';
 import { FxQueue } from './fx';
 import { Player } from './player';
 import { Weapons } from './weapons';
@@ -47,6 +47,8 @@ export interface RunConfig {
   banishes?: number;
   canSkip?: boolean;
   unlocked?: Set<string>;
+  /** Co-op party (D-51): one entry per player; absent = solo with `character`. Player 0 uses the top-level meta/rerolls. */
+  players?: { character: string; name?: string; meta?: { axis: string; value: number }[]; rerolls?: number; banishes?: number; canSkip?: boolean }[];
   /** Test hooks */
   godMode?: boolean;
   /** Persistent quest memory from the save (e.g. how often the Last Song was completed). */
@@ -91,19 +93,21 @@ export interface RunStats {
 
 export type GameEvents = {
   levelup: { level: number };
-  draft: { options: DraftOption[] };
+  draft: { options: DraftOption[]; player?: number };
+  draft_done: { player: number };
   boss_warning: { id: string };
   boss_spawn: { id: string };
   boss_phase: { id: string; phase: number; name: string };
   boss_defeated: { id: string; noHit: boolean };
-  player_hurt: { amount: number; hp: number };
-  player_revive: {};
-  shield_pop: {};
+  player_hurt: { amount: number; hp: number; player?: number };
+  player_revive: { player?: number };
+  player_downed: { player: number };
+  shield_pop: { player?: number };
   run_end: { stats: RunStats };
   dawn: {};
   act: { act: number };
   carnival_event: { id: string; banner: string };
-  chest: { items: string[]; evolution?: string; entries?: import('./draft').ChestEntry[]; rolls?: number; src?: string };
+  chest: { items: string[]; evolution?: string; entries?: import('./draft').ChestEntry[]; rolls?: number; src?: string; opener?: number };
   evolved: { from: string; to: string };
   sfx: { id: string; x?: number; y?: number; vol?: number; pitch?: number };
   banner: { text: string; sub?: string; style?: string };
@@ -112,7 +116,7 @@ export type GameEvents = {
   stall: {};
   music: { cue: string };
   quest: QuestCue;
-  meta_currency: { amount: number; source: string };
+  meta_currency: { amount: number; source: string; player?: number };
   balloon_drift: { x: number; y: number; dirX: number; dirY: number; size: number };
 };
 
@@ -129,8 +133,18 @@ export class Game {
   tickCount = 0;
   phase: Phase = 'play';
   act = 1;
+  /** Every player in the run (index = network slot). */
+  players: Player[] = [];
+  /** Per-player input (host fills remote slots from the network). */
+  inputs: InputState[] = [];
+  /**
+   * The *current* player context (D-51): systems written for one player (weapons, enemy AI, bosses,
+   * drafts) read `player` / `input` / `weapons`, and the tick points them at the right player while
+   * it updates that player's weapons, each enemy's target, each boss's target, a draft, a pickup.
+   * Outside the tick they point at player 0.
+   */
   player: Player;
-  input: InputState = { moveX: 0, moveY: 0, aimX: 1, aimY: 0, aimActive: false };
+  input: InputState;
 
   // pools
   enemies: Enemy[] = [];
@@ -158,9 +172,20 @@ export class Game {
   xp = 0;
   xpToNext = 0;
   pendingLevels = 0;
-  draftOptions: DraftOption[] = [];
+  /** Per-player draft hands while a level-up is open; null once that player has chosen. */
+  drafts: (DraftOption[] | null)[] = [];
+  /** Player 0's hand (solo API). */
+  get draftOptions(): DraftOption[] {
+    return this.drafts[0] ?? [];
+  }
+  set draftOptions(v: DraftOption[]) {
+    this.drafts[0] = v;
+  }
   nextDraftRarity = 'common';
-  banished = new Set<string>();
+  /** Player 0's banished cards (solo API; each player has their own set). */
+  get banished(): Set<string> {
+    return this.players[0].banished;
+  }
   evolutions: string[] = [];
   damageDealt = 0;
   damageTaken = 0;
@@ -188,6 +213,8 @@ export class Game {
   quests!: QuestSystem;
   wonPayoutBanked = 0;
   endStats: RunStats | null = null;
+  /** Per-player end-of-run stats (co-op: each client shows and banks its own). */
+  endStatsAll: RunStats[] = [];
   tiltAngle = 0;
   achievementsHit = new Set<string>();
   maxGems = GEM_CAP;
@@ -197,20 +224,30 @@ export class Game {
     this.cfg = cfg;
     this.rng = new Rng(cfg.seed);
     this.diff = DIFFICULTY_MAP[cfg.difficulty] ?? DIFFICULTY_MAP.midway;
-    this.player = new Player(cfg.character);
-    for (const m of cfg.meta ?? []) this.player.stats.apply(m.axis as any, m.value);
-    if (cfg.daily && cfg.dailyMod === 'glass') {
-      this.player.stats.might += 0.3;
-      this.player.stats.maxHpMult -= 0.3;
-    }
-    this.player.rerolls = cfg.rerolls ?? 0;
-    this.player.banishes = cfg.banishes ?? 0;
-    this.player.canSkip = !!cfg.canSkip;
-    this.player.initHp();
-    this.player.x = this.player.px = PLAYER_SPAWN.x;
-    this.player.y = this.player.py = PLAYER_SPAWN.y;
-    this.player.faceY = -1;
-    this.player.faceX = 0;
+    const party = cfg.players?.length ? cfg.players.slice(0, COOP.maxPlayers) : [{ character: cfg.character }];
+    party.forEach((pc, i) => {
+      const pl = new Player(pc.character);
+      pl.index = i;
+      pl.name = pc.name ?? `Player ${i + 1}`;
+      const meta = i === 0 ? cfg.meta : pc.meta;
+      for (const m of meta ?? []) pl.stats.apply(m.axis as any, m.value);
+      if (cfg.daily && cfg.dailyMod === 'glass') {
+        pl.stats.might += 0.3;
+        pl.stats.maxHpMult -= 0.3;
+      }
+      pl.rerolls = (i === 0 ? cfg.rerolls : pc.rerolls) ?? 0;
+      pl.banishes = (i === 0 ? cfg.banishes : pc.banishes) ?? 0;
+      pl.canSkip = !!(i === 0 ? cfg.canSkip : pc.canSkip);
+      pl.initHp();
+      pl.x = pl.px = PLAYER_SPAWN.x + (i - (party.length - 1) / 2) * 70;
+      pl.y = pl.py = PLAYER_SPAWN.y;
+      pl.faceY = -1;
+      pl.faceX = 0;
+      this.players.push(pl);
+      this.inputs.push({ moveX: 0, moveY: 0, aimX: 1, aimY: 0, aimActive: false });
+    });
+    this.player = this.players[0];
+    this.input = this.inputs[0];
 
     for (let i = 0; i < 560; i++) {
       const e = new Enemy();
@@ -227,13 +264,76 @@ export class Game {
     this.grid = new SpatialGrid(-MAP_HALF - 200, -MAP_HALF - 200, MAP_HALF * 2 + 400, MAP_HALF * 2 + 400, 64, this.enemies.length);
     this.xpToNext = this.xpCurve(1);
     this.director = new Director(this);
-    this.weapons = new Weapons(this);
+    for (const pl of this.players) pl.weapons = new Weapons(this);
+    this.weapons = this.players[0].weapons;
     this.events = new CarnivalEvents(this);
-    this.weapons.add(this.player.char.startWeapon);
+    for (const pl of this.players) {
+      this.setCtx(pl);
+      pl.weapons.add(pl.char.startWeapon);
+    }
+    this.setCtx(this.players[0]);
     this.foodTimer = this.rng.range(HEALING.foodFirst[0], HEALING.foodFirst[1]);
     this.goldenTimer = this.rng.range(150, 330);
     this.director.init();
     this.quests = new QuestSystem(this, MAP_ID);
+  }
+
+  // ------------------------------------------------------------------ party
+  /** Point the single-player systems at `p` (see `player`). */
+  setCtx(p: Player): void {
+    this.player = p;
+    this.input = this.inputs[p.index];
+    this.weapons = p.weapons;
+  }
+  /** Weapon and passive slots per player for this party size (VS: 6 / 4 / 3 / 2). */
+  get slots(): { weapons: number; passives: number } {
+    const n = COOP.slots[Math.min(COOP.slots.length - 1, this.players.length)];
+    return { weapons: n, passives: n };
+  }
+  get coop(): boolean {
+    return this.players.length > 1;
+  }
+  /** Is this player up and fighting? */
+  isUp(p: Player): boolean {
+    return !p.dead && !p.downed;
+  }
+  /** The nearest player still standing (falls back to player 0 when nobody is). */
+  nearestLiving(x: number, y: number): Player {
+    let best = this.players[0], bd = Infinity;
+    for (const p of this.players) {
+      if (!this.isUp(p)) continue;
+      const d = dist2(p.x, p.y, x, y);
+      if (d < bd) {
+        bd = d;
+        best = p;
+      }
+    }
+    return best;
+  }
+  /** A random standing player to anchor spawns and drops around. */
+  spawnAnchor(): Player {
+    if (this.players.length === 1) return this.players[0];
+    const up = this.players.filter((p) => this.isUp(p));
+    return up.length ? up[this.rng.int(0, up.length - 1)] : this.players[0];
+  }
+  /** Inside some standing player's view rectangle (scaled)? */
+  inAnyView(x: number, y: number, k = 1): boolean {
+    for (const p of this.players) {
+      if (!this.isUp(p)) continue;
+      if (Math.abs(x - p.x) < VIEW_HALF_X * k && Math.abs(y - p.y) < VIEW_HALF_Y * k) return true;
+    }
+    return false;
+  }
+  private bossTargetFor(b: BossBase): Player {
+    if (this.players.length === 1) return this.players[0];
+    const st = b as BossBase & { _tgt?: number; _tgtT?: number };
+    st._tgtT = (st._tgtT ?? 0) - TICK;
+    const cur = this.players[st._tgt ?? 0];
+    if (st._tgtT <= 0 || !cur || !this.isUp(cur)) {
+      st._tgt = this.nearestLiving(b.x, b.y).index;
+      st._tgtT = COOP.bossRetarget;
+    }
+    return this.players[st._tgt ?? 0];
   }
 
   // ------------------------------------------------------------------ tick
@@ -270,30 +370,54 @@ export class Game {
     }
     this.updateAct();
 
-    this.updatePlayer(dt);
+    for (const pl of this.players) {
+      this.setCtx(pl);
+      if (pl.downed) this.updateDowned(pl, dt);
+      else if (!pl.dead) this.updatePlayer(dt);
+    }
+    const p0 = this.players[0];
+    const multi = this.players.length > 1;
+    this.setCtx(p0);
     this.rebuildGrid();
     this.director.update(dt);
+    if (multi) this.setCtx(this.players[Math.floor(this.time / 15) % this.players.length]);
     this.events.update(dt);
+    this.setCtx(p0);
     this.quests.update(dt);
     for (let i = 0; i < this.active.length; i++) {
       const e = this.active[i];
       e.px = e.x;
       e.py = e.y;
+      if (multi) this.setCtx(this.nearestLiving(e.x, e.y));
       updateEnemy(this, e, dt);
       this.updateStatuses(e, dt);
     }
+    this.setCtx(p0);
     this.separate(dt);
-    for (const b of this.bosses) b.update(dt);
+    for (const b of this.bosses) {
+      if (multi) this.setCtx(this.bossTargetFor(b));
+      b.update(dt);
+    }
+    this.setCtx(p0);
     if (this.bosses.length) this.bosses = this.bosses.filter((b) => !b.removed);
-    this.weapons.update(dt);
-    this.updateProjectiles(dt);
-    this.updateSummonsTick(dt);
+    for (const pl of this.players) {
+      this.setCtx(pl);
+      if (this.isUp(pl)) pl.weapons.update(dt);
+      pl.weapons.updateProjectiles(dt);
+      pl.weapons.updateSummons(dt);
+    }
+    this.setCtx(p0);
     this.updateBullets(dt);
     this.updateHazards(dt);
     this.updateZones(dt);
     this.updatePickups(dt);
     this.updateContact();
-    this.updateMapHazards(dt);
+    for (const pl of this.players) {
+      if (!this.isUp(pl)) continue;
+      this.setCtx(pl);
+      this.updateMapHazards(dt);
+    }
+    this.setCtx(p0);
     this.updateTimers(dt);
     this.cleanupDead();
 
@@ -447,7 +571,7 @@ export class Game {
   /** Damage the player (contact, bullets, hazards). Returns true if damage landed. */
   hurtPlayer(amount: number, srcX: number, srcY: number, opts: { slow?: number; slowT?: number; burn?: boolean; ignoreIframes?: boolean } = {}): boolean {
     const p = this.player;
-    if (p.dead || this.phase !== 'play') return false;
+    if (p.dead || p.downed || this.phase !== 'play') return false;
     if (p.iframes > 0 && !opts.ignoreIframes) return false;
     if (p.dashT > 0) return false; // bumper surge i-frames
     if (this.cfg.godMode) {
@@ -464,7 +588,7 @@ export class Game {
       p.shieldT = 20 * p.stats.cooldown;
       p.iframes = IFRAMES * 1.6;
       this.fx.push('death', p.x, p.y - 30, 1, 0, 0, 'pop');
-      this.bus.emit('shield_pop', {});
+      this.bus.emit('shield_pop', { player: p.index });
       this.bus.emit('sfx', { id: 'pop', vol: 1.2 });
       return false;
     }
@@ -474,13 +598,37 @@ export class Game {
     p.hurtFlash = 0.3;
     p.bossDamageTaken += dmg;
     this.damageTaken += dmg;
-    this.bus.emit('player_hurt', { amount: dmg, hp: p.hp });
+    this.bus.emit('player_hurt', { amount: dmg, hp: p.hp, player: p.index });
     this.fx.push('shake', p.x, p.y, Math.min(1, 0.25 + dmg / 40));
     if (p.stats.knockbackShove > 0) {
       this.forEachEnemyInCircle(p.x, p.y, 95, (e) => this.knockback(e, p.x, p.y, p.stats.knockbackShove));
     }
     if (p.hp <= 0) this.playerDown();
     return true;
+  }
+
+  /**
+   * A fallen co-op player (D-51): a coffin that fills over `COOP.reviveAlone` seconds, or
+   * `COOP.reviveAssisted` with a standing teammate close by.
+   */
+  private updateDowned(p: Player, dt: number): void {
+    p.px = p.x;
+    p.py = p.y;
+    p.vx = p.vy = 0;
+    let assisted = false;
+    for (const o of this.players) if (o !== p && this.isUp(o) && dist2(o.x, o.y, p.x, p.y) < COOP.reviveRadius * COOP.reviveRadius) assisted = true;
+    p.reviveAssist = assisted;
+    p.reviveT = Math.min(1, p.reviveT + dt / (assisted ? COOP.reviveAssisted : COOP.reviveAlone));
+    if (p.reviveT >= 1) {
+      p.downed = false;
+      p.reviveT = 0;
+      p.hp = p.stats.maxHp() * COOP.reviveHpFrac;
+      p.iframes = 2.2;
+      p.reviveFx = 1.5;
+      this.fx.push('ring', p.x, p.y, 200, 0, 0, 'revive');
+      this.bus.emit('player_revive', { player: p.index });
+      this.bus.emit('sfx', { id: 'revive' });
+    }
   }
 
   private playerDown(): void {
@@ -495,11 +643,22 @@ export class Game {
       this.forEachEnemyInCircle(p.x, p.y, 260, (e) => {
         this.damageEnemy(e, 60 * p.stats.might, false, 4, p.x, p.y, 'revive');
       });
-      this.bus.emit('player_revive', {});
+      this.bus.emit('player_revive', { player: p.index });
       this.bus.emit('sfx', { id: 'revive' });
       return;
     }
-    p.dead = true;
+    if (this.players.some((o) => o !== p && this.isUp(o))) {
+      // co-op: fall into a coffin until revived
+      p.downed = true;
+      p.hp = 0;
+      p.reviveT = 0;
+      p.dashT = 0;
+      this.fx.push('death', p.x, p.y - 20, 1.2, 0, 0, 'pop');
+      this.bus.emit('player_downed', { player: p.index });
+      this.bus.emit('sfx', { id: 'toll', vol: 0.7 });
+      return;
+    }
+    for (const o of this.players) o.dead = true;
     this.endRun(false);
   }
 
@@ -624,8 +783,9 @@ export class Game {
       }
     }
     // Blizzard: frozen enemies shatter for AoE.
-    if (e.frozenT > 0 && this.weapons.has('blizzard')) {
-      const w = this.weapons.get('blizzard')!;
+    const bzOwner = e.frozenT > 0 ? this.players.find((pl) => pl.weapons.has('blizzard')) : undefined;
+    if (bzOwner) {
+      const w = bzOwner.weapons.get('blizzard')!;
       const dmg = 40 * this.player.stats.might;
       this.fx.push('explosion', e.x, e.y, 70, 0, 0, 'frost');
       this.forEachTargetInCircle(e.x, e.y, 70, (t) => this.damageTarget(t, dmg, false, 0.5, e.x, e.y, w.def.id));
@@ -786,8 +946,18 @@ export class Game {
   }
 
   private updateContact(): void {
+    for (const pl of this.players) {
+      if (!this.isUp(pl)) continue;
+      this.setCtx(pl);
+      this.contactFor();
+      for (const b of this.bosses) b.contactCheck();
+    }
+    this.setCtx(this.players[0]);
+  }
+
+  private contactFor(): void {
     const p = this.player;
-    if (p.iframes > 0 || p.dead) return;
+    if (p.iframes > 0 || p.dead || p.downed) return;
     let hit: Enemy | null = null;
     this.grid.query(p.x, p.y, p.r + 40, (id) => {
       const e = this.enemies[id];
@@ -803,7 +973,6 @@ export class Game {
       const slow = h.def.contactSlow ?? 0;
       this.hurtPlayer(h.dmg, h.x, h.y, slow ? { slow: h.elite ? slow + 0.15 : slow, slowT: h.def.contactSlowTime } : {});
     }
-    for (const b of this.bosses) b.contactCheck();
   }
 
   // ------------------------------------------------------------------ queries
@@ -905,6 +1074,7 @@ export class Game {
       const p = this.projs[i];
       if (!p.alive) {
         p.alive = true;
+        p.owner = this.player.index;
         p.hits.reset();
         p.rehit = -1;
         p.homing = 0;
@@ -924,18 +1094,13 @@ export class Game {
     return null;
   }
 
-  private updateProjectiles(dt: number): void {
-    this.weapons.updateProjectiles(dt);
-  }
 
-  private updateSummonsTick(dt: number): void {
-    this.weapons.updateSummons(dt);
-  }
 
   spawnSummon(): Summon | null {
     for (const s of this.summons) {
       if (!s.alive) {
         s.alive = true;
+        s.owner = this.player.index;
         s.hits.reset();
         s.state = 0;
         s.t = 0;
@@ -981,7 +1146,7 @@ export class Game {
   }
 
   private updateBullets(dt: number): void {
-    const p = this.player;
+    const multi = this.players.length > 1;
     for (const b of this.bullets) {
       if (!b.alive) continue;
       b.px = b.x;
@@ -998,6 +1163,7 @@ export class Game {
         b.vx = nvx;
       }
       if (b.homing > 0) {
+        const p = multi ? this.nearestLiving(b.x, b.y) : this.player;
         const want = Math.atan2(p.y - b.y, p.x - b.x);
         const cur = Math.atan2(b.vy, b.vx);
         let d = want - cur;
@@ -1048,13 +1214,21 @@ export class Game {
         continue;
       }
       if (b.z > 24) continue; // still airborne
-      const rr = b.r + p.r * 0.8;
-      if (dist2(b.x, b.y, p.x, p.y) < rr * rr) {
-        if (this.hurtPlayer(b.dmg, b.x, b.y)) {
-          if (b.kind !== 'ring' && b.kind !== 'spoke' && b.kind !== 'crown') b.alive = false;
+      for (const p of this.players) {
+        if (!this.isUp(p)) continue;
+        const rr = b.r + p.r * 0.8;
+        if (dist2(b.x, b.y, p.x, p.y) < rr * rr) {
+          this.setCtx(p);
+          if (this.hurtPlayer(b.dmg, b.x, b.y)) {
+            if (b.kind !== 'ring' && b.kind !== 'spoke' && b.kind !== 'crown') {
+              b.alive = false;
+              break;
+            }
+          }
         }
       }
     }
+    this.setCtx(this.players[0]);
   }
 
   /** Bounce box for bouncing bullets (around the player's screen). */
@@ -1093,6 +1267,7 @@ export class Game {
     h.tick = o.tick ?? 0;
     h.tickAcc = 0;
     h.hitPlayer = false;
+    h.hitMask = 0;
     h.vx = o.vx ?? 0;
     h.vy = o.vy ?? 0;
     h.grow = o.grow ?? 0;
@@ -1115,11 +1290,11 @@ export class Game {
   }
 
   private updateHazards(dt: number): void {
-    const p = this.player;
     for (const h of this.hazards) {
       if (!h.alive) continue;
       h.t += dt;
       if (h.followPlayer > 0 && h.tele > 0) {
+        const p = this.nearestLiving(h.x, h.y);
         const k = Math.min(1, h.followPlayer * dt);
         h.x += (p.x - h.x) * k;
         h.y += (p.y - h.y) * k;
@@ -1156,25 +1331,38 @@ export class Game {
       if (h.safe) continue;
       // Pull (Inhale): applies regardless of contact.
       if (h.pull !== 0) {
-        const dx = h.x - p.x, dy = h.y - p.y;
-        const d = Math.hypot(dx, dy) || 1;
-        if (d < h.r * 4) {
-          p.pullX += (dx / d) * h.pull;
-          p.pullY += (dy / d) * h.pull;
+        for (const p of this.players) {
+          if (!this.isUp(p)) continue;
+          const dx = h.x - p.x, dy = h.y - p.y;
+          const d = Math.hypot(dx, dy) || 1;
+          if (d < h.r * 4) {
+            p.pullX += (dx / d) * h.pull;
+            p.pullY += (dy / d) * h.pull;
+          }
         }
       }
       if (h.dmg <= 0) continue;
       if (h.tick > 0) {
         h.tickAcc -= dt;
         if (h.tickAcc > 0) continue;
-      } else if (h.hitPlayer) continue;
-      if (this.hazardTouches(h, p.x, p.y, p.r * 0.75)) {
-        if (this.hurtPlayer(h.dmg, h.x, h.y, h.slow ? { slow: h.slow, slowT: 0.6 } : {})) {
-          h.hitPlayer = true;
-          if (h.tick > 0) h.tickAcc = h.tick;
+      }
+      let landed = false;
+      for (const p of this.players) {
+        if (!this.isUp(p)) continue;
+        const bit = 1 << p.index;
+        if (h.tick <= 0 && h.hitMask & bit) continue;
+        if (this.hazardTouches(h, p.x, p.y, p.r * 0.75)) {
+          this.setCtx(p);
+          if (this.hurtPlayer(h.dmg, h.x, h.y, h.slow ? { slow: h.slow, slowT: 0.6 } : {})) {
+            h.hitMask |= bit;
+            h.hitPlayer = true;
+            landed = true;
+          }
         }
       }
+      if (landed && h.tick > 0) h.tickAcc = h.tick;
     }
+    this.setCtx(this.players[0]);
   }
 
   hazardTouches(h: Hazard, x: number, y: number, r: number): boolean {
@@ -1323,9 +1511,7 @@ export class Game {
   }
 
   private updatePickups(dt: number): void {
-    const p = this.player;
-    const mag = p.stats.pickupRadius();
-    const mag2 = mag * mag;
+    const multi = this.players.length > 1;
     for (const pk of this.pickups) {
       if (!pk.alive) continue;
       pk.px = pk.x;
@@ -1344,6 +1530,10 @@ export class Game {
         pk.vy *= 0.9;
         if (Math.abs(pk.vx) < 2 && Math.abs(pk.vy) < 2) pk.vx = pk.vy = 0;
       }
+      const p = multi ? this.nearestLiving(pk.x, pk.y) : this.player;
+      if (!this.isUp(p)) continue;
+      const mag = p.stats.pickupRadius();
+      const mag2 = mag * mag;
       const d2 = dist2(pk.x, pk.y, p.x, p.y);
       const grab = pk.kind === 'chest' ? 36 : pk.kind === 'food' || pk.kind === 'funnel' ? 30 : 18;
       if (!pk.magnet && (pk.kind === 'ticket' || pk.kind === 'bank') && d2 < mag2) pk.magnet = true;
@@ -1353,8 +1543,12 @@ export class Game {
         pk.x += ((p.x - pk.x) / d) * pk.speed * dt;
         pk.y += ((p.y - pk.y) / d) * pk.speed * dt;
       }
-      if (d2 < (grab + p.r) * (grab + p.r)) this.collect(pk);
+      if (d2 < (grab + p.r) * (grab + p.r)) {
+        this.setCtx(p);
+        this.collect(pk);
+      }
     }
+    this.setCtx(this.players[0]);
   }
 
   private collect(pk: Pickup): void {
@@ -1385,12 +1579,38 @@ export class Game {
         this.bus.emit('pickup', { kind: 'golden', value: 0 });
         break;
       case 'chest': {
-        const res = grantChest(this, pk.rolls || 1);
+        const res = this.openChest(pk.rolls || 1);
         this.fx.push('chest', pk.x, pk.y, res.items.length);
-        this.bus.emit('chest', { ...res, rolls: pk.rolls || 1, src: pk.src || 'event' });
+        this.bus.emit('chest', { ...res, rolls: pk.rolls || 1, src: pk.src || 'event', opener: p.index });
         break;
       }
     }
+  }
+
+  /**
+   * Chest contents (D-34, D-51). Solo: every roll for the player. Co-op: the rolls are split between
+   * the players — dealt in turn starting with the opener — and every entry is tagged with its owner,
+   * so both prize wheels show the same wedges, split between the players.
+   */
+  openChest(rolls: number): ReturnType<typeof grantChest> {
+    const opener = this.player;
+    if (this.players.length === 1) return grantChest(this, rolls);
+    const n = this.players.length;
+    const share = this.players.map(() => 0);
+    for (let k = 0; k < rolls; k++) share[(opener.index + k) % n]++;
+    const out: ReturnType<typeof grantChest> = { items: [], entries: [] };
+    for (let k = 0; k < n; k++) {
+      const pl = this.players[(opener.index + k) % n];
+      if (share[pl.index] <= 0) continue;
+      this.setCtx(pl);
+      const r = grantChest(this, share[pl.index]);
+      for (const e of r.entries) e.player = pl.index;
+      out.items.push(...r.items);
+      out.entries.push(...r.entries);
+      if (r.evolution && !out.evolution) out.evolution = r.evolution;
+    }
+    this.setCtx(opener);
+    return out;
   }
 
   xpCurve(lvl: number): number {
@@ -1411,50 +1631,94 @@ export class Game {
     if (this.pendingLevels > 0 && this.phase === 'play') this.openDraft();
   }
 
+  /**
+   * Open a level-up (D-51): every player draws their own hand from their own build; the night stays
+   * paused until every player has chosen (or skipped). Solo behaves exactly as before.
+   */
   openDraft(): void {
     if (this.pendingLevels <= 0) return;
-    this.draftOptions = generateDraft(this);
+    const ctx = this.player;
+    this.drafts = this.players.map((pl) => {
+      if (pl.dead) return null;
+      this.setCtx(pl);
+      const hand = generateDraft(this);
+      return hand;
+    });
+    this.setCtx(ctx);
     this.phase = 'draft';
-    this.bus.emit('draft', { options: this.draftOptions });
+    if (this.drafts.every((d) => d === null)) {
+      this.closeDraft();
+      return;
+    }
+    this.drafts.forEach((hand, i) => hand && this.bus.emit('draft', { options: hand, player: i }));
   }
 
-  chooseDraft(index: number): void {
-    if (this.phase !== 'draft') return;
-    const opt = this.draftOptions[index];
+  /** Has this player still to choose in the open level-up? */
+  draftPending(pi = 0): boolean {
+    return this.phase === 'draft' && !!this.drafts[pi];
+  }
+
+  chooseDraft(index: number, pi = 0): void {
+    if (!this.draftPending(pi)) return;
+    const hand = this.drafts[pi]!;
+    const opt = hand[index];
     if (opt?.disabled) return;
+    const ctx = this.player;
+    this.setCtx(this.players[pi]);
     if (opt) applyDraftChoice(this, opt);
-    this.closeDraft();
+    this.setCtx(ctx);
+    this.finishDraft(pi);
   }
 
-  skipDraft(): void {
-    if (this.phase !== 'draft' || !this.player.canSkip) return;
+  skipDraft(pi = 0): void {
+    const pl = this.players[pi];
+    if (!this.draftPending(pi) || !pl.canSkip) return;
+    const ctx = this.player;
+    this.setCtx(pl);
     this.healPlayer(10);
-    this.closeDraft();
+    this.setCtx(ctx);
+    this.finishDraft(pi);
   }
 
-  rerollDraft(): boolean {
-    if (this.phase !== 'draft' || this.player.rerolls <= 0) return false;
-    this.player.rerolls--;
-    this.draftOptions = generateDraft(this);
-    this.bus.emit('draft', { options: this.draftOptions });
+  rerollDraft(pi = 0): boolean {
+    const pl = this.players[pi];
+    if (!this.draftPending(pi) || pl.rerolls <= 0) return false;
+    pl.rerolls--;
+    this.redraw(pi);
     return true;
   }
 
-  banishDraft(index: number): boolean {
-    if (this.phase !== 'draft' || this.player.banishes <= 0) return false;
-    const opt = this.draftOptions[index];
+  banishDraft(index: number, pi = 0): boolean {
+    const pl = this.players[pi];
+    if (!this.draftPending(pi) || pl.banishes <= 0) return false;
+    const opt = this.drafts[pi]![index];
     if (!opt || opt.kind === 'evolution' || opt.kind === 'heal' || opt.kind === 'voucher') return false;
-    this.player.banishes--;
-    this.banished.add(opt.refId);
-    this.draftOptions = generateDraft(this);
-    this.bus.emit('draft', { options: this.draftOptions });
+    pl.banishes--;
+    pl.banished.add(opt.refId);
+    this.redraw(pi);
     return true;
+  }
+
+  private redraw(pi: number): void {
+    const ctx = this.player;
+    this.setCtx(this.players[pi]);
+    const hand = generateDraft(this);
+    this.setCtx(ctx);
+    this.drafts[pi] = hand;
+    this.bus.emit('draft', { options: hand, player: pi });
+  }
+
+  private finishDraft(pi: number): void {
+    this.drafts[pi] = null;
+    this.bus.emit('draft_done', { player: pi });
+    if (this.drafts.some((d) => d !== null)) return; // still waiting on a teammate
+    this.closeDraft();
   }
 
   private closeDraft(): void {
     this.pendingLevels--;
     this.phase = 'play';
-    this.player.iframes = Math.max(this.player.iframes, 0.5);
+    for (const pl of this.players) pl.iframes = Math.max(pl.iframes, 0.5);
     if (this.pendingLevels > 0) this.openDraft();
   }
 
@@ -1465,13 +1729,17 @@ export class Game {
     if (this.foodTimer <= 0) {
       const fi = HEALING.foodInterval[Math.min(3, this.act - 1)];
       this.foodTimer = this.rng.range(fi[0], fi[1]);
+      this.setCtx(this.spawnAnchor());
       const pos = this.nearbyOpenSpot(200, 470);
+      this.setCtx(this.players[0]);
       this.spawnPickup('food', pos.x, pos.y, 0);
     }
     this.goldenTimer -= dt;
     if (this.goldenTimer <= 0) {
       this.goldenTimer = this.rng.range(280, 440);
+      this.setCtx(this.spawnAnchor());
       const pos = this.nearbyOpenSpot(250, 520);
+      this.setCtx(this.players[0]);
       this.spawnPickup('golden', pos.x, pos.y, 0);
     }
   }
@@ -1495,7 +1763,7 @@ export class Game {
 
   /** Tilt-a-Whirl rotating arm (doc 03 §4): telegraphed by its glowing track, chip damage. */
   private updateMapHazards(dt: number): void {
-    this.tiltAngle += (TAU / TILT_A_WHIRL.period) * dt;
+    if (this.player === this.players[0] || !this.isUp(this.players[0])) this.tiltAngle += (TAU / TILT_A_WHIRL.period) * dt;
     const p = this.player;
     if (dist2(p.x, p.y, TILT_A_WHIRL.x, TILT_A_WHIRL.y) < (TILT_A_WHIRL.armLen + 30) ** 2) {
       for (let k = 0; k < 2; k++) {
@@ -1532,7 +1800,7 @@ export class Game {
     if (v <= 0) return 0;
     this.vouchersTaken++;
     this.voucherPaid += v;
-    this.bus.emit('meta_currency', { amount: v, source: 'voucher' });
+    this.bus.emit('meta_currency', { amount: v, source: 'voucher', player: this.player.index });
     this.fx.push('text', this.player.x, this.player.y - 60, 0, 0, 0, 'gold', `+${v} LT`);
     return v;
   }
@@ -1636,7 +1904,15 @@ export class Game {
     this.achievementsHit.add('first_night');
     if (this.cfg.daily) this.achievementsHit.add('daily_run');
     const score = this.kills + 10 * this.level + 500 * this.bossKills + Math.floor(this.time) + (won ? 2000 : 0);
-    const stats: RunStats = {
+    this.endStatsAll = this.players.map((pl) => this.statsFor(pl, won, lt, score, endlessExtra));
+    const stats = this.endStatsAll[0];
+    this.endStats = stats;
+    this.bus.emit('run_end', { stats });
+  }
+
+  /** End-of-run stats as one player sees them (shared run, their own build). */
+  private statsFor(p: Player, won: boolean, lt: number, score: number, endlessExtra: number): RunStats {
+    return {
       won,
       time: this.time,
       kills: this.kills,
@@ -1647,7 +1923,7 @@ export class Game {
       damageDealt: Math.round(this.damageDealt),
       damageTaken: Math.round(this.damageTaken),
       evolutions: this.evolutions.slice(),
-      weapons: this.weapons.list.map((w) => ({ id: w.def.id, level: w.level, damage: Math.round(this.weaponDamage.get(w.def.id) ?? 0) })),
+      weapons: p.weapons.list.map((w) => ({ id: w.def.id, level: w.level, damage: Math.round(this.weaponDamage.get(w.def.id) ?? 0) })),
       passives: [...p.passives.entries()].map(([id, level]) => ({ id, level })),
       character: p.char.id,
       difficulty: this.diff.id,
@@ -1663,8 +1939,6 @@ export class Game {
       voucherTickets: this.voucherPaid,
       questStage: this.quests.get('last_song')?.stage ?? 0,
     };
-    this.endStats = stats;
-    this.bus.emit('run_end', { stats });
   }
 
   // ------------------------------------------------------------------ helpers

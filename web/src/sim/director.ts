@@ -216,7 +216,8 @@ export class Director {
   spawnFormation(x: number, y: number, count: number): number {
     const g = this.g;
     const id = this.nextFormation++;
-    const dx0 = g.player.x - x, dy0 = g.player.y - y;
+    const tgt = g.nearestLiving(x, y);
+    const dx0 = tgt.x - x, dy0 = tgt.y - y;
     const l = Math.hypot(dx0, dy0) || 1;
     const f: Formation = { id, x, y, dx: dx0 / l, dy: dy0 / l, fireT: 2.6 + g.rng.next(), windup: 0, fired: false, members: count };
     this.formations.set(id, f);
@@ -255,7 +256,8 @@ export class Director {
         this.formations.delete(id);
         continue;
       }
-      const dx = g.player.x - f.x, dy = g.player.y - f.y;
+      const tgt = g.nearestLiving(f.x, f.y);
+      const dx = tgt.x - f.x, dy = tgt.y - f.y;
       const d = Math.hypot(dx, dy) || 1;
       // turn slowly toward the player (a marching block wheels, it doesn't snap)
       const tdx = dx / d, tdy = dy / d;
@@ -289,7 +291,7 @@ export class Director {
   private spawnBalloonDrift(wave: WaveDef): void {
     const g = this.g;
     const sw = wave.swarm!;
-    const p = g.player;
+    const p = g.spawnAnchor();
     const r = g.rng;
     const size = Math.max(4, Math.round(sw.size * (0.22 + 0.78 * Math.pow(r.next(), 1.6))));
     // enter roughly from upwind, never from exactly the same place twice
@@ -372,7 +374,7 @@ export class Director {
   /** Rectangular band outside the screen out to 1.5× (VS spawn area), clamped, never stacked. */
   spawnPoint(): { x: number; y: number } {
     const g = this.g;
-    const p = g.player;
+    const p = g.spawnAnchor();
     const hx = VIEW_HALF_X, hy = VIEW_HALF_Y;
     const ox = hx * 1.5, oy = hy * 1.5;
     for (let attempt = 0; attempt < 10; attempt++) {
@@ -382,6 +384,7 @@ export class Director {
       x = clamp(x, -MAP_HALF + 20, MAP_HALF - 20);
       y = clamp(y, -MAP_HALF + 20, PLAYER_BOUNDS.maxY + 20);
       if (Math.abs(x - p.x) < hx * 0.85 && Math.abs(y - p.y) < hy * 0.85) continue; // clamped onto the screen
+      if (g.players.length > 1 && g.inAnyView(x, y, 0.95)) continue; // never pop in on a teammate's screen
       if (this.blocked(x, y)) continue;
       return { x, y };
     }
@@ -408,7 +411,9 @@ export class Director {
     const lx = VIEW_HALF_X * 1.7, ly = VIEW_HALF_Y * 1.7;
     for (const e of g.active) {
       if (!e.alive || e.leashExempt) continue;
-      if (Math.abs(e.x - g.player.x) > lx || Math.abs(e.y - g.player.y) > ly) g.despawnEnemy(e);
+      let far = true;
+      for (const p of g.players) if (g.isUp(p) && Math.abs(e.x - p.x) <= lx && Math.abs(e.y - p.y) <= ly) far = false;
+      if (far) g.despawnEnemy(e);
     }
   }
 

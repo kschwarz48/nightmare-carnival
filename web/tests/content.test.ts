@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeGame } from './helpers';
-import { WEAPONS, PASSIVES, BASE_WEAPON_IDS, EVOLUTION_IDS } from '../src/data/weapons';
+import { WEAPONS, PASSIVES, BASE_WEAPON_IDS, EVOLUTION_IDS, PASSIVE_IDS } from '../src/data/weapons';
 import { ENEMIES } from '../src/data/enemies';
 import { SECRET_UNLOCKS, UNLOCKS } from '../src/data/meta';
 import { CHARACTERS } from '../src/data/characters';
@@ -103,29 +103,29 @@ describe('weapons', () => {
     expect(base(true)).toBeGreaterThan(base(false) * 1.15);
   });
 
-  it('levels cap at 8, slots cap at 4, evolution replaces the slot', () => {
+  it('levels cap at 8, slots cap at the party size (6 solo, VS), evolution replaces the slot', () => {
     const g = makeGame();
     for (let i = 0; i < 20; i++) g.weapons.levelUp('throwing_cards');
     expect(g.weapons.get('throwing_cards')!.level).toBe(8);
-    expect(g.weapons.add('fireworks')).toBeTruthy();
-    expect(g.weapons.add('rings')).toBeTruthy();
-    expect(g.weapons.add('popcorn')).toBeTruthy();
-    expect(g.weapons.add('darts')).toBeNull();
+    expect(g.slots.weapons).toBe(6);
+    for (const id of BASE_WEAPON_IDS) if (id !== 'lucky_ticket') g.weapons.add(id);
+    expect(g.weapons.list.length).toBe(6);
+    expect(g.weapons.add('darts') ?? g.weapons.add('mallet')).toBeNull();
     expect(readyEvolutions(g)).toEqual([]);
     g.player.addPassive('lucky_ticket');
     expect(readyEvolutions(g)).toEqual(['throwing_cards']);
     g.weapons.evolve('throwing_cards');
     expect(g.weapons.has('royal_flush')).toBe(true);
     expect(g.weapons.has('throwing_cards')).toBe(false);
-    expect(g.weapons.list.length).toBe(4);
+    expect(g.weapons.list.length).toBe(6);
   });
 });
 
 describe('draft generation', () => {
   it('respects slot caps, max levels, unlocks and banishes', () => {
     const g = makeGame({ unlocked: new Set() });
-    for (const id of ['fireworks', 'rings', 'popcorn']) g.weapons.add(id);
-    for (const id of ['spectacles', 'foam_finger', 'caffeine', 'spinning_top']) g.player.addPassive(id);
+    for (const id of BASE_WEAPON_IDS) if (g.weapons.list.length < g.slots.weapons) g.weapons.add(id);
+    for (const id of PASSIVE_IDS) if (g.player.passives.size < g.slots.passives) g.player.addPassive(id);
     for (let k = 0; k < 40; k++) {
       const opts = generateDraft(g);
       for (const o of opts) {

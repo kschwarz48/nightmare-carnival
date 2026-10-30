@@ -8,8 +8,9 @@ import { HitTracker, type Enemy, type PlayerProjectile, type Summon, type Target
 import type { Game } from './game';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
-export const MAX_WEAPONS = 4;
-export const MAX_PASSIVES = 4;
+/** Solo slot counts (VS: six of each); co-op shrinks them per player (`Game.slots`, D-51). */
+export const MAX_WEAPONS = 6;
+export const MAX_PASSIVES = 6;
 
 export class WeaponInst {
   def: WeaponDef;
@@ -46,7 +47,7 @@ export class Weapons {
     return this.list.find((w) => w.def.id === id);
   }
   hasRoom(): boolean {
-    return this.list.length < MAX_WEAPONS;
+    return this.list.length < this.g.slots.weapons;
   }
   add(id: string): WeaponInst | null {
     const def = WEAPONS[id];
@@ -949,6 +950,7 @@ export class Weapons {
   updateProjectiles(dt: number): void {
     const g = this.g;
     for (const p of g.projs) {
+      if (p.owner !== this.g.player.index) continue;
       if (!p.alive) continue;
       p.px = p.x;
       p.py = p.y;
@@ -1192,6 +1194,7 @@ export class Weapons {
     let plushIdx = 0, plushN = 0;
     for (const s of g.summons) if (s.alive && s.kind === 'plush') plushN++;
     for (const s of g.summons) {
+      if (s.owner !== this.g.player.index) continue;
       if (!s.alive) continue;
       s.px = s.x;
       s.py = s.y;

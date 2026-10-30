@@ -34,9 +34,10 @@ export class LastSongChain extends QuestChain {
   carrying = false;
   finaleT = -1;
   musicT = 0;
-  private inside = [false, false, false, false];
-  private padInside = false;
-  private machineInside = false;
+  /** Edge-trigger state per player (co-op shares the chain; any standing player can act, D-51). */
+  private inside: boolean[][] = [];
+  private padInside: boolean[] = [];
+  private machineInside: boolean[] = [];
   private idleIdx = 0;
 
   init(): void {
@@ -62,46 +63,50 @@ export class LastSongChain extends QuestChain {
 
   update(dt: number): void {
     const g = this.g;
-    const p = g.player;
-    if (g.phase !== 'play' || p.dead) return;
-    // Zoltana (edge-triggered so standing still never spams)
-    const m = LAST_SONG.machine;
-    const dm = dist2(p.x, p.y, m.x, m.y);
-    if (dm < m.r * m.r) {
-      if (!this.machineInside) {
-        this.machineInside = true;
-        this.onMachine();
-      }
-    } else if (dm > (m.r + 70) ** 2) this.machineInside = false;
-    // lamps
-    for (let i = 0; i < 4; i++) {
-      const l = LAST_SONG.lamps[i];
-      const d = dist2(p.x, p.y, l.x, l.y);
-      if (d < LAST_SONG.touchRadius ** 2) {
-        if (!this.inside[i]) {
-          this.inside[i] = true;
-          this.onTouchLamp(i);
+    if (g.phase !== 'play') return;
+    for (const p of g.players) {
+      if (p.dead || p.downed) continue;
+      const k = p.index;
+      this.inside[k] ??= [false, false, false, false];
+      // Zoltana (edge-triggered so standing still never spams)
+      const m = LAST_SONG.machine;
+      const dm = dist2(p.x, p.y, m.x, m.y);
+      if (dm < m.r * m.r) {
+        if (!this.machineInside[k]) {
+          this.machineInside[k] = true;
+          this.onMachine();
         }
-      } else if (d > (LAST_SONG.touchRadius + 45) ** 2) this.inside[i] = false;
+      } else if (dm > (m.r + 70) ** 2) this.machineInside[k] = false;
+      // lamps
+      for (let i = 0; i < 4; i++) {
+        const l = LAST_SONG.lamps[i];
+        const d = dist2(p.x, p.y, l.x, l.y);
+        if (d < LAST_SONG.touchRadius ** 2) {
+          if (!this.inside[k][i]) {
+            this.inside[k][i] = true;
+            this.onTouchLamp(i);
+          }
+        } else if (d > (LAST_SONG.touchRadius + 45) ** 2) this.inside[k][i] = false;
+      }
+      // High Striker pad
+      const s = LAST_SONG.striker;
+      const dp = dist2(p.x, p.y, s.padX, s.padY);
+      if (dp < s.padR * s.padR) {
+        if (!this.padInside[k]) {
+          this.padInside[k] = true;
+          this.onPad();
+        }
+      } else if (dp > s.rearm * s.rearm) this.padInside[k] = false;
     }
     // the carousel's music box gives away the order once it has woken
     if (this.stage >= LS.Melody && this.stage < LS.Finale) {
       this.musicT -= dt;
       const c = LAST_SONG.carousel;
-      if (this.musicT <= 0 && dist2(p.x, p.y, c.x, c.y) < c.hearRange ** 2) {
+      if (this.musicT <= 0 && g.players.some((p) => !p.dead && dist2(p.x, p.y, c.x, c.y) < c.hearRange ** 2)) {
         this.musicT = c.interval;
         this.cue('musicbox', { x: c.x, y: c.y });
       }
     }
-    // High Striker pad
-    const s = LAST_SONG.striker;
-    const dp = dist2(p.x, p.y, s.padX, s.padY);
-    if (dp < s.padR * s.padR) {
-      if (!this.padInside) {
-        this.padInside = true;
-        this.onPad();
-      }
-    } else if (dp > s.rearm * s.rearm) this.padInside = false;
     // finale countdown → the Calliope rises
     if (this.stage === LS.Finale && this.finaleT >= 0) {
       this.finaleT -= dt;

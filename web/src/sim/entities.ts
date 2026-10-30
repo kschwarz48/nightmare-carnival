@@ -122,6 +122,8 @@ export type ProjKind =
 
 export class PlayerProjectile {
   alive = false;
+  /** Index of the player whose weapon fired it. */
+  owner = 0;
   kind: ProjKind = 'card';
   weapon = '';
   x = 0;
@@ -214,6 +216,8 @@ export class Hazard {
   tick = 0; // 0 = hit once; >0 = repeat interval
   tickAcc = 0;
   hitPlayer = false;
+  /** Players already struck by a one-shot hazard (bit per player index). */
+  hitMask = 0;
   // motion
   vx = 0;
   vy = 0;
@@ -280,6 +284,8 @@ export type SummonKind = 'plush' | 'rabbit' | 'dove' | 'lion' | 'elephant' | 'ac
 
 export class Summon {
   alive = false;
+  /** Index of the player whose weapon summoned it. */
+  owner = 0;
   kind: SummonKind = 'plush';
   weapon = '';
   x = 0;

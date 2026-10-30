@@ -99,3 +99,25 @@ export const PACING = {
   balloonMeanExtra: [16, 14, 12, 10] as number[],
   balloonSpeed: [300, 440] as [number, number],
 };
+
+/**
+ * Co-op (D-51), following Vampire Survivors: equipment slots shrink as the party grows (6 solo,
+ * 4 / 3 / 2 each for 2 / 3 / 4 players); XP is shared; every player drafts on each level-up and the
+ * night resumes only when everyone has chosen; an item owned by one player leaves the others' pools
+ * (evolutions may use a teammate's passive); a fallen player leaves a coffin that revives over time,
+ * faster with a teammate standing beside it. Chest rolls are split between the players.
+ */
+export const COOP = {
+  maxPlayers: 2,
+  /** weapon and passive slots per player, by party size (index = player count) */
+  slots: [6, 6, 4, 3, 2] as number[],
+  /** coffin revive: seconds alone, seconds with a teammate within `reviveRadius` */
+  reviveAlone: 40,
+  reviveAssisted: 6,
+  reviveRadius: 95,
+  reviveHpFrac: 0.5,
+  /** crowd density multiplier by party size (more bodies to chase, more to feed shared XP) */
+  density: [1, 1, 1.25, 1.45, 1.6] as number[],
+  /** a boss re-picks the nearest living player at most this often (seconds) */
+  bossRetarget: 2.5,
+};
