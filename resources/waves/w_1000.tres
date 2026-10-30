@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="WaveData" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/wave_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/enemies/evil_clown.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/enemies/possessed_stuffie.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/enemies/dunk_tank_clown.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/enemies/whack_a_mole.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/enemies/jack_in_the_box.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/enemies/swarm_balloon.tres" id="7"]
+
+[resource]
+script = ExtResource("1")
+id = &"w_1000"
+start_time = 600.0
+end_time = 99999.0
+enemies = Array[EnemyData]([ExtResource("2"), ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])
+weights = Array[float]([30.0, 24.0, 20.0, 14.0, 12.0])
+min_alive = 78
+max_alive = 260
+spawn_interval = 0.75
+spawn_batch = 5
+swarm_enemy = ExtResource("7")
+swarm_interval = 5.0
+swarm_size = 38
+elite_burst = 3

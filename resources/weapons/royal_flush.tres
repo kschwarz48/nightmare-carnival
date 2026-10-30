@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectiles/card.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"royal_flush"
+display_name = "Royal Flush"
+description = "A piercing fan of razor cards at every threat."
+style = &"projectile"
+aim_mode = &"auto_nearest"
+projectile_scene = ExtResource("2")
+max_level = 1
+base_damage = 18.0
+base_cooldown = 0.65
+base_area = 1.2
+base_amount = 6
+base_projectile_speed = 560.0
+base_pierce = 3
+lifetime = 1.6
+spread_angle_deg = 60.0
+knockback_dealt = 1.0

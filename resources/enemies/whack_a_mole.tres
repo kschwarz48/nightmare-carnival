@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/vfx_pop.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"whack_a_mole"
+display_name = "Whack-a-Mole"
+max_health = 8.0
+move_speed = 60.0
+contact_damage = 10.0
+ticket_value = 2
+knockback_taken = 1.0
+behavior = &"pop_up"
+color = Color(0.6, 0.45, 0.3, 1)
+radius = 13.0
+shape = 0
+separation_radius = 16.0
+can_be_elite = false
+death_vfx = ExtResource("2")
+params = { "burrow_time": 1.6, "surface_time": 1.3, "burrow_speed": 190.0 }

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/vfx_pop.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"jack_in_the_box"
+display_name = "Jack-in-the-Box"
+max_health = 15.0
+move_speed = 60.0
+contact_damage = 25.0
+ticket_value = 4
+knockback_taken = 1.0
+behavior = &"ambusher"
+color = Color(0.95, 0.95, 0.3, 1)
+radius = 12.0
+shape = 1
+separation_radius = 14.0
+can_be_elite = false
+death_vfx = ExtResource("2")
+params = { "arm_range": 220.0, "arm_time": 1.4, "leap_speed": 540.0, "leap_time": 0.45 }

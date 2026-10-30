@@ -1,5 +1,8 @@
 # NIGHTMARE CARNIVAL
 
+> **🎪 Web edition:** a complete, playable Three.js rebuild of this game lives in [`web/`](web/README.md)
+> (`cd web && npm install && npm run dev`). The Godot project below is unchanged.
+
 > A survivors-like roguelite. You're trapped on a haunted boardwalk at midnight. Everything is alive, everything wants you dead, and the rides don't stop until dawn.
 
 **Engine:** Godot 4.7 · **Language:** GDScript · **Genre:** Survivors-like / bullet-heaven roguelite · **Perspective:** Top-down 2D · **Art target:** 1930s rubber-hose "Cuphead" cartoon horror.

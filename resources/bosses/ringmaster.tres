@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/boss_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/bosses/ringmaster.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"ringmaster"
+display_name = "The Ringmaster"
+scene = ExtResource("2")
+max_health = 28000.0
+contact_damage = 24.0
+soft_enrage_time = 120.0
+gate_time = 1440.0
+visible_when_dormant = false
+final_boss = true
+move_speed = 150.0
+preferred_distance = 340.0
+color = Color(0.5, 0.1, 0.15, 1)
+radius = 74.0
+bar_color = Color(1, 0.3, 0.2, 1)

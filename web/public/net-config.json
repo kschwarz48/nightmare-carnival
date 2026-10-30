@@ -1,0 +1,3 @@
+{
+  "_comment": "Runtime network overrides, read when the multiplayer menu opens. Empty = PeerJS Cloud signalling + PeerJS's default STUN/TURN. To override, add fields from net-config.example.json (docs/MULTIPLAYER.md §3)."
+}

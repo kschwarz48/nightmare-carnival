@@ -52,6 +52,7 @@ func configure(p_data: EnemyData, hp_mult: float, dmg_mult: float, spd_mult: flo
 	move_speed = p_data.move_speed * spd_mult * elite_spd
 
 	visual.configure(p_data.color, p_data.radius, p_data.shape as Blob.Shape)
+	visual.visible = true                  # reset (pop_up/ambusher may hide/flash it)
 	visual.outline = elite
 	visual.outline_color = Color(1.0, 0.9, 0.2)
 	visual.scale = Vector2.ONE * (1.4 if elite else 1.0)
@@ -123,25 +124,31 @@ func _on_died(_info: DamageInfo) -> void:
 	call_deferred(&"_finish_death", global_position)
 
 func _finish_death(at: Vector2) -> void:
+	# Deferred from _on_died — by now the enemy may have already been released
+	# (e.g. an ambusher/flyby that despawned the same frame it was killed). If it's
+	# no longer in the tree, this is a stale call: bail (no double drops / no crash).
+	var layer := get_parent()
+	if layer == null:
+		return
 	GameState.enemies_alive -= 1
 	GameState.enemies_killed += 1
-	_drop_tickets(at)
+	_drop_tickets(at, layer)
 	if data and data.drops_chest:
-		var chest := ObjectPool.acquire(CHEST_SCENE, get_parent())
+		var chest := ObjectPool.acquire(CHEST_SCENE, layer)
 		chest.global_position = at
 		chest.rolls = randi_range(data.chest_rolls_min, data.chest_rolls_max)
 	if data and data.death_vfx:
-		var vfx := ObjectPool.acquire(data.death_vfx, get_parent())
+		var vfx := ObjectPool.acquire(data.death_vfx, layer)
 		vfx.global_position = at
 	if data and data.death_sfx != &"":
 		AudioManager.play_sfx(data.death_sfx)
 	EventBus.enemy_died.emit(self, at)
 	ObjectPool.release(self)
 
-func _drop_tickets(at: Vector2) -> void:
+func _drop_tickets(at: Vector2, layer: Node) -> void:
 	# Elites drop a fat (red) gem; GemDirector enforces the ground cap + bank.
 	var value: int = data.ticket_value * (5 if is_elite else 1)
-	GemDirector.drop(value, at, get_parent())
+	GemDirector.drop(value, at, layer)
 
 # Pool hooks. NOTE: prewarm() calls _on_released() before the node ever enters
 # the tree, so @onready refs may still be null — guard accordingly.

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"cosmic_convergence"
+display_name = "Cosmic Convergence"
+description = "A permanent wall of giant crystal orbs."
+style = &"orbit"
+aim_mode = &"auto_nearest"
+max_level = 1
+base_damage = 22.0
+base_cooldown = 2.0
+base_area = 1.7
+base_amount = 7
+base_projectile_speed = 0.0
+base_pierce = 0
+lifetime = 5.0
+knockback_dealt = 1.0

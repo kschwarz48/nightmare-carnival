@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/vfx_pop.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"bumper_car"
+display_name = "Bumper Car"
+max_health = 120.0
+move_speed = 60.0
+contact_damage = 16.0
+ticket_value = 5
+knockback_taken = 0.4
+behavior = &"burst_charger"
+color = Color(0.95, 0.4, 0.4, 1)
+radius = 17.0
+shape = 1
+separation_radius = 22.0
+can_be_elite = true
+death_vfx = ExtResource("2")
+params = { "windup_time": 0.6, "charge_speed": 200.0, "charge_time": 0.6, "recover_time": 0.7, "charge_range": 360.0 }

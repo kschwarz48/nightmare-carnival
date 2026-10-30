@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/vfx_pop.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"cotton_candy_slime"
+display_name = "Cotton-Candy Slime"
+max_health = 60.0
+move_speed = 35.0
+contact_damage = 8.0
+ticket_value = 3
+knockback_taken = 0.6
+contact_slow = 0.4
+contact_slow_time = 1.2
+behavior = &"chaser"
+color = Color(1, 0.55, 0.85, 1)
+radius = 16.0
+shape = 0
+separation_radius = 18.0
+can_be_elite = true
+death_vfx = ExtResource("2")

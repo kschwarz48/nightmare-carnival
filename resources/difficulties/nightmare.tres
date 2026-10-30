@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="DifficultyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/difficulty_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"nightmare"
+display_name = "Nightmare"
+base_spawn_rate = 2.5
+hp_mult = 2.2
+dmg_mult = 1.6
+max_alive = 360
+greed_bonus = 0.6
+miniboss_interval = 55.0
+miniboss_enemy = &"carnival_miniboss"

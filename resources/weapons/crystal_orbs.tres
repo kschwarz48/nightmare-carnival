@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WeaponData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/evolutions/cosmic_convergence.tres" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -21,3 +22,5 @@ level_damage = Array[float]([0.0, 0.0, 4.0, 0.0, 5.0, 0.0, 6.0, 0.0])
 level_cooldown = Array[float]([0.0, -0.2, 0.0, -0.2, 0.0, -0.2, 0.0, -0.2])
 level_area = Array[float]([0.0, 0.0, 0.0, 0.15, 0.0, 0.0, 0.15, 0.0])
 level_amount = Array[int]([0, 1, 1, 0, 1, 1, 0, 1])
+evolution = ExtResource("2")
+required_passive = &"foam_finger"

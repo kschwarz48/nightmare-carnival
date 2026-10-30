@@ -10,6 +10,10 @@ const REGISTRY := {
 	&"erratic_chaser": preload("res://scripts/enemies/behaviors/erratic_chaser_behavior.gd"),
 	&"flyby": preload("res://scripts/enemies/behaviors/flyby_behavior.gd"),
 	&"shooter": preload("res://scripts/enemies/behaviors/shooter_behavior.gd"),
+	&"spawner": preload("res://scripts/enemies/behaviors/spawner_behavior.gd"),
+	&"ambusher": preload("res://scripts/enemies/behaviors/ambusher_behavior.gd"),
+	&"pop_up": preload("res://scripts/enemies/behaviors/pop_up_behavior.gd"),
+	&"rail_strafer": preload("res://scripts/enemies/behaviors/rail_strafer_behavior.gd"),
 }
 
 static func create(key: StringName) -> EnemyBehavior:
@@ -25,3 +29,7 @@ func physics_update(_enemy: Enemy, _delta: float) -> void:
 ## Shared helper: unit vector toward the player.
 func to_player(enemy: Enemy) -> Vector2:
 	return enemy.global_position.direction_to(GameState.player.global_position)
+
+## Shared helper: read a tuning value from EnemyData.params (String keys).
+func param(enemy: Enemy, key: String, default_value: Variant) -> Variant:
+	return enemy.data.params.get(key, default_value)

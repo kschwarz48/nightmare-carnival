@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="WeaponData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"nightmare_menagerie"
+display_name = "Nightmare Menagerie"
+description = "A swarm of ravenous pets that shred the crowd."
+style = &"summon"
+aim_mode = &"auto_nearest"
+max_level = 1
+base_damage = 18.0
+base_cooldown = 0.5
+base_area = 1.0
+base_amount = 5
+base_projectile_speed = 0.0
+base_pierce = 0
+lifetime = 0.0
+knockback_dealt = 1.0

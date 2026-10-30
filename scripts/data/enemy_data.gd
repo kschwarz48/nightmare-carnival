@@ -11,6 +11,10 @@ extends Resource
 @export var ticket_value: int = 1
 ## How strongly this enemy is knocked back (06 §1). 1.0 = normal; <1 = heavy/resistant.
 @export var knockback_taken: float = 1.0
+## Movement slow applied to the player on contact (04, Cotton-Candy Slime).
+## 0 = none; 0.4 = −40% move speed for contact_slow_time seconds.
+@export var contact_slow: float = 0.0
+@export var contact_slow_time: float = 1.2
 # --- miniboss reward (03 §6): high-HP mobs drop a chest on death ---
 @export var drops_chest: bool = false
 @export var chest_rolls_min: int = 1

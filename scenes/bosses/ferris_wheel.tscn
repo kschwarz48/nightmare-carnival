@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://b0ho4ql3d4j6o"]
+
+[ext_resource type="Script" path="res://scripts/bosses/ferris_boss.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/vfx/blob.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/components/health_component.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/components/flash_component.gd" id="6"]
+
+[sub_resource type="CircleShape2D" id="body"]
+radius = 86.0
+
+[sub_resource type="CircleShape2D" id="hurt"]
+radius = 100.0
+
+[sub_resource type="CircleShape2D" id="hit"]
+radius = 106.0
+
+[node name="FerrisWheel" type="CharacterBody2D"]
+motion_mode = 1
+script = ExtResource("1")
+
+[node name="Visual" type="Node2D" parent="."]
+script = ExtResource("2")
+color = Color(0.9, 0.2, 0.2, 1)
+radius = 100.0
+shape = 0
+outline = true
+outline_color = Color(1, 0.85, 0.3, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("body")
+
+[node name="HealthComponent" type="Node" parent="."]
+script = ExtResource("3")
+
+[node name="HurtboxComponent" type="Area2D" parent="."]
+script = ExtResource("4")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HurtboxComponent"]
+shape = SubResource("hurt")
+
+[node name="HitboxComponent" type="Area2D" parent="."]
+script = ExtResource("5")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxComponent"]
+shape = SubResource("hit")
+
+[node name="FlashComponent" type="Node" parent="."]
+script = ExtResource("6")
+sprite_path = NodePath("../Visual")

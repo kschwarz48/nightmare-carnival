@@ -32,6 +32,17 @@ text = "CHOOSE YOUR CHARACTER"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 32
 
+[node name="DiffLabel" type="Label" parent="Center/VBox"]
+layout_mode = 2
+text = "Difficulty"
+horizontal_alignment = 1
+
+[node name="DiffRow" type="HBoxContainer" parent="Center/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 8
+
 [node name="List" type="VBoxContainer" parent="Center/VBox"]
 unique_name_in_owner = true
 layout_mode = 2

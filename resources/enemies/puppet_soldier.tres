@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/enemy_data.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/vfx_pop.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"puppet_soldier"
+display_name = "Puppet Soldier"
+max_health = 180.0
+move_speed = 50.0
+contact_damage = 10.0
+ticket_value = 5
+knockback_taken = 0.6
+behavior = &"shooter"
+color = Color(0.6, 0.5, 0.4, 1)
+radius = 14.0
+shape = 1
+separation_radius = 18.0
+can_be_elite = true
+death_vfx = ExtResource("2")
+params = { "fire_interval": 2.0, "projectile_speed": 260.0, "projectile_damage": 8.0, "projectile_lifetime": 4.5, "keep_distance": 360.0 }
