@@ -10,7 +10,7 @@ import { PERKS } from '../data/meta';
 import { Reader, Writer } from './codec';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 5;
+export const PROTO = 6;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;

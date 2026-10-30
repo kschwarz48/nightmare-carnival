@@ -348,3 +348,5 @@ Sessions speak to a `NetLink` interface, so the whole flow is tested headless ov
   Big Top the host takes everyone to character select (`toLobby`); "Back to the Midway" returns from
   there, and after a night everyone comes back to the hub. The background clock keeps the host's
   Midway ticking while their tab is hidden, as it does for a night.
+  `PROTO` is 6: the start config carries `hub` and guests send `pref`, so an older tab gets refused
+  with "reload the page" instead of mirroring a hub as a night.
