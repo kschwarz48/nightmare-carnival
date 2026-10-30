@@ -122,6 +122,8 @@ export type ProjKind =
 
 export class PlayerProjectile {
   alive = false;
+  /** spawn generation: bumps each time the slot is reused (lets replication tell a new spawn from motion) */
+  gen = 0;
   /** Index of the player whose weapon fired it. */
   owner = 0;
   kind: ProjKind = 'card';
@@ -163,6 +165,8 @@ export type BulletKind = 'pie' | 'musket' | 'ticket' | 'popcorn' | 'spiral' | 's
 
 export class EnemyBullet {
   alive = false;
+  /** spawn generation: bumps each time the slot is reused (lets replication tell a new spawn from motion) */
+  gen = 0;
   kind: BulletKind = 'pie';
   x = 0;
   y = 0;
@@ -198,6 +202,8 @@ export type HazardShape = 'circle' | 'ring' | 'line' | 'rect' | 'sector' | 'annu
  */
 export class Hazard {
   alive = false;
+  /** spawn generation: bumps each time the slot is reused (lets replication tell a new spawn from motion) */
+  gen = 0;
   shape: HazardShape = 'circle';
   style = 'stomp';
   x = 0;
@@ -245,6 +251,8 @@ export type PickupKind = 'ticket' | 'bank' | 'food' | 'golden' | 'chest' | 'funn
 
 export class Pickup {
   alive = false;
+  /** spawn generation: bumps each time the slot is reused (lets replication tell a new spawn from motion) */
+  gen = 0;
   kind: PickupKind = 'ticket';
   x = 0;
   y = 0;
@@ -267,6 +275,8 @@ export type ZoneKind = 'web' | 'burn' | 'spark' | 'sticky_patch' | 'grease' | 'i
 /** Persistent player-side damage areas (webs, burning ground, spark trail). */
 export class Zone {
   alive = false;
+  /** spawn generation: bumps each time the slot is reused (lets replication tell a new spawn from motion) */
+  gen = 0;
   kind: ZoneKind = 'web';
   x = 0;
   y = 0;
@@ -284,6 +294,8 @@ export type SummonKind = 'plush' | 'rabbit' | 'dove' | 'lion' | 'elephant' | 'ac
 
 export class Summon {
   alive = false;
+  /** spawn generation: bumps each time the slot is reused (lets replication tell a new spawn from motion) */
+  gen = 0;
   /** Index of the player whose weapon summoned it. */
   owner = 0;
   kind: SummonKind = 'plush';

@@ -96,6 +96,24 @@ function chest(): THREE.BufferGeometry {
   return m.build({ ao: 0.3 });
 }
 
+/**
+ * A fallen co-op player (D-51): a lacquered six-sided coffin with a brass cross and handles. Lying
+ * along the screen's vertical so it reads at a glance from the 2.5D camera.
+ */
+function coffin(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  const outline: [number, number][] = [[-7, 26], [7, 26], [12, 13], [6, -26], [-6, -26], [-12, 13]];
+  const lid = outline.map(([x, y]) => [x * 0.86, y * 0.9] as [number, number]);
+  // the shape lies in XY; rotating -90 degrees about X lays it on the ground with depth along +Y
+  m.add(extrude(outline, 8, 0.8, 1, 1), { col: weather(PAL.woodDark, 0.4, 0.06, PAL.wood), pos: [0, 4.6, 0], rot: [-Math.PI / 2, 0, 0], surf: SURF.wood });
+  m.add(extrude(lid, 2.4, 0.6, 1, 1), { col: 0x2a1a14, pos: [0, 9.6, 0], rot: [-Math.PI / 2, 0, 0], surf: SURF.wood });
+  m.add(rbox(3, 1.2, 26, 0.4, 1), { col: PAL.brass, pos: [0, 11.2, -1], surf: SURF.brass });
+  m.add(rbox(14, 1.2, 3, 0.4, 1), { col: PAL.brass, pos: [0, 11.2, -9], surf: SURF.brass });
+  // brass handle bars just proud of the tapering side walls
+  for (const z of [-12, 4]) for (const x of [-1, 1]) m.add(rbox(1.4, 1.4, 6, 0.5, 1), { col: PAL.brass, pos: [x * (6.9 + ((26 - z) * 6) / 39), 5, z], surf: SURF.brass });
+  return m.build({ ao: 0.35 });
+}
+
 // ---------------------------------------------------------------- player projectiles
 function card(face: number, back: number, size = 1): THREE.BufferGeometry {
   const m = new ModelBuilder();
@@ -357,6 +375,7 @@ export const ITEM_MODELS: Record<string, ModelDef> = {
   funnel: { build: funnel, rim: NO_RIM, shadow: true },
   golden: { build: golden, rim: NO_RIM },
   chest: { build: chest, rim: [0.9, 0.7, 0.3, 0.4], shadow: true },
+  coffin: { build: coffin, rim: [0.7, 0.8, 1, 0.35], shadow: true },
   // player projectiles
   card: { build: () => card(PAL.cream, PAL.blood), rim: NO_RIM },
   gold_card: { build: () => card(0xfff0b0, PAL.gold, 1.2), rim: NO_RIM },

@@ -27,6 +27,7 @@ import { CHESTS, COOP, HEALING, TICKETS, voucherValue, xpToNext } from '../data/
 import { FxQueue } from './fx';
 import { Player } from './player';
 import { Weapons } from './weapons';
+import { moveBody, steer } from './movement';
 
 import { TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 export { TICK, VIEW_HALF_X, VIEW_HALF_Y };
@@ -48,7 +49,7 @@ export interface RunConfig {
   canSkip?: boolean;
   unlocked?: Set<string>;
   /** Co-op party (D-51): one entry per player; absent = solo with `character`. Player 0 uses the top-level meta/rerolls. */
-  players?: { character: string; name?: string; meta?: { axis: string; value: number }[]; rerolls?: number; banishes?: number; canSkip?: boolean }[];
+  players?: { character: string; name?: string; meta?: { axis: string; value: number }[]; rerolls?: number; banishes?: number; canSkip?: boolean; aimMode?: 'auto' | 'hybrid' | 'manual' }[];
   /** Test hooks */
   godMode?: boolean;
   /** Persistent quest memory from the save (e.g. how often the Last Song was completed). */
@@ -112,7 +113,7 @@ export type GameEvents = {
   sfx: { id: string; x?: number; y?: number; vol?: number; pitch?: number };
   banner: { text: string; sub?: string; style?: string };
   discover: { id: string };
-  pickup: { kind: PickupKind; value: number };
+  pickup: { kind: PickupKind; value: number; player?: number };
   stall: {};
   music: { cue: string };
   quest: QuestCue;
@@ -238,6 +239,7 @@ export class Game {
       pl.rerolls = (i === 0 ? cfg.rerolls : pc.rerolls) ?? 0;
       pl.banishes = (i === 0 ? cfg.banishes : pc.banishes) ?? 0;
       pl.canSkip = !!(i === 0 ? cfg.canSkip : pc.canSkip);
+      pl.aimMode = (i === 0 ? cfg.aimMode : pc.aimMode) ?? 'auto';
       pl.initHp();
       pl.x = pl.px = PLAYER_SPAWN.x + (i - (party.length - 1) / 2) * 70;
       pl.y = pl.py = PLAYER_SPAWN.y;
@@ -440,19 +442,7 @@ export class Game {
     const p = this.player;
     p.px = p.x;
     p.py = p.y;
-    let mx = this.input.moveX, my = this.input.moveY;
-    const ml = Math.hypot(mx, my);
-    if (ml > 1) {
-      mx /= ml;
-      my /= ml;
-    }
-    p.moving = ml > 0.15;
-    if (p.moving) {
-      const l = Math.hypot(mx, my) || 1;
-      p.faceX = mx / l;
-      p.faceY = my / l;
-      if (Math.abs(mx) > 0.2) p.facing = mx > 0 ? 1 : -1;
-    }
+    const [mx, my] = steer(p, this.input.moveX, this.input.moveY);
     let slow = 1;
     if (p.slowT > 0) {
       p.slowT -= dt;
@@ -462,28 +452,9 @@ export class Game {
       if (z.alive && z.harmful && z.slow > 0 && dist2(z.x, z.y, p.x, p.y) < z.r * z.r) slow = Math.min(slow, 1 - z.slow);
     }
     const speed = p.stats.moveSpeed() * slow;
-    let tvx = mx * speed + p.pullX;
-    let tvy = my * speed + p.pullY;
-    p.pullX = 0;
-    p.pullY = 0;
-    if (p.dashT > 0) {
-      p.dashT -= dt;
-      tvx = p.dashX * p.dashSpeed;
-      tvy = p.dashY * p.dashSpeed;
-    }
-    // Grease slicks: momentum instead of instant response (doc 03 §4).
-    let onGrease = false;
-    for (const g of GREASE_SLICKS) if (dist2(g.x, g.y, p.x, p.y) < g.r * g.r) onGrease = true;
-    if (onGrease && p.dashT <= 0) {
-      p.vx += (tvx - p.vx) * Math.min(1, dt * 2.5);
-      p.vy += (tvy - p.vy) * Math.min(1, dt * 2.5);
-    } else {
-      p.vx = tvx;
-      p.vy = tvy;
-    }
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    this.collidePlayer();
+    const dashing = p.dashT > 0;
+    if (dashing) p.dashT -= dt;
+    moveBody(p, mx, my, speed, dt, this.bosses, dashing);
     if (p.moving || p.dashT > 0) p.animT += dt * (speed / 220);
     else p.animT += dt * 0.4;
 
@@ -513,57 +484,6 @@ export class Game {
         p.sparkAcc = 0;
         const z = this.spawnZone('spark', p.x, p.y, 24 * p.stats.area, 1.3, 5 * p.stats.might, 0.35);
         if (z) z.slow = 0;
-      }
-    }
-  }
-
-  private collidePlayer(): void {
-    const p = this.player;
-    for (const pr of PROPS) this.pushOut(pr);
-    // A dormant/standing boss body is solid scenery (the Tent at the center, the Wheel at its base).
-    for (const b of this.bosses) {
-      if (!b.solid) continue;
-      const rr = b.solidR + p.r;
-      const dx = p.x - b.x, dy = p.y - b.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < rr * rr && d2 > 0.0001) {
-        const d = Math.sqrt(d2);
-        p.x = b.x + (dx / d) * rr;
-        p.y = b.y + (dy / d) * rr;
-      }
-    }
-    p.x = clamp(p.x, PLAYER_BOUNDS.minX, PLAYER_BOUNDS.maxX);
-    p.y = clamp(p.y, PLAYER_BOUNDS.minY, PLAYER_BOUNDS.maxY);
-  }
-
-  private pushOut(pr: Prop): void {
-    const p = this.player;
-    if (pr.r) {
-      const rr = pr.r + p.r;
-      const dx = p.x - pr.x, dy = p.y - pr.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < rr * rr) {
-        const d = Math.sqrt(d2) || 0.001;
-        p.x = pr.x + (dx / d) * rr;
-        p.y = pr.y + (dy / d) * rr;
-      }
-    } else if (pr.hw && pr.hh) {
-      const cx = clamp(p.x, pr.x - pr.hw, pr.x + pr.hw);
-      const cy = clamp(p.y, pr.y - pr.hh, pr.y + pr.hh);
-      const dx = p.x - cx, dy = p.y - cy;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < p.r * p.r) {
-        if (d2 > 0.0001) {
-          const d = Math.sqrt(d2);
-          p.x = cx + (dx / d) * p.r;
-          p.y = cy + (dy / d) * p.r;
-        } else {
-          // inside the box: push out the shortest axis
-          const ox = pr.hw + p.r - Math.abs(p.x - pr.x);
-          const oy = pr.hh + p.r - Math.abs(p.y - pr.y);
-          if (ox < oy) p.x += p.x < pr.x ? -ox : ox;
-          else p.y += p.y < pr.y ? -oy : oy;
-        }
       }
     }
   }
@@ -1074,6 +994,7 @@ export class Game {
       const p = this.projs[i];
       if (!p.alive) {
         p.alive = true;
+        p.gen = (p.gen + 1) & 255;
         p.owner = this.player.index;
         p.hits.reset();
         p.rehit = -1;
@@ -1100,6 +1021,7 @@ export class Game {
     for (const s of this.summons) {
       if (!s.alive) {
         s.alive = true;
+        s.gen = (s.gen + 1) & 255;
         s.owner = this.player.index;
         s.hits.reset();
         s.state = 0;
@@ -1118,6 +1040,7 @@ export class Game {
     for (const b of this.bullets) {
       if (!b.alive) {
         b.alive = true;
+        b.gen = (b.gen + 1) & 255;
         b.kind = kind;
         b.x = b.px = x;
         b.y = b.py = y;
@@ -1251,6 +1174,7 @@ export class Game {
       this.hazards.push(h);
     }
     h.alive = true;
+    h.gen = (h.gen + 1) & 255;
     h.shape = shape;
     h.style = style;
     h.x = x;
@@ -1426,6 +1350,7 @@ export class Game {
     if (!z) z = oldest;
     if (!z) return null;
     z.alive = true;
+    z.gen = (z.gen + 1) & 255;
     z.kind = kind;
     z.x = x;
     z.y = y;
@@ -1483,6 +1408,7 @@ export class Game {
       this.pickups.push(pk);
     }
     pk.alive = true;
+    pk.gen = (pk.gen + 1) & 255;
     pk.kind = kind;
     pk.x = pk.px = x;
     pk.y = pk.py = y;
@@ -1558,25 +1484,25 @@ export class Game {
       case 'ticket':
         this.gemsOnGround--;
         this.addXp(pk.value);
-        this.bus.emit('pickup', { kind: 'ticket', value: pk.value });
+        this.bus.emit('pickup', { kind: 'ticket', value: pk.value, player: p.index });
         break;
       case 'bank':
         this.addXp(pk.value);
         this.fx.push('pickup', pk.x, pk.y, 2, 0, 0, 'bank');
-        this.bus.emit('pickup', { kind: 'bank', value: pk.value });
+        this.bus.emit('pickup', { kind: 'bank', value: pk.value, player: p.index });
         this.bankPickup = null;
         break;
       case 'food':
       case 'funnel': {
         const heal = pk.kind === 'food' ? Math.max(HEALING.foodHealMin, p.stats.maxHp() * HEALING.foodHealFrac) : Math.max(12, p.stats.maxHp() * HEALING.funnelHealFrac);
         this.healPlayer(heal);
-        this.bus.emit('pickup', { kind: pk.kind, value: heal });
+        this.bus.emit('pickup', { kind: pk.kind, value: heal, player: p.index });
         break;
       }
       case 'golden':
         for (const g of this.pickups) if (g.alive && (g.kind === 'ticket' || g.kind === 'bank')) g.magnet = true;
         this.fx.push('flash', p.x, p.y, 0.35, 0, 0, 'gold');
-        this.bus.emit('pickup', { kind: 'golden', value: 0 });
+        this.bus.emit('pickup', { kind: 'golden', value: 0, player: p.index });
         break;
       case 'chest': {
         const res = this.openChest(pk.rolls || 1);

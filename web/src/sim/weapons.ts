@@ -146,7 +146,7 @@ export class Weapons {
   // ---------------------------------------------------------------- aiming
   private aimDir(w: WeaponInst, ox: number, oy: number, mode: 'nearest' | 'random' | 'forward', range = 900): { x: number; y: number; t: Target | null } {
     const inp = this.g.input;
-    const aimMode = this.g.cfg.aimMode ?? 'auto';
+    const aimMode = this.g.player.aimMode;
     if (w.def.aimable && (aimMode === 'manual' || (aimMode === 'hybrid' && inp.aimActive))) {
       const l = Math.hypot(inp.aimX, inp.aimY) || 1;
       return { x: inp.aimX / l, y: inp.aimY / l, t: null };

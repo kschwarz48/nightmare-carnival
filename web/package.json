@@ -15,6 +15,7 @@
   "dependencies": {
     "@fontsource/oswald": "^5.3.0",
     "@fontsource/rye": "^5.3.0",
+    "peerjs": "^1.5.4",
     "three": "^0.169.0"
   },
   "devDependencies": {

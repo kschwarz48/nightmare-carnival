@@ -11,6 +11,7 @@ import type { Assets } from '../render/assets';
 import type { Frame } from '../render/atlas';
 import { FxSystem } from '../render/fx';
 import type { Game } from '../sim/game';
+import type { Player } from '../sim/player';
 import type { Enemy, Hazard } from '../sim/entities';
 import { ActorBatch } from './core/batch';
 import { BillboardLayer, DecalBatch, camBasis } from './core/billboard';
@@ -109,12 +110,8 @@ export class GameRenderer3D {
   private tmpS = new THREE.Vector3();
   private shadowQuality = '';
   // player animation state (stride-synced run, idle cross-fade, attack flourish, hurt)
-  private pStride = 0;
-  private pMove = 0;
-  private pCastT = 9;
-  private pPrevCd = 0;
-  private pPrevX = 0;
-  private pPrevY = 0;
+  /** Per-player locomotion/attack animation state (co-op draws every party member, D-51). */
+  private pAnim: { stride: number; move: number; castT: number; prevCd: number; prevX: number; prevY: number }[] = [];
   // death animations (D-50): the last drawn pose of every on-screen enemy, and the corpses still
   // playing out after the sim has removed them (pooled; no per-frame allocation)
   private seen = new Map<number, Corpse>();
@@ -299,7 +296,7 @@ export class GameRenderer3D {
   }
 
   // =================================================================== frame
-  render(g: Game, alpha: number, dt: number, opts: { menu?: boolean } = {}): void {
+  render(g: Game, alpha: number, dt: number, opts: { menu?: boolean; local?: { x: number; y: number } } = {}): void {
     this.renderer.info.reset();
     this.frameNo++;
     this.time += dt;
@@ -312,8 +309,10 @@ export class GameRenderer3D {
     fx.particleBudget = this.settings.quality === 'low' ? 500 : this.settings.quality === 'medium' ? 1000 : 1700;
     fx.handle(g.fx.drain());
     fx.update(dt);
+    // the camera follows the local player (g.player rests on them between ticks); a co-op guest
+    // passes its predicted position, everyone else is interpolated
     const p = g.player;
-    const px = lerp(p.px, p.x, alpha), py = lerp(p.py, p.y, alpha);
+    const px = opts.local ? opts.local.x : lerp(p.px, p.x, alpha), py = opts.local ? opts.local.y : lerp(p.py, p.y, alpha);
 
     // ---- camera: smooth follow + look-ahead, frame an awake boss, clamp to the map
     let lookX = p.vx * 0.12, lookY = p.vy * 0.12;
@@ -381,8 +380,13 @@ export class GameRenderer3D {
     this.drawCorpses(g, dt);
     this.bosses.update(g, this, alpha, dt);
     this.drawSummons(g, alpha, dt);
-    this.drawWeaponVisuals(g, px, py);
-    this.drawPlayer(g, px, py, dt);
+    for (const q of g.players) {
+      const qx = q === p ? px : lerp(q.px, q.x, alpha), qy = q === p ? py : lerp(q.py, q.y, alpha);
+      g.setCtx(q);
+      if (!q.downed) this.drawWeaponVisuals(g, qx, qy);
+      this.drawPlayer(g, q, qx, qy, dt);
+    }
+    g.setCtx(p);
     this.drawProjectiles(g, alpha);
     this.drawBullets(g, alpha);
     fx.draw(this.fxNormal, this.fxAdd, this.addShapes, this.numbers);
@@ -882,7 +886,6 @@ export class GameRenderer3D {
 
   // =================================================================== summons / weapons / player
   private drawSummons(g: Game, alpha: number, dt: number): void {
-    const p = g.player;
     for (let si = 0; si < g.summons.length; si++) {
       const s = g.summons[si];
       if (!s.alive) continue;
@@ -890,9 +893,10 @@ export class GameRenderer3D {
       const moving = Math.hypot(s.x - s.px, s.y - s.py) > 0.05;
       const yaw = this.smoothYaw(-1000 - si, moving ? Math.atan2(s.x - s.px, s.y - s.py) : (s.face > 0 ? Math.PI / 2 : -Math.PI / 2), dt, 8);
       if (s.kind === 'clone') {
-        const def = CHARACTERS[p.char.id];
+        const owner = g.players[s.owner] ?? g.player;
+        const def = CHARACTERS[owner.char.id];
         const rig = def.rig!();
-        const b = this.batch(`char_${p.char.id}`, def, 6);
+        const b = this.batch(`char_${owner.char.id}`, def, 6);
         const i = b.add(x, y, 0, yaw, (def.scale ?? 1) * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
         const row = moving ? rig.row('move', s.animT * 1.1) : rig.row('idle', this.time / 2.8 + si * 0.3);
         b.anim(i, row, row, 0, 0);
@@ -969,44 +973,67 @@ export class GameRenderer3D {
   }
 
   /** Skeletal rows for the player: [rowA, rowB, blend]. */
-  private playerRows(g: Game, dt: number, rigName: string): [number, number, number] {
-    const p = g.player;
+  private playerRows(p: Player, x: number, y: number, dt: number, rigName: string): [number, number, number] {
+    const a = (this.pAnim[p.index] ??= { stride: 0, move: 0, castT: 9, prevCd: 0, prevX: x, prevY: y });
     const rig = CHARACTERS[rigName].rig!();
-    const moved = Math.hypot(p.x - this.pPrevX, p.y - this.pPrevY);
-    this.pPrevX = p.x;
-    this.pPrevY = p.y;
+    const moved = Math.hypot(x - a.prevX, y - a.prevY);
+    a.prevX = x;
+    a.prevY = y;
     const moving = p.moving || p.dashT > 0;
-    this.pMove += ((moving ? 1 : 0) - this.pMove) * (1 - Math.exp(-dt * 10));
+    a.move += ((moving ? 1 : 0) - a.move) * (1 - Math.exp(-dt * 10));
     // stride-locked phase so feet don't skate: ~92 world units per full cycle
-    this.pStride += Math.min(moved, 40) / 92;
+    a.stride += Math.min(moved, 40) / 92;
     // the signature weapon firing triggers the attack flourish
-    const sig = g.weapons.list.find((w) => w.def.id === p.char.startWeapon || w.def.evolvedFrom === p.char.startWeapon);
+    const sig = p.weapons.list.find((w) => w.def.id === p.char.startWeapon || w.def.evolvedFrom === p.char.startWeapon);
     if (sig) {
-      if (sig.cd > this.pPrevCd + 0.05) this.pCastT = 0;
-      this.pPrevCd = sig.cd;
+      if (sig.cd > a.prevCd + 0.05) a.castT = 0;
+      a.prevCd = sig.cd;
     }
-    this.pCastT += dt / 0.42;
-    const idle = rig.row('idle', this.time / 2.8);
-    const run = rig.row(p.dashT > 0 && rig.has('dash') ? 'dash' : 'move', this.pStride);
-    if (p.hurtFlash > 0) return [this.pMove > 0.5 ? run : idle, rig.row('hurt', 1 - p.hurtFlash / 0.3), 0.85];
-    if (this.pCastT < 1) {
-      const w = Math.min(1, Math.sin(Math.min(1, this.pCastT) * Math.PI) * 1.6);
-      return [this.pMove > 0.5 ? run : idle, rig.row('cast', this.pCastT), w * (this.pMove > 0.5 ? 0.7 : 1)];
+    a.castT += dt / 0.42;
+    const idle = rig.row('idle', this.time / 2.8 + p.index * 0.4);
+    const run = rig.row(p.dashT > 0 && rig.has('dash') ? 'dash' : 'move', a.stride);
+    if (p.hurtFlash > 0) return [a.move > 0.5 ? run : idle, rig.row('hurt', 1 - p.hurtFlash / 0.3), 0.85];
+    if (a.castT < 1) {
+      const w = Math.min(1, Math.sin(Math.min(1, a.castT) * Math.PI) * 1.6);
+      return [a.move > 0.5 ? run : idle, rig.row('cast', a.castT), w * (a.move > 0.5 ? 0.7 : 1)];
     }
-    if (this.pMove > 0.97) return [run, run, 0];
-    if (this.pMove < 0.03) return [idle, idle, 0];
-    return [run, idle, 1 - this.pMove];
+    if (a.move > 0.97) return [run, run, 0];
+    if (a.move < 0.03) return [idle, idle, 0];
+    return [run, idle, 1 - a.move];
   }
 
-  private drawPlayer(g: Game, px: number, py: number, dt: number): void {
-    const p = g.player;
+  /** A fallen co-op player: a coffin with a revive gauge that fills faster with a teammate beside it. */
+  private drawCoffin(p: Player, px: number, py: number): void {
+    const b = this.batch('coffin', ITEM_MODELS.coffin, 4);
+    const j = b.add(px, py, 0, 0, ACTOR_SCALE * 1.15);
+    b.anim(j, 0, 0, 0, 0);
+    const col = PLAYER_COLS[p.index % PLAYER_COLS.length];
+    const k = clamp(p.reviveT, 0, 1);
+    const pulse = 0.6 + 0.4 * Math.sin(this.time * (p.reviveAssist ? 9 : 3));
+    this.teleLine.ring(px, py, 46, 52, col[0], col[1], col[2], 0.25, 0.25);
+    if (k > 0) this.teleLine.ring(px, py, 45, 53, col[0], col[1], col[2], 0.9 * pulse, 0.9 * pulse, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
+    this.glow.draw(this.f('fx_glow_0'), px, py, 30, 1.2, 1.2, 0, col[0], col[1], col[2], (p.reviveAssist ? 0.55 : 0.25) * pulse);
+    pool.add(px, py, 140, 0.35 * pulse, col[0], col[1], col[2], 30, 2);
+  }
+
+  private drawPlayer(g: Game, p: Player, px: number, py: number, dt: number): void {
+    if (p.downed) {
+      this.drawCoffin(p, px, py);
+      return;
+    }
     const def = CHARACTERS[p.char.id];
     const b = this.batch(`char_${p.char.id}`, def, 6);
     const moving = p.moving || p.dashT > 0;
-    const target = moving ? Math.atan2(p.vx, p.vy) : this.yaw.get(-1) ?? 0;
-    const yaw = this.smoothYaw(-1, target, dt, 12);
+    const yawId = -1 - p.index;
+    const target = moving ? Math.atan2(p.vx, p.vy) : this.yaw.get(yawId) ?? 0;
+    const yaw = this.smoothYaw(yawId, target, dt, 12);
     const s = def.scale ?? 1;
-    const [ra, rb, bl] = this.playerRows(g, dt, p.char.id);
+    const [ra, rb, bl] = this.playerRows(p, px, py, dt, p.char.id);
+    if (g.players.length > 1) {
+      // who is who: a soft coloured halo at each player's feet
+      const col = PLAYER_COLS[p.index % PLAYER_COLS.length];
+      this.addShapes.ring(px, py, 24, 30, col[0], col[1], col[2], 0.0, 0.45);
+    }
     if (p.dashT > 0) {
       // bumper surge afterimages
       for (let k = 1; k <= 3; k++) {
@@ -1100,6 +1127,9 @@ export class GameRenderer3D {
     }
   }
 }
+
+/** Co-op player colours: Player 1 lamp-gold, Player 2 ghost-teal. */
+export const PLAYER_COLS: [number, number, number][] = [[1, 0.78, 0.35], [0.4, 0.95, 1], [1, 0.45, 0.6], [0.6, 1, 0.45]];
 
 const BALLOON_TINTS: [number, number, number][] = [
   [0.5, 0.08, 0.07], [0.52, 0.37, 0.1], [0.1, 0.27, 0.28], [0.3, 0.11, 0.34], [0.5, 0.45, 0.33], [0.2, 0.3, 0.1],

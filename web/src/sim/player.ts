@@ -16,6 +16,8 @@ export class Player {
   /** Coffin revive progress 0..1, and whether a teammate is speeding it up. */
   reviveT = 0;
   reviveAssist = false;
+  /** How this player's aimable weapons pick a direction (their own setting in co-op). */
+  aimMode: 'auto' | 'hybrid' | 'manual' = 'auto';
   /** Draft cards this player has banished. */
   banished = new Set<string>();
   char: CharacterDef;
