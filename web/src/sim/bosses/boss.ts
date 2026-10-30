@@ -41,6 +41,13 @@ export abstract class BossBase {
   removed = false;
   solid = false;
   solidR = 0;
+  /**
+   * A stage ring (D-61): while `ringR` > 0 every standing player outside it is reeled back in
+   * (`addRingPull`), and every screen draws it. Plain numbers, so it reaches guests with the boss state.
+   */
+  ringX = 0;
+  ringY = 0;
+  ringR = 0;
   invuln = true;
   casting = false;
   busy = false;
@@ -289,6 +296,7 @@ export abstract class BossBase {
     const g = this.g;
     this.dead = true;
     this.invuln = true;
+    this.ringR = 0; // the stage lets everyone go
     this.co.cancelAll();
     g.clearHazardsOf(this.uid);
     for (const b of g.bullets) b.alive = false;

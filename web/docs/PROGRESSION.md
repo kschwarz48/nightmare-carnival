@@ -121,6 +121,25 @@ won, while several Lost Child / Ringleader seeds died earlier — the simple bot
 weakens each one early). At 18 runs this is within noise; human playtests should decide whether the
 extra late-game power needs a counterweight.
 
+### Party pacing (D-61)
+
+Bot parties (`npx vite-node scripts/party.ts [sizes] [seeds] [minutes] [xp] [passives]`): god mode, the smart
+pilot for every seat, the helpers' draft policy, 3 seeds each. "Build" is the share of each player's
+possible item levels they hold (weapons to 8, an evolution counting as full). Runs were stopped early,
+so larger parties weren't measured.
+
+| setting | party | build @12m | @16m | @20m | @24m | level @24m |
+|---|---|---|---|---|---|---|
+| any (solo is unchanged) | 1 | 46% | 51% | 68% | 77% | 43.0 |
+| old: passives = weapons, xp ×7 | 2 | 35% | 39% | 46% | 48% | 20.7 |
+| new passives, xp ×7 | 2 | 31% | 38% | 41% | 42% | 19.0 |
+| new passives, xp ×6 (shipped) | 2 | 30% | 33% | 37% | 39% | 19.7 |
+| new passives, xp ×11 (shipped) | 3 | 32% | 41% | 48% | 52% | 19.7 |
+
+Bot parties trail a solo bot well behind by minute 24, so a gentler party XP can't make them max out early.
+The duo rows also show the noise: the cheaper XP table finished at a lower level than the dearer one
+(each run's builds diverge). Three seeds can't resolve a 15% change; the playtest's "a little too harsh" decided it.
+
 ## Honest uncertainty
 
 * These numbers come from bots, not people. The pilot dodges by potential fields and cannot read

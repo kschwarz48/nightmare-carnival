@@ -1,18 +1,21 @@
-// BOSS 3 — THE PUPPET KING (doc 05). Lowered into a string-lit stage around the player.
+// BOSS 3 — THE PUPPET KING (doc 05). Lowered into a string-lit stage around the player (co-op: around
+// the party). The stage's ring of lights reels back anyone who strays (D-61).
 // P1 dances on its strings; P2 the four strings become cuttable sub-targets (cut all → stagger,
 // double damage, strings regrow); P3 he cuts himself free and rampages.
 
-import { TAU } from '../../core/math';
+import { TAU, dist2 } from '../../core/math';
 import type { BossDef } from '../../data/bosses';
 import type { BossPart } from '../entities';
 import type { Game } from '../game';
 import type { Co } from '../script';
+import { addRingPull } from '../movement';
 import { BossBase, type Attack, type BossOpts } from './boss';
 
+/** The stage's radius: its ring of lights (`ringR`) goes up as he lands. */
+const STAGE_R = 820;
 const STRING_OFFS: [number, number][] = [[-95, -70], [95, -70], [-55, 40], [55, 40]];
 
 export class PuppetBoss extends BossBase {
-  arena = { x: 0, y: 0, r: 820 };
   strings: BossPart[] = [];
   staggerT = 0;
   descend = 1; // 1 = still up in the flies (render offset)
@@ -21,31 +24,43 @@ export class PuppetBoss extends BossBase {
 
   constructor(g: Game, def: BossDef, opts?: BossOpts) {
     super(g, def, opts);
-    const p = g.player;
-    this.arena.x = p.x;
-    this.arena.y = p.y - 120;
-    this.x = this.px = p.x;
-    this.y = this.py = p.y - 380;
+    const c = this.stageCentre();
+    this.ringX = c.x;
+    this.ringY = c.y - 120;
+    this.x = this.px = c.x;
+    this.y = this.py = c.y - 380;
     this.moveSpeed = 70;
     this.keepDist = 300;
     this.pose = { dance: 0, crouch: 0, crownGone: 0, flail: 0 };
   }
 
-  protected tickBoss(dt: number): void {
-    // Soft stage arena: the string-light ring gently herds the player back in (no damage).
-    const p = this.g.player;
-    const dx = p.x - this.arena.x, dy = p.y - this.arena.y;
-    const d = Math.hypot(dx, dy);
-    if (d > this.arena.r) {
-      p.pullX -= (dx / d) * (d - this.arena.r) * 6;
-      p.pullY -= (dy / d) * (d - this.arena.r) * 6;
+  /**
+   * Where the stage comes down: around the player with the most teammates within 600 units, centred on
+   * that group (solo: on the player), so as much of the party as possible starts on it.
+   */
+  private stageCentre(): { x: number; y: number } {
+    const g = this.g;
+    const up = g.players.filter((p) => g.isUp(p));
+    if (up.length <= 1) return up[0] ?? g.player;
+    const near = (p: { x: number; y: number }) => up.filter((o) => dist2(o.x, o.y, p.x, p.y) < 600 * 600);
+    let group = near(up[0]);
+    for (const p of up) {
+      const n = near(p);
+      if (n.length > group.length) group = n;
     }
+    return { x: group.reduce((a, p) => a + p.x, 0) / group.length, y: group.reduce((a, p) => a + p.y, 0) / group.length };
+  }
+
+  protected tickBoss(dt: number): void {
+    // The stage's ring of lights reels back anyone outside it: every standing player, drawn on every
+    // screen (a taut string while it pulls), and predicted by guests with the same formula.
+    for (const p of this.g.players) if (this.g.isUp(p)) addRingPull(p, this);
     // keep the king on the stage
-    const bx = this.x - this.arena.x, by = this.y - this.arena.y;
+    const bx = this.x - this.ringX, by = this.y - this.ringY;
     const bd = Math.hypot(bx, by);
-    if (bd > this.arena.r - 120) {
-      this.x = this.arena.x + (bx / bd) * (this.arena.r - 120);
-      this.y = this.arena.y + (by / bd) * (this.arena.r - 120);
+    if (bd > STAGE_R - 120) {
+      this.x = this.ringX + (bx / bd) * (STAGE_R - 120);
+      this.y = this.ringY + (by / bd) * (STAGE_R - 120);
     }
     if (this.staggerT > 0) {
       this.staggerT -= dt;
@@ -79,6 +94,8 @@ export class PuppetBoss extends BossBase {
     this.anim = 'intro';
     this.banner(this.def.name.toUpperCase(), this.def.title);
     this.sfx('drumroll', 1);
+    // the stage's lights go up as he is lowered
+    this.ringR = STAGE_R;
     for (let i = 0; i < 150; i++) {
       this.descend = 1 - i / 150;
       yield 1 / 60;
@@ -87,6 +104,7 @@ export class PuppetBoss extends BossBase {
     g.fx.push('shake', this.x, this.y, 0.5);
     g.fx.push('dust', this.x, this.y + 60, 2);
     this.sfx('clack', 1);
+    this.banner('STAY IN THE LIGHTS', 'His strings reel back anyone who strays off the stage');
     yield 0.6;
   }
 
@@ -200,13 +218,14 @@ export class PuppetBoss extends BossBase {
     const g = this.g;
     this.anim = 'sweep';
     const horizontal = g.rng.chance(0.5);
-    const A = this.arena;
+    const A = { x: this.ringX, y: this.ringY, r: STAGE_R };
     const t = this.tele(1.0);
     const spacing = 270;
     const lines = [];
+    // the three strings sweep as one rank: all up, all down, all left or all right
+    const dir = g.rng.chance(0.5) ? 1 : -1;
     for (let k = -1; k <= 1; k++) {
       const off = k * spacing;
-      const dir = g.rng.chance(0.5) ? 1 : -1;
       let x1: number, y1: number, x2: number, y2: number;
       if (horizontal) {
         x1 = A.x - A.r; x2 = A.x + A.r; y1 = y2 = A.y + off - dir * 250;
@@ -235,7 +254,7 @@ export class PuppetBoss extends BossBase {
     yield this.tele(0.8);
     for (let r = 0; r < ranks; r++) {
       const a = g.rng.angle();
-      g.director.spawnFormation(this.arena.x + Math.cos(a) * (this.arena.r - 80), this.arena.y + Math.sin(a) * (this.arena.r - 80), Math.round(5 * this.addsMult()));
+      g.director.spawnFormation(this.ringX + Math.cos(a) * (STAGE_R - 80), this.ringY + Math.sin(a) * (STAGE_R - 80), Math.round(5 * this.addsMult()));
     }
     yield 0.8;
   }

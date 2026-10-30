@@ -25,6 +25,9 @@ See `QA_REPORT.md` for evidence and limitations.
       melody lamps, tent inhale and tarp, first-chest pre-warm (D-56)
 - [x] The Midway hub (D-60): unlocked by fully completing the first night; cast with lore, ticket booth,
       Big Top, coming soon gates; shared online
+- [x] Co-op tuning (D-61): passive slots half as steep, party XP ~15% gentler; the Puppet King's stage
+      ring drawn, capped and predicted; prize wheel on top, lit, slot-machine sounds, readable cards;
+      Bradley's new mix; a quieter Midway waltz
 - [x] Alpha deployed on Netlify: https://nightmare-carnival.netlify.app — `MULTIPLAYER.md` §4
 
 ## Outstanding / recommended next steps

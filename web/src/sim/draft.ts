@@ -205,6 +205,11 @@ export interface ChestEntry {
   type: 'evolution' | 'level' | 'passive' | 'new' | 'voucher' | 'heal';
   id: string;
   label: string;
+  /** for the prize card (D-61): the item's name, its new level, whether that's its last, or what it paid */
+  name?: string;
+  level?: number;
+  max?: boolean;
+  note?: string;
   /** Co-op: the player this prize went to (D-51). */
   player?: number;
 }
@@ -219,7 +224,7 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
       if (!w.def.isEvolution && w.level < w.def.maxLevel) {
         options.push(() => {
           g.weapons.levelUp(w.def.id);
-          entries.push({ type: 'level', id: w.def.id, label: `${w.def.name} Lv ${w.level}` });
+          entries.push({ type: 'level', id: w.def.id, label: `${w.def.name} Lv ${w.level}`, name: w.def.name, level: w.level, max: w.level >= w.def.maxLevel });
           return `${w.def.name} Lv ${w.level}`;
         });
       }
@@ -228,7 +233,8 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
       if (lvl < PASSIVES[id].maxLevel) {
         options.push(() => {
           g.player.addPassive(id);
-          entries.push({ type: 'passive', id, label: `${PASSIVES[id].name} Lv ${g.player.passiveLevel(id)}` });
+          const lv = g.player.passiveLevel(id);
+          entries.push({ type: 'passive', id, label: `${PASSIVES[id].name} Lv ${lv}`, name: PASSIVES[id].name, level: lv, max: lv >= PASSIVES[id].maxLevel });
           return `${PASSIVES[id].name} Lv ${g.player.passiveLevel(id)}`;
         });
       }
@@ -245,20 +251,20 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
         g.weapons.add(id);
         g.bus.emit('discover', { id });
         items.push(`New: ${WEAPONS[id].name}`);
-        entries.push({ type: 'new', id, label: `New: ${WEAPONS[id].name}` });
+        entries.push({ type: 'new', id, label: `New: ${WEAPONS[id].name}`, name: WEAPONS[id].name, level: 1 });
         continue;
       }
     }
     const v = g.grantVoucher();
     if (v > 0) {
       items.push(`Lost & Found Voucher (+${v} LT)`);
-      entries.push({ type: 'voucher', id: 'voucher', label: `Lost & Found Voucher (+${v} LT)` });
+      entries.push({ type: 'voucher', id: 'voucher', label: `Lost & Found Voucher (+${v} LT)`, name: 'Lost & Found Voucher', note: `+${v} Lost Tickets` });
     } else {
       // the voucher window is shut for the night: a crumb of funnel cake instead
       const hp = Math.max(1, Math.round(g.player.stats.maxHp() * HEALING.fallbackHealFrac));
       g.healPlayer(hp);
       items.push(`Funnel Cake Crumbs (+${hp} HP)`);
-      entries.push({ type: 'heal', id: 'funnel_cake', label: `Funnel Cake Crumbs (+${hp} HP)` });
+      entries.push({ type: 'heal', id: 'funnel_cake', label: `Funnel Cake Crumbs (+${hp} HP)`, name: 'Funnel Cake Crumbs', note: `+${hp} HP` });
     }
   }
   // An evolution that became ready from these rolls is granted at the next chest/draft.

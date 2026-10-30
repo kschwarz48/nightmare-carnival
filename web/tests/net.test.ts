@@ -18,6 +18,8 @@ import {
 import { GuestSession, HostSession, LINK_TIMEOUT, RECONNECT_WAIT, runConfigFromStart, type HostProfile } from '../src/net/session';
 import { COOP } from '../src/data/progression';
 import { addHazardPull } from '../src/sim/movement';
+import { createBoss } from '../src/sim/bosses';
+import { BOSS_MAP } from '../src/data/bosses';
 
 const UNLOCKED = ['w_orbs', 'w_cannon', 'w_laser', 'w_bell', 'w_mirror', 'p_season_pass', 'p_coin_purse', 'p_rabbits_foot'];
 const duo = (seed = 99, o: Parameters<typeof makeGame>[0] = {}) =>
@@ -980,7 +982,7 @@ describe('parties of up to six players (D-54)', () => {
       expect(x.gs.game!.players.length).toBe(6);
       expect(x.gs.game!.players[x.gs.slot].name).toBe(x.name); // each mirror predicts its own player
     }
-    expect(g.slots).toEqual({ weapons: 2, passives: 2 });
+    expect(g.slots).toEqual({ weapons: 2, passives: 4 });
   });
 
   it('plays a six-player night over a lossy network: every mirror tracks the host, inputs land, drafts wait for all', () => {
@@ -1052,12 +1054,15 @@ describe('parties of up to six players (D-54)', () => {
     for (const x of p.guests) for (let i = 0; i < 6; i++) if (i !== x.gs.slot) expect(dist(x.gs.game!.players[i], g.players[i])).toBeLessThan(60);
   });
 
-  it('follows Vampire Survivors slot scaling and holds at its floor of two beyond four players', () => {
+  it('follows Vampire Survivors weapon slots (holding at its floor of two beyond four players), passives shrinking half as fast', () => {
     expect([1, 2, 3, 4, 5, 6].map((n) => COOP.slots[n])).toEqual([6, 4, 3, 2, 2, 2]);
+    // D-61: passives lose half as many slots as weapons, 6 - (6 - weapons) / 2 (three players' 4.5 rounds up)
+    expect([1, 2, 3, 4, 5, 6].map((n) => COOP.passiveSlots[n])).toEqual([6, 5, 5, 4, 4, 4]);
+    for (let n = 1; n <= 6; n++) expect(COOP.passiveSlots[n]).toBe(Math.ceil(6 - (6 - COOP.slots[n]) / 2));
     for (const n of [5, 6]) {
       const g = makeGame({ seed: 3, players: Array.from({ length: n }, (_, i) => ({ character: 'carny', name: `P${i}` })) });
       expect(g.players.length).toBe(n);
-      expect(g.slots).toEqual({ weapons: 2, passives: 2 });
+      expect(g.slots).toEqual({ weapons: 2, passives: 4 });
       expect(g.partyScale.density).toBeGreaterThan(COOP.density[4]);
     }
   });
@@ -1125,5 +1130,42 @@ describe('parties of up to six players (D-54)', () => {
     gaps.sort((a, b) => a - b);
     // predicted, not corrected after the fact: the drawn self leads the host by about the inputs in flight
     expect(gaps[Math.floor(gaps.length * 0.9)]).toBeLessThan(25);
+  });
+
+  it('a guest predicts a stage ring reeling it in, so it glides back instead of snapping (D-61)', () => {
+    const p = new Party(1, { latency: 40, jitter: 10, seed: 4 });
+    p.run(300);
+    const g = p.startRun(['carny', 'strongman']);
+    g.addXp(-1e9);
+    const gs = p.guests[0].gs;
+    const me = g.players[1];
+    // the Puppet King's stage, with the guest 480 units off its edge
+    const king = createBoss(g, BOSS_MAP.puppet_king, { immediate: true });
+    king.ringX = me.x - 1300;
+    king.ringY = me.y;
+    g.bosses.push(king);
+    const x0 = me.x;
+    const gaps: number[] = [];
+    let seen = false;
+    p.run(2500, () => {
+      // the guest stands still: only the ring moves it
+      if (gs.state === 'run' && gs.game?.phase === 'play' && !gs.replica?.frozen) {
+        gs.step(0, 0, 0, 0, false);
+        gs.replica!.frame(1 / 60);
+      }
+      if (!p.host.paused && p.host.prizeReady && g.phase === 'play') {
+        p.host.beforeTick(g);
+        g.tick();
+        g.fx.drain();
+      }
+      if (gs.game?.bosses.some((b) => b.ringR > 0)) seen = true;
+      // how far each host update moved the guest's own fool from where it had predicted itself
+      if (gs.replica?.last && seen) gaps.push(gs.replica.predErr);
+    });
+    expect(seen).toBe(true); // the ring reached the guest's mirror with the boss
+    expect(x0 - me.x).toBeGreaterThan(300); // the host reeled the guest's fool back toward the stage
+    gaps.sort((a, b) => a - b);
+    // predicted, not snapped: the host's updates agree with where the guest already drew itself
+    expect(gaps[Math.floor(gaps.length * 0.9)]).toBeLessThan(4);
   });
 });

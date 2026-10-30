@@ -314,10 +314,10 @@ export class Game {
     this.input = this.inputs[p.index];
     this.weapons = p.weapons;
   }
-  /** Weapon and passive slots per player for this party size (VS: 6 / 4 / 3 / 2). */
+  /** Weapon and passive slots per player for this party size (weapons as VS: 6 / 4 / 3 / 2; passives half as steep, D-61). */
   get slots(): { weapons: number; passives: number } {
-    const n = COOP.slots[Math.min(COOP.slots.length - 1, this.players.length)];
-    return { weapons: n, passives: n };
+    const i = Math.min(COOP.slots.length - 1, this.players.length);
+    return { weapons: COOP.slots[i], passives: COOP.passiveSlots[i] };
   }
   get coop(): boolean {
     return this.players.length > 1;

@@ -119,6 +119,8 @@ export class App {
   net: NetCtx | null = null;
   /** this machine's player slot: 0 for solo and the host, 1 for a guest */
   localIndex = 0;
+  /** reeled in by a boss's stage ring right now (for its twang) */
+  private tugging = false;
   private mpStatus = '';
   private mpTone: 'info' | 'warn' = 'info';
   private mpBusy = false;
@@ -195,7 +197,7 @@ export class App {
     }
     this.draft = new DraftView(this.assets, (i) => this.pickDraft(i), () => this.rerollDraft(), (i) => this.banishDraft(i), () => this.skipDraft());
     this.prizeUi = new PrizeOverlay(() => this.prize.skip(false));
-    this.prize = new PrizeWheel(this.renderer.camera, this.assets, this.prizeUi, this.audio);
+    this.prize = new PrizeWheel(this.renderer.overlay, this.assets, this.prizeUi, this.audio);
     this.ctx = {
       save: this.save, assets: this.assets, audio: this.audio, input: this.input,
       click: () => this.audio.play('ui_click', { vol: 0.5 }),
@@ -255,12 +257,13 @@ export class App {
     switch (state) {
       case 'hub':
         this.audio.setPausedFilter(false);
-        this.audio.setCue('menu');
+        this.audio.setCue('midway'); // the grounds get a hushed carousel waltz; Bradley's song stays on the title menus
         break;
       case 'midway':
         el = this.midwayMenuEl();
         break;
       case 'press':
+        this.audio.setCue('menu');
         el = S.pressStart(this.ctx, () => this.pressed());
         break;
       case 'title':
@@ -329,8 +332,17 @@ export class App {
     } else this.nav = null;
   }
 
+  /** A boss's stage ring (D-61): a twang the moment its strings start reeling you back in. */
+  private stageTug(g: Game): void {
+    const p = g.players[this.localIndex] ?? g.player;
+    const out = !p.dead && !p.downed && g.bosses.some((b) => b.ringR > 0 && (p.x - b.ringX) ** 2 + (p.y - b.ringY) ** 2 > b.ringR * b.ringR);
+    if (out && !this.tugging) this.audio.play('twang', { vol: 0.8, pitch: 1.3 });
+    this.tugging = out;
+  }
+
   private pressed(): void {
-    this.audio.unlock().then(() => this.audio.setCue('menu'));
+    // the screen we land on picks the music (the title menu Bradley's song, the Midway its waltz)
+    void this.audio.unlock();
     this.audio.play('select', { vol: 0.6 });
     this.go('title');
   }
@@ -419,7 +431,7 @@ export class App {
    */
   private prewarmPrize(): void {
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (!this.prize.active) void this.prize.prewarm(this.renderer.renderer, this.renderer.scene, this.renderer.camera, this.renderer.post.composer.readBuffer);
+      if (!this.prize.active) void this.prize.prewarm(this.renderer.renderer, this.renderer.overlay, this.renderer.overlayCam, this.renderer.post.composer.readBuffer);
     }));
   }
 
@@ -935,6 +947,7 @@ export class App {
       g!.input.aimActive = this.input.aimActive;
       const pb = this.renderer.post;
       pb.bloomScale += ((this.prize.active ? 0.35 : 1) - pb.bloomScale) * Math.min(1, dt * 6);
+      this.renderer.overlayFocus += ((this.prize.active ? 1 : 0) - this.renderer.overlayFocus) * Math.min(1, dt * 6);
       this.prize.update(dt, (k) => {
         this.renderer.fx.screenFlash = Math.max(this.renderer.fx.screenFlash, k);
         this.renderer.fx.screenFlashCol = [1, 0.85, 0.7];
@@ -962,6 +975,7 @@ export class App {
       }
       const alpha = this.overlayPause || g!.phase === 'draft' || held ? 1 : Math.min(1, this.acc / TICK);
       this.renderer.render(g!, alpha, dt);
+      this.stageTug(g!);
       this.updateCoopHud();
       this.hud.update(g!, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y) => this.renderer.worldToScreen(x, y, cssW, cssH) });
     } else if (this.state === 'paused' || this.state === 'results') {
@@ -1501,6 +1515,7 @@ export class App {
     if (this.state === 'playing') {
       const pb = this.renderer.post;
       pb.bloomScale += ((this.prize.active ? 0.35 : 1) - pb.bloomScale) * Math.min(1, dt * 6);
+      this.renderer.overlayFocus += ((this.prize.active ? 1 : 0) - this.renderer.overlayFocus) * Math.min(1, dt * 6);
       this.prize.update(dt, (k) => {
         this.renderer.fx.screenFlash = Math.max(this.renderer.fx.screenFlash, k);
         this.renderer.fx.screenFlashCol = [1, 0.85, 0.7];
@@ -1513,6 +1528,7 @@ export class App {
     }
     const local = rep ? rep.localDrawPos(live ? Math.min(1, this.acc / TICK) : 1) : undefined;
     this.renderer.render(g, rep ? rep.alpha(now) : 1, dt, { local });
+    this.stageTug(g);
     if (this.state === 'playing') {
       this.updateCoopHud();
       this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y) => this.renderer.worldToScreen(x, y, cssW, cssH) });

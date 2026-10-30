@@ -27,7 +27,11 @@ _Updated 2026-10-30. Branch: `web-threejs-rebuild` (not pushed, no PR)._
 - **The Midway hub** (D-60): after fully completing the first night, the map becomes a peaceful hub
   (ticket booth, the cast with lore, the Big Top to start a night, coming soon gates), shared in co-op.
   `?unlock=midway` opens it for testing.
-- **181 tests pass**, typecheck is clean, `npm run build` produces a static site.
+- **Co-op tuning and polish** (D-61): passive slots shrink half as fast as weapons, party XP is ~15%
+  gentler, the Puppet King's stage ring is drawn, capped, predicted and applies to everyone, the prize
+  wheel draws above everything as a lit slot-machine show with cards naming item, level and winner,
+  Bradley's new mix, and a quieter waltz on the Midway.
+- **187 tests pass**, typecheck is clean, `npm run build` produces a static site.
 - The **biggest open item is human playtesting** (balance and readability). All tuning so far used bots.
 - The original Godot project at the repo root is untouched. Two Godot files (`export_presets.cfg`,
   `project.godot`) had **uncommitted local edits before this work started** — they're the repo owner's,
@@ -206,7 +210,13 @@ and web fonts.
     renderer's animation reads it. They're drawn with `drawPlayer(…, npc = true)`.
 13. **The host's world keeps ticking in the background** for both a night and the Midway
     (`App.background`). Otherwise a hidden host tab freezes everyone, and guests' inputs get discarded.
-14. **Dev tools must stay dynamically imported** (`import('./dev')` inside `if (import.meta.env.DEV)`)
+14. **Screen overlays live in `renderer.overlay`**, a scene drawn after the world with a cleared depth
+    buffer (the prize wheel). Don't parent them to the camera in the world scene again: telegraphs and
+    x-ray silhouettes are drawn to show through scenery, so they show through those too.
+15. **A boss mechanic that moves players needs the guest's prediction to apply it too** (`Replica.step`:
+    `addHazardPull`, `addRingPull`), with its state in plain boss fields or hazards so it replicates.
+    Otherwise guests rubber-band off something they can't predict.
+16. **Dev tools must stay dynamically imported** (`import('./dev')` inside `if (import.meta.env.DEV)`)
    so they're stripped from production. Verify with a grep for `__nc.` in `dist/assets/*.js` (the only
    allowed hit is the `__nc_probe` localStorage key).
 

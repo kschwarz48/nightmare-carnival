@@ -47,6 +47,28 @@ export function addHazardPull(p: Player, h: { x: number; y: number; r: number; p
   p.pullY += (dy / d) * k;
 }
 
+/** The fastest a stage ring reels anyone back (units/s): more than any build can walk, so nobody escapes,
+ *  but a visible glide rather than a jump across the map. */
+export const RING_PULL_MAX = 560;
+
+/**
+ * A boss's stage ring (D-61): a player outside it is drawn back in, six units/s for every unit outside
+ * (aiming a few units inside the edge, so whoever is reeled back ends up on the stage rather than
+ * hovering at its rim), up to `RING_PULL_MAX`; inside, nothing. The host and a guest's prediction use
+ * this same formula on the replicated ring, so a guest is never corrected for walking into it.
+ * Returns whether it pulled.
+ */
+export function addRingPull(p: Player, b: { ringX: number; ringY: number; ringR: number }): boolean {
+  if (b.ringR <= 0) return false;
+  const dx = p.x - b.ringX, dy = p.y - b.ringY;
+  const d = Math.hypot(dx, dy);
+  if (d <= b.ringR || d < 1e-6) return false;
+  const k = Math.min(RING_PULL_MAX, (d - b.ringR + 8) * 6);
+  p.pullX -= (dx / d) * k;
+  p.pullY -= (dy / d) * k;
+  return true;
+}
+
 /** Normalised steering from raw input; updates facing. Returns [mx, my]. */
 export function steer(p: Player, ix: number, iy: number): [number, number] {
   let mx = ix, my = iy;

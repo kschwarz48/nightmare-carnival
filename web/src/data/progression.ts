@@ -107,8 +107,8 @@ export const PACING = {
 };
 
 /**
- * Co-op (D-51), following Vampire Survivors: equipment slots shrink as the party grows (6 solo,
- * 4 / 3 / 2 each for 2 / 3 / 4 players); XP is shared; every player drafts on each level-up and the
+ * Co-op (D-51), following Vampire Survivors: weapon slots shrink as the party grows (6 solo,
+ * 4 / 3 / 2 for 2 / 3 / 4 players) and passive slots shrink half as fast (D-61); XP is shared; every player drafts on each level-up and the
  * night resumes only when everyone has chosen; an item owned by one player leaves the others' pools
  * (evolutions may use a teammate's passive); a fallen player leaves a coffin that revives over time,
  * faster with a teammate standing beside it. Chest rolls are split between the players.
@@ -117,11 +117,16 @@ export const PACING = {
 export const COOP = {
   maxPlayers: 6,
   /**
-   * weapon and passive slots per player, by party size (index = player count). Vampire Survivors: 6 solo,
-   * 4 for two, one fewer for each extra player (3, 2). VS stops at four players, where its rule would
-   * run out at six (0), so five and six players hold at its floor of 2 (D-54).
+   * weapon slots per player, by party size (index = player count). Vampire Survivors: 6 solo, 4 for two,
+   * one fewer for each extra player (3, 2). VS stops at four players, where its rule would run out at
+   * six (0), so five and six players hold at its floor of 2 (D-54).
    */
   slots: [6, 6, 4, 3, 2, 2, 2] as number[],
+  /**
+   * passive slots per player: they shrink at half the weapons' rate (D-61), 6 - (6 - weapons) / 2, with
+   * three players' 4.5 rounded up to 5 (a co-op playtest found the night slightly too hard).
+   */
+  passiveSlots: [6, 6, 5, 5, 4, 4, 4] as number[],
   /** coffin revive: seconds alone, seconds with a teammate within `reviveRadius` */
   reviveAlone: 40,
   reviveAssisted: 6,
@@ -137,8 +142,10 @@ export const COOP = {
   /**
    * XP needed per level, by party size (D-57). XP is shared and a party earns it several times faster,
    * while each player has fewer slots to fill, so without this a party maxes out by minute 6–10.
+   * D-61: a co-op playtest found it a little harsh, so every party size needs about 15% less than the
+   * first calibration (was 7 / 13 / 20 / 25 / 30), i.e. 17–20% more level-ups from the same haul.
    */
-  xp: [1, 1, 7, 13, 20, 25, 30] as number[],
+  xp: [1, 1, 6, 11, 17, 21, 25] as number[],
   /** a boss re-picks the nearest living player at most this often (seconds) */
   bossRetarget: 2.5,
 };

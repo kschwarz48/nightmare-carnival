@@ -12,7 +12,7 @@ import { createBoss } from '../sim/bosses';
 import type { BossBase } from '../sim/bosses/boss';
 import { BossPart, Enemy, EnemyBullet, Hazard, Pickup, PlayerProjectile, Summon, Zone, type BulletKind, type HazardShape, type PickupKind, type ProjKind, type SummonKind, type ZoneKind } from '../sim/entities';
 import type { Game } from '../sim/game';
-import { addHazardPull, moveBody, steer } from '../sim/movement';
+import { addHazardPull, addRingPull, moveBody, steer } from '../sim/movement';
 import { PlayerStats } from '../sim/stats';
 import { WeaponInst } from '../sim/weapons';
 import { TICK } from '../sim/constants';
@@ -434,6 +434,8 @@ export class Replica {
     const [mx, my] = steer(p, ix, iy);
     // an inhale pulls the guest exactly as the host will (same formula, replicated hazard)
     for (const h of this.g.hazards) if (h.alive && h.pull !== 0 && h.tele <= 0 && h.active > 0 && !h.safe) addHazardPull(p, h);
+    // and so does a boss's stage ring (D-61)
+    for (const b of this.g.bosses) if (b.ringR > 0) addRingPull(p, b);
     moveBody(p, mx, my, p.stats.moveSpeed() * this.slowF, TICK, this.g.bosses, false);
     if (p.moving) p.animT += TICK * ((p.stats.moveSpeed() * this.slowF) / 220);
     else p.animT += TICK * 0.4;

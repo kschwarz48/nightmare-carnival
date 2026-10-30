@@ -20,9 +20,9 @@ describe('co-op party', () => {
     expect(g.players[0].weapons.has('throwing_cards')).toBe(true);
     expect(g.players[1].weapons.has('mallet')).toBe(true);
     expect(g.players[1].weapons.has('throwing_cards')).toBe(false);
-    expect(g.slots).toEqual({ weapons: COOP.slots[2], passives: COOP.slots[2] });
-    expect(COOP.slots[2]).toBe(4);
-    expect(makeGame().slots.weapons).toBe(6);
+    expect(g.slots).toEqual({ weapons: COOP.slots[2], passives: COOP.passiveSlots[2] });
+    expect(g.slots).toEqual({ weapons: 4, passives: 5 }); // VS weapons; passives shrink half as fast (D-61)
+    expect(makeGame().slots).toEqual({ weapons: 6, passives: 6 });
     expect(g.player).toBe(g.players[0]); // context rests on player 0 between ticks
   });
 
@@ -181,7 +181,7 @@ describe('co-op party', () => {
   });
 });
 
-describe('co-op XP (D-57)', () => {
+describe('co-op XP (D-57, D-61)', () => {
   it('a party needs more XP per level, ramping in over the first six levels', () => {
     const solo = makeGame({ seed: 1 });
     const pair = duo();
@@ -191,5 +191,11 @@ describe('co-op XP (D-57)', () => {
     const six = makeGame({ seed: 1, players: Array.from({ length: 6 }, (_, i) => ({ character: 'carny', name: `P${i}` })) });
     expect(six.xpCurve(10)).toBeCloseTo(solo.xpCurve(10) * COOP.xp[6], 6);
     for (let n = 2; n <= 6; n++) expect(COOP.xp[n]).toBeGreaterThan(COOP.xp[n - 1]);
+    // D-61: about 15% gentler than the first calibration for every party size, not a wholesale cut
+    const first = [1, 1, 7, 13, 20, 25, 30];
+    for (let n = 2; n <= 6; n++) {
+      expect(COOP.xp[n] / first[n]).toBeGreaterThan(0.8);
+      expect(COOP.xp[n] / first[n]).toBeLessThan(0.9);
+    }
   });
 });

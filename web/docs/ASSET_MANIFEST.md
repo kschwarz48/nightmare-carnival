@@ -139,8 +139,7 @@ snowflakes, music notes; themed death bursts per enemy family; damage-number gly
 
 | Asset | Source | Usage | Status |
 |---|---|---|---|
-| "Freaky Funk Circus with Intro" — Bradley Schwarz | repo `.m4a` → `public/audio/freaky_funk_circus_intro.mp3` | menu, results, dawn | ✅ original track, preserved |
-| "Freaky Funky Circus Loop" — Bradley Schwarz | repo `.m4a` → `public/audio/freaky_funky_circus_loop.mp3` | the night; gapless (silence trimmed); playback rate & low-pass darken per Act | ✅ original track, preserved |
+| "Freaky Funky Circus" (2026-10-30 mix) — Bradley Schwarz | supplied by the repo owner → `public/audio/freaky_funky_circus.mp3` (320 kbps, 1:42, kept as delivered) | title menus, results, dawn (from the top); boss fights (from the groove at 11.98 s); played at 0.78 to match the old level (D-61) | ✅ original track, preserved |
 | Dread drone (detuned saw pad + theremin wail) | live oscillators | grows each Act | ✅ |
 | Boss themes ×6 (Tent, Wheel, Puppet King, Ringmaster ×3 phases) | live step-sequencer: tuba oompah, chord stabs, drums, detuned calliope melody | boss fights | ◐ synthesized big band (not live-recorded) |
 | Ambience loop (wind, creaks, distant music box) | synthesized at boot | always | ✅ |

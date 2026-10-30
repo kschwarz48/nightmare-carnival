@@ -1,11 +1,12 @@
 // Web Audio engine (doc 02 §9). Buses: master → music / sfx / ambience / ui. The original score
-// ("Freaky Funk Circus" by Bradley Schwarz) plays on the menus and through every boss fight; the night
-// between bosses gets a quieter procedural music-box waltz that darkens with each Act (D-55). Quest
-// chimes dip the music so they always carry. SFX are synthesized at boot.
+// ("Freaky Funk Circus" by Bradley Schwarz) plays on the title menus and through every boss fight; the
+// night between bosses gets a quieter procedural music-box waltz that darkens with each Act (D-55), and
+// the Midway hub a hushed, broken carousel waltz of its own (D-61). Quest chimes dip the music so they
+// always carry. SFX are synthesized at boot.
 
 import { RECIPES, SR } from './synth';
 
-type Cue = 'menu' | 'act1' | 'act2' | 'act3' | 'act4' | 'boss_carnival_tent' | 'boss_ferris_wheel' | 'boss_puppet_king' | 'boss_ringmaster' | 'boss_ringmaster_2' | 'boss_ringmaster_3' | 'dawn' | 'endless' | 'silence' | 'results';
+type Cue = 'menu' | 'midway' | 'act1' | 'act2' | 'act3' | 'act4' | 'boss_carnival_tent' | 'boss_ferris_wheel' | 'boss_puppet_king' | 'boss_ringmaster' | 'boss_ringmaster_2' | 'boss_ringmaster_3' | 'dawn' | 'endless' | 'silence' | 'results';
 
 const BASE = import.meta.env.BASE_URL ?? './';
 
@@ -25,13 +26,25 @@ const MINOR = [0, 2, 3, 5, 7, 8, 11, 12, 14, 15];
 const WALTZ = [4, -1, 2, 3, 2, 1, 0, -1, 4, 6, -1, -1, 4, -1, 7, 6, 5, 4, 3, 1, 2, 0, -1, -1];
 const WALTZ_LOW = [0, -1, 2, 3, -1, 1, 0, 6, -1, 4, -1, -1, 2, -1, 3, 1, 0, 6, 4, 3, 1, 0, -1, -1];
 const WALTZ_BASS = [0, 5, 0, 7, 0, 3, 5, 7];
+/** The Midway's tune: a slow, lilting carousel phrase that keeps leaning on the leading tone. */
+const MIDWAY = [4, -1, 3, 2, 1, 0, 6, -1, -1, 0, -1, 4, 7, 6, 5, 4, -1, 3, 2, 6, 1, 0, -1, -1];
+const MIDWAY_BASS = [0, 5, 7, 0, 8, 5, 7, 0];
 const NIGHT: Record<string, NightTheme> = {
   act1: { bpm: 72, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0, pulse: 0, warp: 0.002, vol: 0.9 },
   act2: { bpm: 76, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0.5, pulse: 0.25, warp: 0.004, vol: 0.95 },
   act3: { bpm: 80, root: 56, melody: WALTZ_LOW, bass: WALTZ_BASS, counter: 0.8, pulse: 0.55, warp: 0.008, vol: 1 },
   act4: { bpm: 86, root: 55, melody: WALTZ_LOW, bass: [0, 1, 0, 7, 0, 1, 6, 7], counter: 1, pulse: 0.8, warp: 0.012, vol: 1 },
   endless: { bpm: 90, root: 55, melody: WALTZ_LOW, bass: [0, 1, 0, 7, 0, 1, 6, 7], counter: 1, pulse: 1, warp: 0.015, vol: 1 },
+  // the Midway (D-61): quieter and slower than any night, the music box further out of tune, a faint
+  // calliope trailing it, no heartbeat
+  midway: { bpm: 58, root: 57, melody: MIDWAY, bass: MIDWAY_BASS, counter: 0.35, pulse: 0, warp: 0.009, vol: 0.55 },
 };
+/** Bradley's song (one file since his 2026-10-30 mix): menus play it from the top, then loop from the groove. */
+const SONG = 'freaky_funky_circus.mp3';
+/** where the song's main groove starts (s): boss fights begin here, and the loop returns here */
+const SONG_GROOVE = 11.98;
+/** the new mix is mastered ~2.2 dB louder (-9.7 LUFS) than the old files (-12 LUFS): sit it at their level */
+const SONG_GAIN = 0.78;
 /** Bradley's loop runs a touch faster as the Ringmaster sheds his skins. */
 const BOSS_RATE: Record<string, number> = { boss_ringmaster_2: 1.03, boss_ringmaster_3: 1.06 };
 
@@ -120,16 +133,15 @@ export class AudioEngine {
       return await ctx.decodeAudioData(await res.arrayBuffer());
     };
     try {
-      const [intro, loop] = await Promise.all([load('freaky_funk_circus_intro.mp3'), load('freaky_funky_circus_loop.mp3')]);
-      this.tracks.intro = intro;
-      this.tracks.loop = loop;
-      // trim encoder padding/silence so the loop is seamless
-      const d = loop.getChannelData(0);
-      let s = 0, e = d.length - 1;
-      while (s < d.length && Math.abs(d[s]) < 0.002) s++;
-      while (e > s && Math.abs(d[e]) < 0.002) e--;
-      this.tracks.loopStart = s / loop.sampleRate;
-      this.tracks.loopEnd = e / loop.sampleRate;
+      const song = await load(SONG);
+      this.tracks.intro = song;
+      this.tracks.loop = song;
+      // loop from the groove to the last sound (trimming the encoder's tail of silence)
+      const d = song.getChannelData(0);
+      let e = d.length - 1;
+      while (e > 0 && Math.abs(d[e]) < 0.002) e--;
+      this.tracks.loopStart = Math.min(SONG_GROOVE, e / song.sampleRate / 2);
+      this.tracks.loopEnd = e / song.sampleRate;
       const c = this.cue;
       this.currentTrack = '';
       this.cue = 'silence';
@@ -212,8 +224,8 @@ export class AudioEngine {
     const ctx = this.ctx!;
     const t = ctx.currentTime;
     const boss = c.startsWith('boss_');
-    // Bradley Schwarz's "Freaky Funk Circus" scores the menus and the boss fights; the night between
-    // bosses gets the quieter waltz, which darkens with each Act
+    // Bradley Schwarz's "Freaky Funk Circus" scores the title menus and the boss fights; the night
+    // between bosses gets the quieter waltz, which darkens with each Act; the Midway its own hush
     const night = NIGHT[c];
     if (night) this.startScore(night);
     else this.stopScore();
@@ -233,7 +245,7 @@ export class AudioEngine {
     this.musicFilter.frequency.setTargetAtTime(cutoff, t, 0.8);
     if (this.currentTrack === which && this.trackSrc) {
       this.trackSrc.playbackRate.setTargetAtTime(rate, t, 0.5);
-      this.trackGain!.gain.setTargetAtTime(1, t, 0.6);
+      this.trackGain!.gain.setTargetAtTime(SONG_GAIN, t, 0.6);
       return;
     }
     const buf = which === 'intro' ? this.tracks.intro : this.tracks.loop;
@@ -246,7 +258,7 @@ export class AudioEngine {
       src.loopStart = this.tracks.loopStart;
       src.loopEnd = this.tracks.loopEnd;
     } else {
-      // the intro track flows into the loop for menus/results
+      // menus/results play the song from the top, then loop it from the groove
       src.onended = () => {
         if (this.trackSrc === src && (this.cue === 'menu' || this.cue === 'results' || this.cue === 'dawn')) {
           this.currentTrack = '';
@@ -257,7 +269,7 @@ export class AudioEngine {
     src.playbackRate.value = rate;
     const g = ctx.createGain();
     g.gain.value = 0;
-    g.gain.setTargetAtTime(1, t, 0.4);
+    g.gain.setTargetAtTime(SONG_GAIN, t, 0.4);
     src.connect(g).connect(this.music);
     src.start(t, which === 'loop' ? this.tracks.loopStart : 0);
     this.trackSrc = src;

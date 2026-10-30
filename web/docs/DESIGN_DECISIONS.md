@@ -350,3 +350,57 @@ Sessions speak to a `NetLink` interface, so the whole flow is tested headless ov
   Midway ticking while their tab is hidden, as it does for a night.
   `PROTO` is 6: the start config carries `hub` and guests send `pref`, so an older tab gets refused
   with "reload the page" instead of mirroring a hub as a night.
+
+### D-61 · Co-op tuning, the Puppet King's stage, a casino prize wheel, Brad's new mix
+A co-op playtest found the night slightly too hard, the Puppet King's fight full of invisible walls
+and teleports, and the prize wheel dull and see-through.
+- **Passive slots shrink half as fast.** Weapons keep Vampire Survivors' 6 / 4 / 3 / 2 (two for five
+  and six players). Passives lose half as many slots: 6 - (6 - weapons) / 2, so 6 / 5 / 5 / 4 / 4 / 4
+  for one to six players (`COOP.passiveSlots`). Three players' 4.5 rounds up, since the playtest found
+  co-op too hard.
+- **Party XP about 15% gentler.** `COOP.xp` goes from 7 / 13 / 20 / 25 / 30 to 6 / 11 / 17 / 21 / 25 for
+  two to six players, which means 17-20% more level-ups from the same XP. It's deliberately not a big
+  cut. Bot parties (`scripts/party.ts`, god mode, 3 seeds) finish much less of their builds by minute 24
+  than a solo bot (duos 39-48%, trios 52%, solo 77%), so this can't tip parties into maxing out early.
+  Three seeds can't measure a 15% change, though: tune from play.
+- **The Puppet King's stage.** It always had an invisible ring that pulled back only the player he was
+  chasing, at 6 units/s for every unit outside, with no cap. Far-off players were yanked across the
+  map, and guests, whose games didn't predict it, rubber-banded off an invisible wall. Now:
+  - the stage comes down around the party, centred on the biggest group within 600 units (solo:
+    unchanged);
+  - its ring of string lights is drawn on every screen, over scenery, and brightens ahead of anyone
+    nearing it. A banner after he lands reads "STAY IN THE LIGHTS";
+  - it reels back every standing player outside it, capped at 560 units/s (`RING_PULL_MAX`). That's
+    faster than any build walks, so nobody escapes, but it's a glide rather than a jump, and it sets
+    them down just inside the edge;
+  - while it pulls, a taut glowing string runs from the edge to that player, and their own game plays
+    a twang as it starts;
+  - the ring is plain boss state (`ringX`, `ringY`, `ringR`), so it reaches guests, and their
+    prediction applies the same `addRingPull`. It's released when he falls.
+  - His three string sweeps now move as one rank: all up, all down, all left or all right.
+- **The prize wheel sits on top.** It moved into an overlay scene that's drawn after the world with
+  a fresh depth buffer, before bloom and the grade (`Post3D.addOverlay`). No telegraph or x-ray
+  silhouette shows through it any more, and the world's materials no longer recompile when it
+  appears.
+- **The prize wheel is lit and loud.**
+  - **Lighting:** a warm wash, a bright studio reflection for the gold, saturated wedges. The night's
+    darkness, vignette and hurt tint ease off while it's up.
+  - **Lights:** bulbs ride the wheel's rim, the marquee chase runs at the wheel's own speed, and
+    everything strobes on a win.
+  - **Slot-machine sounds:** a reel whir, a blip per peg that climbs as the wheel slows, a jackpot
+    bell and a shower of coins.
+- **Prize cards say what you won.** The card that leaps out shows:
+  - the kind (NEW!, LEVEL UP, CHARM…);
+  - the icon;
+  - the item's name;
+  - its new level (or MAX LEVEL, or what a voucher or heal gave);
+  - in co-op, "WON BY" and the winner's name in their colour.
+
+  It's held for 1.5 s. Chest entries now carry `name`, `level`, `max` and `note`.
+- **Music.** Bradley's new mix is a single file, `freaky_funky_circus.mp3`, replacing the intro and loop
+  files. It's mastered about 2.2 dB louder, so it plays at 0.78 to match. Menus play it from the top,
+  then loop from the groove at 11.98 s, and boss fights start at the groove. The title menus keep it.
+  The Midway gets its own hushed, slower carousel waltz instead: 58 bpm, quieter than any night, an
+  out-of-tune music box, a faint calliope, no heartbeat.
+- `PROTO` stays at 6, which hasn't shipped yet. The ring rides in the reflective boss state and the
+  card fields in the forwarded chest event.

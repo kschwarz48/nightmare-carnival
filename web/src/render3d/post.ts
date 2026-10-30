@@ -105,6 +105,8 @@ export class Post3D {
   quality: 'low' | 'medium' | 'high' = 'high';
   /** Scales bloom (eased down while a large, bulb-studded overlay like the prize wheel fills the screen). */
   bloomScale = 1;
+  /** draws the overlay scene over the world (see `addOverlay`) */
+  private overlay: RenderPass | null = null;
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
     const rt = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType, samples: 0 });
@@ -118,6 +120,24 @@ export class Post3D {
     this.composer.addPass(this.bloom);
     this.composer.addPass(this.output);
     this.composer.addPass(this.grade);
+  }
+
+  /**
+   * Draw `scene` over the finished world image with a cleared depth buffer, ahead of bloom and the grade
+   * (D-61): whatever it shows sits on top of everything, telegraphs and x-ray silhouettes included.
+   */
+  addOverlay(scene: THREE.Scene, camera: THREE.Camera): void {
+    const p = new RenderPass(scene, camera);
+    p.clear = false;
+    p.clearDepth = true;
+    p.enabled = false;
+    this.overlay = p;
+    this.composer.insertPass(p, 1);
+  }
+
+  /** Only pay for the overlay pass while something in it is showing. */
+  setOverlay(on: boolean): void {
+    if (this.overlay) this.overlay.enabled = on;
   }
 
   setQuality(q: 'low' | 'medium' | 'high'): void {

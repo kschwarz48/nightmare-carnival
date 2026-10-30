@@ -102,8 +102,8 @@ understate that character.
 - **Art** is original procedural vector illustration with parametric poses (4-frame walk cycles,
   wind-up poses, cut-out boss puppets) rather than hand-drawn frame-by-frame animation; there is no
   "line boil".
-- **Boss music** is a synthesized big-band sequencer, not a recorded score; only the two original
-  Bradley Schwarz tracks are recordings.
+- **Music:** Bradley Schwarz's song (one recording) scores the title menus and the boss fights; the
+  night and the Midway use procedural waltzes (D-55, D-61).
 - **No online leaderboard** for the Daily Run — scores are local to the browser (no backend exists).
 - **Gamepad** support is implemented (standard mapping, rumble) but was not tested with a physical
   controller in this environment; **touch controls** are not implemented.
@@ -112,6 +112,45 @@ understate that character.
   large margin.
 - Balance tuned with bots; needs human playtests (see §5).
 - No localisation framework (English only).
+
+---
+
+## Co-op tuning, the Puppet King's stage, the prize wheel, music — 2026-10-30 (D-61)
+
+**Automated:** 187 tests pass (typecheck clean, production build OK). New:
+- `tests/stage.test.ts`:
+  - the stage centres on the party;
+  - a straggler 650 units out is reeled back at no more than the cap per tick and set down inside;
+  - two players walking off are both held within 60 units of the edge;
+  - the ring is released on his defeat;
+  - every string sweep's three lines share one direction;
+  - chest prizes carry their names and levels.
+- `tests/net.test.ts`:
+  - a guest reeled in by the ring is predicted: 90% of host updates move it under 4 units, against 28
+    with the guest-side pull removed (checked by deleting that line);
+  - the slot table follows 6 - (6 - weapons) / 2.
+
+**Live (dev server, one machine, canvas captures inspected):**
+- **Puppet King:**
+  - the ring of lights draws over the ticket booth;
+  - a player put outside shows the taut string, and their twang played;
+  - they were reeled back in about 2 s;
+  - the three sweep lines moved together.
+- **Prize wheel:** opened over that fight, the ring and sweep lines stop at the booth's edge. Lit, with
+  vivid wedges, rim and marquee bulbs. The card reads "LEVEL UP / Cotton-Candy Gun / Level 2 / YOUR
+  PRIZE" solo, and "WON BY Kevin" with co-op owners set by hand.
+- **Music:**
+  - the Midway plays its waltz (58 bpm), with no song track;
+  - the Midway menu's Title Screen brings Bradley's song from the top, and starting again returns
+    to the waltz;
+  - a save without the Midway gets the song on the title menu;
+  - the new file decodes at 102 s (loop 11.98-101.42 s), and the new sounds are built.
+
+**Not verified:**
+- anything by ear: the test browser has no speakers, so cues and buffers were checked, not heard;
+- the Puppet King or a prize wheel in a real co-op night, or across networks;
+- six players on the wider passive bars;
+- mobile.
 
 ---
 

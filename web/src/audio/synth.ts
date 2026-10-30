@@ -221,5 +221,16 @@ export const RECIPES: Record<string, () => Float32Array> = {
   wheel_rise: () => render([V('saw', 55, 90, 0.9, { vol: 0.2, lp: 400, vib: 0.1, vibRate: 9, attack: 0.1, decay: 1.5 }), V('noise', 1, 1, 0.9, { vol: 0.12, attack: 0.3, decay: 2, lp: 800 })]),
   fanfare: () => render([523, 659, 784, 1047].map((f, i) => V('square', f, f, i === 3 ? 0.7 : 0.14, { vol: 0.11, lp: 3800, decay: i === 3 ? 3 : 12, delay: i * 0.1, vib: 0.012, vibRate: 6 })).concat([V('noise', 1, 1, 0.4, { vol: 0.12, decay: 6, hp: 5000, delay: 0.3 })])),
   thunder: () => render([V('noise', 1, 1, 1.6, { vol: 0.7, decay: 2.2, lp: 700 }), V('sine', 60, 30, 1.4, { vol: 0.6, decay: 2.5 }), V('noise', 1, 1, 0.12, { vol: 0.5, decay: 30, hp: 1500 })]),
+  // the prize wheel as a slot machine (D-61): the reel's whir, a blip per peg, the jackpot bell, a shower of coins
+  slot_spin: () => render([V('saw', 160, 880, 0.6, { vol: 0.13, lp: 2600, curve: 0.6, decay: 2.2 }), V('square', 320, 1760, 0.6, { vol: 0.05, lp: 4000, curve: 0.6, decay: 2.5, duty: 0.25 }), V('noise', 1, 1, 0.5, { vol: 0.08, hp: 2200, lp: 7000, decay: 3 })]),
+  slot_blip: () => render([V('square', 1568, 1568, 0.05, { vol: 0.1, decay: 55, lp: 6000, duty: 0.3 }), V('sine', 3136, 3136, 0.04, { vol: 0.05, decay: 80 })]),
+  slot_win: () => render(Array.from({ length: 12 }, (_, i) => {
+    const f = i % 2 ? 1760 : 2093;
+    return [V('sine', f, f, 0.32, { vol: 0.13, decay: 9, delay: i * 0.08 }), V('sine', f * 2.76, f * 2.76, 0.18, { vol: 0.035, decay: 15, delay: i * 0.08 })];
+  }).flat()),
+  coin_shower: () => render(Array.from({ length: 18 }, (_, i) => [
+    V('sine', 2500 + ((i * 37) % 5) * 260, 2380 + ((i * 53) % 4) * 190, 0.14, { vol: 0.07, decay: 22, delay: i * 0.055 + ((i * 7) % 3) * 0.012 }),
+    V('sine', 5200 + ((i * 29) % 6) * 280, 5000, 0.06, { vol: 0.022, decay: 40, delay: i * 0.055 }),
+  ]).flat()),
   coins: () => render(Array.from({ length: 8 }, (_, i) => V('sine', 2400 + (i % 3) * 300, 2300, 0.12, { vol: 0.08, decay: 25, delay: i * 0.05 }))),
 };

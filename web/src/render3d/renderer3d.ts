@@ -5,6 +5,7 @@
 // never mutates it, and interpolates positions between fixed ticks.
 
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { clamp, lerp } from '../core/math';
 import { LIGHTS, MAP_HALF, PROPS, SEA_Y } from '../data/map';
 import type { Assets } from '../render/assets';
@@ -68,6 +69,14 @@ export class GameRenderer3D {
   renderer: THREE.WebGLRenderer;
   scene = new THREE.Scene();
   camera: THREE.OrthographicCamera;
+  /**
+   * Overlays drawn after the world with a fresh depth buffer (the prize wheel, D-61), so nothing in the
+   * world shows through them. Their camera copies the game camera's projection every frame, from the origin.
+   */
+  overlay = new THREE.Scene();
+  overlayCam = new THREE.OrthographicCamera(-800, 800, 500, -500, 10, 9000);
+  /** 0..1 while an overlay holds the screen: eases the night's darkness, vignette and hurt tint off it */
+  overlayFocus = 0;
   post: Post3D;
   fx: FxSystem;
   ground: Ground3D;
@@ -142,7 +151,7 @@ export class GameRenderer3D {
     this.camera = new THREE.OrthographicCamera(-800, 800, 500, -500, 10, 9000);
     this.scene.fog = new THREE.FogExp2(0x0b1324, 0.00022);
     this.scene.background = new THREE.Color(0x030306);
-    this.scene.add(this.camera); // camera-parented overlays (the prize wheel) render in-scene
+    this.scene.add(this.camera);
 
     // ---- lights: cold moon (shadows), dim sky/ground fill, the lantern, a boss spotlight
     this.hemi = new THREE.HemisphereLight(0x34477a, 0x2a1a10, 0.62);
@@ -186,6 +195,7 @@ export class GameRenderer3D {
     this.clutter = new Clutter(this.scene);
     this.bosses = new BossRigs(this.scene);
     this.post = new Post3D(this.renderer, this.scene, this.camera);
+    this.post.addOverlay(this.overlay, this.overlayCam);
   }
 
   /** A tiny dark environment (navy sky, warm carnival glows near the horizon) so brass and glass reflect something. */
@@ -211,6 +221,8 @@ export class GameRenderer3D {
     env.add(moon);
     const pm = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pm.fromScene(env, 0.02).texture;
+    // the overlay (the prize booth) is a lit show: a bright room for its gold and brass to mirror
+    this.overlay.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
     pm.dispose();
   }
 
@@ -397,6 +409,7 @@ export class GameRenderer3D {
     this.motes.draw(this.glow, this.f('fx_glow_0'), this.time, inView, (1 - g.darkness * 0.8) * (1 - this.dawn));
     this.drawZones(g, inView);
     this.drawHazards(g);
+    this.drawStageRings(g, alpha, p, px, py);
     this.drawPickups(g, alpha, inView);
     this.drawEnemies(g, alpha, inView, dt);
     this.drawCorpses(g, dt);
@@ -433,19 +446,23 @@ export class GameRenderer3D {
 
     const lowHp = p.hp / p.stats.maxHp();
     const fsp = this.worldToScreen(px, py, 1, 1, 30);
+    const clear = 1 - this.overlayFocus; // an overlay is graded as a lit show, not as the night
     this.post.update({
       time: this.time,
-      lowHp: opts.menu ? 0 : clamp(1 - lowHp / 0.3, 0, 1),
-      hurt: opts.menu ? 0 : Math.max(0, p.hurtFlash / 0.3) * (this.settings.reducedFlash ? 0.3 : 1),
-      darkness: g.darkness,
+      lowHp: opts.menu ? 0 : clamp(1 - lowHp / 0.3, 0, 1) * clear,
+      hurt: opts.menu ? 0 : Math.max(0, p.hurtFlash / 0.3) * (this.settings.reducedFlash ? 0.3 : 1) * clear,
+      darkness: g.darkness * clear,
       flash: fx.screenFlash * (this.settings.reducedFlash ? 0.35 : 1),
       flashCol: fx.screenFlashCol,
       dawn: this.dawn,
-      vignette: opts.menu ? 0.7 : 0.55,
+      vignette: (opts.menu ? 0.7 : 0.55) * (1 - 0.6 * this.overlayFocus),
       focusU: fsp.x,
       focusV: 1 - fsp.y,
       highContrast: this.settings.highContrast,
     });
+    this.overlayCam.projectionMatrix.copy(this.camera.projectionMatrix);
+    this.overlayCam.projectionMatrixInverse.copy(this.camera.projectionMatrixInverse);
+    this.post.setOverlay(this.overlay.children.some((o) => o.visible));
     this.post.renderFrame();
   }
 
@@ -1053,6 +1070,46 @@ export class GameRenderer3D {
   }
 
   /** The Midway hub (D-60): the cast at their games, turning to face whoever walks up; the closed attractions' signs. */
+  /**
+   * A boss's stage ring (D-61): string lights on the ground, drawn over scenery so the edge is never
+   * hidden, brightening ahead of anyone who nears it. A player outside is shown caught on a taut,
+   * glowing string from the edge while the ring reels them back in.
+   */
+  private drawStageRings(g: Game, alpha: number, me: Player, mx: number, my: number): void {
+    const L = this.teleLine;
+    const t = this.time;
+    for (const b of g.bosses) {
+      if (b.ringR <= 0) continue;
+      const R = b.ringR, cx = b.ringX, cy = b.ringY;
+      L.ring(cx, cy, R - 40, R - 3, 1, 0.78, 0.4, 0, 0.2, 0, Math.PI * 2, 128);
+      L.ring(cx, cy, R - 3, R + 3, 1, 0.85, 0.5, 0.75, 0.75, 0, Math.PI * 2, 128);
+      const n = Math.round((Math.PI * 2 * R) / 70);
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        const on = 0.5 + 0.5 * Math.max(0, Math.sin(t * 3 - i * 0.7));
+        L.circle(cx + Math.cos(a) * R, cy + Math.sin(a) * R, 7, 1, 0.92, 0.62, on, on * 0.35, 8);
+      }
+      for (const q of g.players) {
+        if (!g.isUp(q)) continue;
+        const qx = q === me ? mx : lerp(q.px, q.x, alpha), qy = q === me ? my : lerp(q.py, q.y, alpha);
+        const dx = qx - cx, dy = qy - cy, d = Math.hypot(dx, dy) || 1;
+        const a = Math.atan2(dy, dx);
+        if (d > R) {
+          // caught on a string: taut from the edge to them, the lights there flaring
+          const ex = cx + (dx / d) * R, ey = cy + (dy / d) * R;
+          const pulse = 0.65 + 0.35 * Math.sin(t * 18);
+          L.line(ex, ey, qx, qy, 5, 1, 0.9, 0.55, pulse, pulse * 0.35);
+          L.ring(qx, qy, q.r + 8, q.r + 14, 1, 0.85, 0.5, pulse);
+          L.ring(cx, cy, R - 9, R + 9, 1, 0.9, 0.55, 0.95, 0.95, a - 0.14, a + 0.14);
+        } else if (d > R - 170) {
+          // nearing the edge: the lights ahead of them brighten
+          const k = (d - (R - 170)) / 170;
+          L.ring(cx, cy, R - 7, R + 7, 1, 0.9, 0.55, 0.75 * k, 0.75 * k, a - 0.22, a + 0.22);
+        }
+      }
+    }
+  }
+
   private drawHub(g: Game, dt: number): void {
     const me = g.player;
     for (const npc of g.hubNpcs) {

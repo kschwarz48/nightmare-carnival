@@ -374,7 +374,7 @@ Two people, **two different networks**: e.g. one on home Wi-Fi, one on a phone h
 
 | Scope | Status |
 |---|---|
-| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 181 tests in the whole suite |
+| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 187 tests in the whole suite |
 | Two browser tabs on **one machine**, real PeerJS Cloud signalling and WebRTC | **Done**: see the list below |
 | The **deployed site** (Netlify), two tabs on one machine | **Done**: see below |
 | **Three** tabs on one machine (host + two guests), real PeerJS, dev server | **Done** (2026-10-30): six-seat lobby, shared characters, 3 + 3 slots, party HUD, both guests kept alive in background tabs, mirrors matched the host |
