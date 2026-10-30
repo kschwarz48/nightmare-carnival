@@ -110,3 +110,26 @@ The build is complete when the checklist in the brief §19 holds. Concretely, ve
 2. `npm run build` succeeds with no type errors.
 3. Browser playthrough screenshots of every major screen and each boss (dev timeline-jump tools, hidden in production).
 4. Measured frame time at the Nightmare 400-enemy cap.
+
+---
+
+## 8. Completion status (end of this build)
+
+| Criterion | Status |
+|---|---|
+| Launches reliably in a browser | ✅ (WebGL check + graceful error screen) |
+| Core gameplay recreated (movement, auto-fire, crowds, XP, drafts, i-frames, knockback, crits) | ✅ |
+| Carnival Core fully realised | ✅ hand-authored layout, landmarks, lighting, hazards |
+| Six characters | ✅ |
+| Full enemy roster + elites/affixes + miniboss | ✅ |
+| Four multi-phase bosses | ✅ |
+| All weapons, passives, evolutions (incl. Grand Menagerie, D-07) | ✅ tested |
+| Four-Act ~25 min run, win & lose | ✅ tested end-to-end |
+| Lost & Found persistence, character/difficulty unlocks | ✅ tested |
+| Modes: tiers, Curse, Endless/Lock-In, Daily | ✅ |
+| Original, complete art (no placeholders) | ✅ procedural vector — see ASSET_MANIFEST |
+| Music & SFX | ✅ original tracks + synthesized |
+| Controller + keyboard, accessibility, audio settings | ✅ (gamepad untested on hardware) |
+| Full-run testing | ✅ automated + browser |
+| Performance measured | ✅ (synchronous frame cost; see QA §3) |
+| Production build + docs | ✅ |

@@ -67,7 +67,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     behavior: 'flyby', radius: 10, sep: 10, knockbackTaken: 0.3, canElite: false,
     params: {}, deathFx: 'pop', hitSfx: 'squeak', deathSfx: 'pop', drawScale: 3.0, act: 1, role: 'Flyby',
     lore: 'A whole bouquet let go at once. They never look back.',
-    tell: 'An edge arrow flashes — then a school of balloons streaks straight across.',
+    tell: 'A yellow caution lane flashes across the screen — then a school of balloons streaks straight along it.',
   }),
   wind_up_monkey: E({
     id: 'wind_up_monkey', name: 'Wind-Up Monkey', hp: 12, speed: 165, contact: 4, tickets: 2,
