@@ -21,6 +21,8 @@ export class ActorBatch {
   rim: [number, number, number, number] = [0, 0, 0, 0];
   /** Ink silhouette sharing this batch's geometry and instance data (D-44). */
   outline: THREE.InstancedMesh | null = null;
+  /** Silhouette shown where the batch is hidden behind scenery, sharing geometry and instances (D-58). */
+  xray: THREE.InstancedMesh | null = null;
 
   constructor(geo: THREE.BufferGeometry, mat: THREE.MeshStandardMaterial, cap: number, o: { shadow?: boolean; receive?: boolean; order?: number; outline?: boolean } = {}) {
     this.cap = cap;
@@ -106,9 +108,21 @@ export class ActorBatch {
     this.ri[j] = r; this.ri[j + 1] = g; this.ri[j + 2] = b; this.ri[j + 3] = k;
   }
 
+  /** Give this batch an occluded-silhouette twin drawn with `mat` at render order `order`. */
+  addXray(mat: THREE.Material, order: number): THREE.InstancedMesh {
+    const x = new THREE.InstancedMesh(this.mesh.geometry, mat, this.cap);
+    x.instanceMatrix = this.mesh.instanceMatrix;
+    x.frustumCulled = false;
+    x.count = 0;
+    x.renderOrder = order;
+    this.xray = x;
+    return x;
+  }
+
   end(): void {
     this.mesh.count = this.count;
     if (this.outline) this.outline.count = this.count;
+    if (this.xray) this.xray.count = this.count;
     if (this.count === 0) return;
     const im = this.mesh.instanceMatrix;
     im.clearUpdateRanges();

@@ -6,15 +6,18 @@
  * Piecewise-linear like the classic survivors curve: cheap early levels (a level every ~10 s in
  * the first minute), a steady climb through the midgame, and two "plateau" levels (20 and 40) that
  * cost double so the big power spikes around the first and third bosses get room to breathe.
+ * D-57: the late bands are steeper so a full build lands around minute 24 instead of 17. XP income
+ * accelerates through the night, so seven more minutes needs roughly twice the late-level XP; the
+ * first 20 levels are untouched so the opening stays brisk.
  */
 export const XP_CURVE = {
   first: 5,
   bands: [
     { upTo: 10, step: 5 },
     { upTo: 20, step: 9 },
-    { upTo: 40, step: 16 },
-    { upTo: 60, step: 36 },
-    { upTo: Infinity, step: 60 },
+    { upTo: 40, step: 30 },
+    { upTo: 60, step: 100 },
+    { upTo: Infinity, step: 150 },
   ],
   plateaus: { 20: 2, 40: 2, 60: 2 } as Record<number, number>,
 };
@@ -61,7 +64,10 @@ export const HEALING = {
 export const CHESTS = {
   bossRolls: [4, 6] as [number, number],
   bruteRolls: [1, 2] as [number, number],
-  eliteChance: 0.02,
+  /** D-57: chests from random sources come 20% less often (bosses and the Last Ticket stay guaranteed) */
+  bruteChance: 0.8,
+  eliteChance: 0.016,
+  clownCarChance: 0.8,
   eventRolls: 2,
 };
 
@@ -128,6 +134,11 @@ export const COOP = {
    * ~1.3x a solo build once their 4 slots are full (vs 6 solo), so HP rises less than linearly.
    */
   hp: [1, 1, 1.3, 1.5, 1.7, 1.85, 2] as number[],
+  /**
+   * XP needed per level, by party size (D-57). XP is shared and a party earns it several times faster,
+   * while each player has fewer slots to fill, so without this a party maxes out by minute 6–10.
+   */
+  xp: [1, 1, 7, 13, 20, 25, 30] as number[],
   /** a boss re-picks the nearest living player at most this often (seconds) */
   bossRetarget: 2.5,
 };

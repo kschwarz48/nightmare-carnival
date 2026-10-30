@@ -159,8 +159,11 @@ export class BillboardLayer {
   end(): void {
     for (const b of this.batches) b.end();
   }
+  /** Multiplies the alpha of everything drawn while set (the renderer fades the players' own attacks). */
+  alphaScale = 1;
+
   draw(f: Frame, x: number, y: number, h: number, sx = 1, sy = 1, rot = 0, r = 1, g = 1, b = 1, a = 1, fr = 1, fg = 1, fb = 1, fa = 0): boolean {
-    return this.batches[f.atlas].draw(f, x, y, h, sx, sy, rot, r, g, b, a, fr, fg, fb, fa);
+    return this.batches[f.atlas].draw(f, x, y, h, sx, sy, rot, r, g, b, a * this.alphaScale, fr, fg, fb, fa);
   }
   get count(): number {
     let n = 0;

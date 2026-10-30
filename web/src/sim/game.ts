@@ -296,9 +296,9 @@ export class Game {
     return this.players.length > 1;
   }
   /** Party-size scaling (D-51): crowd density and enemy/boss toughness. Both 1 in solo. */
-  get partyScale(): { density: number; hp: number } {
+  get partyScale(): { density: number; hp: number; xp: number } {
     const i = Math.min(COOP.density.length - 1, this.players.length);
-    return { density: COOP.density[i], hp: COOP.hp[i] };
+    return { density: COOP.density[i], hp: COOP.hp[i], xp: COOP.xp[i] };
   }
   /** Is this player up and fighting? */
   isUp(p: Player): boolean {
@@ -689,11 +689,12 @@ export class Game {
     this.dropTickets(e.x, e.y, e.tickets);
     this.fx.push('death', e.x, e.y, e.scale * (d.drawScale * d.radius) / 34, e.elite ? 1 : 0, 0, d.deathFx);
     this.bus.emit('sfx', { id: d.deathSfx, x: e.x, y: e.y, vol: e.elite ? 1 : 0.55 });
-    if (d.dropsChest) {
+    if (d.dropsChest && this.rng.chance(CHESTS.bruteChance)) {
       const ch = this.spawnPickup('chest', e.x, e.y, 0);
       ch.rolls = this.rng.int(CHESTS.bruteRolls[0], CHESTS.bruteRolls[1]);
       ch.src = 'brute';
-    } else if (e.elite && this.rng.chance(CHESTS.eliteChance)) {
+    } else if (e.elite && this.rng.chance(CHESTS.eliteChance / this.partyScale.density)) {
+      // a party's denser crowd brings more elites; the chest odds shrink to match
       const ch = this.spawnPickup('chest', e.x, e.y, 0);
       ch.rolls = 1;
       ch.src = 'elite';
@@ -1546,7 +1547,10 @@ export class Game {
   }
 
   xpCurve(lvl: number): number {
-    return xpToNext(lvl); // data/progression.ts
+    // data/progression.ts. A party needs more XP per level (D-57), ramping in over the first six levels
+    // so a co-op night still opens with a quick run of level-ups.
+    const m = this.partyScale.xp;
+    return xpToNext(lvl) * (1 + (m - 1) * Math.min(1, (lvl - 1) / 6));
   }
 
   addXp(value: number): void {

@@ -15,7 +15,7 @@ import type { Player } from '../sim/player';
 import type { Enemy, Hazard } from '../sim/entities';
 import { ActorBatch } from './core/batch';
 import { BillboardLayer, DecalBatch, camBasis } from './core/billboard';
-import { actorMaterial, ink, pool, shared } from './core/materials';
+import { actorMaterial, ink, pool, shared, xrayMaterial } from './core/materials';
 import { CHARACTERS, ENEMY_MODELS, ITEM_MODELS, geometryFor, type ModelDef } from './models';
 import { Ground3D } from './world/ground';
 import { LightShafts, Motes } from './world/atmosphere';
@@ -44,6 +44,8 @@ const DANGER: [number, number, number] = [1, 0.25, 0.12];
 const CAUTION: [number, number, number] = [1, 0.8, 0.25];
 
 export interface RenderSettings {
+  /** 0.15..1: opacity of the players' own attacks */
+  abilityOpacity: number;
   highContrast: boolean;
   reducedFlash: boolean;
   shake: number;
@@ -92,7 +94,9 @@ export class GameRenderer3D {
   dawn = 0;
   /** 0..1: the Ringmaster's demon form bleeds red into the moonlight and fog. */
   moonTint = 0;
-  settings: RenderSettings = { highContrast: false, reducedFlash: false, shake: 1, damageNumbers: true, quality: 'high' };
+  settings: RenderSettings = { highContrast: false, reducedFlash: false, shake: 1, damageNumbers: true, quality: 'high', abilityOpacity: 1 };
+  /** batches that draw the players' own attacks (faded by the ability-opacity setting) */
+  private abilityBatches = new Set<ActorBatch>();
   private batches = new Map<string, ActorBatch>();
   private batchList: ActorBatch[] = [];
   private yaw = new Map<number, number>();
@@ -269,18 +273,26 @@ export class GameRenderer3D {
   }
 
   // =================================================================== batches
-  private batch(key: string, def: ModelDef, cap: number): ActorBatch {
+  /**
+   * The instanced batch for a model, created on first use. Actors draw at render order 2: after the
+   * static scenery (0) and the occluded silhouettes (1), before the ground (3). With `xray`, the batch
+   * gets a silhouette in that colour wherever scenery hides it (D-58).
+   */
+  private batch(key: string, def: ModelDef, cap: number, xray?: [number, number, number]): ActorBatch {
     let b = this.batches.get(key);
     if (!b) {
       const rig = def.rig?.();
       const mat = actorMaterial({ animA: def.anim?.a, animB: def.anim?.b, emitBoost: def.emitBoost ?? 3, boneTex: rig?.tex, matte: !!rig || key.startsWith('s_') });
-      b = new ActorBatch(geometryFor(key, def), mat, cap, { shadow: def.shadow ?? false, outline: !!rig || key.startsWith('s_') });
+      b = new ActorBatch(geometryFor(key, def), mat, cap, { shadow: def.shadow ?? false, outline: !!rig || key.startsWith('s_'), order: ACTOR_ORDER });
       if (def.rim) b.rim = def.rim;
+      if (b.outline) b.outline.renderOrder = ACTOR_ORDER;
+      if (xray) this.scene.add(b.addXray(xrayMaterial(mat, xray), XRAY_ORDER));
       this.batches.set(key, b);
       this.batchList.push(b);
       this.scene.add(b.mesh);
       if (b.outline) this.scene.add(b.outline);
     }
+    if (b.xray) b.xray.visible = this.settings.quality !== 'low';
     return b;
   }
 
@@ -387,15 +399,22 @@ export class GameRenderer3D {
     this.drawEnemies(g, alpha, inView, dt);
     this.drawCorpses(g, dt);
     this.bosses.update(g, this, alpha, dt);
+    // the players' own attacks can be faded (settings) so enemy shots stay readable in a crowd
+    const op = this.settings.abilityOpacity ?? 1;
+    this.addShapes.alphaScale = this.fxAdd.alphaScale = op;
     this.drawSummons(g, alpha, dt);
     for (const q of g.players) {
       const qx = q === p ? px : lerp(q.px, q.x, alpha), qy = q === p ? py : lerp(q.py, q.y, alpha);
       g.setCtx(q);
       if (!q.downed) this.drawWeaponVisuals(g, qx, qy);
+      this.addShapes.alphaScale = this.fxAdd.alphaScale = 1;
       this.drawPlayer(g, q, qx, qy, dt);
+      this.addShapes.alphaScale = this.fxAdd.alphaScale = op;
     }
     g.setCtx(p);
     this.drawProjectiles(g, alpha);
+    this.addShapes.alphaScale = this.fxAdd.alphaScale = 1;
+    for (const b of this.abilityBatches) fadeBatch(b, op);
     this.drawBullets(g, alpha);
     fx.draw(this.fxNormal, this.fxAdd, this.addShapes, this.numbers);
 
@@ -485,8 +504,10 @@ export class GameRenderer3D {
   // =================================================================== zones & hazards (ground decals)
   private drawZones(g: Game, inView: (x: number, y: number) => boolean): void {
     const S = this.zoneShapes, A = this.addShapes;
+    const op = this.settings.abilityOpacity ?? 1;
     for (const z of g.zones) {
       if (!z.alive || !inView(z.x, z.y)) continue;
+      S.alphaScale = A.alphaScale = z.harmful ? 1 : op;
       const fade = Math.min(1, z.life / 0.5) * Math.min(1, (z.maxLife - z.life) / 0.2 + 0.2);
       switch (z.kind) {
         case 'web':
@@ -519,6 +540,7 @@ export class GameRenderer3D {
   }
 
   private drawHazards(g: Game): void {
+    this.zoneShapes.alphaScale = this.addShapes.alphaScale = 1;
     const F = this.teleFill, L = this.teleLine, A = this.addShapes;
     const hc = this.settings.highContrast;
     const pulse = 0.5 + 0.5 * Math.sin(this.time * 18);
@@ -759,7 +781,7 @@ export class GameRenderer3D {
       if (id === 'jack_in_the_box' && e.state === 2) key = 'jack_open';
       const def = ENEMY_MODELS[key];
       if (!def) continue;
-      const b = this.batch(key, def, id === 'swarm_balloon' || id === 'living_balloon' || id === 'possessed_stuffie' ? 700 : 400);
+      const b = this.batch(key, def, id === 'swarm_balloon' || id === 'living_balloon' || id === 'possessed_stuffie' ? 700 : 400, XRAY_ENEMY);
       const rig = def.rig?.();
       const moving = Math.hypot(e.vx, e.vy) > 6;
       const flyer = e.def.behavior === 'flyby' || id === 'living_balloon';
@@ -916,6 +938,7 @@ export class GameRenderer3D {
       const def = ITEM_MODELS[key];
       if (!def) continue;
       const b = this.batch(key, def, 60);
+      this.abilityBatches.add(b);
       const h = (def.hover ?? 0) + (def.hover ? Math.sin(this.time * 3 + si) * 6 : 0);
       const i = b.add(x, y, h, yaw, ACTOR_SCALE * (s.kind === 'plush' ? 1 + (s.variant % 4) * 0.08 : 1), 1, ACTOR_STRETCH, 1);
       b.anim(i, s.animT * 9 + si, 0, 0, moving || def.hover ? 1 : 0.2);
@@ -950,6 +973,7 @@ export class GameRenderer3D {
         const evo = w.def.isEvolution;
         const size = ((evo ? 22 : 14) * g.weapons.area(w)) / (evo ? 1.7 : 1);
         const b = this.batch('orb', { build: () => orbGeo(), rim: [0, 0, 0, 0] }, 24);
+        this.abilityBatches.add(b);
         for (let i = 0; i < n; i++) {
           const a = w.angle + (i * Math.PI * 2) / n;
           const ox = px + Math.cos(a) * R, oy = py + Math.sin(a) * R;
@@ -963,6 +987,7 @@ export class GameRenderer3D {
         const n = g.weapons.amount(w);
         const size = 16 * g.weapons.area(w);
         const b = this.batch('ring', ITEM_MODELS.ring, 24);
+        this.abilityBatches.add(b);
         for (let i = 0; i < n; i++) {
           const dir = i % 2 === 0 ? 1 : -1;
           const R = 115 + i * 52;
@@ -1083,7 +1108,8 @@ export class GameRenderer3D {
       if (!pr.alive) continue;
       const x = lerp(pr.px, pr.x, alpha), y = lerp(pr.py, pr.y, alpha);
       const def = ITEM_MODELS[pr.kind] ?? ITEM_MODELS.card;
-      const b = this.batch(`p_${pr.kind}`, def, 600);
+      const b = this.batch(`p_${pr.kind}`, def, 600, XRAY_SHOT);
+      this.abilityBatches.add(b);
       let h = 22;
       let yaw = Math.atan2(pr.vx, pr.vy);
       let pitch = 0, roll = 0;
@@ -1124,7 +1150,7 @@ export class GameRenderer3D {
       const x = lerp(bl.px, bl.x, alpha), y = lerp(bl.py, bl.y, alpha);
       const key = `b_${bl.kind}`;
       const def = ITEM_MODELS[key] ?? ITEM_MODELS.b_spiral;
-      const b = this.batch(key, def, 700);
+      const b = this.batch(key, def, 700, XRAY_BULLET);
       const s = bl.r / 8;
       const h = 18 + bl.z;
       const spin = bl.kind === 'pie' || bl.kind === 'popcorn' || bl.kind === 'crown' || bl.kind === 'spoke' || bl.kind === 'ticket' ? bl.rot : Math.atan2(bl.vx, bl.vy);
@@ -1137,6 +1163,28 @@ export class GameRenderer3D {
 }
 
 /** Co-op player colours: Player 1 lamp-gold, Player 2 ghost-teal. */
+/** Render order: static scenery 0, occluded silhouettes 1, actors 2, ground 3 (D-58). */
+const XRAY_ORDER = 1;
+const ACTOR_ORDER = 2;
+/** Silhouette colours behind scenery: monsters red, their shots hot orange, the players' shots pale blue. */
+const XRAY_ENEMY: [number, number, number] = [1, 0.32, 0.28];
+const XRAY_BULLET: [number, number, number] = [1, 0.7, 0.25];
+const XRAY_SHOT: [number, number, number] = [0.6, 0.85, 1];
+
+/** Draw an instanced batch at `op` opacity: blended and not depth-writing below 1, solid at 1. */
+function fadeBatch(b: ActorBatch, op: number): void {
+  const faded = op < 0.999;
+  for (const m of [b.mesh.material, b.outline?.material] as (THREE.Material | undefined)[]) {
+    if (!m) continue;
+    if (m.transparent !== faded) {
+      m.transparent = faded;
+      m.depthWrite = !faded;
+      m.needsUpdate = true;
+    }
+    m.opacity = op;
+  }
+}
+
 export const PLAYER_COLS: [number, number, number][] = [[1, 0.78, 0.35], [0.4, 0.95, 1], [1, 0.45, 0.6], [0.6, 1, 0.45], [0.75, 0.6, 1], [1, 0.62, 0.3]];
 
 const BALLOON_TINTS: [number, number, number][] = [

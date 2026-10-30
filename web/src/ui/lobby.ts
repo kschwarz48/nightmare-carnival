@@ -6,6 +6,7 @@ import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
 import { DIFFICULTIES, CURSE } from '../data/difficulty';
 import { WEAPONS } from '../data/weapons';
 import type { LobbyState } from '../net/protocol';
+import type { Reach } from '../net/peer';
 import { CODE_LENGTH } from '../net/codes';
 import type { UICtx } from './screens';
 import { h } from './dom';
@@ -29,12 +30,19 @@ export function storeName(n: string): void {
 }
 
 // ===================================================================== multiplayer menu
-export function multiplayerMenu(c: UICtx, o: { name: string; status: string; busy: boolean; host: (name: string) => void; join: (name: string) => void; back: () => void }): HTMLElement {
+const REACH_TEXT: Record<Reach, [string, string]> = {
+  relay: ['ok', 'Connection check: ready (a relay is available).'],
+  direct: ['ok', 'Connection check: ready for online play.'],
+  local: ['warn', 'Connection check: your browser is hiding your address from peer-to-peer play, so joining across the internet will likely fail. Opera / Opera GX: Settings → Privacy & security → WebRTC → "Use any suitable network interface", and turn off its VPN.'],
+  blocked: ['warn', 'Connection check: this browser is blocking peer-to-peer connections (WebRTC). Opera / Opera GX: Settings → Privacy & security → WebRTC → "Use any suitable network interface", and turn off its VPN. Or try Chrome or Edge.'],
+};
+
+export function multiplayerMenu(c: UICtx, o: { name: string; status: string; busy: boolean; reach: Reach | null; host: (name: string) => void; join: (name: string) => void; back: () => void }): HTMLElement {
   const input = h('input', { class: 'mp-input', type: 'text', maxlength: '16', value: o.name, placeholder: 'Your name', 'aria-label': 'Your name', 'data-nav': '', spellcheck: 'false', autocomplete: 'off' }) as HTMLInputElement;
   const nm = () => input.value.trim() || 'Player';
   return h('div', { class: 'screen dim mp' }, h('div', { class: 'panel bulbs mp-panel' },
-    h('h2', { class: 'title-text' }, 'Two-Player Night'),
-    h('div', { class: 'muted' }, 'Play the same night with a friend online — shared tickets and levels, your own builds. One of you hosts; the other joins with the host’s code.'),
+    h('h2', { class: 'title-text' }, 'Online Night'),
+    h('div', { class: 'muted' }, 'Play the same night with up to five friends: shared tickets and levels, your own builds. One of you hosts; the others join with the host’s code.'),
     h('label', { class: 'mp-label' }, 'Your name', input),
     h('div', { class: 'menu' },
       btn('Host a Game', () => { c.click(); o.host(nm()); }, '', { 'data-default': '', disabled: o.busy || undefined }),
@@ -42,6 +50,7 @@ export function multiplayerMenu(c: UICtx, o: { name: string; status: string; bus
       btn('Back', () => { c.click(); o.back(); }, 'small red'),
     ),
     h('div', { class: `mp-status${o.status ? '' : ' hidden'}` }, o.status),
+    h('div', { class: `mp-check ${o.reach ? REACH_TEXT[o.reach][0] : 'pending'}` }, o.reach ? REACH_TEXT[o.reach][1] : 'Connection check: testing…'),
     h('div', { class: 'muted mp-fine' }, 'Alpha: connections are peer-to-peer (WebRTC) with matchmaking by the free PeerJS service. The host’s computer runs the night — the host should have the steadier connection.'),
   ));
 }

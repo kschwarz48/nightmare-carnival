@@ -20,11 +20,21 @@ export class NetError extends Error {
   }
 }
 
+/**
+ * ICE servers when the deploy configures none: free public STUN (no accounts) so each side learns its
+ * public address. PeerJS's built-in relays are left out: in testing (2026-10-30) they answered neither
+ * UDP nor TCP. A deploy that needs a relay adds TURN in net-config.json (docs/MULTIPLAYER.md §3).
+ */
+export const DEFAULT_ICE: RTCIceServer[] = [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+];
+
 const TEXT = {
   no_lobby: 'No lobby with that code. Check the code, and make sure the host still has the lobby open.',
   signal: 'Could not reach the matchmaking server. Check your internet connection and try again.',
-  ice: 'Could not open a direct connection to the other player (a firewall or strict NAT is in the way). A TURN relay is needed — see docs/MULTIPLAYER.md.',
-  timeout: 'The other player did not respond in time. Try again, or check that both of you are online.',
+  ice: 'Found the lobby, but could not open a connection to the host.',
+  timeout: 'Found the lobby, but the connection to the host never opened.',
   browser: 'This browser does not support WebRTC data channels. Try a current Chrome, Edge, Firefox or Safari.',
   taken: 'Could not reserve a lobby code. Try again.',
 };
@@ -60,8 +70,42 @@ async function loadPeer(): Promise<typeof PeerT> {
 
 function options(cfg: NetConfig): PeerOptions {
   const o: PeerOptions = { debug: cfg.debug as 0 | 1 | 2 | 3, ...cfg.peer };
-  if (cfg.iceServers) o.config = { iceServers: cfg.iceServers, sdpSemantics: 'unified-plan' } as RTCConfiguration;
+  o.config = { iceServers: cfg.iceServers ?? DEFAULT_ICE, sdpSemantics: 'unified-plan' } as RTCConfiguration;
   return o;
+}
+
+/**
+ * What this browser can do for a peer-to-peer link: `relay` (a TURN server answers: connects almost
+ * anywhere), `direct` (STUN shows a public address: most home networks connect), `local` (no public
+ * address: a VPN, a browser privacy setting or a firewall is hiding it, so connections across the
+ * internet will likely fail) or `blocked` (WebRTC gives nothing at all).
+ */
+export type Reach = 'relay' | 'direct' | 'local' | 'blocked';
+
+export async function probeReach(cfg: NetConfig, ms = 2500): Promise<Reach> {
+  if (typeof RTCPeerConnection === 'undefined') return 'blocked';
+  try {
+    const pc = new RTCPeerConnection({ iceServers: cfg.iceServers ?? DEFAULT_ICE });
+    const types = new Set<string>();
+    pc.onicecandidate = (e) => {
+      const m = e.candidate?.candidate.match(/ typ (\w+)/);
+      if (m) types.add(m[1]);
+    };
+    pc.createDataChannel('probe');
+    await pc.setLocalDescription(await pc.createOffer());
+    await new Promise((r) => setTimeout(r, ms));
+    pc.close();
+    return types.has('relay') ? 'relay' : types.has('srflx') || types.has('prflx') ? 'direct' : types.size ? 'local' : 'blocked';
+  } catch {
+    return 'blocked';
+  }
+}
+
+/** Plain advice for a failed connection, given what this browser could do. */
+export function reachAdvice(r: Reach | null): string {
+  const opera = 'If you use Opera or Opera GX: Settings → Privacy & security → WebRTC → "Use any suitable network interface", and turn off its VPN (the setting can switch itself back after a restart). Or try Chrome or Edge.';
+  if (r === 'blocked' || r === 'local') return `Your browser is not letting the game make peer-to-peer connections. ${opera}`;
+  return `Your two networks could not reach each other directly. Try another browser or network (a phone hotspot works), make sure neither of you is on a VPN, or have the host add a relay (TURN) server. ${opera}`;
 }
 
 /** Open a Peer on the signaling server (resolves once registered). */
@@ -270,7 +314,14 @@ export async function hostLobby(cfg: NetConfig, onLink: (link: NetLink) => void,
         conn.close();
         return;
       }
-      conn.on('open', () => onLink(new PeerLink(conn)));
+      // someone found the lobby but the peer-to-peer link never came up: tell the host too
+      const stall = setTimeout(() => {
+        if (!closed && !conn.open) onTrouble('Someone tried to join, but the connection could not be opened (a browser setting, VPN or strict network on one side: see the message on their screen).');
+      }, CONNECT_TIMEOUT);
+      conn.on('open', () => {
+        clearTimeout(stall);
+        onLink(new PeerLink(conn));
+      });
     });
     // losing the signaling server does not drop connected players, but nobody new could join
     peer.on('disconnected', () => {

@@ -54,8 +54,13 @@ and prediction error. A small **● NN ms** latency readout is always shown in c
   joining with the same code from the same tab.
 - **The host leaves.** The night ends, and the guest sees "The host ended the night." There is no host
   migration in the alpha.
-- **"Could not open a direct connection…"** A firewall or strict NAT blocks peer-to-peer traffic.
-  A TURN relay is needed; see §3.
+- **"Found the lobby, but the connection to the host never opened."** Something blocks peer-to-peer
+  traffic on one side. Check the **connection check** line on the multiplayer menu.
+  - **Opera / Opera GX:** Settings → Privacy & security → WebRTC → "Use any suitable network
+    interface", and turn off its built-in VPN. The setting can switch itself back after a restart.
+  - **Otherwise:** try Chrome or Edge, or another network (a phone hotspot works), and make sure
+    neither player is on a VPN.
+  - **Still failing:** the pair needs a TURN relay (§3).
 
 ---
 
@@ -153,8 +158,9 @@ a relay or WebSockets means writing one class.
 ## 3. Signalling and TURN
 
 **Defaults (no configuration):** signalling through **PeerJS Cloud** (`0.peerjs.com`, free, shared, no
-SLA). ICE uses the PeerJS client's built-in list: Google STUN plus the public PeerJS TURN relays
-(best effort).
+SLA). ICE uses free public STUN (Google, Cloudflare). **There is no relay by default:** PeerJS's
+built-in TURN servers answered neither UDP nor TCP in testing (2026-10-30), so they were dropped
+(D-59).
 
 That reaches most home networks. A **TURN relay** carries traffic when two peers cannot connect
 directly: symmetric NAT, some mobile carriers, strict corporate or university firewalls. F3 shows the
@@ -190,6 +196,22 @@ Every field is optional:
 You can set these instead, in the environment or `web/.env.local`:
 - `VITE_PEER_HOST`, `VITE_PEER_PORT`, `VITE_PEER_PATH`, `VITE_PEER_SECURE`, `VITE_PEER_KEY`
 - `VITE_ICE_SERVERS`: a JSON array of `RTCIceServer`
+
+### Adding a relay (TURN)
+
+A relay carries the traffic when two players can't connect directly. Free tiers exist, all needing an
+account: e.g. [ExpressTURN](https://expressturn.com/), [Metered Open Relay](https://metered.ca/tools/openrelay/),
+Cloudflare Realtime TURN. Put the credentials in `public/net-config.json` and redeploy:
+
+```json
+{ "iceServers": [
+  { "urls": "stun:stun.l.google.com:19302" },
+  { "urls": ["turn:YOUR_TURN_HOST:3478", "turn:YOUR_TURN_HOST:443?transport=tcp", "turns:YOUR_TURN_HOST:443"], "username": "…", "credential": "…" }
+] }
+```
+
+Include a TCP/TLS (443) entry: browsers that block non-proxied UDP can still reach a relay that way.
+Anything in this file is public.
 
 ### Running your own
 
@@ -347,7 +369,7 @@ Two people, **two different networks**: e.g. one on home Wi-Fi, one on a phone h
 
 | Scope | Status |
 |---|---|
-| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 175 tests in the whole suite |
+| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 176 tests in the whole suite |
 | Two browser tabs on **one machine**, real PeerJS Cloud signalling and WebRTC | **Done**: see the list below |
 | The **deployed site** (Netlify), two tabs on one machine | **Done**: see below |
 | **Three** tabs on one machine (host + two guests), real PeerJS, dev server | **Done** (2026-10-30): six-seat lobby, shared characters, 3 + 3 slots, party HUD, both guests kept alive in background tabs, mirrors matched the host |

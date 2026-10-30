@@ -990,18 +990,24 @@ describe('parties of up to six players (D-54)', () => {
     const start = g.players.map((pl) => ({ x: pl.x, y: pl.y }));
     const lvl0 = g.level;
     const gaps: number[] = [];
+    const reach = [0, 0, 0, 0, 0, 0];
+    let tick = 0;
     p.run(40000, () => {
       p.frame();
+      g.players.forEach((pl, i) => (reach[i] = Math.max(reach[i], dist(pl, start[i]))));
+      // a six-player party levels slowly (D-57): top up a level every ~8 s so the drafts get exercised
+      if (++tick % 480 === 0 && tick < 2100 && g.phase === 'play') g.addXp(g.xpToNext - g.xp + 0.01);
       if (g.phase !== 'play') return;
       for (const x of p.guests) {
         const i = x.gs.slot, rep = x.gs.replica!;
         if (rep.last && g.players[i].dashT <= 0) gaps.push(dist(rep.localDrawPos(), g.players[i]));
       }
     });
+    p.run(3000, p.frame); // the last level-up's drafts resolve
     expect(g.level).toBeGreaterThan(lvl0 + 2); // shared XP levelled the party, and every draft resolved
     expect(g.phase).toBe('play');
     for (let i = 1; i < 6; i++) {
-      expect(dist(g.players[i], start[i]), `player ${i} moved`).toBeGreaterThan(100);
+      expect(reach[i], `player ${i} moved`).toBeGreaterThan(100);
       expect(g.players[i].weapons.list.length + g.players[i].passives.size, `player ${i} drafted`).toBeGreaterThan(1);
     }
     // every guest sees the whole party where the host has it (the others ~100 ms behind)

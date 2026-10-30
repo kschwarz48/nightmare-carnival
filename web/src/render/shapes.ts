@@ -65,6 +65,9 @@ export class ShapeBatch {
     }
   }
 
+  /** Multiplies every vertex alpha written while set (the renderer fades the players' own attacks). */
+  alphaScale = 1;
+
   private v(x: number, y: number, r: number, g: number, b: number, a: number): void {
     if (this.n >= this.cap) return;
     const i3 = this.n * 3, i4 = this.n * 4;
@@ -74,7 +77,7 @@ export class ShapeBatch {
     this.col[i4] = r;
     this.col[i4 + 1] = g;
     this.col[i4 + 2] = b;
-    this.col[i4 + 3] = a;
+    this.col[i4 + 3] = a * this.alphaScale;
     this.n++;
   }
 

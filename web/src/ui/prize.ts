@@ -28,8 +28,10 @@ export class PrizeOverlay implements PrizeUi {
     this.sumEl.replaceChildren();
     this.sumEl.classList.remove('on');
     this.hint.classList.remove('hidden');
-    this.titleEl.className = `prize-title ${style}`;
-    this.titleEl.textContent = text;
+    // the booth's own sign already reads PRIZE WHEEL: a plain spin gets no second title on top of it,
+    // only the special ones (bonus spin, voucher) announce themselves
+    this.titleEl.className = `prize-title ${style}${style === 'normal' ? ' hidden' : ''}`;
+    this.titleEl.textContent = style === 'normal' ? '' : text;
     this.titleEl.style.animation = 'none';
     void this.titleEl.offsetWidth;
     this.titleEl.style.animation = '';

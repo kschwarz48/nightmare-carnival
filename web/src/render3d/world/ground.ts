@@ -362,7 +362,9 @@ export class Ground3D {
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.receiveShadow = true;
     this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = -10;
+    // drawn after the actors (D-58): occluded silhouettes test against scenery only, so a monster's feet
+    // touching the ground never light up as "hidden"
+    this.mesh.renderOrder = 3;
   }
 
   update(time: number, dawn: number): void {

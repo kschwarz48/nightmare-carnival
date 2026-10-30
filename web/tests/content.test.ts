@@ -151,13 +151,18 @@ describe('draft generation', () => {
     expect(opts[0].refId).toBe('tarot');
   });
 
-  it('chests grant upgrades to equipped items and evolve first when ready', () => {
+  it('chests grant upgrades to equipped items but never evolve: the evolution waits for a level-up card (D-57)', () => {
     const g = makeGame();
     for (let i = 0; i < 7; i++) g.weapons.levelUp('throwing_cards');
     g.player.addPassive('lucky_ticket');
     const r = grantChest(g, 3);
-    expect(r.evolution).toBe('royal_flush');
+    expect(r.evolution).toBeUndefined();
     expect(r.items.length).toBe(3);
+    expect(r.entries.every((e) => e.type !== 'evolution')).toBe(true);
+    expect(g.weapons.has('throwing_cards')).toBe(true);
+    // the next level-up offers it
+    g.addXp(g.xpToNext - g.xp + 0.01);
+    expect(g.draftOptions.some((o) => o.kind === 'evolution' && o.refId === 'throwing_cards')).toBe(true);
   });
 });
 

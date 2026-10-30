@@ -180,3 +180,16 @@ describe('co-op party', () => {
     expect(g.players[1].weapons.list.length).toBeLessThanOrEqual(4);
   });
 });
+
+describe('co-op XP (D-57)', () => {
+  it('a party needs more XP per level, ramping in over the first six levels', () => {
+    const solo = makeGame({ seed: 1 });
+    const pair = duo();
+    expect(pair.xpCurve(1)).toBe(solo.xpCurve(1)); // the night still opens with quick level-ups
+    expect(pair.xpCurve(4)).toBeGreaterThan(solo.xpCurve(4));
+    for (const lvl of [7, 12, 30]) expect(pair.xpCurve(lvl)).toBeCloseTo(solo.xpCurve(lvl) * COOP.xp[2], 6);
+    const six = makeGame({ seed: 1, players: Array.from({ length: 6 }, (_, i) => ({ character: 'carny', name: `P${i}` })) });
+    expect(six.xpCurve(10)).toBeCloseTo(solo.xpCurve(10) * COOP.xp[6], 6);
+    for (let n = 2; n <= 6; n++) expect(COOP.xp[n]).toBeGreaterThan(COOP.xp[n - 1]);
+  });
+});

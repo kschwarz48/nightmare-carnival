@@ -468,6 +468,53 @@ export function outlineMaterial(src: THREE.MeshStandardMaterial): THREE.ShaderMa
   });
 }
 
+/**
+ * The silhouette an actor shows while hidden behind scenery (D-58). Its depth test passes only
+ * *behind* what is already drawn; it renders after the static world and before every other actor, so
+ * only buildings and props reveal it (not other monsters). Rim-weighted: a bright outline with a faint
+ * body. It stays in the opaque queue (custom blending) so render order alone decides what it sees.
+ */
+export function xrayMaterial(src: THREE.MeshStandardMaterial, col: [number, number, number], alpha = 0.9): THREE.ShaderMaterial {
+  const d = src.userData.nc as NcData;
+  const skin = src.defines?.NC_SKIN !== undefined;
+  return new THREE.ShaderMaterial({
+    defines: skin ? { NC_SKIN: '' } : {},
+    uniforms: { ...d, uXrayCol: { value: new THREE.Vector3(col[0], col[1], col[2]) }, uXrayA: { value: alpha } },
+    vertexShader: /* glsl */ `
+      ${V_HEAD}
+      varying vec3 vXN;
+      void main() {
+        vec3 objectNormal = normal;
+        ${V_AN}
+        ${V_SKIN_N}
+        vec3 transformed = position;
+        ${V_SKIN_P}
+        #ifdef USE_INSTANCING
+        mat4 ncM = modelMatrix * instanceMatrix;
+        #else
+        mat4 ncM = modelMatrix;
+        #endif
+        vXN = normalize(mat3(viewMatrix) * mat3(ncM) * objectNormal);
+        gl_Position = projectionMatrix * viewMatrix * ncM * vec4(transformed, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uXrayCol;
+      uniform float uXrayA;
+      varying vec3 vXN;
+      void main() {
+        float rim = 1.0 - abs(normalize(vXN).z); // orthographic view: the eye looks down -Z
+        float a = uXrayA * (0.4 + 0.6 * pow(rim, 1.2));
+        gl_FragColor = vec4(uXrayCol * (0.95 + 0.8 * rim), a);
+      }`,
+    transparent: false,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.SrcAlphaFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+    depthFunc: THREE.GreaterDepth,
+    depthWrite: false,
+  });
+}
+
 export function ncData(m: THREE.Material): NcData {
   return m.userData.nc as NcData;
 }

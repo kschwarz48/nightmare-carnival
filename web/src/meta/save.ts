@@ -27,6 +27,8 @@ export interface Settings {
   bindings: Record<string, string[]>;
   tutorialsSeen: string[];
   dyslexiaFont: boolean;
+  /** 0.15..1: how solid the players' own attacks are drawn (fade them to read enemy shots in a crowd) */
+  abilityOpacity: number;
 }
 
 export interface RunRecord {
@@ -77,6 +79,7 @@ export function defaultSettings(): Settings {
     master: 0.8, music: 0.7, sfx: 0.8, ambience: 0.6, muted: false, reducedFlash: false, shake: 1, highContrast: false,
     uiScale: 1, damageNumbers: true, aimMode: 'auto', quality: 'high', showFps: false,
     bindings: JSON.parse(JSON.stringify(DEFAULT_BINDINGS)), tutorialsSeen: [], dyslexiaFont: false,
+    abilityOpacity: 1,
   };
 }
 

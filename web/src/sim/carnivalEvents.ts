@@ -7,7 +7,7 @@ import { EVENTS, SCHEDULED_EVENTS, type EventId } from '../data/events';
 import { PROPS } from '../data/map';
 import type { Enemy } from './entities';
 import type { Game } from './game';
-import { TICKETS } from '../data/progression';
+import { CHESTS, TICKETS } from '../data/progression';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
 interface Running {
@@ -255,8 +255,9 @@ export class CarnivalEvents {
       if (r.id === 'clown_car' && r.members.has(e.uid)) {
         r.members.delete(e.uid);
         if (r.members.size === 0) {
-          this.g.spawnPickup('chest', e.x, e.y, 0).rolls = 2;
-          this.g.bus.emit('banner', { text: 'CLOWN CAR CLEARED!', sub: 'A chest tumbles out', style: 'gold' });
+          const chest = this.g.rng.chance(CHESTS.clownCarChance);
+          if (chest) this.g.spawnPickup('chest', e.x, e.y, 0).rolls = 2;
+          this.g.bus.emit('banner', { text: 'CLOWN CAR CLEARED!', sub: chest ? 'A chest tumbles out' : 'Nothing inside but confetti', style: 'gold' });
         }
       }
     }

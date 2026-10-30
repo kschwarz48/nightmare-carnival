@@ -30,7 +30,7 @@ import { GuestSession, HostSession, runConfigFromStart } from './net/session';
 import type { GuestProfile, StartCfg } from './net/protocol';
 import { isValidCode, normalizeCode } from './net/codes';
 import { describeNetConfig, loadNetConfig } from './net/config';
-import { hostLobby, joinLobby, type HostHandle } from './net/peer';
+import { NetError, hostLobby, joinLobby, probeReach, reachAdvice, type HostHandle, type Reach } from './net/peer';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './sim/constants';
 
 /** The online session this tab is part of (D-52). */
@@ -123,6 +123,9 @@ export class App {
   private lobbyKey = '';
   private showNetDiag = false;
   private netDesc = '';
+  /** this browser's peer-to-peer reach, checked when the multiplayer menu first opens */
+  private netReach: Reach | null = null;
+  private reachChecking = false;
   private bgClock: BackgroundClock | null = null;
   private bgLast = 0;
   /** when the animation-frame loop last ran (the background clock takes over when it stalls) */
@@ -211,7 +214,7 @@ export class App {
     document.documentElement.style.setProperty('--ui-scale', String(s.uiScale));
     document.body.classList.toggle('dyslexia', s.dyslexiaFont);
     if (this.renderer) {
-      this.renderer.settings = { highContrast: s.highContrast, reducedFlash: s.reducedFlash, shake: s.shake, damageNumbers: s.damageNumbers, quality: s.quality };
+      this.renderer.settings = { highContrast: s.highContrast, reducedFlash: s.reducedFlash, shake: s.shake, damageNumbers: s.damageNumbers, quality: s.quality, abilityOpacity: s.abilityOpacity };
       this.resize();
     }
     if (this.hud) this.hud.showFps = s.showFps;
@@ -261,8 +264,9 @@ export class App {
         break;
       }
       case 'mp':
+        this.checkReach();
         el = L.multiplayerMenu(this.ctx, {
-          name: L.loadName(), status: this.mpStatus, busy: this.mpBusy,
+          name: L.loadName(), status: this.mpStatus, busy: this.mpBusy, reach: this.netReach,
           host: (n) => void this.hostGame(n),
           join: (n) => {
             L.storeName(n);
@@ -604,6 +608,9 @@ export class App {
       case 'note':
         if (q.b) bell(q.b, 0.6, q.x);
         if (q.x !== undefined && q.y !== undefined) fx('ring', q.x, q.y, 'gravity', 90);
+        break;
+      case 'lamp_wisp':
+        if (q.a !== undefined) this.renderer.props.wisp(q.a);
         break;
       case 'note_true':
         this.hud.whisper('The note rings true.', `${['', 'one', 'two', 'three'][q.a ?? 0] ?? ''} of four`, 2.6);
@@ -1051,7 +1058,9 @@ export class App {
       this.startBgClock();
     } catch (e) {
       this.mpBusy = false;
-      this.mpStatus = (e as Error).message;
+      const kind = (e as NetError).kind;
+      // the lobby was found but no link opened: say why that usually happens, using the connection check
+      this.mpStatus = kind === 'timeout' || kind === 'ice' ? `${(e as Error).message} ${reachAdvice(this.netReach)}` : (e as Error).message;
       this.mpTone = 'warn';
       if (this.state === 'mp_join') this.go('mp_join');
     }
@@ -1148,6 +1157,17 @@ export class App {
     } catch (err) {
       if (import.meta.env.DEV) console.warn('[net] event failed', type, err);
     }
+  }
+
+  /** Check once what peer-to-peer connections this browser can make (shown on the multiplayer menu). */
+  private checkReach(): void {
+    if (this.netReach || this.reachChecking) return;
+    this.reachChecking = true;
+    void loadNetConfig().then((cfg) => probeReach(cfg)).then((r) => {
+      this.netReach = r;
+      this.reachChecking = false;
+      if (this.state === 'mp') this.go('mp');
+    });
   }
 
   /** Tell the host how much of the world this screen shows (interest management). */

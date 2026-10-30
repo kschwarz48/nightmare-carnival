@@ -23,7 +23,7 @@ npm run dev        # http://127.0.0.1:5173
 | Command | What it does |
 |---|---|
 | `npm run dev` | Vite dev server with hot reload and the dev-only testing tools |
-| `npm test` | Vitest suite (175 tests, including an accelerated full 25-minute run and the online co-op netcode over a simulated lossy network) |
+| `npm test` | Vitest suite (176 tests, including an accelerated full 25-minute run and the online co-op netcode over a simulated lossy network) |
 | `npm run typecheck` | TypeScript `--noEmit` |
 | `npm run build` | Type-checks, then produces a static production build in `web/dist/` |
 | `npm run preview` | Serves `web/dist/` locally to check the production build |

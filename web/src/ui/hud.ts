@@ -57,6 +57,7 @@ export class Hud {
   private bossKey = '';
   private indicators: HTMLDivElement;
   private partner: HTMLDivElement;
+  private whispers: HTMLDivElement;
   private tags: HTMLDivElement;
   private statusEl: HTMLDivElement;
   private pingEl: HTMLDivElement;
@@ -87,6 +88,7 @@ export class Hud {
     this.fpsEl = h('div', { class: 'fps hidden' });
     this.indicators = h('div', { class: 'passthrough' });
     this.partner = h('div', { class: 'coop-party hidden' });
+    this.whispers = h('div', { class: 'whispers' });
     this.tags = h('div', { class: 'passthrough' });
     this.statusEl = h('div', { class: 'coop-status hidden' });
     this.pingEl = h('div', { class: 'net-ping hidden' });
@@ -300,9 +302,15 @@ export class Hud {
    * screen — enough to notice that something happened, without spelling out what to do next.
    */
   whisper(text: string, sub?: string, dur = 4.2): void {
-    const el = h('div', { class: 'whisper' }, h('div', { class: 't' }, text), sub ? h('div', { class: 's' }, sub) : null);
+    // whispers that arrive together stack instead of printing over each other; a repeat of one still
+    // showing is dropped, and at most three are on screen at once
+    if (!this.whispers.isConnected) this.root.append(this.whispers);
+    const key = `${text}|${sub ?? ''}`;
+    if ([...this.whispers.children].some((c) => (c as HTMLElement).dataset.key === key)) return;
+    while (this.whispers.childElementCount >= 3) this.whispers.firstElementChild!.remove();
+    const el = h('div', { class: 'whisper', 'data-key': key }, h('div', { class: 't' }, text), sub ? h('div', { class: 's' }, sub) : null);
     el.style.animationDuration = `${dur}s`;
-    this.root.append(el);
+    this.whispers.append(el);
     setTimeout(() => el.remove(), dur * 1000);
   }
 

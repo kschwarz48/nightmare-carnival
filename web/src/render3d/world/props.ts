@@ -97,6 +97,9 @@ export function signMesh(text: string, w: number, h: number, o: { color?: string
   return mesh;
 }
 
+/** How long a melody lamp's emblem wisp floats before it fades (s). */
+const WISP_T = 3.6;
+
 export class PropSet {
   private statics: StaticBatch[] = [];
   private animated: { batch: StaticBatch; props: Prop[] }[] = [];
@@ -122,6 +125,8 @@ export class PropSet {
   private carousel = PROPS.find((p) => p.kind === 'carousel')!;
   private tower = PROPS.find((p) => p.kind === 'strongman_tower')!;
   private bellFlash = 0;
+  /** emblem wisps rising from melody lamps that were just played: lamp index and age (s) */
+  private wisps: { lamp: number; t: number }[] = [];
 
   constructor(private scene: THREE.Scene) {
     // ---- group static props by model key
@@ -190,7 +195,8 @@ export class PropSet {
     };
     this.carouselTop = dyn(P.carouselTop(), 1);
     this.horses = dyn(geometryFor('carousel_horse', ENEMY_MODELS.carousel_horse), 12);
-    for (let k = 0; k < 6; k++) this.plaques.push(dyn(P.plaque(k), k === 5 ? 7 : 1, false, 3));
+    // emblem plaques: one on the carousel, plus room for the wisps played lamps send up (D-58)
+    for (let k = 0; k < 6; k++) this.plaques.push(dyn(P.plaque(k), k === 5 ? 7 : k >= 1 && k <= 4 ? 3 : 1, false, 3));
     this.tiltArms = dyn(P.tiltArm(), 2);
     this.puck = dyn(P.strikerPuck(), 1, false, 3);
     this.bell = dyn(P.strikerBell(), 1, false, 3);
@@ -244,6 +250,11 @@ export class PropSet {
       m.rotation.x = tilt ?? 0;
       scene.add(m);
     }
+  }
+
+  /** A played melody lamp sends up a wisp of its emblem (the carousel's plaque for that lamp). */
+  wisp(lamp: number): void {
+    if (lamp >= 0 && lamp < 4) this.wisps.push({ lamp, t: 0 });
   }
 
   private quest(g: Game): LastSongChain | undefined {
@@ -332,6 +343,19 @@ export class PropSet {
         if (kind === 5) star++;
       }
       void star;
+    }
+    // melody wisps: the lamp's emblem rises out of its lantern, glowing red, sways and fades away
+    for (const w of this.wisps) w.t += dt;
+    this.wisps = this.wisps.filter((w) => w.t < WISP_T);
+    for (const w of this.wisps) {
+      const L = LAST_SONG.lamps[w.lamp];
+      if (!inView(L.x, L.y)) continue;
+      const u = w.t / WISP_T;
+      const s = Math.min(1, w.t / 0.35) * Math.min(1, (WISP_T - w.t) / 0.8);
+      const hgt = LAMP_LIGHT_H + 34 + 96 * (1 - (1 - u) * (1 - u));
+      const b = this.plaques[1 + w.lamp];
+      b.tint(b.add(L.x, L.y, hgt, 0.35 * Math.sin(w.t * 2.2), 1.3 * s), 1, 0.62, 0.5, 1.5 + 0.4 * Math.sin(w.t * 9));
+      r.glow.draw(this.glowF ??= r.assets.atlas.get('fx_glow_0'), L.x, L.y, hgt + 6, 1.5, 1.5, 0, 1, 0.42, 0.32, 0.55 * s);
     }
     // Tilt-a-Whirl arms follow the sim's hazard angle exactly
     if (inView(TILT_A_WHIRL.x, TILT_A_WHIRL.y)) {

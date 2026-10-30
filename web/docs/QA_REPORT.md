@@ -115,6 +115,35 @@ understate that character.
 
 ---
 
+## Max-out pacing, readability, connection diagnostics — 2026-10-30 (D-57 … D-59)
+
+**Automated:** 176 tests pass (typecheck clean, production build OK). Chest tests now assert that
+chests never evolve and the evolution card waits in the next draft. A party-XP test covers the ramp
+and the per-party multipliers. The melody test checks one emblem wisp per true note, in order. The
+six-player network test feeds XP on a timer, since parties now level slowly.
+
+**Measured (bots, god mode, full nights):**
+- **Before:** solo bots maxed at 24:42 (best of three; the other two never maxed). Duo 10:08, trio
+  7:22, six players 6:23.
+- **After (new curve + party XP):** solo bots finish 54–80% of a build by minute 24. Parties finish
+  58–100% by minute 24 depending on size and seed.
+
+**Live (dev server):**
+- **Silhouettes:** clowns hidden inside and behind the Fun House show as red silhouettes, and they
+  vanish with the x-ray switched off.
+- **Lamp wisp:** the crown lamp's emblem wisp rises from the red lamp.
+- **Whispers:** two arriving together sit in separate rows, and an exact repeat is dropped.
+- **Prize wheel:** a plain spin has no duplicate title.
+- **Opacity:** at 30%, the player's card shots render blended at 0.3 while monsters stay solid.
+- **Connection check:** reads "ready for online play" here, and a two-tab lobby still connects on the
+  new STUN defaults.
+- **Relays:** PeerJS's relays gave 0 relay candidates over UDP and TCP.
+
+**Not verified:** the Opera GX fix on the affected machine; a relay-backed connection (no TURN is
+configured).
+
+---
+
 ## Parties of six, music, quest and boss polish — 2026-10-30 (D-54 … D-56)
 
 **Automated:** 175 tests pass (typecheck clean, production build OK). New: a melody-lamp test (red and

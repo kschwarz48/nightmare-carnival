@@ -55,7 +55,8 @@ to learn it:
   plaques show the lamp emblems in the night's order (moon/key/eye/crown); stars fill the rest.
 
 Walk into each lit lamp (within **85** units) in that order. Each touch sings the lamp's note. A
-right note turns the lamp **red**, and it can't be triggered again; a whisper says *"The note rings
+right note turns the lamp **red** (and it sends up a glowing wisp of its emblem, the same one painted
+on the carousel), and it can't be triggered again; a whisper says *"The note rings
 true — one of four"* (two, three). A wrong (still green) lamp plays a sour chord, whispers *"The melody
 falters — begin again"* and resets the song: every lamp goes back to green. After the fourth correct
 lamp the stage advances and Zoltana calls; the lamps stay red and silent for the rest of the night.

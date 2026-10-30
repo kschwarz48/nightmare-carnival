@@ -95,15 +95,15 @@ describe('upgrade-pool fallback (D-31)', () => {
 });
 
 describe('prize-wheel chest entries (D-34)', () => {
-  it('grantChest reports one entry per granted reward, evolution first, matching the item list', () => {
+  it('grantChest reports one entry per granted reward, matching the item list, and never an evolution (D-57)', () => {
     const g = makeGame({ godMode: true });
     const w = g.weapons.list[0];
     while (w.level < w.def.maxLevel) g.weapons.levelUp(w.def.id);
     g.player.addPassive(w.def.evoPassive!);
     const res = grantChest(g, 4);
     expect(res.entries.length).toBe(res.items.length);
-    expect(res.entries[0].type).toBe('evolution');
-    expect(res.evolution).toBe(res.entries[0].id);
+    expect(res.entries.some((e) => e.type === 'evolution')).toBe(false);
+    expect(res.evolution).toBeUndefined();
     for (const e of res.entries) expect(e.label.length).toBeGreaterThan(0);
   });
 
@@ -305,6 +305,8 @@ describe('the Last Song (D-32)', () => {
     cues.length = 0;
     for (const i of ls.order) touch(i);
     expect(lampCues().filter((q) => q.event === 'note_true').map((q) => q.a)).toEqual([1, 2, 3]);
+    // every true note sends up its lamp's emblem wisp, in the song's order (D-58)
+    expect(cues.filter((q) => q.event === 'lamp_wisp').map((q) => q.a)).toEqual(ls.order);
     expect(lampCues().map((q) => q.event)).toContain('melody_solved');
     expect(ls.stage).toBe(LS.Calling);
     expect([0, 1, 2, 3].every((i) => ls.played(i))).toBe(true);

@@ -274,3 +274,50 @@ Sessions speak to a `NetLink` interface, so the whole flow is tested headless ov
   shader for the new light count: a multi-second stall on the night's first chest. The booth's shader
   variants are compiled ahead of time (at boot and at the start of each night) against the post chain's
   real render target, including the icons' textured variant.
+
+### D-57 · Slower to max out: XP curve, party XP, fewer chests, no chest evolutions
+- **Solo curve.** A playtest maxed every item around minute 17; the target is ~24. XP income accelerates
+  through the night (bots earn 1.8–2.2× as much XP by minute 24 as by minute 17), so the late bands
+  roughly double: per-level steps go 16 → 30 for levels 21–40, 36 → 100 for 41–60, and 60 → 150
+  beyond. Levels 1–20 are unchanged, so the opening is as brisk as before. (Bots are weaker than people;
+  they finish 54–80% of a build by minute 24 on the new curve.)
+- **Party XP.** XP is shared and a party earns it several times faster, while each player has fewer
+  slots to fill: on the old curve, bot duos maxed by 10:08, trios by 7:22 and six players by 6:23. A
+  party now needs ×7 / ×13 / ×20 / ×25 / ×30 the XP per level for 2–6 players (`COOP.xp`), ramping in
+  over the first six levels so a co-op night still opens with quick level-ups. Calibrated so bot
+  parties finish roughly as much of their builds by minute 24 as solo bots (single bot nights are
+  noisy: tune from play).
+- **Fewer prize wheels.** Chests from random sources come 20% less often: brutes 80% of the time, elites
+  1.6% (was 2%), the Clown Car 80%. Boss chests and the Last Ticket event's chest stay guaranteed.
+  Elite chest odds are also divided by the party's crowd density, since a denser crowd brings more
+  elites.
+- **No evolutions from chests.** A ready evolution is offered only as a level-up card; a chest's rolls
+  always level items (or fall back to a new weapon, a voucher or a heal).
+
+### D-58 · Readability: silhouettes, attack opacity, lamp wisps, stacked whispers
+- **Silhouettes through buildings.** Monsters, their shots and the players' shots get a rim-lit
+  silhouette (red / hot orange / pale blue) wherever scenery hides them. It's an x-ray twin of each
+  instanced batch, using a "behind" depth test, drawn after the static world and before every other
+  actor; the ground moved to the end of the queue so feet touching it don't count as hidden. Off at low
+  quality.
+- **"Your attacks: opacity"** (Settings, 15–100%) fades the players' own projectiles, orbitals,
+  summons, beams and friendly zones, so enemy shots stay readable in a crowd. Enemy shots are never
+  faded.
+- **Lamp wisps.** A lamp whose note is played sends up a glowing wisp of its emblem (the plaque painted
+  on the carousel), so players learn which emblem belongs to which lamp as they go.
+- **Whispers stack.** Quest whispers that arrive together stack in a column instead of printing over each
+  other; a repeat of one still showing is dropped, and at most three show at once.
+- **Prize wheel title.** A plain spin no longer prints "PRIZE WHEEL" over the booth's own sign; only
+  bonus spins announce themselves.
+
+### D-59 · Connection diagnostics and the relay question
+- A player on Opera GX could never connect, hosting or joining. Signalling worked, but the WebRTC link
+  never opened. Opera's WebRTC setting "Disable non-proxied UDP" (and its VPN) are known to break
+  peer-to-peer links, and the setting can switch itself back after a restart.
+- PeerJS's built-in TURN relays answered neither UDP nor TCP in testing, so the game had no working
+  relay. Defaults are now free public STUN only (Google, Cloudflare); a deploy that needs a relay adds
+  TURN in `net-config.json`.
+- The multiplayer menu runs a **connection check** (gathers ICE candidates for a moment): ready / ready
+  with relay / address hidden / WebRTC blocked, with the Opera fix in the warnings. A join that finds
+  the lobby but never connects explains why, using that check. The host gets a notice when someone's
+  join attempt stalls.

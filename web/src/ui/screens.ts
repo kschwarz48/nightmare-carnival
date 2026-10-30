@@ -312,7 +312,7 @@ export function settingsScreen(c: UICtx, back: () => void): HTMLElement {
       slider('Master volume', 'master'), slider('Music', 'music'), slider('Sound effects', 'sfx'), slider('Ambience', 'ambience'), toggle('Mute all', 'muted'),
       h('h3', {}, 'Visuals & Accessibility'),
       select('Graphics quality', 'quality', [['high', 'High'], ['medium', 'Medium'], ['low', 'Low (handheld)']]),
-      slider('Screen shake', 'shake'), toggle('Reduced flashing', 'reducedFlash'), toggle('High-contrast telegraphs', 'highContrast'), toggle('Damage numbers', 'damageNumbers'),
+      slider('Screen shake', 'shake'), slider('Your attacks: opacity', 'abilityOpacity', 0.15, 1, 0.05), toggle('Reduced flashing', 'reducedFlash'), toggle('High-contrast telegraphs', 'highContrast'), toggle('Damage numbers', 'damageNumbers'),
       slider('UI scale', 'uiScale', 0.8, 1.5, 0.05), toggle('Dyslexia-friendly font', 'dyslexiaFont'), toggle('Show FPS / perf', 'showFps'),
       h('h3', {}, 'Gameplay'),
       select('Aiming', 'aimMode', [['auto', 'Auto (classic)'], ['hybrid', 'Hybrid — aim with mouse / right stick when used'], ['manual', 'Manual — directional weapons follow your aim']]),

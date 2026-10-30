@@ -24,7 +24,7 @@ _Updated 2026-10-30. Branch: `web-threejs-rebuild` (not pushed, no PR)._
   between (D-55). **Deployed** at https://nightmare-carnival.netlify.app (Netlify; `netlify.toml`,
   `docs/MULTIPLAYER.md` §4). Verified with two tabs on one machine over real PeerJS, on the dev server and on
   the deployed site; **not yet verified across two networks**, which is the next job.
-- **175 tests pass**, typecheck is clean, `npm run build` produces a static site.
+- **176 tests pass**, typecheck is clean, `npm run build` produces a static site.
 - The **biggest open item is human playtesting** (balance and readability). All tuning so far used bots.
 - The original Godot project at the repo root is untouched. Two Godot files (`export_presets.cfg`,
   `project.godot`) had **uncommitted local edits before this work started** — they're the repo owner's,

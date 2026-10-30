@@ -200,7 +200,7 @@ export function applyDraftChoice(g: Game, opt: DraftOption): void {
   g.bus.emit('sfx', { id: opt.kind === 'evolution' ? 'evolve' : 'select', vol: 0.6 });
 }
 
-/** VS-style chest (doc 03 §6, D-06): N random upgrades to equipped items; evolution first if ready. */
+/** VS-style chest (doc 03 §6, D-06): N random upgrades to equipped items. Evolutions only come from level-up cards (D-57). */
 export interface ChestEntry {
   type: 'evolution' | 'level' | 'passive' | 'new' | 'voucher' | 'heal';
   id: string;
@@ -212,17 +212,7 @@ export interface ChestEntry {
 export function grantChest(g: Game, rolls: number): { items: string[]; evolution?: string; entries: ChestEntry[] } {
   const items: string[] = [];
   const entries: ChestEntry[] = [];
-  let evolution: string | undefined;
-  const ready = readyEvolutions(g);
-  if (ready.length) {
-    const evo = g.weapons.evolve(ready[0]);
-    if (evo) {
-      evolution = evo;
-      items.push(`EVOLUTION: ${WEAPONS[evo].name}`);
-      entries.push({ type: 'evolution', id: evo, label: WEAPONS[evo].name });
-      rolls--;
-    }
-  }
+  const evolution: string | undefined = undefined;
   for (let i = 0; i < Math.max(0, rolls); i++) {
     const options: (() => string)[] = [];
     for (const w of g.weapons.list) {

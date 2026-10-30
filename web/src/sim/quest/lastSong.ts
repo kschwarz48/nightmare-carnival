@@ -199,6 +199,8 @@ export class LastSongChain extends QuestChain {
     this.cue('note', { x: l.x, y: l.y, a: i, b: l.note });
     if (this.order[this.progress] === i) {
       this.progress++;
+      // the lamp sends up a wisp of its emblem, the one painted on the carousel (D-58)
+      this.cue('lamp_wisp', { x: l.x, y: l.y, a: i });
       if (this.progress >= 4) {
         this.stage = LS.Calling;
         const m = LAST_SONG.machine;
