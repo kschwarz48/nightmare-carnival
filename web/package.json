@@ -1,0 +1,26 @@
+{
+  "name": "nightmare-carnival-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Nightmare Carnival — a 1930s rubber-hose cartoon-horror survivors-like, rebuilt in Three.js.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/oswald": "^5.3.0",
+    "@fontsource/rye": "^5.3.0",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.169.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}
