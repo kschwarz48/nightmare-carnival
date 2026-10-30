@@ -25,10 +25,19 @@ function ticketShape(w: number, h: number): THREE.Shape {
 }
 
 // ---------------------------------------------------------------- pickups
-function ticket(col: number, accent: number, size: number): THREE.BufferGeometry {
+/**
+ * A ticket as a little neon sign (D-41): a dark enamel ticket outlined in a glowing neon tube with a
+ * neon star inside — colour-coded by value (blue → green → gold, like the XP bar) so pickups never
+ * read as danger (enemy fire is orange/white).
+ */
+function ticket(neon: number, size: number): THREE.BufferGeometry {
   const m = new ModelBuilder();
-  m.add(extrude(ticketShape(16 * size, 9 * size), 0.8, 0.2, 6, 1), { col: weather(col, 0.25), emit: 0.35, surf: SURF.paint });
-  m.add(rbox(8 * size, 5 * size, 1.2, 0.4, 1), { col: accent, emit: 0.5, surf: SURF.paint });
+  const w = 16 * size, h = 9 * size;
+  m.add(extrude(ticketShape(w, h), 0.9, 0.25, 6, 1), { col: 0x1a1418, surf: SURF.paint });
+  const outline = ticketShape(w * 0.9, h * 0.82).getPoints(10).map((p) => [p.x, p.y, 0.9] as V3);
+  m.add(tube(outline, 0.62 * size, 5, outline.length * 2, true), { col: neon, emit: 1, surf: SURF.bulb });
+  const star = starShape(5, 2.6 * size, 1.1 * size).getPoints(1).map((p) => [p.x, p.y, 0.9] as V3);
+  m.add(tube(star, 0.42 * size, 4, star.length * 2, true), { col: neon, emit: 1, surf: SURF.bulb });
   return m.build({ ao: 0 });
 }
 
@@ -340,9 +349,9 @@ function acrobat(): THREE.BufferGeometry {
 
 export const ITEM_MODELS: Record<string, ModelDef> = {
   // pickups
-  ticket0: { build: () => ticket(PAL.cream, PAL.red, 0.9), rim: NO_RIM },
-  ticket1: { build: () => ticket(0xd09060, PAL.blood, 1.05), rim: NO_RIM },
-  ticket2: { build: () => ticket(PAL.gold, PAL.hotRed, 1.25), rim: NO_RIM },
+  ticket0: { build: () => ticket(0x1f8fff, 0.95), rim: NO_RIM, emitBoost: 2.6 },
+  ticket1: { build: () => ticket(0x22e866, 1.08), rim: NO_RIM, emitBoost: 2.6 },
+  ticket2: { build: () => ticket(0xffb51f, 1.3), rim: NO_RIM, emitBoost: 3 },
   bank: { build: bank, rim: NO_RIM },
   food: { build: food, rim: NO_RIM, shadow: true },
   funnel: { build: funnel, rim: NO_RIM, shadow: true },

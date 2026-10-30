@@ -39,7 +39,7 @@ export class Ground3D {
     this.material = new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0, envMapIntensity: 0.6 });
     const u = this.u;
     this.material.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, u, pool.uniforms, { uFocus: shared.uFocus });
+      Object.assign(shader.uniforms, u, pool.uniforms, { uFocus: shared.uFocus, uShadowFill: shared.uShadowFill });
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vGW;')
         .replace('#include <project_vertex>', '#include <project_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -49,6 +49,7 @@ export class Ground3D {
           `#include <common>
           varying vec3 vGW;
           uniform float uTime, uSeaY, uMapHalf, uDawn, uWet;
+          uniform vec3 uShadowFill;
           ${NOISE}
           ${POOL_GLSL}`,
         )
@@ -124,6 +125,8 @@ export class Ground3D {
             vec3 gDiff = poolLight(vGW + vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), mix(4.0, 90.0, 1.0 - roughnessFactor), gSpec);
             reflectedLight.directDiffuse += gDiff * material.diffuseColor;
             reflectedLight.directSpecular += gSpec * (1.0 - roughnessFactor) * 0.6;
+            float gLit = dot(reflectedLight.directDiffuse, vec3(0.333));
+            reflectedLight.indirectDiffuse += material.diffuseColor * uShadowFill * 1.3 * (1.0 - smoothstep(0.0, 0.2, gLit));
           }`,
         );
     };

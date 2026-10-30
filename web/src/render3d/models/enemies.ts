@@ -465,7 +465,12 @@ function carnivalBrute(): THREE.BufferGeometry {
   return m.build();
 }
 
-export const ENEMY_MODELS: Record<string, ModelDef> = {
+import { CREATURE_IDS, creatureModel } from './creatures';
+
+/** Enemies big enough to cast real shadows; the crowd gets soft blob shadows (performance). */
+const BIG = new Set(['carousel_horse', 'walking_ticket_booth', 'carnival_brute', 'bumper_car', 'jack_in_the_box', 'jack_open']);
+
+const LEGACY_MODELS: Record<string, ModelDef> = {
   living_balloon: { build: livingBalloon, anim: { a: [0, 0.03, 0, 0], b: [0.1, 0, 0, 0] }, rim: [0.9, 0.5, 0.35, 0.3], hover: 34, shadow: true },
   swarm_balloon: { build: swarmBalloon, anim: { a: [0, 0.04, 0, 0], b: [0.1, 0, 0, 0] }, rim: [0.9, 0.5, 0.35, 0.3], hover: 44, shadow: true },
   wind_up_monkey: { build: windUpMonkey, anim: { a: [2.2, 0.03, 0.7, 0.5], b: [0.12, 3, 0.25, 1.2] }, rim: RIM_WARM, shadow: true },
@@ -485,6 +490,12 @@ export const ENEMY_MODELS: Record<string, ModelDef> = {
   roller_coaster_snake: { build: () => coasterCar(true), anim: { a: [0.5, 0, 0, 0], b: [0, 12, 0.1, 0] }, rim: RIM_WARM, shadow: true },
   snake_seg: { build: () => coasterCar(false), anim: { a: [0.5, 0, 0, 0], b: [0, 12, 0, 0] }, rim: RIM_WARM, shadow: true },
   carnival_brute: { build: carnivalBrute, anim: { a: [2.4, 0.02, 0.4, 0.3], b: [0.08, 0, 0.3, 1.1] }, rim: RIM_WARM, shadow: true },
+};
+
+/** Sculpted, skeletal creatures replace the primitive builds; the coaster snake and mole hole stay rigid. */
+export const ENEMY_MODELS: Record<string, ModelDef> = {
+  ...LEGACY_MODELS,
+  ...Object.fromEntries(CREATURE_IDS.map((id) => [id, { ...LEGACY_MODELS[id], anim: undefined, shadow: BIG.has(id), build: () => creatureModel(id).geo, rig: () => creatureModel(id).rig } as ModelDef])),
 };
 
 export const _unused = { cone, box, bands, eyes, sphere };

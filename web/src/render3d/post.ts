@@ -15,7 +15,7 @@ const GRADE = {
     tDiffuse: { value: null as THREE.Texture | null },
     uTime: { value: 0 },
     uAspect: { value: 1.7 },
-    uSat: { value: 0.72 },
+    uSat: { value: 0.86 },
     uGrain: { value: 0.06 },
     uVig: { value: 0.5 },
     uLowHp: { value: 0 },
@@ -44,8 +44,9 @@ const GRADE = {
       float keep = smoothstep(0.55, 1.0, lum);
       c = mix(vec3(lum), c, mix(uSat, 1.0, keep * 0.6 + uHighContrast * 0.4));
       // split tone: cold shadows, sodium/amber highlights
-      c += vec3(-0.012, 0.0, 0.022) * (1.0 - smoothstep(0.0, 0.35, lum));
-      c += vec3(0.03, 0.012, -0.02) * smoothstep(0.4, 1.0, lum);
+      c += vec3(-0.008, 0.004, 0.03) * (1.0 - smoothstep(0.0, 0.35, lum));
+      c += vec3(0.045, 0.018, -0.025) * smoothstep(0.35, 1.0, lum);
+      c = max(c, vec3(0.006, 0.009, 0.022)); // night lows stay inky blue
       // gentle S-curve
       c = mix(c, c * c * (3.0 - 2.0 * c), 0.25 + uHighContrast * 0.2);
       vec2 p = vUv - 0.5;
@@ -107,7 +108,7 @@ export class Post3D {
     const rt = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType, samples: 0 });
     this.composer = new EffectComposer(renderer, rt);
     this.render = new RenderPass(scene, camera);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.85, 0.55, 0.82);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 1.05, 0.72, 0.66);
     this.output = new OutputPass();
     this.grade = new ShaderPass(GRADE);
     this.composer.addPass(this.render);

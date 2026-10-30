@@ -16,7 +16,9 @@ import { ActorBatch } from './core/batch';
 import { BillboardLayer, DecalBatch, camBasis } from './core/billboard';
 import { actorMaterial, pool, shared } from './core/materials';
 import { CHARACTERS, ENEMY_MODELS, ITEM_MODELS, geometryFor, type ModelDef } from './models';
-import { Ground3D, Mist } from './world/ground';
+import { Ground3D } from './world/ground';
+import { FogLayers, LightShafts, MoonBeams, Motes } from './world/atmosphere';
+import { LAST_SONG } from '../data/quests';
 import { PropSet } from './world/props';
 import { BossRigs } from './bosses';
 import { Post3D } from './post';
@@ -54,7 +56,10 @@ export class GameRenderer3D {
   post: Post3D;
   fx: FxSystem;
   ground: Ground3D;
-  mist: Mist;
+  fog: FogLayers;
+  shafts: LightShafts;
+  motes = new Motes();
+  beams: MoonBeams;
   props: PropSet;
   bosses: BossRigs;
   hemi: THREE.HemisphereLight;
@@ -92,7 +97,15 @@ export class GameRenderer3D {
   private tmpM = new THREE.Matrix4();
   private tmpQ = new THREE.Quaternion();
   private tmpE = new THREE.Euler();
+  private tmpS = new THREE.Vector3();
   private shadowQuality = '';
+  // player animation state (stride-synced run, idle cross-fade, attack flourish, hurt)
+  private pStride = 0;
+  private pMove = 0;
+  private pCastT = 9;
+  private pPrevCd = 0;
+  private pPrevX = 0;
+  private pPrevY = 0;
   /** Dev-only inspection zoom (1 = gameplay framing). */
   zoom = 1;
 
@@ -110,7 +123,7 @@ export class GameRenderer3D {
     this.scene.add(this.camera); // camera-parented overlays (the prize wheel) render in-scene
 
     // ---- lights: cold moon (shadows), dim sky/ground fill, the lantern, a boss spotlight
-    this.hemi = new THREE.HemisphereLight(0x3a4870, 0x1a120c, 0.55);
+    this.hemi = new THREE.HemisphereLight(0x34477a, 0x2a1a10, 0.62);
     this.moon = new THREE.DirectionalLight(0x9fb4dc, 1.25);
     this.moon.castShadow = true;
     this.moon.shadow.bias = -0.0006;
@@ -131,8 +144,9 @@ export class GameRenderer3D {
 
     this.ground = new Ground3D(this.renderer.capabilities.getMaxAnisotropy());
     this.scene.add(this.ground.mesh);
-    this.mist = new Mist();
-    this.scene.add(this.mist.mesh);
+    this.fog = new FogLayers(this.scene);
+    this.shafts = new LightShafts(this.scene);
+    this.beams = new MoonBeams(this.scene);
 
     const tex = assets.atlas.textures;
     this.f = (k: string) => assets.atlas.get(k);
@@ -213,7 +227,6 @@ export class GameRenderer3D {
     this.moon.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     this.lantern.shadow.map?.dispose();
     this.lantern.shadow.map = null as unknown as THREE.WebGLRenderTarget;
-    this.mist.mesh.visible = q !== 'low';
   }
 
   get viewWidth(): number {
@@ -241,7 +254,8 @@ export class GameRenderer3D {
   private batch(key: string, def: ModelDef, cap: number): ActorBatch {
     let b = this.batches.get(key);
     if (!b) {
-      const mat = actorMaterial({ animA: def.anim?.a, animB: def.anim?.b, emitBoost: def.emitBoost ?? 3 });
+      const rig = def.rig?.();
+      const mat = actorMaterial({ animA: def.anim?.a, animB: def.anim?.b, emitBoost: def.emitBoost ?? 3, boneTex: rig?.tex });
       b = new ActorBatch(geometryFor(key, def), mat, cap, { shadow: def.shadow ?? false });
       if (def.rim) b.rim = def.rim;
       this.batches.set(key, b);
@@ -307,7 +321,14 @@ export class GameRenderer3D {
     // ---- lighting
     this.updateLighting(g, px, py, cx, cy, opts.menu ?? false);
     this.ground.update(this.time, this.dawn);
-    this.mist.update(this.time, px, py, g.director.wind, this.dawn, (this.settings.quality === 'high' ? 0.34 : 0.26) * (1 - g.darkness * 0.5));
+    this.fog.update(this.time, px, py, g.director.wind, this.dawn, g.darkness, this.settings.quality);
+    const lsq = g.quests?.get<LastSongChain>('last_song');
+    this.shafts.update(this.time, g.darkness, this.dawn, (x, y) => {
+      const li = LAST_SONG.lamps.findIndex((l) => l.x === x && l.y === y);
+      if (!lsq || li < 0) return 0;
+      return lsq.lit[li] ? 1.2 : (lsq.souls[li] / LAST_SONG.soulsPerLamp) * 0.5;
+    });
+    this.beams.update(this.time, cx, cy, this.dawn, g.darkness);
 
     // occluder dithering focus: the player's framebuffer position and view depth
     const sp = this.worldToScreen(px, py, this.cssW, this.cssH, 40);
@@ -323,6 +344,7 @@ export class GameRenderer3D {
     const inView = (x: number, y: number) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
 
     this.props.update(g, this, inView, dt);
+    this.motes.draw(this.glow, this.f('fx_glow_0'), this.time, inView, (1 - g.darkness * 0.8) * (1 - this.dawn));
     this.drawZones(g, inView);
     this.drawHazards(g);
     this.drawPickups(g, alpha, inView);
@@ -619,11 +641,19 @@ export class GameRenderer3D {
       const bob = Math.sin(this.time * 4 + pk.x * 0.1) * 3;
       switch (pk.kind) {
         case 'ticket': {
+          // neon tickets: tilted toward the camera so the sign reads, gently buzzing, with a halo
           const tier = pk.value >= 8 ? 2 : pk.value >= 3 ? 1 : 0;
           const b = this.batch(`ticket${tier}`, ITEM_MODELS[`ticket${tier}`], 900);
-          const i = b.add(x, y, 10 + bob, this.time * 1.6 + pk.x * 0.01, 1);
-          b.tint(i, 1, 1, 1, 0.7 + 0.3 * Math.sin(this.time * 5 + pk.y));
-          if (tier === 2) G.draw(glowF, x, y, 12, 0.5, 0.5, 0, 1, 0.75, 0.3, 0.45);
+          const buzz = 0.82 + 0.18 * Math.sin(this.time * 6 + pk.x * 0.3) * (Math.sin(this.time * 23 + pk.y) > 0.92 ? 0.3 : 1);
+          this.tmpE.set(-0.75, Math.sin(this.time * 1.3 + pk.x * 0.02) * 0.5, 0, 'YXZ');
+          this.tmpQ.setFromEuler(this.tmpE);
+          const sc = 1.15;
+          this.tmpM.compose(this.tmpV.set(x, 14 + bob, y), this.tmpQ, this.tmpS.set(sc, sc, sc));
+          const i = b.addMatrix(this.tmpM);
+          b.tint(i, 1, 1, 1, buzz);
+          const nc = NEON[tier];
+          G.draw(glowF, x, y, 14 + bob, 0.36 + tier * 0.08, 0.36 + tier * 0.08, 0, nc[0], nc[1], nc[2], 0.3 * buzz);
+          this.addShapes.circle(x, y, 11 + tier * 3, nc[0], nc[1], nc[2], 0.1 * buzz, 0);
           break;
         }
         case 'bank': {
@@ -675,6 +705,7 @@ export class GameRenderer3D {
       const def = ENEMY_MODELS[key];
       if (!def) continue;
       const b = this.batch(key, def, id === 'swarm_balloon' || id === 'living_balloon' || id === 'possessed_stuffie' ? 700 : 400);
+      const rig = def.rig?.();
       const moving = Math.hypot(e.vx, e.vy) > 6;
       const flyer = e.def.behavior === 'flyby' || id === 'living_balloon';
       // face the direction of travel (smoothed); idle enemies keep their last heading
@@ -688,7 +719,16 @@ export class GameRenderer3D {
       const i = b.add(x, y, h, yaw, s * ACTOR_SCALE, 1, ACTOR_STRETCH * (1 - 0.08 * e.windup), 1);
       if (i < 0) continue;
       const telegraph = e.windup > 0 ? e.windup : 0;
-      b.anim(i, e.animT * 9 + e.idx, telegraph, Math.min(1, e.flash * 0.9 + (e.invuln ? 0.25 : 0)), moving || flyer ? 1 : 0.15);
+      const flash = Math.min(1, e.flash * 0.9 + (e.invuln ? 0.25 : 0));
+      if (rig) {
+        // locomotion at a stride rate matched to the enemy's speed, each on its own phase;
+        // the wind-up clip is driven directly by the sim's telegraph
+        const rate = flyer ? 0.55 : Math.max(0.7, Math.min(2.4, e.speed / 85));
+        const ra = rig.row('move', (moving || flyer ? e.animT * rate : this.time * 0.25) + e.idx * 0.37);
+        if (telegraph > 0.02 && rig.has('attack')) b.anim(i, ra, rig.row('attack', telegraph), flash, Math.min(1, telegraph * 2.5));
+        else b.anim(i, ra, ra, flash, 0);
+        if (!def.shadow) this.zoneShapes.circle(x, y, e.r * s * 1.25 + 6, 0, 0, 0, flyer ? 0.18 : 0.42, 0);
+      } else b.anim(i, e.animT * 9 + e.idx, telegraph, flash, moving || flyer ? 1 : 0.15);
       // statuses tint the model; elites wear a gold rim and a crown spark
       if (e.frozenT > 0) b.tint(i, 0.55, 0.8, 1.3);
       else if (e.stickyT > 0) b.tint(i, 1.2, 0.7, 0.95);
@@ -736,9 +776,11 @@ export class GameRenderer3D {
       const yaw = this.smoothYaw(-1000 - si, moving ? Math.atan2(s.x - s.px, s.y - s.py) : (s.face > 0 ? Math.PI / 2 : -Math.PI / 2), dt, 8);
       if (s.kind === 'clone') {
         const def = CHARACTERS[p.char.id];
-        const b = this.batch(`clone_${p.char.id}`, def, 6);
+        const rig = def.rig!();
+        const b = this.batch(`char_${p.char.id}`, def, 6);
         const i = b.add(x, y, 0, yaw, (def.scale ?? 1) * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
-        b.anim(i, s.animT * 8, 0, 0, moving ? 1 : 0.2);
+        const row = moving ? rig.row('move', s.animT * 1.1) : rig.row('idle', this.time / 2.8 + si * 0.3);
+        b.anim(i, row, row, 0, 0);
         b.tint(i, 0.45, 0.65, 1.0);
         b.rimLight(i, 0.5, 0.85, 1, 1.4 + 0.3 * Math.sin(this.time * 8));
         continue;
@@ -811,27 +853,58 @@ export class GameRenderer3D {
     }
   }
 
+  /** Skeletal rows for the player: [rowA, rowB, blend]. */
+  private playerRows(g: Game, dt: number, rigName: string): [number, number, number] {
+    const p = g.player;
+    const rig = CHARACTERS[rigName].rig!();
+    const moved = Math.hypot(p.x - this.pPrevX, p.y - this.pPrevY);
+    this.pPrevX = p.x;
+    this.pPrevY = p.y;
+    const moving = p.moving || p.dashT > 0;
+    this.pMove += ((moving ? 1 : 0) - this.pMove) * (1 - Math.exp(-dt * 10));
+    // stride-locked phase so feet don't skate: ~92 world units per full cycle
+    this.pStride += Math.min(moved, 40) / 92;
+    // the signature weapon firing triggers the attack flourish
+    const sig = g.weapons.list.find((w) => w.def.id === p.char.startWeapon || w.def.evolvedFrom === p.char.startWeapon);
+    if (sig) {
+      if (sig.cd > this.pPrevCd + 0.05) this.pCastT = 0;
+      this.pPrevCd = sig.cd;
+    }
+    this.pCastT += dt / 0.42;
+    const idle = rig.row('idle', this.time / 2.8);
+    const run = rig.row(p.dashT > 0 && rig.has('dash') ? 'dash' : 'move', this.pStride);
+    if (p.hurtFlash > 0) return [this.pMove > 0.5 ? run : idle, rig.row('hurt', 1 - p.hurtFlash / 0.3), 0.85];
+    if (this.pCastT < 1) {
+      const w = Math.min(1, Math.sin(Math.min(1, this.pCastT) * Math.PI) * 1.6);
+      return [this.pMove > 0.5 ? run : idle, rig.row('cast', this.pCastT), w * (this.pMove > 0.5 ? 0.7 : 1)];
+    }
+    if (this.pMove > 0.97) return [run, run, 0];
+    if (this.pMove < 0.03) return [idle, idle, 0];
+    return [run, idle, 1 - this.pMove];
+  }
+
   private drawPlayer(g: Game, px: number, py: number, dt: number): void {
     const p = g.player;
     const def = CHARACTERS[p.char.id];
-    const b = this.batch(`char_${p.char.id}`, def, 2);
+    const b = this.batch(`char_${p.char.id}`, def, 6);
     const moving = p.moving || p.dashT > 0;
-    const target = moving ? Math.atan2(p.vx, p.vy) : p.facing > 0 ? 0.5 : -0.5;
-    const yaw = this.smoothYaw(-1, target, dt, 14);
+    const target = moving ? Math.atan2(p.vx, p.vy) : this.yaw.get(-1) ?? 0;
+    const yaw = this.smoothYaw(-1, target, dt, 12);
     const s = def.scale ?? 1;
+    const [ra, rb, bl] = this.playerRows(g, dt, p.char.id);
     if (p.dashT > 0) {
       // bumper surge afterimages
       for (let k = 1; k <= 3; k++) {
         const j = b.add(px - p.dashX * k * 22, py - p.dashY * k * 22, 0, yaw, s * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
-        b.anim(j, p.animT * 7, 0, 0.5, 1);
+        b.anim(j, ra, rb, 0.5, bl);
         b.tint(j, 1, 0.8, 0.5, 1);
         b.rimLight(j, 1, 0.6, 0.3, 1.2);
       }
     }
     const i = b.add(px, py, 0, yaw, s * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
-    const strobe = p.hurtFlash > 0 ? (Math.floor(this.time * 30) & 1 ? 0.85 : 0) : 0;
+    const strobe = p.hurtFlash > 0 ? (Math.floor(this.time * 30) & 1 ? 0.6 : 0) : 0;
     const iBlink = p.iframes > 0 && p.hurtFlash <= 0 && p.iframes < 5 ? (Math.floor(this.time * 20) & 1 ? 0.3 : 0) : 0;
-    b.anim(i, p.animT * 7, 0, Math.max(strobe, iBlink), moving ? 1 : 0.12);
+    b.anim(i, ra, rb, Math.max(strobe, iBlink), bl);
     if (strobe) b.tint(i, 1.4, 0.5, 0.5);
     // the balloon shield bobs above the Lost Child
     if (p.char.quirk === 'balloon_shield' && p.shieldReady) {
@@ -916,6 +989,8 @@ export class GameRenderer3D {
 const BALLOON_TINTS: [number, number, number][] = [
   [0.62, 0.1, 0.08], [0.66, 0.46, 0.1], [0.12, 0.34, 0.34], [0.38, 0.14, 0.42], [0.62, 0.55, 0.4], [0.24, 0.38, 0.12],
 ];
+/** Neon colours per ticket tier (blue → green → gold). */
+const NEON: [number, number, number][] = [[0.12, 0.5, 1], [0.15, 0.95, 0.4], [1, 0.7, 0.12]];
 const PLUSH_TINTS: [number, number, number][] = [[0.75, 0.55, 0.4], [0.9, 0.85, 0.75], [0.6, 0.62, 0.68], [0.85, 0.6, 0.6]];
 
 function orbGeo(): THREE.BufferGeometry {

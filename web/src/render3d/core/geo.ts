@@ -268,7 +268,7 @@ export class ModelBuilder {
       g.computeVertexNormals();
     }
     const n = g.attributes.position.count;
-    const col = new Float32Array(n * 3), part = new Float32Array(n), piv = new Float32Array(n * 3), emit = new Float32Array(n), surf = new Float32Array(n * 2);
+    const col = new Float32Array(n * 3), part = new Float32Array(n), piv = new Float32Array(n * 3), surf = new Float32Array(n * 3);
     const P = g.attributes.position as THREE.BufferAttribute, N = g.attributes.normal as THREE.BufferAttribute;
     const fixed = typeof o.col === 'function' ? null : o.col instanceof THREE.Color ? o.col : C(o.col ?? 0xffffff);
     const fn = typeof o.col === 'function' ? o.col : null;
@@ -291,15 +291,14 @@ export class ModelBuilder {
       piv[i * 3] = pv[0];
       piv[i * 3 + 1] = pv[1];
       piv[i * 3 + 2] = pv[2];
-      emit[i] = em;
-      surf[i * 2] = sf[0];
-      surf[i * 2 + 1] = sf[1];
+      surf[i * 3] = sf[0];
+      surf[i * 3 + 1] = sf[1];
+      surf[i * 3 + 2] = em;
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     g.setAttribute('aPart', new THREE.BufferAttribute(part, 1));
     g.setAttribute('aPivot', new THREE.BufferAttribute(piv, 3));
-    g.setAttribute('aEmit', new THREE.BufferAttribute(emit, 1));
-    g.setAttribute('aSurf', new THREE.BufferAttribute(surf, 2));
+    g.setAttribute('aSurf', new THREE.BufferAttribute(surf, 3));
     this.parts.push(g);
     return this;
   }

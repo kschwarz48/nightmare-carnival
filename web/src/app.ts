@@ -76,8 +76,10 @@ export class App {
     }
     await new Promise((r) => requestAnimationFrame(() => r(null)));
     const t0 = performance.now();
-    this.assets.build((p) => ld.set(p, tips[Math.min(tips.length - 1, Math.floor(p * tips.length))]));
+    this.assets.build((p) => ld.set(p * 0.7, tips[Math.min(tips.length - 1, Math.floor(p * tips.length))]));
     const t1 = performance.now();
+    const { warmModels } = await import('./render3d/models');
+    await warmModels((p) => ld.set(0.7 + p * 0.3, 'Sculpting the crowd…'), [this.save.data.last.character]);
     ld.set(1, 'Opening the gates…');
     this.renderer = new GameRenderer3D(this.canvas, this.assets);
     const t2 = performance.now();

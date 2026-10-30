@@ -23,7 +23,7 @@ vec3 poolLight(vec3 wp, vec3 wn, float shin, inout vec3 spec) {
     if (k <= 0.0) continue;
     k *= k;
     vec3 Ld = L * inversesqrt(max(d2, 1.0));
-    float lam = max(dot(wn, Ld), 0.0) * 0.8 + 0.2;
+    float lam = pow(max(dot(wn, Ld) * 0.6 + 0.4, 0.0), 1.4); // soft wrap: light spills round forms
     vec3 c = uPoolB[i].rgb * k;
     acc += c * lam;
     vec3 H = normalize(Ld + uViewDir);

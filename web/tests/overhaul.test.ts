@@ -335,7 +335,8 @@ describe('3D model library (D-35/D-38)', () => {
     expect(p.count, name).toBeGreaterThan(30);
     expect(p.count, name).toBeLessThan(160000);
     for (let i = 0; i < p.count; i += 7) expect(Number.isFinite(p.getX(i) + p.getY(i) + p.getZ(i)), name).toBe(true);
-    for (const a of ['normal', 'color', 'aPart', 'aPivot', 'aEmit', 'aSurf']) expect(g.getAttribute(a), `${name}.${a}`).toBeTruthy();
+    for (const a of ['normal', 'color', 'aSurf']) expect(g.getAttribute(a), `${name}.${a}`).toBeTruthy();
+    expect(g.getAttribute('aPart') || g.getAttribute('aSkin'), `${name} rig`).toBeTruthy();
   };
 
   it('every character, enemy, pickup, projectile, bullet and summon has a valid model', () => {

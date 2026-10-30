@@ -17,13 +17,16 @@ export const pool = new PoolLights();
 export const shared = {
   uFocus: { value: new THREE.Vector4(-1e5, -1e5, 0, 1) },
   uTime: { value: 0 },
+  /** Colour poured into unlit areas: night shadows read deep blue-violet, never dead grey (D-41). */
+  uShadowFill: { value: new THREE.Vector3(0.045, 0.06, 0.13) },
 };
 
 const V_HEAD = /* glsl */ `
+attribute vec3 aSurf;   // roughness, metalness, emissive amount
+#ifndef NC_SKIN
 attribute float aPart;
 attribute vec3 aPivot;
-attribute float aEmit;
-attribute vec2 aSurf;
+#endif
 #ifdef USE_INSTANCING
 attribute vec4 iAnim;
 attribute vec4 iTint;
@@ -34,6 +37,7 @@ uniform vec4 uAnimB;   // head nod, spin rate, wind-up lean, wind-up arm raise
 uniform vec4 uObjAnim; // non-instanced: phase, wind-up, flash, move
 uniform vec4 uObjTint;
 uniform vec4 uObjRim;
+#ifndef NC_SKIN
 mat3 ncRotX(float a) { float c = cos(a), s = sin(a); return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c); }
 mat3 ncRotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }
 mat3 ncRotZ(float a) { float c = cos(a), s = sin(a); return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0); }
@@ -52,6 +56,20 @@ mat3 ncBodyRot(vec4 an) {
   // waddle while walking; lean back during a wind-up (the readable telegraph)
   return ncRotX(-an.y * uAnimB.z) * ncRotZ(sin(an.x) * 0.07 * an.w * step(0.001, uAnimA.x));
 }
+#endif
+#ifdef NC_SKIN
+attribute vec4 aSkin;   // bone 0, bone 1, weight 0, weight 1
+uniform sampler2D uBoneTex;
+void ncFetch(float b, float row, out vec4 r0, out vec4 r1, out vec4 r2) {
+  ivec2 c = ivec2(int(b + 0.5) * 3, int(row + 0.5));
+  r0 = texelFetch(uBoneTex, c, 0);
+  r1 = texelFetch(uBoneTex, c + ivec2(1, 0), 0);
+  r2 = texelFetch(uBoneTex, c + ivec2(2, 0), 0);
+}
+vec3 ncXf(vec4 r0, vec4 r1, vec4 r2, vec3 p) { vec4 P = vec4(p, 1.0); return vec3(dot(r0, P), dot(r1, P), dot(r2, P)); }
+vec3 ncXn(vec4 r0, vec4 r1, vec4 r2, vec3 n) { return vec3(dot(r0.xyz, n), dot(r1.xyz, n), dot(r2.xyz, n)); }
+#endif
+#ifndef NC_SKIN
 vec3 ncAnimate(vec3 p, mat3 R, mat3 B, vec4 an) {
   p = aPivot + R * (p - aPivot);
   float sq = 1.0 + sin(an.x * 2.0) * uAnimA.y * an.w - an.y * 0.1 * uAnimB.z;
@@ -61,6 +79,7 @@ vec3 ncAnimate(vec3 p, mat3 R, mat3 B, vec4 an) {
   p.y += abs(sin(an.x)) * uAnimA.x * an.w;
   return p;
 }
+#endif
 `;
 
 const V_VARY = /* glsl */ `
@@ -80,8 +99,45 @@ vec4 ncAn = iAnim;
 #else
 vec4 ncAn = uObjAnim;
 #endif
+#ifdef NC_SKIN
+// iAnim = (row A, row B, flash, blend A→B)
+vec4 ncA0 = vec4(0.0), ncA1 = vec4(0.0), ncA2 = vec4(0.0), ncB0 = vec4(0.0), ncB1 = vec4(0.0), ncB2 = vec4(0.0);
+vec4 ncC0 = vec4(0.0), ncC1 = vec4(0.0), ncC2 = vec4(0.0), ncD0 = vec4(0.0), ncD1 = vec4(0.0), ncD2 = vec4(0.0);
+ncFetch(aSkin.x, ncAn.x, ncA0, ncA1, ncA2);
+ncFetch(aSkin.y, ncAn.x, ncB0, ncB1, ncB2);
+float ncBl = ncAn.w;
+if (ncBl > 0.001) {
+  ncFetch(aSkin.x, ncAn.y, ncC0, ncC1, ncC2);
+  ncFetch(aSkin.y, ncAn.y, ncD0, ncD1, ncD2);
+}
+#else
 mat3 ncR = ncPartRot(aPart, ncAn);
 mat3 ncB = ncBodyRot(ncAn);
+#endif
+`;
+
+const V_SKIN_N = /* glsl */ `
+#ifdef NC_SKIN
+{
+  vec3 nA = ncXn(ncA0, ncA1, ncA2, objectNormal) * aSkin.z + ncXn(ncB0, ncB1, ncB2, objectNormal) * aSkin.w;
+  if (ncBl > 0.001) nA = mix(nA, ncXn(ncC0, ncC1, ncC2, objectNormal) * aSkin.z + ncXn(ncD0, ncD1, ncD2, objectNormal) * aSkin.w, ncBl);
+  objectNormal = normalize(nA);
+}
+#else
+objectNormal = ncB * (ncR * objectNormal);
+#endif
+`;
+
+const V_SKIN_P = /* glsl */ `
+#ifdef NC_SKIN
+{
+  vec3 pA = ncXf(ncA0, ncA1, ncA2, transformed) * aSkin.z + ncXf(ncB0, ncB1, ncB2, transformed) * aSkin.w;
+  if (ncBl > 0.001) pA = mix(pA, ncXf(ncC0, ncC1, ncC2, transformed) * aSkin.z + ncXf(ncD0, ncD1, ncD2, transformed) * aSkin.w, ncBl);
+  transformed = pA;
+}
+#else
+transformed = ncAnimate(transformed, ncR, ncB, ncAn);
+#endif
 `;
 
 const F_HEAD = /* glsl */ `
@@ -95,6 +151,7 @@ varying vec3 vWNor;
 varying float vViewZ;
 uniform float uEmitBoost;
 uniform vec4 uFocus;
+uniform vec3 uShadowFill;
 ${POOL_GLSL}
 float ncBayer(vec2 p) {
   ivec2 q = ivec2(mod(p, 4.0));
@@ -114,6 +171,8 @@ export interface ActorMatOpts {
   side?: THREE.Side;
   transparent?: boolean;
   opacity?: number;
+  /** Skeletal rig: the material skins with this bone texture (two bones per vertex). */
+  boneTex?: THREE.Texture;
 }
 
 interface NcData {
@@ -123,16 +182,17 @@ interface NcData {
   uObjTint: THREE.IUniform<THREE.Vector4>;
   uObjRim: THREE.IUniform<THREE.Vector4>;
   uEmitBoost: THREE.IUniform<number>;
+  uBoneTex?: THREE.IUniform<THREE.Texture>;
 }
 
 // One shared function object per material kind so three's program cache can share compiled programs.
 function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWithUniforms): void {
   const d = this.userData.nc as NcData;
-  Object.assign(shader.uniforms, d, pool.uniforms, { uFocus: shared.uFocus });
+  Object.assign(shader.uniforms, d, pool.uniforms, { uFocus: shared.uFocus, uShadowFill: shared.uShadowFill });
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>\n${V_HEAD}\n${V_VARY}`)
-    .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>\n${V_AN}\nobjectNormal = ncB * (ncR * objectNormal);`)
-    .replace('#include <begin_vertex>', `#include <begin_vertex>\ntransformed = ncAnimate(transformed, ncR, ncB, ncAn);`)
+    .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>\n${V_AN}\n${V_SKIN_N}`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>\n${V_SKIN_P}`)
     .replace(
       '#include <project_vertex>',
       `#include <project_vertex>
@@ -149,8 +209,8 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
       vWPos = ncW.xyz;
       vWNor = normalize(mat3(modelMatrix) * ncN);
       vViewZ = -mvPosition.z;
-      vEmit = aEmit;
-      vSurf = aSurf;`,
+      vEmit = aSurf.z;
+      vSurf = aSurf.xy;`,
     );
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', `#include <common>\n${F_HEAD}`)
@@ -180,6 +240,8 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
         vec3 ncDiff = poolLight(vWPos, normalize(vWNor), mix(6.0, 48.0, 1.0 - roughnessFactor), ncSpec);
         reflectedLight.directDiffuse += ncDiff * material.diffuseColor;
         reflectedLight.directSpecular += ncSpec * material.specularColor * (1.15 - roughnessFactor);
+        float ncLit = dot(reflectedLight.directDiffuse, vec3(0.333));
+        reflectedLight.indirectDiffuse += material.diffuseColor * uShadowFill * (1.0 - smoothstep(0.0, 0.22, ncLit)) * (0.6 + 0.4 * normal.y);
       }`,
     )
     .replace(
@@ -198,7 +260,7 @@ function ncDepthCompile(this: THREE.Material, shader: THREE.WebGLProgramParamete
   Object.assign(shader.uniforms, d);
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>\n${V_HEAD}`)
-    .replace('#include <begin_vertex>', `#include <begin_vertex>\n${V_AN}\ntransformed = ncAnimate(transformed, ncR, ncB, ncAn);`);
+    .replace('#include <begin_vertex>', `#include <begin_vertex>\n${V_AN}\n${V_SKIN_P}`);
 }
 
 export function actorMaterial(o: ActorMatOpts = {}): THREE.MeshStandardMaterial {
@@ -221,8 +283,11 @@ export function actorMaterial(o: ActorMatOpts = {}): THREE.MeshStandardMaterial 
     uObjRim: { value: new THREE.Vector4(0, 0, 0, 0) },
     uEmitBoost: { value: o.emitBoost ?? 3 },
   };
+  if (o.boneTex) nc.uBoneTex = { value: o.boneTex };
   m.userData.nc = nc;
-  if (o.dither) m.defines = { NC_DITHER: '' };
+  m.defines = {};
+  if (o.dither) m.defines.NC_DITHER = '';
+  if (o.boneTex) m.defines.NC_SKIN = '';
   m.onBeforeCompile = ncCompile;
   return m;
 }
@@ -231,6 +296,7 @@ export function actorMaterial(o: ActorMatOpts = {}): THREE.MeshStandardMaterial 
 export function actorDepthMaterial(src: THREE.MeshStandardMaterial): THREE.MeshDepthMaterial {
   const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   m.userData.nc = src.userData.nc;
+  if (src.defines?.NC_SKIN !== undefined) m.defines = { NC_SKIN: '' };
   m.onBeforeCompile = ncDepthCompile;
   return m;
 }
