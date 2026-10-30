@@ -103,12 +103,15 @@ export class Post3D {
   private grade: ShaderPass;
   private output: OutputPass;
   quality: 'low' | 'medium' | 'high' = 'high';
+  /** Scales bloom (eased down while a large, bulb-studded overlay like the prize wheel fills the screen). */
+  bloomScale = 1;
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
     const rt = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType, samples: 0 });
     this.composer = new EffectComposer(renderer, rt);
     this.render = new RenderPass(scene, camera);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 1.05, 0.72, 0.66);
+    // radius≈1 weights the widest mips most: soft, diffuse halos instead of glows shaped like their source
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.85, 0.98, 0.74);
     this.output = new OutputPass();
     this.grade = new ShaderPass(GRADE);
     this.composer.addPass(this.render);
@@ -135,6 +138,7 @@ export class Post3D {
   update(p: PostParams): void {
     const u = this.grade.uniforms;
     u.uTime.value = p.time;
+    this.bloom.strength = 0.85 * this.bloomScale;
     u.uLowHp.value = p.lowHp;
     u.uHurt.value = p.hurt;
     u.uDark.value = p.darkness;

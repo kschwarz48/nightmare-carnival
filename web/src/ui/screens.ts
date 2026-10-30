@@ -152,7 +152,7 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
   const total = Math.max(1, st.weapons.reduce((n, w) => n + w.damage, 0));
   const ch = CHARACTER_MAP[st.character];
   const won = st.won;
-  const flavor = st.endless ? `Locked in for ${fmtTime(st.endlessTime)} past dawn.` : won ? 'The sun crests the sea. The rides fall silent — until tomorrow night.' : st.time >= 1440 ? 'So close to dawn… the Ringmaster takes a bow over you.' : st.time >= 720 ? 'The carnival claims another fool. Your ticket stubs scatter in the wind.' : 'Lights out. The calliope plays on without you.';
+  const flavor = st.trueEnding ? 'The last note fades. The Calliope falls silent, and for one night the carnival truly sleeps.' : st.endless ? `Locked in for ${fmtTime(st.endlessTime)} past dawn.` : won ? 'The sun crests the sea. The rides fall silent — until tomorrow night.' : st.time >= 1440 ? 'So close to dawn… the Ringmaster takes a bow over you.' : st.time >= 720 ? 'The carnival claims another fool. Your ticket stubs scatter in the wind.' : 'Lights out. The calliope plays on without you.';
   const payout = h('div', { class: 'payout' }, '+0');
   let shown = 0;
   const step = () => {
@@ -166,7 +166,7 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
   if (actions.endless && won && !st.endless) buttons.append(btn('Lock In (Endless)', () => { c.click(); actions.endless!(); }, 'red'));
   buttons.append(btn(st.daily ? 'Menu' : 'Run Again', () => { c.click(); (st.daily ? actions.menu : actions.again)(); }, '', { 'data-default': '' }), btn('Lost & Found', () => { c.click(); actions.lostfound(); }, 'purple'), btn('Main Menu', () => { c.click(); actions.menu(); }, 'small'));
   return h('div', { class: 'screen results dim' }, h('div', { class: 'panel bulbs' },
-    h('h1', { class: `title-text ${won ? 'win' : 'lose'}` }, st.endless ? 'CURTAIN CALL' : won ? 'DAWN!' : 'YOU DIED'),
+    h('h1', { class: `title-text ${won ? 'win' : 'lose'}` }, st.trueEnding ? 'THE LAST SONG' : st.endless ? 'CURTAIN CALL' : won ? 'DAWN!' : 'YOU DIED'),
     h('div', { class: 'flavor' }, flavor),
     h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.8em' } }, h('img', { src: c.assets.portrait(st.character), style: { width: '64px', height: '64px', borderRadius: '50%', border: '3px solid #17110e' } }), h('div', {}, h('b', {}, ch?.name ?? ''), h('div', { class: 'muted' }, `${st.difficulty[0].toUpperCase()}${st.difficulty.slice(1)}${st.curse ? ' · Cursed' : ''}${st.daily ? ' · Daily' : ''}`))),
     h('div', { class: 'stat-grid' },
@@ -177,6 +177,7 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
     ),
     h('table', { class: 'dmg-table' }, ...rows),
     payout,
+    st.voucherTickets > 0 ? h('div', { class: 'unlock-note' }, `+${fmtNum(st.voucherTickets)} Lost Tickets were already banked from Lost & Found vouchers.`) : null,
     ...extra.achievements.map((a, i) => h('div', { class: 'achievement', style: { animationDelay: `${0.4 + i * 0.15}s` } }, `★ ${a}`)),
     ...extra.newUnlocks.map((u) => h('div', { class: 'unlock-note' }, u)),
     buttons,

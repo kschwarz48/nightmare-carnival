@@ -45,7 +45,7 @@ export class PrizeWheel {
   private highlight: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
   private dim: THREE.Mesh;
   private dimMat: THREE.MeshBasicMaterial;
-  private mat = actorMaterial({ emitBoost: 3.2, envIntensity: 0.8 });
+  private mat = actorMaterial({ emitBoost: 1.6, envIntensity: 0.7 });
   private bulbs: ActorBatch;
   private bulbMats: THREE.Matrix4[] = [];
   private spot: THREE.SpotLight;
@@ -103,14 +103,14 @@ export class PrizeWheel {
     this.jaw.position.set(0, 372, 6);
     this.jaw.add(new THREE.Mesh(jm.build({ ao: 0 }), this.mat));
     this.board.add(this.jaw);
-    const sign = signMesh('PRIZE WHEEL', 360, 54, { glow: 0.9, color: '#f0dca8' });
+    const sign = signMesh('PRIZE WHEEL', 360, 54, { glow: 0.35, color: '#f0dca8' });
     sign.position.set(0, 300, -10);
     this.board.add(sign);
     // marquee bulbs around the arch (instanced so they can chase)
     const bulbGeo = new ModelBuilder();
-    bulb(bulbGeo, [0, 0, 0], 7, 0xffffff, 0, undefined, 1);
+    bulb(bulbGeo, [0, 0, 0], 5.5, 0xffffff, 0, undefined, 1);
     const pts = arch.getSpacedPoints(44);
-    this.bulbs = new ActorBatch(bulbGeo.build({ ao: 0 }), actorMaterial({ emitBoost: 4 }), pts.length, { receive: false });
+    this.bulbs = new ActorBatch(bulbGeo.build({ ao: 0 }), actorMaterial({ emitBoost: 1.35 }), pts.length, { receive: false });
     for (let i = 0; i < pts.length; i++) this.bulbMats.push(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(pts[i].x * 0.97, pts[i].y * 0.97, -12));
     this.board.add(this.bulbs.mesh);
     // ---- the wheel: painted wedges, brass rim and pegs, a sun-faced hub, icons on every wedge
@@ -192,11 +192,12 @@ export class PrizeWheel {
     this.card.visible = false;
     this.root.add(this.card);
     // stage lighting for the booth
-    this.spot = new THREE.SpotLight(0xffd9a0, 0, 2400, 0.55, 0.6, 1.2);
+    // inverse-square with a hard cutoff: the stage lights touch the booth, never the world behind
+    this.spot = new THREE.SpotLight(0xffd9a0, 0, 1900, 0.5, 0.6, 2);
     this.spot.position.set(0, 900, 900);
     this.spot.target.position.set(0, 0, 0);
     this.root.add(this.spot, this.spot.target);
-    this.fill = new THREE.PointLight(0xff9a5a, 0, 1600, 1.2);
+    this.fill = new THREE.PointLight(0xff9a5a, 0, 950, 2);
     this.fill.position.set(-300, -100, 500);
     this.root.add(this.fill);
     for (const o of [boardMesh]) o.renderOrder = 21;
@@ -345,8 +346,8 @@ export class PrizeWheel {
     const ease = 1 - Math.pow(1 - up, 3);
     this.board.position.y = (1 - ease) * -900;
     this.dimMat.opacity = 0.72 * ease;
-    this.spot.intensity = 2.6e6 * ease * (this.evoShow ? 0.7 : 1);
-    this.fill.intensity = 1.2e5 * ease;
+    this.spot.intensity = 3.0e6 * ease * (this.evoShow ? 0.75 : 1);
+    this.fill.intensity = 1.8e5 * ease;
     this.spot.color.setRGB(1, this.evoShow ? 0.55 : 0.85, this.evoShow ? 0.4 : 0.62);
     // marquee chase: faster while spinning, red-gold strobe for evolutions
     const speed = this.phase === 'spin' ? 18 : 5;

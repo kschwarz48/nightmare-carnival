@@ -17,7 +17,7 @@ import { BillboardLayer, DecalBatch, camBasis } from './core/billboard';
 import { actorMaterial, pool, shared } from './core/materials';
 import { CHARACTERS, ENEMY_MODELS, ITEM_MODELS, geometryFor, type ModelDef } from './models';
 import { Ground3D } from './world/ground';
-import { FogLayers, LightShafts, MoonBeams, Motes } from './world/atmosphere';
+import { LightShafts, Motes } from './world/atmosphere';
 import { LAST_SONG } from '../data/quests';
 import { PropSet } from './world/props';
 import { BossRigs } from './bosses';
@@ -56,10 +56,8 @@ export class GameRenderer3D {
   post: Post3D;
   fx: FxSystem;
   ground: Ground3D;
-  fog: FogLayers;
   shafts: LightShafts;
   motes = new Motes();
-  beams: MoonBeams;
   props: PropSet;
   bosses: BossRigs;
   hemi: THREE.HemisphereLight;
@@ -118,7 +116,7 @@ export class GameRenderer3D {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.camera = new THREE.OrthographicCamera(-800, 800, 500, -500, 10, 9000);
-    this.scene.fog = new THREE.FogExp2(0x07080d, 0.00016);
+    this.scene.fog = new THREE.FogExp2(0x0b1324, 0.00022);
     this.scene.background = new THREE.Color(0x030306);
     this.scene.add(this.camera); // camera-parented overlays (the prize wheel) render in-scene
 
@@ -144,9 +142,7 @@ export class GameRenderer3D {
 
     this.ground = new Ground3D(this.renderer.capabilities.getMaxAnisotropy());
     this.scene.add(this.ground.mesh);
-    this.fog = new FogLayers(this.scene);
     this.shafts = new LightShafts(this.scene);
-    this.beams = new MoonBeams(this.scene);
 
     const tex = assets.atlas.textures;
     this.f = (k: string) => assets.atlas.get(k);
@@ -255,7 +251,7 @@ export class GameRenderer3D {
     let b = this.batches.get(key);
     if (!b) {
       const rig = def.rig?.();
-      const mat = actorMaterial({ animA: def.anim?.a, animB: def.anim?.b, emitBoost: def.emitBoost ?? 3, boneTex: rig?.tex });
+      const mat = actorMaterial({ animA: def.anim?.a, animB: def.anim?.b, emitBoost: def.emitBoost ?? 3, boneTex: rig?.tex, matte: !!rig || key.startsWith('s_') });
       b = new ActorBatch(geometryFor(key, def), mat, cap, { shadow: def.shadow ?? false });
       if (def.rim) b.rim = def.rim;
       this.batches.set(key, b);
@@ -321,14 +317,15 @@ export class GameRenderer3D {
     // ---- lighting
     this.updateLighting(g, px, py, cx, cy, opts.menu ?? false);
     this.ground.update(this.time, this.dawn);
-    this.fog.update(this.time, px, py, g.director.wind, this.dawn, g.darkness, this.settings.quality);
+    shared.uMistTime.value = this.time;
+    shared.uMistWind.value.set(Math.cos(g.director.wind), Math.sin(g.director.wind));
+    shared.uMistDensity.value = (this.settings.quality === 'low' ? 0.28 : 0.36) * (1 + g.darkness * 0.5) * (1 - this.dawn * 0.6);
     const lsq = g.quests?.get<LastSongChain>('last_song');
     this.shafts.update(this.time, g.darkness, this.dawn, (x, y) => {
       const li = LAST_SONG.lamps.findIndex((l) => l.x === x && l.y === y);
       if (!lsq || li < 0) return 0;
       return lsq.lit[li] ? 1.2 : (lsq.souls[li] / LAST_SONG.soulsPerLamp) * 0.5;
     });
-    this.beams.update(this.time, cx, cy, this.dawn, g.darkness);
 
     // occluder dithering focus: the player's framebuffer position and view depth
     const sp = this.worldToScreen(px, py, this.cssW, this.cssH, 40);
@@ -424,7 +421,7 @@ export class GameRenderer3D {
       const l = LIGHTS[i];
       const t = this.time * 7 + i * 13.1;
       const fl = l.flicker > 0 ? 1 - l.flicker * (Math.sin(t) * 0.5 + 0.5) * (Math.sin(t * 2.7) > 0.6 ? 1 : 0.15) : 1;
-      pool.add(l.x, l.y, l.r * 1.15, l.intensity * 1.6 * fl, l.color[0], l.color[1], l.color[2], 150);
+      pool.add(l.x, l.y, l.r * 1.05, l.intensity * 1.15 * fl, l.color[0], l.color[1], l.color[2], 150);
     }
     this.props.addLights(g, this.time);
     pool.end();

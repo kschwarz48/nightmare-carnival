@@ -130,9 +130,9 @@ describe('XP & leveling', () => {
     let prev = 0;
     for (let l = 1; l < 80; l++) {
       const c = g.xpCurve(l);
-      if (l === 21 || l === 41) expect(c).toBeLessThan(g.xpCurve(l - 1)); // just after a plateau
+      if (l === 21 || l === 41 || l === 61) expect(c).toBeLessThan(g.xpCurve(l - 1)); // just after a plateau
       else expect(c).toBeGreaterThan(prev);
-      if (l === 20 || l === 40) expect(c).toBeGreaterThan(g.xpCurve(l + 1)); // the plateau itself
+      if (l === 20 || l === 40 || l === 60) expect(c).toBeGreaterThan(g.xpCurve(l + 1)); // the plateau itself
       prev = c;
     }
     g.addXp(g.xpToNext * 3); // several levels at once

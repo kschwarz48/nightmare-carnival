@@ -50,6 +50,10 @@ function stall(m: M, hw: number, hh: number, wall: number, a: number, b: number)
   // corner posts
   for (const s of [-1, 1]) m.add(cyl(2.4, 2.8, 128, 8), { col: weather(PAL.cream, 0.5, 0.06, PAL.woodPale), pos: [s * (hw - 3), 64, hh - 2], surf: SURF.wood });
   awning(m, w + 10, 34, 120, hh + 6, a, b);
+  // a hanging lantern under the awning — the stall's own warm light
+  m.add(cyl(0.5, 0.5, 14, 4), { col: PAL.iron, pos: [0, 112, hh - 4], surf: SURF.iron });
+  m.add(cyl(5, 6, 3, 8), { col: PAL.brass, pos: [0, 104, hh - 4], surf: SURF.brass });
+  m.add(sphere(5.6, 10, 8), { col: PAL.amber, pos: [0, 98, hh - 4], emit: 1, surf: SURF.bulb });
   // sign board on top
   m.add(rbox(w * 0.7, 22, 3, 2, 1), { col: weather(PAL.woodDark, 0.4), pos: [0, 136, -hh + 6], surf: SURF.wood });
   bulbRow(m, -w * 0.32, w * 0.32, 149, -hh + 8, 7);
@@ -152,7 +156,7 @@ export function ticketBooth(): THREE.BufferGeometry {
   plankWall(m, 70, 150, [60, 0, 76], 0, wood);
   // window with iron bars and a dusty counter
   m.add(rbox(52, 30, 8, 2, 1), { col: weather(PAL.woodDark, 0.4), pos: [0, 30, 78], surf: SURF.wood });
-  m.add(box(50, 60, 1), { col: 0x14181c, pos: [0, 82, 74], surf: SURF.glass, emit: 0.05 });
+  m.add(box(50, 60, 1), { col: 0xe0a050, pos: [0, 82, 74], surf: SURF.glass, emit: 0.8 });
   for (let i = 0; i < 6; i++) m.add(cyl(0.9, 0.9, 60, 5), { col: PAL.iron, pos: [-21 + i * 8.4, 82, 77], surf: SURF.iron });
   m.add(torus(26, 2.4, 6, 16, Math.PI), { col: weather(PAL.woodDark, 0.4), pos: [0, 112, 77], surf: SURF.wood });
   // pagoda roof with upturned corners

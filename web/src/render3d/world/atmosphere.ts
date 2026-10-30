@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import { LIGHTS, MAP_HALF, PROPS, SEA_Y } from '../../data/map';
-import { EXTENT } from '../../render/ground';
+import { EXTENT } from './paint';
 import { POOL_GLSL } from '../core/pool';
 import { pool } from '../core/materials';
 import type { BillboardLayer } from '../core/billboard';
@@ -94,7 +94,7 @@ export class LightShafts {
     this.uTime.value = time;
     const on = (1 - darkness * 0.92) * (1 - dawn);
     this.shafts.forEach((s, i) => {
-      let k = s.kind === 'light' ? 0.12 : 0.17;
+      let k = s.kind === 'light' ? 0.08 : 0.12;
       if (s.kind === 'lamp') k *= Math.sin(time * 9 + s.k) > 0.93 ? 0.35 : 1;
       if (s.kind === 'light' && s.flicker > 0) {
         const t = time * 7 + s.k;

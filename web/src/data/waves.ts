@@ -14,7 +14,7 @@ export interface WaveDef {
 }
 
 export const WAVES: WaveDef[] = [
-  { id: 'w_0000', start: 0, enemies: [['living_balloon', 100]], minAlive: 14, maxAlive: 50, interval: 1.1, batch: 2 },
+  { id: 'w_0000', start: 0, enemies: [['living_balloon', 100]], minAlive: 22, maxAlive: 60, interval: 0.8, batch: 3 },
   { id: 'w_0100', start: 60, enemies: [['living_balloon', 70], ['wind_up_monkey', 30]], minAlive: 22, maxAlive: 85, interval: 1.0, batch: 2 },
   { id: 'w_0200', start: 120, enemies: [['living_balloon', 65], ['wind_up_monkey', 35]], minAlive: 28, maxAlive: 120, interval: 0.95, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 8, size: 28 } },
   { id: 'w_0300', start: 180, enemies: [['possessed_stuffie', 55], ['living_balloon', 15], ['wind_up_monkey', 30]], minAlive: 30, maxAlive: 150, interval: 0.9, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 7.5, size: 32 } },

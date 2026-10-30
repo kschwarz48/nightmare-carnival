@@ -632,6 +632,8 @@ export class App {
       g!.input.aimX = this.input.aimX;
       g!.input.aimY = this.input.aimY;
       g!.input.aimActive = this.input.aimActive;
+      const pb = this.renderer.post;
+      pb.bloomScale += ((this.prize.active ? 0.35 : 1) - pb.bloomScale) * Math.min(1, dt * 6);
       this.prize.update(dt, (k) => {
         this.renderer.fx.screenFlash = Math.max(this.renderer.fx.screenFlash, k);
         this.renderer.fx.screenFlashCol = [1, 0.85, 0.7];

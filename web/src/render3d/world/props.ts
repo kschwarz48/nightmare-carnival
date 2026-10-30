@@ -113,6 +113,8 @@ export class PropSet {
   private bell: ActorBatch;
   private bulbs: StaticBatch;
   private bulbInfo: { x: number; y: number; run: number; k: number }[] = [];
+  private bulbH: number[] = [];
+  private glowF: import('../../render/atlas').Frame | null = null;
   private carouselAngle = 0;
   private carouselSpeed = 0.04;
   private carousel = PROPS.find((p) => p.kind === 'carousel')!;
@@ -196,13 +198,14 @@ export class PropSet {
     const wm = new THREE.Mesh(wire.build({ ao: 0 }), actorMaterial({}));
     wm.frustumCulled = false;
     scene.add(wm);
-    const bulbGeo = new ModelBuilder().add(sphere(2.6, 6, 4), { col: 0xffffff, emit: 1, surf: SURF.bulb }).add(cyl(1.2, 1.2, 2.4, 5), { col: 0x6a5428, pos: [0, 2.8, 0], surf: SURF.brass }).build({ ao: 0 });
-    this.bulbs = new StaticBatch(bulbGeo, actorMaterial({ emitBoost: 3.2 }), nb, { shadow: false });
+    const bulbGeo = new ModelBuilder().add(sphere(3.6, 8, 6), { col: 0xffffff, emit: 1, surf: SURF.bulb }).add(cyl(1.2, 1.2, 2.4, 5), { col: 0x6a5428, pos: [0, 2.8, 0], surf: SURF.brass }).build({ ao: 0 });
+    this.bulbs = new StaticBatch(bulbGeo, actorMaterial({ emitBoost: 2.6 }), nb, { shadow: false });
     this.bulbs.rim = [0, 0, 0, 0];
     for (let i = 0; i < this.bulbInfo.length; i++) {
       const b = this.bulbInfo[i];
       const pts = sagPoints([STRING_LIGHTS[b.run][0], 140, STRING_LIGHTS[b.run][1]], [STRING_LIGHTS[b.run][2], 140, STRING_LIGHTS[b.run][3]], 34, 10);
       this.bulbs.add(b.x, b.y, pts[b.k][1] - 4, 0, 1);
+      this.bulbH.push(pts[b.k][1] - 4);
     }
     this.bulbs.freeze();
     scene.add(this.bulbs.mesh);
@@ -329,10 +332,15 @@ export class PropSet {
     // string-light chase: a slow travelling wave, a few dead bulbs, Lights Out kills them
     for (let i = 0; i < this.bulbInfo.length; i++) {
       const b = this.bulbInfo[i];
-      const on = Math.sin(t * 3 + b.run * 7 + b.k * 1.7) > -0.85 ? 1 : 0.15;
-      const dead = ((b.run * 31 + b.k * 17) % 23) === 0 ? 0.05 : 1;
-      const col = BULB_COLS[(b.k + b.run) % 3];
-      this.bulbs.tint(i, col[0], col[1], col[2], on * dead * lightsOn);
+      // steady, saturated carnival bulbs; only the odd one stutters like a dying neon sign
+      const seed = b.run * 31 + b.k * 17;
+      const dead = seed % 29 === 0 ? 0.04 : 1;
+      const on = seed % 9 === 0 ? dyingNeon(t, seed) : 0.94 + 0.06 * Math.sin(t * 0.7 + seed);
+      const col = BULB_COLS[(b.k + b.run * 2) % BULB_COLS.length];
+      const lum = on * dead * lightsOn;
+      this.bulbs.tint(i, col[0], col[1], col[2], lum);
+      // each bulb wears a soft halo of its own colour
+      if (lum > 0.1 && inView(b.x, b.y)) r.glow.draw(this.glowF ??= r.assets.atlas.get('fx_glow_0'), b.x, b.y, this.bulbH[i], 0.34, 0.34, 0, col[0], col[1], col[2], 0.55 * lum);
     }
     this.bulbs.refresh();
   }
@@ -353,8 +361,28 @@ export class PropSet {
     // a few soft pools along each string-light run
     for (let r = 0; r < STRING_LIGHTS.length; r++) {
       const [x1, y1, x2, y2] = STRING_LIGHTS[r];
-      const col = BULB_COLS[r % 3];
-      pool.add((x1 + x2) / 2, (y1 + y2) / 2, 220, 0.45 * lightsOn, col[0], col[1], col[2], 110);
+      // the run's mixed colours wash the ground beneath in a warm, rosy light
+      pool.add((x1 + x2) / 2, (y1 + y2) / 2, 240, 0.5 * lightsOn, 1, 0.5, 0.38, 110);
+    }
+    for (const p of PROPS) {
+      const hh = p.hh ?? 0;
+      switch (p.kind) {
+        case 'stall_ringtoss': case 'stall_bottles': case 'stall_darts': case 'stall_shooting': case 'prize_stand':
+          pool.add(p.x, p.y + hh - 12, 230, 1.15 * lightsOn, 1, 0.62, 0.26, 92);
+          break;
+        case 'ticket_booth':
+          pool.add(p.x, p.y + hh + 24, 220, 1.0 * lightsOn, 1, 0.66, 0.3, 80);
+          break;
+        case 'caravan':
+          pool.add(p.x - 20, p.y + 70, 200, 0.75 * lightsOn, 1, 0.6, 0.3, 80);
+          break;
+        case 'popcorn_cart':
+          pool.add(p.x, p.y + 20, 150, 0.8 * lightsOn, 1, 0.8, 0.4, 70);
+          break;
+        case 'funhouse':
+          pool.add(p.x, p.y + 140, 300, 0.8 * lightsOn, 0.8, 0.85, 0.3, 120);
+          break;
+      }
     }
     const m = LAST_SONG.machine;
     pool.add(m.x, m.y + 30, 180, 0.5, 0.7, 0.5, 1, 120);
@@ -362,6 +390,16 @@ export class PropSet {
   }
 }
 
-const BULB_COLS: [number, number, number][] = [[1, 0.55, 0.32], [1, 0.82, 0.45], [0.85, 0.35, 0.3]];
+/** Saturated carnival bulb colours: red, amber, teal, rose, cobalt. */
+const BULB_COLS: [number, number, number][] = [[1, 0.16, 0.08], [1, 0.52, 0.05], [0.08, 0.85, 0.55], [1, 0.22, 0.55], [0.22, 0.45, 1]];
+
+/** A failing tube: steady most of the time, then a burst of irregular stutters. */
+function dyingNeon(t: number, seed: number): number {
+  const cycle = 3.2 + (seed % 5) * 0.9;
+  const ph = (t + seed * 1.37) % cycle;
+  if (ph > 0.85) return 1;
+  const s = Math.sin(t * 47 + seed) * Math.sin(t * 13.3 + seed * 2.1);
+  return s > 0.05 ? 1 : 0.06;
+}
 
 export const _unused = { cyl } as Record<string, unknown> & { v?: V3 };

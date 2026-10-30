@@ -1,11 +1,9 @@
-// The Carnival Core ground: a low-res painted layout (paths, plaza, promenade, worn grass, decals)
-// multiplied by high-frequency procedural detail in the shader (grain, cobbles, planks), plus the
-// animated moonlit sea to the south and dark woods beyond the fence. Lit by the shared light rig.
+// The painted ground layout for the 3D midway floor: paths, plaza, promenade, grease slicks and a
+// scatter of decals (spilled popcorn, lost tickets, puddles, cracks, tufts) baked into a canvas.
+// The alpha channel stores the surface type (dirt/grass, cobbles, planks) for the ground shader.
 
-import * as THREE from 'three';
-import { MAP_HALF, PATHS, PLAZA, PROMENADE, SEA_Y, TILT_A_WHIRL, GREASE_SLICKS } from '../data/map';
-import { artRng } from './art/kit';
-import { LIGHT_GLSL, type LightRig } from './lights';
+import { MAP_HALF, PATHS, PLAZA, PROMENADE, SEA_Y, TILT_A_WHIRL, GREASE_SLICKS } from '../../data/map';
+import { artRng } from '../../render/art/kit';
 
 export const EXTENT = 3200; // half-size of the ground plane (world units)
 const PAINT = 2048;
@@ -127,113 +125,4 @@ export function paintGround(): HTMLCanvasElement {
   }
   ctx.putImageData(img, 0, 0);
   return c;
-}
-
-const GROUND_VERT = /* glsl */ `
-varying vec2 vW;
-void main() {
-  vW = vec2(position.x, -position.y);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}`;
-
-const GROUND_FRAG = /* glsl */ `
-uniform sampler2D uPaint;
-uniform float uExtent;
-uniform float uTime;
-uniform float uSeaY;
-uniform float uMapHalf;
-uniform vec3 uMoonTint;
-uniform float uDawn;
-varying vec2 vW;
-${LIGHT_GLSL}
-float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float noise(vec2 p) {
-  vec2 i = floor(p), f = fract(p);
-  vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
-}
-float fbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
-void main() {
-  vec2 w = vW;
-  vec2 uv = (w + uExtent) / (2.0 * uExtent);
-  uv.y = 1.0 - uv.y;
-  vec4 paint = texture2D(uPaint, uv);
-  vec3 col = paint.rgb;
-  float grain = fbm(w * 0.045) * 0.5 + fbm(w * 0.22) * 0.5;
-  col *= 0.78 + grain * 0.45;
-  float surf = paint.a;
-  if (surf > 0.5 && surf < 0.85) {
-    // cobblestones (cellular)
-    vec2 cp = w / 26.0;
-    vec2 ci = floor(cp);
-    float best = 9.0;
-    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
-      vec2 g = ci + vec2(float(x), float(y));
-      vec2 o = g + 0.5 + 0.4 * (vec2(hash(g), hash(g + 7.0)) - 0.5);
-      best = min(best, length(cp - o));
-    }
-    float stone = smoothstep(0.52, 0.36, best);
-    col = mix(col * 0.45, col * (0.9 + 0.25 * hash(ci)), stone);
-  } else if (surf < 0.5) {
-    // boardwalk planks running east-west
-    float row = floor(w.y / 30.0);
-    float off = hash(vec2(row, 3.0)) * 200.0;
-    float seamY = smoothstep(0.0, 2.5, abs(fract(w.y / 30.0) * 30.0 - 15.0) - 12.5);
-    float seamX = smoothstep(0.0, 2.0, abs(fract((w.x + off) / 160.0) * 160.0 - 80.0) - 78.0);
-    vec3 wood = mix(vec3(0.42, 0.3, 0.2), vec3(0.55, 0.4, 0.27), hash(vec2(row, floor((w.x + off) / 160.0))));
-    wood *= 0.8 + 0.3 * noise(vec2(w.x * 0.06, w.y * 0.6));
-    col = wood * (1.0 - 0.7 * max(seamY, seamX));
-  }
-  // the sea
-  if (w.y > uSeaY) {
-    float depth = clamp((w.y - uSeaY) / 600.0, 0.0, 1.0);
-    float wave = noise(vec2(w.x * 0.01 + uTime * 0.12, w.y * 0.03 - uTime * 0.2)) * 0.6 + noise(vec2(w.x * 0.04 - uTime * 0.3, w.y * 0.08)) * 0.4;
-    col = mix(vec3(0.05, 0.12, 0.2), vec3(0.02, 0.04, 0.1), depth) + wave * 0.06;
-    float foam = smoothstep(0.08, 0.0, abs(w.y - uSeaY - 18.0 - sin(w.x * 0.02 + uTime) * 8.0) / 30.0);
-    col += foam * vec3(0.5, 0.55, 0.6);
-    // moon path on the water
-    float path = exp(-pow((w.x - 300.0) / 260.0, 2.0)) * smoothstep(0.55, 0.85, wave) * (0.4 + depth);
-    col += path * uMoonTint * 0.9;
-  }
-  // dark woods beyond the fence
-  float out_ = max(max(abs(w.x) - uMapHalf, -w.y - uMapHalf), 0.0);
-  col *= 1.0 - clamp(out_ / 400.0, 0.0, 0.75);
-  vec3 L = lightAt(w);
-  if (w.y > uSeaY) L = max(L, vec3(0.5, 0.55, 0.75));
-  vec3 lit = col * L;
-  gl_FragColor = vec4(lit, 1.0);
-}`;
-
-export class Ground {
-  mesh: THREE.Mesh;
-  material: THREE.ShaderMaterial;
-  constructor(lights: LightRig) {
-    const tex = new THREE.CanvasTexture(paintGround());
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.minFilter = THREE.LinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    tex.generateMipmaps = false;
-    this.material = new THREE.ShaderMaterial({
-      vertexShader: GROUND_VERT,
-      fragmentShader: GROUND_FRAG,
-      uniforms: {
-        uPaint: { value: tex },
-        uExtent: { value: EXTENT },
-        uTime: { value: 0 },
-        uSeaY: { value: SEA_Y },
-        uMapHalf: { value: MAP_HALF },
-        uMoonTint: { value: new THREE.Vector3(0.75, 0.8, 1.0) },
-        uDawn: { value: 0 },
-        ...lights.uniforms,
-      },
-      depthWrite: false,
-    });
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(EXTENT * 2, EXTENT * 2), this.material);
-    this.mesh.position.z = -1;
-    this.mesh.renderOrder = -10;
-    this.mesh.frustumCulled = false;
-  }
-  update(time: number): void {
-    this.material.uniforms.uTime.value = time;
-  }
 }

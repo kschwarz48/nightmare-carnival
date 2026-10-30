@@ -5,9 +5,9 @@
 
 import * as THREE from 'three';
 import { MAP_HALF, SEA_Y } from '../../data/map';
-import { EXTENT, paintGround } from '../../render/ground';
+import { EXTENT, paintGround } from './paint';
 import { POOL_GLSL } from '../core/pool';
-import { pool, shared } from '../core/materials';
+import { MIST_GLSL, pool, shared } from '../core/materials';
 
 const NOISE = /* glsl */ `
 float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -39,7 +39,7 @@ export class Ground3D {
     this.material = new THREE.MeshStandardMaterial({ map: tex, roughness: 1, metalness: 0, envMapIntensity: 0.6 });
     const u = this.u;
     this.material.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, u, pool.uniforms, { uFocus: shared.uFocus, uShadowFill: shared.uShadowFill });
+      Object.assign(shader.uniforms, u, pool.uniforms, shared);
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying vec3 vGW;')
         .replace('#include <project_vertex>', '#include <project_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -51,7 +51,8 @@ export class Ground3D {
           uniform float uTime, uSeaY, uMapHalf, uDawn, uWet;
           uniform vec3 uShadowFill;
           ${NOISE}
-          ${POOL_GLSL}`,
+          ${POOL_GLSL}
+          ${MIST_GLSL}`,
         )
         .replace(
           '#include <map_fragment>',
@@ -128,6 +129,14 @@ export class Ground3D {
             float gLit = dot(reflectedLight.directDiffuse, vec3(0.333));
             reflectedLight.indirectDiffuse += material.diffuseColor * uShadowFill * 1.3 * (1.0 - smoothstep(0.0, 0.2, gLit));
           }`,
+        )
+        .replace(
+          '#include <opaque_fragment>',
+          `#include <opaque_fragment>
+          {
+            float gm = ncMist(vGW);
+            gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistCol + poolLightFlat(vGW + vec3(0.0, 18.0, 0.0)) * 0.32, gm);
+          }`,
         );
     };
     const geo = new THREE.PlaneGeometry(EXTENT * 2, EXTENT * 2, 1, 1);
@@ -141,66 +150,5 @@ export class Ground3D {
   update(time: number, dawn: number): void {
     this.u.uTime.value = time;
     this.u.uDawn.value = dawn;
-  }
-}
-
-const MIST_VERT = /* glsl */ `
-varying vec3 vW;
-void main() {
-  vec4 w = modelMatrix * vec4(position, 1.0);
-  vW = w.xyz;
-  gl_Position = projectionMatrix * viewMatrix * w;
-}`;
-
-const MIST_FRAG = /* glsl */ `
-varying vec3 vW;
-uniform float uTime, uDensity, uDawn;
-uniform vec2 uPlayer;
-uniform vec2 uWind;
-uniform vec3 uMistCol;
-${NOISE}
-${POOL_GLSL}
-void main() {
-  vec2 p = vW.xz;
-  float f = gFbm(p * 0.0021 + uWind * uTime * 0.02) * 0.62 + gFbm(p * 0.0057 - uWind.yx * uTime * 0.035) * 0.38;
-  float dens = smoothstep(0.38, 0.86, f) * uDensity;
-  // the lantern burns a clear bubble around the player (readability first)
-  float dp = length(p - uPlayer);
-  dens *= mix(0.25, 1.0, smoothstep(140.0, 420.0, dp));
-  vec3 lit = uMistCol + poolLightFlat(vW + vec3(0.0, 30.0, 0.0)) * 0.35;
-  gl_FragColor = vec4(lit, dens * (1.0 - uDawn * 0.8));
-}`;
-
-export class Mist {
-  mesh: THREE.Mesh;
-  readonly u = {
-    uTime: { value: 0 },
-    uDensity: { value: 0.32 },
-    uDawn: { value: 0 },
-    uPlayer: { value: new THREE.Vector2() },
-    uWind: { value: new THREE.Vector2(1, 0.3) },
-    uMistCol: { value: new THREE.Vector3(0.075, 0.085, 0.115) },
-  };
-  constructor(height = 16) {
-    const geo = new THREE.PlaneGeometry(EXTENT * 2, EXTENT * 2, 1, 1);
-    geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.ShaderMaterial({
-      vertexShader: MIST_VERT,
-      fragmentShader: MIST_FRAG,
-      uniforms: { ...this.u, ...pool.uniforms },
-      transparent: true,
-      depthWrite: false,
-    });
-    this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.position.y = height;
-    this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = 2;
-  }
-  update(time: number, px: number, py: number, wind: number, dawn: number, density: number): void {
-    this.u.uTime.value = time;
-    this.u.uPlayer.value.set(px, py);
-    this.u.uWind.value.set(Math.cos(wind), Math.sin(wind));
-    this.u.uDawn.value = dawn;
-    this.u.uDensity.value = density;
   }
 }

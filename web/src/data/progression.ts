@@ -12,10 +12,11 @@ export const XP_CURVE = {
   bands: [
     { upTo: 10, step: 5 },
     { upTo: 20, step: 9 },
-    { upTo: 40, step: 13 },
-    { upTo: Infinity, step: 16 },
+    { upTo: 40, step: 16 },
+    { upTo: 60, step: 36 },
+    { upTo: Infinity, step: 60 },
   ],
-  plateaus: { 20: 2, 40: 2 } as Record<number, number>,
+  plateaus: { 20: 2, 40: 2, 60: 2 } as Record<number, number>,
 };
 
 const xpCache: number[] = [];
@@ -35,7 +36,7 @@ export function xpToNext(level: number): number {
 /** Ticket (XP) value economy. */
 export const TICKETS = {
   /** Enemy ticket value grows with run time so XP keeps pace with the rising curve. */
-  perMinute: 0.035,
+  perMinute: 0.012,
   eliteMult: 5,
   /** After a boss falls the crowd thins for a while (recovery period) — kills there pay a little more. */
   recoveryBonus: 1.25,
@@ -60,7 +61,7 @@ export const HEALING = {
 export const CHESTS = {
   bossRolls: [4, 6] as [number, number],
   bruteRolls: [1, 2] as [number, number],
-  eliteChance: 0.05,
+  eliteChance: 0.02,
   eventRolls: 2,
 };
 
@@ -94,7 +95,7 @@ export const PACING = {
   recoveryMinAliveScale: 0.35,
   recoveryIntervalScale: 2.0,
   /** Organic balloon drifts (replaces the fixed swarm metronome, D-33). */
-  balloonMinGap: [10, 9, 8, 7] as number[],
-  balloonMeanExtra: [9, 7, 6, 5] as number[],
+  balloonMinGap: [20, 18, 16, 14] as number[],
+  balloonMeanExtra: [16, 14, 12, 10] as number[],
   balloonSpeed: [300, 440] as [number, number],
 };

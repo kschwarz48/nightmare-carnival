@@ -130,8 +130,8 @@ describe('organic balloon drifts (D-33)', () => {
 
   it('arrive irregularly, from varied directions, in varied sizes — and are deterministic per seed', () => {
     const a = sample(4242);
-    expect(a.length).toBeGreaterThan(15);
-    expect(a.length).toBeLessThan(60); // not too frequent: ~one drift every 10–30 s
+    expect(a.length).toBeGreaterThan(8);
+    expect(a.length).toBeLessThan(40); // not too frequent: roughly one drift every half-minute
     const gaps = a.slice(1).map((d, i) => d.t - a[i].t);
     const mean = gaps.reduce((s, x) => s + x, 0) / gaps.length;
     const sd = Math.sqrt(gaps.reduce((s, x) => s + (x - mean) ** 2, 0) / gaps.length);

@@ -19,7 +19,35 @@ export const shared = {
   uTime: { value: 0 },
   /** Colour poured into unlit areas: night shadows read deep blue-violet, never dead grey (D-41). */
   uShadowFill: { value: new THREE.Vector3(0.045, 0.06, 0.13) },
+  // world-anchored ground mist (D-41): hugs the floor, drifts with the wind, lit by the practicals
+  uMistCol: { value: new THREE.Vector3(0.045, 0.072, 0.14) },
+  uMistDensity: { value: 0.36 },
+  uMistHeight: { value: 20 },
+  uMistWind: { value: new THREE.Vector2(1, 0.3) },
+  uMistTime: { value: 0 },
+  uMistEdge: { value: new THREE.Vector2(2200, 1960) },
 };
+
+/** Ground mist shared by every world shader so floor, props and figures sit in the same fog. */
+export const MIST_GLSL = /* glsl */ `
+uniform vec3 uMistCol;
+uniform float uMistDensity, uMistHeight, uMistTime;
+uniform vec2 uMistWind, uMistEdge;
+float mHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float mNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mHash(i), mHash(i + vec2(1, 0)), u.x), mix(mHash(i + vec2(0, 1)), mHash(i + vec2(1, 1)), u.x), u.y);
+}
+float ncMist(vec3 wp) {
+  vec2 p = wp.xz * 0.0024 + uMistWind * uMistTime * 0.012;
+  float n = mNoise(p) * 0.55 + mNoise(p * 2.3 + 7.1) * 0.3 + mNoise(p * 5.1 - uMistWind.yx * uMistTime * 0.01) * 0.15;
+  float h = exp(-max(wp.y, 0.0) / uMistHeight);
+  float edge = smoothstep(uMistEdge.x * 0.45, uMistEdge.x * 1.05, max(abs(wp.x), abs(wp.z)));
+  float sea = smoothstep(uMistEdge.y - 420.0, uMistEdge.y + 200.0, wp.z);
+  float d = uMistDensity * (0.12 + 1.3 * smoothstep(0.38, 0.9, n)) * (1.0 + edge * 0.9 + sea * 1.1);
+  return clamp(d * h, 0.0, 0.82);
+}`;
 
 const V_HEAD = /* glsl */ `
 attribute vec3 aSurf;   // roughness, metalness, emissive amount
@@ -153,6 +181,7 @@ uniform float uEmitBoost;
 uniform vec4 uFocus;
 uniform vec3 uShadowFill;
 ${POOL_GLSL}
+${MIST_GLSL}
 float ncBayer(vec2 p) {
   ivec2 q = ivec2(mod(p, 4.0));
   int i = q.x + q.y * 4;
@@ -173,6 +202,8 @@ export interface ActorMatOpts {
   opacity?: number;
   /** Skeletal rig: the material skins with this bone texture (two bones per vertex). */
   boneTex?: THREE.Texture;
+  /** Matte, painterly surface: no specular glints from the practicals, faint reflections. */
+  matte?: boolean;
 }
 
 interface NcData {
@@ -188,7 +219,7 @@ interface NcData {
 // One shared function object per material kind so three's program cache can share compiled programs.
 function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWithUniforms): void {
   const d = this.userData.nc as NcData;
-  Object.assign(shader.uniforms, d, pool.uniforms, { uFocus: shared.uFocus, uShadowFill: shared.uShadowFill });
+  Object.assign(shader.uniforms, d, pool.uniforms, shared);
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>\n${V_HEAD}\n${V_VARY}`)
     .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>\n${V_AN}\n${V_SKIN_N}`)
@@ -229,8 +260,8 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
       #endif`,
     )
     .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= vTint.rgb;')
-    .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness * vSurf.x;')
-    .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = metalness * vSurf.y;')
+    .replace('#include <roughnessmap_fragment>', '#ifdef NC_MATTE\nfloat roughnessFactor = max(roughness * vSurf.x, 0.82);\n#else\nfloat roughnessFactor = roughness * vSurf.x;\n#endif')
+    .replace('#include <metalnessmap_fragment>', '#ifdef NC_MATTE\nfloat metalnessFactor = metalness * vSurf.y * 0.2;\n#else\nfloat metalnessFactor = metalness * vSurf.y;\n#endif')
     .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vEmit * uEmitBoost * vTint.w;')
     .replace(
       '#include <lights_fragment_end>',
@@ -239,7 +270,9 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
         vec3 ncSpec = vec3(0.0);
         vec3 ncDiff = poolLight(vWPos, normalize(vWNor), mix(6.0, 48.0, 1.0 - roughnessFactor), ncSpec);
         reflectedLight.directDiffuse += ncDiff * material.diffuseColor;
+        #ifndef NC_MATTE
         reflectedLight.directSpecular += ncSpec * material.specularColor * (1.15 - roughnessFactor);
+        #endif
         float ncLit = dot(reflectedLight.directDiffuse, vec3(0.333));
         reflectedLight.indirectDiffuse += material.diffuseColor * uShadowFill * (1.0 - smoothstep(0.0, 0.22, ncLit)) * (0.6 + 0.4 * normal.y);
       }`,
@@ -247,6 +280,14 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
     .replace(
       '#include <opaque_fragment>',
       `#include <opaque_fragment>
+      {
+        // ground mist (emissive parts — bulbs, neon tickets, eyes — shine through it)
+        float ncM = ncMist(vWPos) * (1.0 - clamp(vEmit * 2.0, 0.0, 1.0));
+        #ifdef NC_MATTE
+        ncM *= 0.3; // figures stand in the mist without being washed out by it
+        #endif
+        if (ncM > 0.002) gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistCol + poolLightFlat(vWPos + vec3(0.0, 18.0, 0.0)) * 0.3, ncM);
+      }
       {
         float ncRim = pow(1.0 - clamp(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0, 1.0), 2.4);
         gl_FragColor.rgb += vRimC.rgb * ncRim * vRimC.a;
@@ -268,7 +309,7 @@ export function actorMaterial(o: ActorMatOpts = {}): THREE.MeshStandardMaterial 
     vertexColors: true,
     roughness: 1,
     metalness: 1,
-    envMapIntensity: o.envIntensity ?? 0.55,
+    envMapIntensity: o.matte ? 0.08 : o.envIntensity ?? 0.45,
     side: o.side ?? THREE.FrontSide,
     transparent: o.transparent ?? false,
     opacity: o.opacity ?? 1,
@@ -288,6 +329,7 @@ export function actorMaterial(o: ActorMatOpts = {}): THREE.MeshStandardMaterial 
   m.defines = {};
   if (o.dither) m.defines.NC_DITHER = '';
   if (o.boneTex) m.defines.NC_SKIN = '';
+  if (o.matte) m.defines.NC_MATTE = '';
   m.onBeforeCompile = ncCompile;
   return m;
 }
