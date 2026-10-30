@@ -405,3 +405,9 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 .prize-cap .who, .prize-sum .who { font-family: var(--head); font-size: 0.8em; padding: 0 0.4em; border-radius: 6px; border: 2px solid var(--ink); margin-right: 0.4em; }
 .prize-cap .who.p1, .prize-sum .who.p1 { background: #ffd27a; color: var(--ink); }
 .prize-cap .who.p2, .prize-sum .who.p2 { background: #8af4ff; color: var(--ink); }
+
+/* Netlify's free plan pins a "Powered by Netlify" badge (an iframe, ~197×64 px) to the bottom-right of
+   the deployed site and it cannot be hidden on that plan: keep menus and the music credit clear of it.
+   Padding only moves in-flow content; the HUD's absolutely positioned pieces stay where they are. */
+body:has(#nl-badge-frame) .screen { padding-bottom: 72px; }
+body:has(#nl-badge-frame) .title .corner { bottom: calc(1.2em + 64px); }

@@ -9,11 +9,14 @@ Design decisions: D-51 (co-op rules), D-52 (netcode), D-53 (party scaling and co
 [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md). Test status: [§6](#6-what-has-been-tested). Do read it:
 cross-network play has **not** been verified yet.
 
+**Live alpha:** <https://nightmare-carnival.netlify.app> (Netlify; deployment in [§4](#4-deploying-the-alpha-static-hosting)).
+
 ---
 
 ## 1. For players
 
-1. Both players open the game's web address (HTTPS).
+1. Both players open the game's web address: **https://nightmare-carnival.netlify.app** for the alpha (any deploy must be
+   HTTPS).
 2. **Host:** title screen → **Multiplayer** → enter a name → **Host a Game**. A lobby opens with a
    code like `K7M2QP`. **Copy** it and send it to your friend.
 3. **Guest:** **Multiplayer** → name → **Join a Game** → type the code → **Join**.
@@ -159,8 +162,9 @@ route in use:
 
 ### Runtime override: `net-config.json`
 
-Put a `net-config.json` next to `index.html` on the host. It is read when the multiplayer menu opens;
-no rebuild is needed. See `public/net-config.example.json`:
+The build ships an empty `net-config.json` next to `index.html` (from `public/`). Fill it in to
+override. It is read when the multiplayer menu opens, so no rebuild is needed (on Netlify, edit
+`dist/net-config.json` and redeploy with `--no-build`). See `public/net-config.example.json`:
 
 ```json
 {
@@ -217,6 +221,32 @@ works:
 
 No backend, database or account is needed for the game itself. The deployed site talks to PeerJS
 Cloud for matchmaking, and to STUN/TURN servers when connecting.
+
+### Live alpha: Netlify
+
+The alpha is live at **https://nightmare-carnival.netlify.app**: site `nightmare-carnival` on the owner's Netlify team (free
+plan), deployed from `web/` with the Netlify CLI. `netlify.toml` holds the build settings and headers:
+hashed `assets/` are cached for a year, everything else revalidates on each visit.
+
+To ship an update (the CLI must be logged in to the owner's Netlify account: `netlify login`):
+
+```bash
+cd web
+npm test && npm run build
+npx netlify-cli deploy --prod --dir=dist --no-build
+```
+
+`web/.netlify/state.json` links the folder to the site (git-ignored). Without `--prod`, the CLI makes a
+draft deploy on its own URL: a way to try a change before the testers see it.
+
+Two Netlify specifics:
+- **Visitor access.** The owner's team protects deploys with Netlify team login by default. This site
+  protects only *non-production* deploys: the main URL is public, while draft and preview URLs stay
+  behind the owner's Netlify login.
+- **Badge.** The free plan injects a "Powered by Netlify" badge (an iframe, about 197×64 px) into the
+  bottom-right corner. It cannot be hidden on that plan. When the badge is present, `style.css` lifts
+  the menus and the title's credit line clear of it (`body:has(#nl-badge-frame)`); other hosts are
+  unaffected.
 
 ---
 
@@ -301,6 +331,7 @@ Two people, **two different networks**: e.g. one on home Wi-Fi, one on a phone h
 |---|---|
 | Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 166 tests in the whole suite |
 | Two browser tabs on **one machine**, real PeerJS Cloud signalling and WebRTC | **Done**: see the list below |
+| The **deployed site** (Netlify), two tabs on one machine | **Done**: see below |
 | Two machines on the **same LAN** | **Not yet tested** |
 | Two machines on **different networks** (the alpha goal) | **Not yet verified.** Needs the checklist above, ideally with someone behind a strict NAT to exercise TURN |
 | Safari / Firefox / mobile browsers | **Not yet tested** (developed in Chromium) |
@@ -316,6 +347,15 @@ What the same-machine two-tab session exercised:
 - **Disconnects.** A guest refresh mid-night (the host waited; the guest rejoined its seat). The host
   leaving ended the guest's night cleanly. Error messages for a malformed or non-existent code.
 
+On the **deployed site** (https://nightmare-carnival.netlify.app, 2026-10-30), two tabs on one machine:
+- **Lobby.** Host by code; join with the code typed in lowercase; character exclusivity; ready and start.
+- **Live play.** A running night with coordinated drafts: both tabs held at the same level-up. The host's
+  screen showed both players; the guest's HUD showed its partner.
+- **Guest's F3.** Datagram channel, route `host`, 19–21 snapshots/s at 4–18 KB/s, 0 lost, 0 invalid,
+  prediction error 0.0.
+- **Console.** No errors apart from a 404 for the optional `net-config.json`, which is now shipped empty.
+- **Hosting.** Served over HTTPS; hashed assets marked `immutable`.
+
 Two real bugs found there are fixed and covered by tests:
 - negative timers wrapped in the byte codec, which caused a permanent hurt vignette on the guest;
 - a per-frame idle check dropped most guest inputs on high-refresh hosts.
@@ -327,6 +367,7 @@ Two real bugs found there are fixed and covered by tests:
 - **Two players.** The simulation and wire format support more (slot tables go to 4), but the lobby
   and HUD are built for a duo.
 - **No host migration.** The host's tab is the server, and closing it ends the night.
+- **Netlify's free plan** shows a "Powered by Netlify" badge in the bottom-right corner (§4).
 - **PeerJS Cloud** is a shared free service with no uptime guarantee. The default TURN relays are best
   effort. Strict networks may need your own TURN (§3).
 - **The host's unlocks define the item pool.** Each player picks from the characters their own save

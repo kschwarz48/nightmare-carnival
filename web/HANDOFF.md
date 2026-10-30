@@ -20,8 +20,9 @@ _Updated 2026-10-30. Branch: `web-threejs-rebuild` (not pushed, no PR)._
   mist, soft bloom and a vintage grade. The latest graphics pass (D-45…D-50) is scored in `docs/VISUAL_QA.md`.
 - **Online two-player co-op (alpha)** with Vampire Survivors rules: host-authoritative, peer-to-peer
   over WebRTC with PeerJS matchmaking, delta snapshots, client prediction, lobby codes, reconnect
-  (D-51…D-53, `docs/MULTIPLAYER.md`). Verified with two tabs on one machine over real PeerJS; **not yet
-  verified across two networks** — that is the next job, along with the owner's go-ahead to deploy.
+  (D-51…D-53, `docs/MULTIPLAYER.md`). **Deployed** at https://nightmare-carnival.netlify.app (Netlify; `netlify.toml`,
+  `docs/MULTIPLAYER.md` §4). Verified with two tabs on one machine over real PeerJS, on the dev server and on
+  the deployed site; **not yet verified across two networks**, which is the next job.
 - **166 tests pass**, typecheck is clean, `npm run build` produces a static site.
 - The **biggest open item is human playtesting** (balance and readability). All tuning so far used bots.
 - The original Godot project at the repo root is untouched. Two Godot files (`export_presets.cfg`,
@@ -234,9 +235,10 @@ Full list in `docs/DESIGN_DECISIONS.md`. The ones most likely to surprise you:
 
 ## 8. What's not done (priority order)
 
-0. **Online co-op alpha:** verify across two machines on **different networks** with the checklist in
-   `docs/MULTIPLAYER.md` §5 (note the F3 route — `relay` means TURN was needed), then deploy (static, HTTPS)
-   **once the repo owner approves**. Tune co-op scaling (`COOP.density`/`COOP.hp`) from what the duo reports.
+0. **Online co-op alpha:** verify across two machines on **different networks** on the live site
+   (https://nightmare-carnival.netlify.app) with the checklist in `docs/MULTIPLAYER.md` §5 (note the F3 route — `relay` means
+   TURN was needed). Redeploys use the Netlify CLI (§4); ask the repo owner before each one. Tune co-op
+   scaling (`COOP.density`/`COOP.hp`) from what the duo reports.
 1. **Human playtests** — balance on all tiers and characters (bots under-represent melee and summoners),
    and **readability in heavy combat** after the graphics pass (telegraph striping, darker spaces between
    light pools, ground cover). See the honest-uncertainty notes in `docs/PROGRESSION.md`.

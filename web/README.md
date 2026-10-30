@@ -36,12 +36,16 @@ Netlify, itch.io (upload `dist/` as an HTML5 game zip), an S3 bucket, or any web
 is required; progress is stored in the browser's `localStorage`. Serve it over **HTTPS** so online
 co-op (WebRTC) works; signalling/TURN options are in [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md).
 
+The alpha is live on Netlify at **https://nightmare-carnival.netlify.app**. `netlify.toml` holds the settings, and
+[`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md) §4 has the steps to ship an update.
+
 ### Online co-op (alpha)
 
 Title screen → **Multiplayer**: one player hosts and shares a six-character code, the other joins.
 Vampire Survivors rules — shared XP, everyone drafts before the night resumes, 4 + 4 slots each, split
 prize wheels, coffin revives. Peer-to-peer over WebRTC with free PeerJS matchmaking; the host's browser
-runs the night. Same-machine testing is done; **cross-network play still needs to be verified** — see
+runs the night. Same-machine testing is done, on the dev server and on the deployed site;
+**cross-network play still needs to be verified** — see
 [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md) for how it works, deployment, TURN and the tester checklist.
 
 ---

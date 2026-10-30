@@ -21,11 +21,12 @@ See `QA_REPORT.md` for evidence and limitations.
 - [x] Dev tools (dev-only) and accelerated test harness; production build
 - [x] Online two-player co-op alpha (D-51…D-53): VS rules in the sim, host-authoritative WebRTC netcode
       with delta snapshots and prediction, lobby/codes/reconnect, co-op HUD — `MULTIPLAYER.md`
+- [x] Alpha deployed on Netlify: https://nightmare-carnival.netlify.app — `MULTIPLAYER.md` §4
 
 ## Outstanding / recommended next steps
 
-0. **Co-op alpha:** verify on two machines on different networks (`MULTIPLAYER.md` §5), then deploy the
-   static build over HTTPS once the owner approves; tune `COOP.density` / `COOP.hp` from feedback.
+0. **Co-op alpha:** verify on two machines on different networks on the live site (`MULTIPLAYER.md` §5);
+   tune `COOP.density` / `COOP.hp` from feedback.
 1. **Human balance playtests** on Midway/Carnival/Nightmare for all six characters (especially melee
    Strongman and summoner Ringleader); tune via `src/data/*.ts` only.
 2. Real-time fps profiling on target hardware at 1080p/1440p/4K; consider lowering the ground shader's

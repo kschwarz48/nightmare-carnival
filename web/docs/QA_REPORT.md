@@ -136,6 +136,12 @@ negative timers (permanent hurt vignette on the guest); a per-frame idle check d
 on hosts whose frames don't all tick; the guest kept predicting while the host's prize wheel held the night;
 the guest's draft showed the previous level.
 
+**Deployed site, one machine, two tabs** (https://nightmare-carnival.netlify.app, Netlify): host by code, join (lowercase
+code), exclusive characters, ready/start, a running night with coordinated drafts. Guest's F3: datagram
+channel, route `host`, 19–21 snapshots/s, 4–18 KB/s, 0 lost, 0 invalid, prediction error 0.0. Headers:
+hashed `assets/` `immutable`, the rest revalidated, `nosniff`. Defect found and fixed: the free plan's
+"Powered by Netlify" badge covered the title's credit line; menus and the credit now clear it.
+
 **Not yet verified:** two machines on the same LAN; two machines on **different networks** (the alpha's
 real goal, including a TURN-relayed connection); Firefox/Safari/mobile. Checklist: `docs/MULTIPLAYER.md` §5.
 
