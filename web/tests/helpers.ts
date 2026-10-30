@@ -89,3 +89,78 @@ export function runFor(g: Game, seconds: number, opts: { auto?: boolean } = { au
     g.tick();
   }
 }
+
+/** Potential-field pilot: repelled by each nearby threat (1/d²), hazards and bullets; drawn to safe tickets & food. */
+export function smartPilot(g: Game): void {
+  const p = g.player;
+  let fx = 0, fy = 0;
+  g.forEachEnemyInCircle(p.x, p.y, 320, (e) => {
+    const dx = p.x - e.x, dy = p.y - e.y;
+    const d2 = Math.max(400, dx * dx + dy * dy);
+    const w = (e.windup > 0 || e.state === 2 ? 3 : 1) * (e.r / 12);
+    fx += (dx / Math.sqrt(d2)) * (9000 / d2) * w;
+    fy += (dy / Math.sqrt(d2)) * (9000 / d2) * w;
+  });
+  for (const b of g.bullets) {
+    if (!b.alive) continue;
+    const dx = p.x - b.x, dy = p.y - b.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > 200 * 200) continue;
+    fx += (dx / Math.sqrt(d2 + 1)) * (6000 / Math.max(300, d2));
+    fy += (dy / Math.sqrt(d2 + 1)) * (6000 / Math.max(300, d2));
+  }
+  for (const h of g.hazards) {
+    if (!h.alive || h.safe || h.dmg <= 0) continue;
+    if (g.hazardTouches(h, p.x, p.y, 50)) {
+      let dx = p.x - h.x, dy = p.y - h.y;
+      if (h.shape === 'line') {
+        const lx = h.x2 - h.x, ly = h.y2 - h.y, l = Math.hypot(lx, ly) || 1;
+        dx = -ly / l; dy = lx / l;
+        if ((p.x - h.x) * dx + (p.y - h.y) * dy < 0) { dx = -dx; dy = -dy; }
+      }
+      const l = Math.hypot(dx, dy) || 1;
+      fx += (dx / l) * 4;
+      fy += (dy / l) * 4;
+    }
+  }
+  const threat = Math.hypot(fx, fy);
+  if (threat < 0.6) {
+    let best: { x: number; y: number } | null = null, bd = 500 * 500;
+    for (const pk of g.pickups) {
+      if (!pk.alive) continue;
+      const d = (pk.x - p.x) ** 2 + (pk.y - p.y) ** 2;
+      const w = pk.kind === 'food' && p.hp < p.stats.maxHp() * 0.7 ? 0.2 : pk.kind === 'chest' ? 0.3 : 1;
+      if (d * w < bd) { bd = d * w; best = pk; }
+    }
+    if (best) {
+      const dx = best.x - p.x, dy = best.y - p.y, l = Math.hypot(dx, dy) || 1;
+      fx += (dx / l) * 0.8;
+      fy += (dy / l) * 0.8;
+    }
+  }
+  // gentle orbit + stay off the fence
+  fx += -p.y / 6000 - p.x / 2500;
+  fy += p.x / 6000 - (p.y - 300) / 2500;
+  const l = Math.hypot(fx, fy) || 1;
+  g.input.moveX = fx / l;
+  g.input.moveY = fy / l;
+}
+
+/** Draft policy closer to a human: finish evolutions, build 3-4 weapons, then their passives. */
+export function smartDraft(g: Game): void {
+  if (g.phase !== 'draft') return;
+  const o = g.draftOptions;
+  const score = (x: typeof o[number]) => {
+    if (x.kind === 'evolution') return 100;
+    if (x.kind === 'new_weapon') return g.weapons.list.length < 3 ? 60 : 20;
+    if (x.kind === 'level_weapon') return 40 + x.level;
+    if (x.kind === 'passive') {
+      const needed = g.weapons.list.some((w) => w.def.evoPassive === x.refId);
+      return needed ? 55 : ['sugar_rush', 'safety_goggles', 'funnel_cake', 'strongman_belt', 'energy_drink'].includes(x.refId) ? 35 : 15;
+    }
+    return 1;
+  };
+  let bi = 0;
+  o.forEach((x, i) => { if (score(x) > score(o[bi])) bi = i; });
+  g.chooseDraft(bi);
+}

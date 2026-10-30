@@ -146,11 +146,13 @@ export class Hud {
         this.boss.replaceChildren(h('div', { class: 'name' }, b.encore ? `Encore! ${b.def.name}` : b.def.name), h('div', { class: 'phase' }), h('div', { class: 'bar' }, h('div', { class: 'fill', style: { background: `linear-gradient(180deg, ${b.def.barColor}, #7a0a14)` } }), ...segs));
       }
       this.boss.classList.remove('hidden');
+      this.root.classList.add('boss-on');
       this.boss.classList.toggle('enraged', b.enraged);
       (this.boss.querySelector('.fill') as HTMLDivElement).style.width = `${(b.hp / b.maxHp) * 100}%`;
       (this.boss.querySelector('.phase') as HTMLDivElement).textContent = `${b.def.phases[b.phase].name}${b.enraged ? ' — ENCORE!' : ''}`;
     } else {
       this.boss.classList.add('hidden');
+      this.root.classList.remove('boss-on');
       this.bossKey = '';
     }
     // banners / coach timers

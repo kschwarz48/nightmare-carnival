@@ -156,7 +156,7 @@ export class Director {
 
   /** Dormant bosses (Tent, Wheel) wake only once their warning has played. */
   gateOpen(id: string): boolean {
-    return this.warned.has(id) || this.g.endless;
+    return this.warned.has(id);
   }
 
   enterEndless(): void {

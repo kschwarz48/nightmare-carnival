@@ -109,3 +109,9 @@ Doc 03 (implemented) used blue → green → **red** for small → large Ticket 
 
 ### D-28 · Boss framing
 While a boss is awake the camera biases ~30% toward it so its body and telegraphs stay on screen instead of hiding under the top HUD.
+
+### D-29 · Early-game easing (from instrumented bot runs)
+A naive kiting autopilot (no lane dodging) died at 2–7 min on Midway, almost entirely from contact damage in the 2:00–4:00 balloon/stuffie walls and flyby swarms. Changes: Throwing Cards pierce one extra enemy at Lv1 ("razor cards"); flyby balloons deal 3 contact (was 4); Act I swarms are 28–32 balloons (Godot: 48, already reduced to 36 earlier). Later Acts are unchanged. This is tuned for humans, who dodge the telegraphed swarm lanes — final balance still needs human playtesting (see QA report).
+
+### D-30 · Act I density vs. early DPS
+Measured: the 3:00 wave spawned ~2.9 stuffies/s at ~59 HP while a 3-minute build deals ~25–60 DPS, so the crowd snowballed to its cap regardless of play. Possessed Stuffie HP 50→32 and Evil Clown 45→36 (time scaling still makes Act II/III versions tougher), the 3:00–5:00 waves trimmed (min-alive 38/50/64 → 30/42/54, a few balloons kept in the 3:00 mix), base pickup radius 60→75, and Godot's original XP curve (`5 + 3L + L^1.6`) restored.

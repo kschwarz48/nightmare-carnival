@@ -156,10 +156,11 @@ export class GameRenderer {
     // frame an awake boss: bias the camera toward it so its body isn't hidden under the HUD
     for (const b of g.bosses) {
       if (!b.awake || b.dead) continue;
-      const dx = b.x - px, dy = b.y - 120 - py;
+      const lift = b.def.id === 'puppet_king' ? 200 : b.def.id === 'ferris_wheel' ? 60 : b.def.id === 'carnival_tent' ? 170 : 100;
+      const dx = b.x - px, dy = b.y - lift - py;
       if (Math.abs(dx) < this.viewW * 0.9 && Math.abs(dy) < VIEW_H * 0.9) {
-        lookX += dx * 0.28;
-        lookY += dy * 0.32;
+        lookX += dx * 0.3;
+        lookY += dy * 0.42 - 40;
       }
       break;
     }

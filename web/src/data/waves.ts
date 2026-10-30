@@ -16,10 +16,10 @@ export interface WaveDef {
 export const WAVES: WaveDef[] = [
   { id: 'w_0000', start: 0, enemies: [['living_balloon', 100]], minAlive: 14, maxAlive: 50, interval: 1.1, batch: 2 },
   { id: 'w_0100', start: 60, enemies: [['living_balloon', 70], ['wind_up_monkey', 30]], minAlive: 22, maxAlive: 85, interval: 1.0, batch: 2 },
-  { id: 'w_0200', start: 120, enemies: [['living_balloon', 65], ['wind_up_monkey', 35]], minAlive: 28, maxAlive: 120, interval: 0.95, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 7, size: 36 } },
-  { id: 'w_0300', start: 180, enemies: [['possessed_stuffie', 65], ['wind_up_monkey', 35]], minAlive: 38, maxAlive: 160, interval: 0.9, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 7, size: 36 } },
-  { id: 'w_0400', start: 240, enemies: [['possessed_stuffie', 50], ['wind_up_monkey', 25], ['evil_clown', 25]], minAlive: 50, maxAlive: 210, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 40 } },
-  { id: 'w_0500', start: 300, enemies: [['possessed_stuffie', 45], ['evil_clown', 35], ['wind_up_monkey', 20]], minAlive: 64, maxAlive: 260, interval: 0.8, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 46 }, eliteBurst: 4 },
+  { id: 'w_0200', start: 120, enemies: [['living_balloon', 65], ['wind_up_monkey', 35]], minAlive: 28, maxAlive: 120, interval: 0.95, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 8, size: 28 } },
+  { id: 'w_0300', start: 180, enemies: [['possessed_stuffie', 55], ['living_balloon', 15], ['wind_up_monkey', 30]], minAlive: 30, maxAlive: 150, interval: 0.9, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 7.5, size: 32 } },
+  { id: 'w_0400', start: 240, enemies: [['possessed_stuffie', 50], ['wind_up_monkey', 25], ['evil_clown', 25]], minAlive: 42, maxAlive: 200, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 40 } },
+  { id: 'w_0500', start: 300, enemies: [['possessed_stuffie', 45], ['evil_clown', 35], ['wind_up_monkey', 20]], minAlive: 54, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 46 }, eliteBurst: 4 },
   // Act II — The Crowd
   { id: 'w_0600', start: 360, enemies: [['possessed_stuffie', 35], ['evil_clown', 30], ['cotton_candy_slime', 20], ['whack_a_mole', 15]], minAlive: 60, maxAlive: 220, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 30 } },
   { id: 'w_0800', start: 480, enemies: [['possessed_stuffie', 28], ['evil_clown', 26], ['cotton_candy_slime', 16], ['jack_in_the_box', 12], ['dunk_tank_clown', 18]], minAlive: 68, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 5.5, size: 34 } },

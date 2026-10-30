@@ -1363,7 +1363,7 @@ export class Game {
   }
 
   xpCurve(lvl: number): number {
-    return 5 + lvl * 3.5 + Math.pow(lvl, 1.65);
+    return 5 + lvl * 3 + Math.pow(lvl, 1.6); // Godot LevelSystem curve
   }
 
   addXp(value: number): void {

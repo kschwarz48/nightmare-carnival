@@ -52,7 +52,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     id: 'throwing_cards', name: 'Throwing Cards', kind: 'cards', signature: 'carny',
     desc: 'A fan of razor playing cards flung at the nearest threat.',
     levelText: ['', '', '+1 card', '+4 damage', '−12% cooldown', '+1 card', '+6 damage', '−12% cooldown', '+1 card, +10 damage'],
-    damage: 10, cooldown: 1.1, area: 1, amount: 1, speed: 520, pierce: 0, duration: 1.4, knockback: 1, critBonus: 0.03,
+    damage: 10, cooldown: 1.1, area: 1, amount: 1, speed: 520, pierce: 1, duration: 1.4, knockback: 1, critBonus: 0.03,
     lv: { dmg: [0, 0, 4, 0, 0, 6, 0, 10], cd: [0, 0, 0, -0.12, 0, 0, -0.12, 0], area: Z8, amount: [0, 1, 0, 0, 1, 0, 0, 1] },
     maxLevel: 8, evolvesTo: 'royal_flush', evoPassive: 'lucky_ticket', archetypes: ['crit'], aimable: true, weight: 1.2,
     lore: 'The Carny never loses a hand. These never miss a throat.',

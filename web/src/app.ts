@@ -40,14 +40,14 @@ export class App {
   private nav: FocusNav | null = null;
   private acc = 0;
   private last = performance.now();
-  private fps = 60;
+  fps = 60;
   private settingsBack: () => void = () => this.go('title');
   private lastRun: { character: string; difficulty: string; curse: boolean; daily?: boolean } | null = null;
   private dawnT = -1;
   simSpeed = 1;
   autopilot = false;
   private lastPediaToast = 0;
-  private overlayPause = false;
+  overlayPause = false;
   private ctx!: S.UICtx;
   private runStart = 0;
 
@@ -87,7 +87,7 @@ export class App {
     this.makeDemo();
     ld.el.remove();
     this.go('press');
-    if (import.meta.env.DEV) this.installDevTools();
+    if (import.meta.env.DEV) import('./dev').then((m) => m.installDevTools(this));
     requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -217,6 +217,7 @@ export class App {
     this.renderer.snapCamera(this.game.player.x, this.game.player.y);
     this.dawnT = -1;
     this.hud.reset();
+    this.hud.root.classList.remove('under');
     this.hud.setPortrait(o.character);
     if (!this.hud.root.isConnected) this.ui.append(this.hud.root);
     this.ui.append(this.draft.root, this.chest.root);
@@ -312,7 +313,7 @@ export class App {
     g.bus.on('run_end', (e) => this.onRunEnd(e.stats));
   }
 
-  private pickDraft(i: number): void {
+  pickDraft(i: number): void {
     const g = this.game;
     if (!g) return;
     g.chooseDraft(i);
@@ -381,6 +382,7 @@ export class App {
     setTimeout(() => {
       this.screenEl?.remove();
       this.state = 'results';
+      this.hud.root.classList.add('under');
       const el = S.resultsScreen(this.ctx, st, { achievements: earned.map((a) => `${a.name} — ${a.desc} (+${a.reward} LT)`), newUnlocks: notes, dailyBest }, {
         again: () => this.lastRun && this.startRun(this.lastRun),
         menu: () => this.toMenu(),
@@ -404,6 +406,7 @@ export class App {
     this.dawnT = -1;
     this.hud.reset();
     this.hud.setPortrait(g.player.char.id);
+    this.hud.root.classList.remove('under');
     g.startEndless();
     this.go('playing');
   }
@@ -540,7 +543,7 @@ export class App {
     }
   }
 
-  private demoAutopilot(g: Game): void {
+  demoAutopilot(g: Game): void {
     const p = g.player;
     let cx = 0, cy = 0, n = 0;
     g.forEachEnemyInCircle(p.x, p.y, 300, (e) => {
@@ -562,122 +565,6 @@ export class App {
     g.input.moveY = (my / l) * 0.8;
   }
 
-  // =================================================================== dev tools (DEV builds only)
-  private installDevTools(): void {
-    const app = this;
-    const api = {
-      app,
-      jump(sec: number) {
-        const g = app.game;
-        if (!g) return;
-        g.time = sec;
-      },
-      speed(x: number) {
-        app.simSpeed = x;
-      },
-      auto(on = true) {
-        app.autopilot = on;
-      },
-      /** Synchronously simulate `sec` seconds (autopilot + auto-draft), then render. */
-      advance(sec: number) {
-        const g = app.game;
-        if (!g) return;
-        const n = Math.round(sec * 60);
-        for (let i = 0; i < n && g.phase !== 'ended'; i++) {
-          app.demoAutopilot(g);
-          if (g.phase === 'draft') app.pickDraft(0);
-          if (app.overlayPause) {
-            app.chest.hide();
-            app.overlayPause = false;
-          }
-          g.tick();
-          if (i % 30 === 0) app.renderer.fx.handle(g.fx.drain());
-          if (i % 30 === 0) app.renderer.fx.update(0.5);
-        }
-        for (let k = 0; k < 3; k++) app.renderer.render(g, 1, 1 / 60);
-        const cssW = window.innerWidth, cssH = window.innerHeight;
-        app.hud.update(g, app.fps, 1 / 60, { w: cssW, h: cssH, toScreen: (x, y) => app.renderer.worldToScreen(x, y, cssW, cssH) });
-        return { t: g.time, lvl: g.level, kills: g.kills, alive: g.active.length, hp: Math.round(g.player.hp), phase: g.phase };
-      },
-      /** Render `frames` frames synchronously (sim ticking) and report average ms per frame. */
-      bench(frames = 120) {
-        const g = app.game ?? app.demo!;
-        const gl = app.renderer.renderer.getContext();
-        const t0 = performance.now();
-        let simMs = 0;
-        for (let i = 0; i < frames; i++) {
-          const s0 = performance.now();
-          app.demoAutopilot(g);
-          if (g.phase === 'draft') g.chooseDraft(0);
-          g.tick();
-          simMs += performance.now() - s0;
-          app.renderer.render(g, 1, 1 / 60);
-        }
-        gl.finish();
-        const total = (performance.now() - t0) / frames;
-        return { msPerFrame: +total.toFixed(2), simMs: +(simMs / frames).toFixed(2), renderMs: +(total - simMs / frames).toFixed(2), enemies: g.active.length, projs: g.projs.filter((p) => p.alive).length, bullets: g.bullets.filter((b) => b.alive).length, sprites: app.renderer.world.count + app.renderer.proj.count + app.renderer.fxAdd.count + app.renderer.fxNormal.count + app.renderer.bullets.count };
-      },
-      god(on = true) {
-        if (app.game) app.game.cfg.godMode = on;
-      },
-      level(n = 1) {
-        const g = app.game;
-        if (!g) return;
-        for (let i = 0; i < n; i++) g.addXp(g.xpToNext - g.xp + 0.01);
-      },
-      give(id: string) {
-        const g = app.game;
-        if (!g) return;
-        if (WEAPONS[id]) {
-          g.weapons.add(id);
-          for (let i = 0; i < 8; i++) g.weapons.levelUp(id);
-        } else if (PASSIVES[id]) g.player.addPassive(id);
-      },
-      evolve(id: string) {
-        app.game?.weapons.evolve(id);
-      },
-      killAll() {
-        const g = app.game;
-        if (!g) return;
-        for (const e of g.active) if (e.alive) g.killEnemy(e);
-      },
-      bossHp(frac: number) {
-        const g = app.game;
-        if (!g) return;
-        for (const b of g.bosses) if (b.awake && !b.dead) b.hp = b.maxHp * frac;
-      },
-      win() {
-        app.game?.endRun(true);
-      },
-      tickets(n: number) {
-        app.save.data.lostTickets += n;
-        app.save.save();
-      },
-      unlockAll() {
-        for (const a of ['reach_12', 'beat_tent', 'beat_ferris_wheel', 'beat_puppet_king', 'beat_ringmaster', 'win_carnival']) if (!app.save.data.achievements.includes(a)) app.save.data.achievements.push(a);
-        for (const c of CHARACTERS) if (c.unlock && !app.save.data.unlocks.includes(`char_${c.id}`)) app.save.data.unlocks.push(`char_${c.id}`);
-        for (const u of ['w_orbs', 'w_cannon', 'w_laser', 'w_bell', 'w_mirror', 'p_season_pass', 'p_coin_purse', 'p_rabbits_foot', 'f_skip']) if (!app.save.data.unlocks.includes(u)) app.save.data.unlocks.push(u);
-        app.save.data.stats.runs = Math.max(1, app.save.data.stats.runs);
-        app.save.save();
-      },
-    };
-    (window as any).__nc = api;
-    // compact on-screen dev panel, toggled with the backquote key
-    const panel = h('div', { class: 'devpanel hidden' });
-    const b = (label: string, fn: () => void) => h('button', { onclick: fn }, label);
-    panel.append(
-      b('×1', () => api.speed(1)), b('×4', () => api.speed(4)), b('×16', () => api.speed(16)),
-      b('+1m', () => app.game && api.jump(app.game.time + 60)),
-      b('→5:55', () => api.jump(355)), b('→11:55', () => api.jump(715)), b('→17:55', () => api.jump(1075)), b('→23:55', () => api.jump(1435)),
-      b('god', () => api.god(!app.game?.cfg.godMode)), b('auto', () => api.auto(!app.autopilot)), b('lvl+5', () => api.level(5)), b('boss 10%', () => api.bossHp(0.1)), b('kill all', () => api.killAll()),
-      b('unlock all', () => api.unlockAll()), b('+1000 LT', () => api.tickets(1000)),
-    );
-    this.ui.append(panel);
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'Backquote') panel.classList.toggle('hidden');
-    });
-    console.info('%cNightmare Carnival dev tools: window.__nc (press ` for the panel)', 'color:#f2c14e');
-  }
 }
 
 export const _unused = { VIEW_H, PERKS, CHARACTER_MAP };

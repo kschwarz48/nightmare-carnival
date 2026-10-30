@@ -63,7 +63,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     tell: 'Bobs as it floats straight at you.',
   }),
   swarm_balloon: E({
-    id: 'swarm_balloon', name: 'Balloon Swarm', hp: 4, speed: 560, contact: 4, tickets: 1,
+    id: 'swarm_balloon', name: 'Balloon Swarm', hp: 4, speed: 560, contact: 3, tickets: 1,
     behavior: 'flyby', radius: 10, sep: 10, knockbackTaken: 0.3, canElite: false,
     params: {}, deathFx: 'pop', hitSfx: 'squeak', deathSfx: 'pop', drawScale: 3.0, act: 1, role: 'Flyby',
     lore: 'A whole bouquet let go at once. They never look back.',
@@ -78,7 +78,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     tell: 'Stops, key spins, eyes snap wide — then it dashes in a straight line.',
   }),
   possessed_stuffie: E({
-    id: 'possessed_stuffie', name: 'Possessed Stuffie', hp: 50, speed: 80, contact: 5, tickets: 3,
+    id: 'possessed_stuffie', name: 'Possessed Stuffie', hp: 32, speed: 80, contact: 5, tickets: 3,
     behavior: 'chaser', radius: 16, sep: 22, knockbackTaken: 0.8, canElite: true, eliteName: 'Stitch-King Stuffie',
     params: {}, deathFx: 'stuffing', hitSfx: 'thump', deathSfx: 'stuffing', drawScale: 2.9, act: 1, role: 'Slow bruiser',
     lore: 'Top-shelf prize. One button eye hangs by a thread.',
@@ -101,7 +101,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     tell: 'A dirt mound travels toward you, then it pops up and swipes.',
   }),
   evil_clown: E({
-    id: 'evil_clown', name: 'Evil Clown', hp: 45, speed: 145, contact: 6, tickets: 4,
+    id: 'evil_clown', name: 'Evil Clown', hp: 36, speed: 145, contact: 6, tickets: 4,
     behavior: 'erratic', radius: 13, sep: 16, knockbackTaken: 1, canElite: true, eliteName: 'Stilt Clown',
     params: {}, deathFx: 'deflate', hitSfx: 'honk', deathSfx: 'slide', drawScale: 3.4, act: 1, role: 'Fast bruiser',
     lore: 'Too-wide grin, rolling eyes, size 30 shoes.',
