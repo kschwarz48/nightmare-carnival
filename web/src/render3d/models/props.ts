@@ -435,26 +435,65 @@ export function tiltArm(): THREE.BufferGeometry {
   return m.build({ ao: 0.2 });
 }
 
+const LANTERN_Y = 137;
+const LAMP_SCALE = 1.25;
+/** Lantern glass centre height on the street lamps (lights, halos and shafts hang from here). */
+export const LAMP_LIGHT_H = LANTERN_Y * LAMP_SCALE;
+
+/**
+ * A Victorian street lamp (after the art reference): stepped plinth, fluted iron post with knobbed
+ * collars, scroll brackets, and a four-paned lantern whose warm glass and bulb are the visible light
+ * source, under a flared roof and finial. Soul lamps carry ghost-green glass and a skull keystone.
+ */
 export function lampPost(ghost: boolean): THREE.BufferGeometry {
   const m = new ModelBuilder();
-  m.add(cyl(7, 9, 12, 8), { col: PAL.iron, pos: [0, 6, 0], surf: SURF.iron });
-  m.add(cyl(2.2, 3, 130, 8), { col: weather(PAL.iron, 0.3), pos: [0, 75, 0], rot: [0, 0, 0.02], surf: SURF.iron });
-  for (let k = 0; k < 3; k++) m.add(torus(3.4, 1, 5, 10), { col: PAL.iron, pos: [0, 30 + k * 40, 0], rot: [Math.PI / 2, 0, 0], surf: SURF.iron });
-  // curled arm + hanging lantern
-  m.add(tube([[0, 136, 0], [6, 146, 0], [16, 146, 0], [20, 140, 0]], 1.4, 5, 12), { col: PAL.iron, surf: SURF.iron });
-  const hx = 20, hy = 126;
-  m.add(cone(10, 8, 6), { col: PAL.iron, pos: [hx, hy + 14, 0], surf: SURF.iron });
-  if (ghost) {
-    // cage lantern with a skull keystone: its glass holds a soul (emissive driven per instance)
-    m.add(cyl(7, 6, 18, 6, true), { col: PAL.iron, pos: [hx, hy, 0], surf: SURF.iron, flat: true });
-    m.add(cyl(5.6, 4.8, 16, 6), { col: PAL.ghost, pos: [hx, hy, 0], emit: 1, surf: SURF.glass });
-    m.add(ellipsoid(4, 4.2, 2, 8, 6), { col: PAL.bone, pos: [hx, hy + 12, 7], surf: SURF.bone });
-  } else {
-    m.add(cyl(7, 6, 18, 6, true), { col: PAL.iron, pos: [hx, hy, 0], surf: SURF.iron, flat: true });
-    m.add(cyl(5.6, 4.8, 16, 6), { col: PAL.amber, pos: [hx, hy, 0], emit: 1, surf: SURF.glass });
+  const H = LANTERN_Y;
+  const iron = C(0x221e20), ironS = SURF.iron;
+  // plinth, base collar
+  m.add(cyl(8.6, 9.6, 4.5, 8), { col: iron, pos: [0, 2.25, 0], surf: ironS, flat: true });
+  m.add(cyl(7.2, 8.2, 5, 8), { col: iron, pos: [0, 7, 0], surf: ironS, flat: true });
+  m.add(lathe([[6.4, 0], [6.6, 1.6], [4.4, 5.6], [3.3, 12], [3.6, 13.6], [0, 13.6]], 12), { col: iron, pos: [0, 9.5, 0], surf: ironS });
+  // fluted post
+  m.add(cyl(2.3, 2.9, 96, 8), { col: iron, pos: [0, 71, 0], surf: ironS, flat: true });
+  // collars with knobs
+  for (const y of [50, 108]) {
+    m.add(torus(3.5, 1.05, 6, 14), { col: iron, pos: [0, y, 0], rot: [Math.PI / 2, 0, 0], surf: ironS });
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+      m.add(sphere(1.25, 8, 6), { col: iron, pos: [Math.cos(a) * 3.9, y, Math.sin(a) * 3.9], surf: ironS });
+    }
   }
-  m.add(cyl(4, 6, 4, 6), { col: PAL.iron, pos: [hx, hy - 10, 0], surf: SURF.iron });
-  return m.build({ ao: 0.2 });
+  m.add(lathe([[2.4, 0], [3.4, 3], [2.6, 6], [3.8, 9], [0, 9]], 12), { col: iron, pos: [0, 110, 0], surf: ironS });
+  // four scroll brackets curling up to the lantern
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+    const c = Math.cos(a), sn = Math.sin(a);
+    m.add(tube([[c * 2.6, 114, sn * 2.6], [c * 5.5, 116, sn * 5.5], [c * 6.6, 120, sn * 6.6], [c * 5.6, 121.8, sn * 5.6]], 0.6, 5, 10), { col: iron, surf: ironS });
+  }
+  m.add(cyl(2.3, 2.7, 4, 8), { col: iron, pos: [0, 120.5, 0], surf: ironS });
+  // lantern: cup, frames, four frosted panes glowing hottest around the mantle, corner mullions
+  m.add(lathe([[0, 0], [5.2, 0], [8, 2.6], [7.6, 3.8], [0, 3.8]], 4), { col: iron, pos: [0, H - 15.2, 0], rot: [0, Math.PI / 4, 0], surf: ironS });
+  const edge = C(ghost ? 0x2fb877 : 0xd96f26), hot = C(ghost ? 0xd8ffe8 : 0xffdca6), tmp = new THREE.Color();
+  const frosted: ColorFn = (p) => {
+    const r = Math.hypot(p.x, p.z) - 5.2, dy = (p.y - (H - 1)) / 8.5;
+    return tmp.copy(edge).lerp(hot, Math.exp(-dy * dy - (r * r) / 5));
+  };
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2;
+    m.add(new THREE.BoxGeometry(9.8, 21, 0.5, 4, 8, 1), { col: frosted, pos: [Math.sin(a) * 5.2, H, Math.cos(a) * 5.2], rot: [0, a, 0], emit: 1, surf: SURF.glass });
+    const ca = a + Math.PI / 4;
+    m.add(box(1, 22.6, 1), { col: iron, pos: [Math.sin(ca) * 7.3, H, Math.cos(ca) * 7.3], rot: [0, ca, 0], surf: ironS });
+  }
+  for (const y of [H - 11.4, H + 11.4]) m.add(rbox(14.8, 1.4, 14.8, 0.45, 1), { col: iron, pos: [0, y, 0], surf: ironS });
+  // ornamental band and a flared pagoda roof with a finial
+  m.add(rbox(13.2, 1.8, 13.2, 0.5, 1), { col: iron, pos: [0, H + 13, 0], surf: ironS });
+  m.add(lathe([[0, 0], [13.4, 0], [12, 1.8], [7.4, 5.4], [2.2, 10.6], [0, 11]], 4), { col: iron, pos: [0, H + 13.6, 0], rot: [0, Math.PI / 4, 0], surf: ironS, flat: true });
+  m.add(sphere(1.9, 8, 6), { col: iron, pos: [0, H + 26, 0], surf: ironS });
+  m.add(cone(1, 5, 6), { col: iron, pos: [0, H + 30, 0], surf: ironS });
+  if (ghost) m.add(ellipsoid(3, 3.3, 1.4, 10, 8), { col: PAL.bone, pos: [0, 104, 3.6], surf: SURF.bone });
+  const geo = m.build({ ao: 0.15 });
+  geo.scale(LAMP_SCALE, LAMP_SCALE, LAMP_SCALE);
+  return geo;
 }
 
 /** Emblem plate hung beneath a soul lamp. */

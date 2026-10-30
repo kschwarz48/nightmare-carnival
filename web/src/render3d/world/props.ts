@@ -13,6 +13,7 @@ import { ModelBuilder, SURF, cyl, sphere, tube, sagPoints, type V3 } from '../co
 import { actorMaterial, pool } from '../core/materials';
 import { ENEMY_MODELS, geometryFor } from '../models';
 import * as P from '../models/props';
+import { LAMP_LIGHT_H } from '../models/props';
 import type { GameRenderer3D } from '../renderer3d';
 
 interface KindSpec {
@@ -247,13 +248,15 @@ export class PropSet {
       for (let i = 0; i < a.props.length; i++) a.batch.anim(i, t * 1.6 + a.props[i].x * 0.01, 0, 0, 1);
       a.batch.refresh();
     }
-    // lamps: each sputters on its own schedule; Lights Out kills them
+    // lamps burn steady (a few are failing); Lights Out kills them
     const lightsOn = 1 - g.darkness * 0.92;
     if (this.lamps) {
       for (let i = 0; i < this.lampProps.length; i++) {
         const p = this.lampProps[i];
-        const fl = Math.sin(t * 9 + p.x) > 0.93 ? 0.35 : 1;
-        this.lamps.tint(i, 1, 1, 1, fl * lightsOn);
+        const fl = lampFlicker(p, t) * lightsOn;
+        this.lamps.tint(i, 1, 1, 1, fl);
+        // the lantern wears a soft warm halo, so the light visibly comes from the lamp head
+        if (fl > 0.1 && inView(p.x, p.y)) r.glow.draw(this.glowF ??= r.assets.atlas.get('fx_glow_0'), p.x, p.y, LAMP_LIGHT_H, 0.8, 0.8, 0, 1, 0.6, 0.3, 0.42 * fl);
       }
       this.lamps.refresh();
     }
@@ -348,15 +351,15 @@ export class PropSet {
   addLights(g: Game, time: number): void {
     const lightsOn = 1 - g.darkness * 0.92;
     for (const p of this.lampProps) {
-      const fl = (Math.sin(time * 9 + p.x) > 0.93 ? 0.4 : 1) * lightsOn;
-      pool.add(p.x + 20, p.y, 300, 1.7 * fl, 1, 0.7, 0.4, 126);
+      const fl = lampFlicker(p, time) * lightsOn;
+      pool.add(p.x, p.y, 300, 1.7 * fl, 1, 0.56, 0.24, LAMP_LIGHT_H);
     }
     const ls = this.quest(g);
     for (let i = 0; i < this.ghostProps.length; i++) {
       const p = this.ghostProps[i];
       const li = LAST_SONG.lamps.findIndex((l) => l.x === p.x && l.y === p.y);
-      if (ls?.lit[li]) pool.add(p.x + 20, p.y, 300, 1.0 + 0.2 * Math.sin(time * 3 + i), 0.45, 1, 0.7, 126, 2);
-      else if (ls && ls.stage >= LS.Souls && ls.souls[li] > 0) pool.add(p.x + 20, p.y, 160, 0.25 + 0.5 * (ls.souls[li] / LAST_SONG.soulsPerLamp), 0.45, 1, 0.7, 126);
+      if (ls?.lit[li]) pool.add(p.x, p.y, 300, 1.0 + 0.2 * Math.sin(time * 3 + i), 0.45, 1, 0.7, LAMP_LIGHT_H, 2);
+      else if (ls && ls.stage >= LS.Souls && ls.souls[li] > 0) pool.add(p.x, p.y, 160, 0.25 + 0.5 * (ls.souls[li] / LAST_SONG.soulsPerLamp), 0.45, 1, 0.7, LAMP_LIGHT_H);
     }
     // a few soft pools along each string-light run
     for (let r = 0; r < STRING_LIGHTS.length; r++) {
@@ -393,8 +396,16 @@ export class PropSet {
 /** Saturated carnival bulb colours: red, amber, teal, rose, cobalt. */
 const BULB_COLS: [number, number, number][] = [[1, 0.16, 0.08], [1, 0.52, 0.05], [0.08, 0.85, 0.55], [1, 0.22, 0.55], [0.22, 0.45, 1]];
 
+/** Street lamps burn steady; a few (about one in six, picked by position) are failing and stutter, never in step. */
+export function lampFlicker(p: { x: number; y: number }, t: number): number {
+  const v = Math.sin(p.x * 12.9898 + p.y * 78.233) * 43758.5453;
+  const h = v - Math.floor(v);
+  if (h >= 0.15) return 0.97 + 0.03 * Math.sin(t * 0.6 + h * 40);
+  return dyingNeon(t, Math.floor(h * 997) + 1);
+}
+
 /** A failing tube: steady most of the time, then a burst of irregular stutters. */
-function dyingNeon(t: number, seed: number): number {
+export function dyingNeon(t: number, seed: number): number {
   const cycle = 3.2 + (seed % 5) * 0.9;
   const ph = (t + seed * 1.37) % cycle;
   if (ph > 0.85) return 1;

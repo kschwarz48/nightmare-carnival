@@ -10,6 +10,8 @@ import { POOL_GLSL } from '../core/pool';
 import { pool } from '../core/materials';
 import type { BillboardLayer } from '../core/billboard';
 import type { Frame } from '../../render/atlas';
+import { lampFlicker } from './props';
+import { LAMP_LIGHT_H } from '../models/props';
 
 const NOISE = /* glsl */ `
 float aHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -33,8 +35,8 @@ export class LightShafts {
 
   constructor(scene: THREE.Scene) {
     for (const p of PROPS) {
-      if (p.kind === 'lamp') this.shafts.push({ x: p.x + 20, y: p.y, h: 118, r: 92, col: [1, 0.66, 0.36], flicker: 0, k: p.x, kind: 'lamp' });
-      if (p.kind === 'ghost_lamp') this.shafts.push({ x: p.x + 20, y: p.y, h: 118, r: 100, col: [0.45, 1, 0.72], flicker: 0, k: p.x, kind: 'ghost' });
+      if (p.kind === 'lamp') this.shafts.push({ x: p.x, y: p.y, h: LAMP_LIGHT_H - 16, r: 112, col: [1, 0.58, 0.28], flicker: 0, k: p.x, kind: 'lamp' });
+      if (p.kind === 'ghost_lamp') this.shafts.push({ x: p.x, y: p.y, h: LAMP_LIGHT_H - 16, r: 116, col: [0.45, 1, 0.72], flicker: 0, k: p.x, kind: 'ghost' });
     }
     for (const l of LIGHTS) if (l.r >= 300 && l.r <= 460) this.shafts.push({ x: l.x, y: l.y, h: 260, r: l.r * 0.42, col: l.color, flicker: l.flicker, k: l.x * 0.7, kind: 'light' });
     const geo = new THREE.CylinderGeometry(0.12, 1, 1, 24, 6, true);
@@ -95,12 +97,12 @@ export class LightShafts {
     const on = (1 - darkness * 0.92) * (1 - dawn);
     this.shafts.forEach((s, i) => {
       let k = s.kind === 'light' ? 0.08 : 0.12;
-      if (s.kind === 'lamp') k *= Math.sin(time * 9 + s.k) > 0.93 ? 0.35 : 1;
+      if (s.kind === 'lamp') k *= lampFlicker({ x: s.x, y: s.y }, time);
       if (s.kind === 'light' && s.flicker > 0) {
         const t = time * 7 + s.k;
         k *= 1 - s.flicker * (Math.sin(t) * 0.5 + 0.5) * (Math.sin(t * 2.7) > 0.6 ? 1 : 0.15);
       }
-      if (s.kind === 'ghost') k *= ghostLit(s.x - 20, s.y);
+      if (s.kind === 'ghost') k *= ghostLit(s.x, s.y);
       const o = i * 4;
       this.col[o] = s.col[0];
       this.col[o + 1] = s.col[1];
@@ -123,7 +125,7 @@ export class Motes {
       if (p.kind !== 'lamp' && p.kind !== 'ghost_lamp') continue;
       const ghost = p.kind === 'ghost_lamp';
       for (let k = 0; k < 7; k++) {
-        this.motes.push({ ax: p.x + 20 + (rnd() - 0.5) * 60, ay: p.y + (rnd() - 0.5) * 60, h: 40 + rnd() * 90, r: 14 + rnd() * 46, sp: 0.2 + rnd() * 0.5, ph: rnd() * 100, col: ghost ? [0.45, 1, 0.72] : [1, 0.75, 0.42] });
+        this.motes.push({ ax: p.x + (rnd() - 0.5) * 60, ay: p.y + (rnd() - 0.5) * 60, h: 40 + rnd() * 90, r: 14 + rnd() * 46, sp: 0.2 + rnd() * 0.5, ph: rnd() * 100, col: ghost ? [0.45, 1, 0.72] : [1, 0.66, 0.34] });
       }
     }
   }

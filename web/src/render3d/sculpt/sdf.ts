@@ -12,8 +12,10 @@ import { C, type ColorFn, type Surf, type V3 } from '../core/geo';
 export type Shape =
   | { t: 'sph'; c: V3; r: number }
   | { t: 'ell'; c: V3; r: V3; rot?: V3 }
-  | { t: 'cap'; a: V3; b: V3; ra: number; rb: number }
-  | { t: 'box'; c: V3; h: V3; r: number; rot?: V3 }
+  /** Round cone; `sz` < 1 squashes its cross-section front-to-back (torsos are wider than deep). */
+  | { t: 'cap'; a: V3; b: V3; ra: number; rb: number; sz?: number }
+  /** Rounded box; `tx` tapers its width with height (+0.1 = 10% wider at the top, 10% narrower at the bottom). */
+  | { t: 'box'; c: V3; h: V3; r: number; rot?: V3; tx?: number }
   | { t: 'tor'; c: V3; R: number; r: number; rot?: V3 };
 
 export interface PrimOpts {
@@ -62,6 +64,27 @@ function smaxSub(d: number, s: number, k: number): number {
   return Math.max(a, b) + h * h * k * 0.25;
 }
 
+/** Round cone between a (radius ra) and b (radius rb) — iq. */
+function roundCone(s: { a: V3; b: V3; ra: number; rb: number }, x: number, y: number, z: number): number {
+  const bax = s.b[0] - s.a[0], bay = s.b[1] - s.a[1], baz = s.b[2] - s.a[2];
+  const l2 = bax * bax + bay * bay + baz * baz;
+  if (l2 < 1e-6) return Math.hypot(x - s.a[0], y - s.a[1], z - s.a[2]) - Math.max(s.ra, s.rb);
+  const rr = s.ra - s.rb;
+  const a2 = l2 - rr * rr;
+  const il2 = 1 / l2;
+  const pax = x - s.a[0], pay = y - s.a[1], paz = z - s.a[2];
+  const yy = pax * bax + pay * bay + paz * baz;
+  const zz = yy - l2;
+  const xvx = pax * l2 - bax * yy, xvy = pay * l2 - bay * yy, xvz = paz * l2 - baz * yy;
+  const x2 = xvx * xvx + xvy * xvy + xvz * xvz;
+  const y2 = yy * yy * l2;
+  const z2 = zz * zz * l2;
+  const k = Math.sign(rr) * rr * rr * x2;
+  if (Math.sign(zz) * a2 * z2 > k) return Math.sqrt(x2 + z2) * il2 - s.rb;
+  if (Math.sign(yy) * a2 * y2 < k) return Math.sqrt(x2 + y2) * il2 - s.ra;
+  return (Math.sqrt(x2 * a2 * il2) + yy * rr) * il2 - s.ra;
+}
+
 function dist(p: Prim, x: number, y: number, z: number): number {
   const s = p.s;
   switch (s.t) {
@@ -74,30 +97,13 @@ function dist(p: Prim, x: number, y: number, z: number): number {
       const k1 = Math.hypot(_v.x / (s.r[0] * s.r[0]), _v.y / (s.r[1] * s.r[1]), _v.z / (s.r[2] * s.r[2]));
       return k1 > 1e-9 ? (k0 * (k0 - 1)) / k1 : -Math.min(s.r[0], s.r[1], s.r[2]);
     }
-    case 'cap': {
-      // round cone between a (radius ra) and b (radius rb) — iq
-      const bax = s.b[0] - s.a[0], bay = s.b[1] - s.a[1], baz = s.b[2] - s.a[2];
-      const l2 = bax * bax + bay * bay + baz * baz;
-      if (l2 < 1e-6) return Math.hypot(x - s.a[0], y - s.a[1], z - s.a[2]) - Math.max(s.ra, s.rb);
-      const rr = s.ra - s.rb;
-      const a2 = l2 - rr * rr;
-      const il2 = 1 / l2;
-      const pax = x - s.a[0], pay = y - s.a[1], paz = z - s.a[2];
-      const yy = pax * bax + pay * bay + paz * baz;
-      const zz = yy - l2;
-      const xvx = pax * l2 - bax * yy, xvy = pay * l2 - bay * yy, xvz = paz * l2 - baz * yy;
-      const x2 = xvx * xvx + xvy * xvy + xvz * xvz;
-      const y2 = yy * yy * l2;
-      const z2 = zz * zz * l2;
-      const k = Math.sign(rr) * rr * rr * x2;
-      if (Math.sign(zz) * a2 * z2 > k) return Math.sqrt(x2 + z2) * il2 - s.rb;
-      if (Math.sign(yy) * a2 * y2 < k) return Math.sqrt(x2 + y2) * il2 - s.ra;
-      return (Math.sqrt(x2 * a2 * il2) + yy * rr) * il2 - s.ra;
-    }
+    case 'cap':
+      return s.sz ? roundCone(s, x, y, s.a[2] + (z - s.a[2]) / s.sz) * Math.min(1, s.sz) : roundCone(s, x, y, z);
     case 'box': {
       _v.set(x - s.c[0], y - s.c[1], z - s.c[2]);
       if (p.inv) _v.applyMatrix3(p.inv);
-      const qx = Math.abs(_v.x) - s.h[0] + s.r, qy = Math.abs(_v.y) - s.h[1] + s.r, qz = Math.abs(_v.z) - s.h[2] + s.r;
+      const hx = s.tx ? s.h[0] * (1 + s.tx * Math.max(-1, Math.min(1, _v.y / s.h[1]))) : s.h[0];
+      const qx = Math.abs(_v.x) - hx + s.r, qy = Math.abs(_v.y) - s.h[1] + s.r, qz = Math.abs(_v.z) - s.h[2] + s.r;
       return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - s.r;
     }
     case 'tor': {
@@ -120,7 +126,7 @@ function bounds(s: Shape): [THREE.Vector3, THREE.Vector3] {
         new THREE.Vector3(Math.max(s.a[0], s.b[0]) + r, Math.max(s.a[1], s.b[1]) + r, Math.max(s.a[2], s.b[2]) + r),
       ];
     }
-    case 'box': { const m = Math.hypot(...s.h); return [new THREE.Vector3(s.c[0] - m, s.c[1] - m, s.c[2] - m), new THREE.Vector3(s.c[0] + m, s.c[1] + m, s.c[2] + m)]; }
+    case 'box': { const m = Math.hypot(s.h[0] * (1 + Math.abs(s.tx ?? 0)), s.h[1], s.h[2]); return [new THREE.Vector3(s.c[0] - m, s.c[1] - m, s.c[2] - m), new THREE.Vector3(s.c[0] + m, s.c[1] + m, s.c[2] + m)]; }
     case 'tor': { const m = s.R + s.r; return [new THREE.Vector3(s.c[0] - m, s.c[1] - m, s.c[2] - m), new THREE.Vector3(s.c[0] + m, s.c[1] + m, s.c[2] + m)]; }
   }
 }

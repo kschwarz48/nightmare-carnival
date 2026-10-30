@@ -15,7 +15,7 @@ import { migrate, SaveManager, SAVE_VERSION } from '../src/meta/save';
 import { CHARACTERS as CHAR_DATA } from '../src/data/characters';
 import { ENEMIES } from '../src/data/enemies';
 import { CHARACTERS, ENEMY_MODELS, ITEM_MODELS } from '../src/render3d/models';
-import { PROP_SPECS } from '../src/render3d/world/props';
+import { PROP_SPECS, lampFlicker } from '../src/render3d/world/props';
 import { PROPS } from '../src/data/map';
 import { TICK } from '../src/sim/constants';
 import type { Game } from '../src/sim/game';
@@ -354,6 +354,22 @@ describe('3D model library (D-35/D-38)', () => {
       const spec = PROP_SPECS[k]!;
       const sample = PROPS.find((p) => p.kind === k)!;
       check(k, spec.build(sample));
+    }
+  });
+
+  it('street lamps burn steady; only a few are failing, and those never blink in step', () => {
+    const lamps = PROPS.filter((p) => p.kind === 'lamp');
+    const series = lamps.map((p) => Array.from({ length: 1200 }, (_, i) => lampFlicker(p, i / 60)));
+    const failing = series.filter((s) => Math.min(...s) < 0.5);
+    expect(failing.length).toBeGreaterThanOrEqual(1);
+    expect(failing.length).toBeLessThanOrEqual(Math.ceil(lamps.length * 0.25));
+    for (const s of series) if (!failing.includes(s)) expect(Math.min(...s)).toBeGreaterThan(0.9);
+    // no two failing lamps go dark on the same frames
+    for (let a = 0; a < failing.length; a++) {
+      for (let b = a + 1; b < failing.length; b++) {
+        const same = failing[a].every((v, i) => (v < 0.5) === (failing[b][i] < 0.5));
+        expect(same).toBe(false);
+      }
     }
   });
 });
