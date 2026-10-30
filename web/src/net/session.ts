@@ -740,7 +740,8 @@ export class GuestSession {
     this.now = this.lastHeard = now;
     link.onMsg = (raw) => this.onMsg(raw);
     link.onBin = (buf) => this.onBin(buf);
-    link.onClose = (reason) => this.closed(reason === 'closed' || reason === 'bye' ? 'The host closed the lobby.' : 'Lost connection to the host.');
+    // a host that leaves on purpose says why first ('bye' / 'reject'); a bare close is a dropped link
+    link.onClose = () => this.closed('Lost connection to the host.');
     link.sendMsg({ t: 'hello', v: PROTO, profile, token: this.token ?? undefined } satisfies GuestMsg);
   }
 

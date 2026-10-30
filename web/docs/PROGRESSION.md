@@ -105,6 +105,22 @@ late-curve change): most bot runs ended between 6 and 9 minutes (around the firs
 reached 16–25 minutes. One Ride Operator run reached level 106 by 24:50 under the previous curve, which
 prompted the steeper post-40 bands and the L60 plateau.
 
+### Solo slots 4 → 6 (D-51, Vampire Survivors' solo cap)
+
+Same bot, same seeds (`scripts/survival.ts midway`, 3 seeds × 6 characters, mortal), only `COOP.slots[1]`
+changed:
+
+| | 4 slots | 6 slots |
+|---|---|---|
+| Mean survival (18 runs) | 11:47 | 11:41 |
+| Full-night wins | 1 | 2 |
+| Runs past 15:00 | 6 | 4 |
+
+No clear shift in average survival; the spread changed (the Carny reached 24:44 and won, the Strongman
+won, while several Lost Child / Ringleader seeds died earlier — the simple bot spreads picks over more weapons, which
+weakens each one early). At 18 runs this is within noise; human playtests should decide whether the
+extra late-game power needs a counterweight.
+
 ## Honest uncertainty
 
 * These numbers come from bots, not people. The pilot dodges by potential fields and cannot read

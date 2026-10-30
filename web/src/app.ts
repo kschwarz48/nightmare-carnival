@@ -1212,6 +1212,7 @@ export class App {
   private netClosed(reason: string): void {
     const inRun = !!this.game;
     const joining = this.state === 'mp_join';
+    const code = this.net?.role === 'guest' ? this.net.code : null;
     this.stopNet();
     if (joining) {
       this.mpBusy = false;
@@ -1224,7 +1225,18 @@ export class App {
       this.endRunView();
       this.makeDemo();
     }
-    this.go('netmsg', { title: 'The Show Is Over', text: reason, actions: [{ label: 'Back to Menu', fn: () => this.go('title') }, { label: 'Multiplayer', fn: () => this.go('mp'), cls: 'purple' }] });
+    const actions = [{ label: 'Back to Menu', fn: () => this.go('title') }, { label: 'Multiplayer', fn: () => this.go('mp'), cls: 'purple' }];
+    // a dropped connection (not the host leaving): one click back into the same seat
+    if (inRun && code && /lost connection/i.test(reason)) {
+      actions.unshift({
+        label: 'Rejoin',
+        fn: () => {
+          this.go('mp_join');
+          void this.joinGame(code);
+        },
+      });
+    }
+    this.go('netmsg', { title: /lost connection/i.test(reason) ? 'Connection Lost' : 'The Show Is Over', text: reason, actions });
   }
 
   /** Leave whatever session this tab is in (host: closes the lobby for the guest). */
