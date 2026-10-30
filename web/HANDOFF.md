@@ -24,7 +24,10 @@ _Updated 2026-10-30. Branch: `web-threejs-rebuild` (not pushed, no PR)._
   between (D-55). **Deployed** at https://nightmare-carnival.netlify.app (Netlify; `netlify.toml`,
   `docs/MULTIPLAYER.md` §4). Verified with two tabs on one machine over real PeerJS, on the dev server and on
   the deployed site; **not yet verified across two networks**, which is the next job.
-- **176 tests pass**, typecheck is clean, `npm run build` produces a static site.
+- **The Midway hub** (D-60): after fully completing the first night, the map becomes a peaceful hub
+  (ticket booth, the cast with lore, the Big Top to start a night, coming soon gates), shared in co-op.
+  `?unlock=midway` opens it for testing.
+- **181 tests pass**, typecheck is clean, `npm run build` produces a static site.
 - The **biggest open item is human playtesting** (balance and readability). All tuning so far used bots.
 - The original Godot project at the repo root is untouched. Two Godot files (`export_presets.cfg`,
   `project.godot`) had **uncommitted local edits before this work started** — they're the repo owner's,
@@ -199,7 +202,11 @@ and web fonts.
 11. **Pre-compile shaders against the real render target.** Program keys include output colour space
     and tone mapping, and the scene draws into the post chain's linear buffer, not the canvas
     (`PrizeWheel.prewarm`).
-12. **Dev tools must stay dynamically imported** (`import('./dev')` inside `if (import.meta.env.DEV)`)
+12. **Hub cast members are real `Player`s that never move**: they need an (empty) `Weapons`, because the
+    renderer's animation reads it. They're drawn with `drawPlayer(…, npc = true)`.
+13. **The host's world keeps ticking in the background** for both a night and the Midway
+    (`App.background`). Otherwise a hidden host tab freezes everyone, and guests' inputs get discarded.
+14. **Dev tools must stay dynamically imported** (`import('./dev')` inside `if (import.meta.env.DEV)`)
    so they're stripped from production. Verify with a grep for `__nc.` in `dist/assets/*.js` (the only
    allowed hit is the `__nc_probe` localStorage key).
 

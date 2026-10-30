@@ -82,6 +82,8 @@ export interface LobbyActions {
   difficulty: (id: string, curse: boolean) => void;
   start: () => void;
   leave: () => void;
+  /** host with the Midway unlocked: take everyone back to the hub instead of starting (D-60) */
+  midway?: () => void;
 }
 
 export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canStart: boolean; status: string; tone: 'info' | 'warn'; actions: LobbyActions }): HTMLElement {
@@ -135,6 +137,7 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
   const ready = !!mine?.ready;
   const actions = h('div', { class: 'cs-actions' },
     btn('Leave', () => { c.click(); o.actions.leave(); }, 'small red'),
+    o.actions.midway ? btn('Back to the Midway', () => { c.click(); o.actions.midway!(); }, 'small') : null,
     btn(ready ? 'Not Ready' : 'Ready!', () => { if (!myChar) return; c.click(); o.actions.ready(!ready); }, ready ? 'small' : 'purple', { disabled: !myChar || undefined, 'data-default': host ? undefined : '' }),
     host ? btn('Start the Night!', () => { if (!o.canStart) return; c.click(); o.actions.start(); }, '', { disabled: !o.canStart || undefined, 'data-default': '' }) : null,
   );
@@ -143,7 +146,7 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
     : 'The host starts the night when everyone is ready.';
   return h('div', { class: 'screen dim mp lobby' }, h('div', { class: 'panel bulbs mp-lobby' },
     h('div', { class: 'mp-head' },
-      h('h2', { class: 'title-text' }, 'The Midway Lobby'),
+      h('h2', { class: 'title-text' }, 'Choose Your Fools'),
       h('div', { class: 'mp-code' }, h('small', {}, 'LOBBY CODE'), h('b', {}, lobby.code || '······'), host ? copyBtn : null),
     ),
     h('div', { class: 'mp-cards six' }, ...lobby.players.map((_, i) => card(i))),
@@ -153,6 +156,16 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
     h('div', { class: 'muted mp-hint' }, hint),
     actions,
     h('div', { class: `mp-status ${o.tone}${o.status ? '' : ' hidden'}` }, o.status),
+  ));
+}
+
+// ===================================================================== the Midway menu (D-60)
+/** The hub's pause menu: a plain panel of choices. */
+export function menuPanel(c: UICtx, title: string, text: string, actions: { label: string; fn: () => void; cls?: string }[]): HTMLElement {
+  return h('div', { class: 'screen dim mp' }, h('div', { class: 'panel bulbs mp-panel' },
+    h('h2', { class: 'title-text' }, title),
+    text ? h('div', { class: 'muted' }, text) : null,
+    h('div', { class: 'menu' }, ...actions.map((a, i) => btn(a.label, () => { c.click(); a.fn(); }, a.cls ?? '', i === 0 ? { 'data-default': '' } : {}))),
   ));
 }
 

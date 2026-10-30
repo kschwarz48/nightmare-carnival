@@ -429,3 +429,36 @@ body:has(#nl-badge-frame) .title .corner { bottom: calc(1.2em + 64px); }
 .mp-check.ok { color: #8fe08a; }
 .mp-check.warn { color: #ffb36b; }
 .mp-check.pending { opacity: 0.6; }
+
+/* ===================================================================== the Midway hub (D-60) */
+.hubhud { position: absolute; inset: 0; pointer-events: none; font-family: var(--head); }
+.hubhud.under { visibility: hidden; }
+.hub-labels { position: absolute; inset: 0; }
+.hub-label { position: absolute; transform: translate(-50%, -100%); text-align: center; white-space: nowrap; color: var(--cream); text-shadow: 2px 2px 0 var(--ink), -1px -1px 0 var(--ink); }
+.hub-label b { display: block; font-size: 0.95em; letter-spacing: 0.03em; }
+.hub-label small { display: block; font-size: 0.72em; opacity: 0.85; font-family: var(--body, var(--head)); }
+.hub-label.npc b { color: #ffe4a0; }
+.hub-label.spot b { color: #ffd27a; font-size: 1.1em; }
+.hub-label.exit b { color: #e8d9c0; }
+.hub-label.exit small { color: #ff9b7a; font-style: italic; }
+.hub-label.player b { font-size: 0.85em; }
+.hub-label:is(.p1, .p2, .p3, .p4, .p5, .p6) b { color: var(--pc); }
+.hub-title { position: absolute; top: 9%; left: 50%; transform: translateX(-50%); text-align: center; opacity: 0; animation: hubTitle 4.5s ease-out forwards; }
+.hub-title .t { font-size: 3em; color: var(--gold); letter-spacing: 0.08em; text-shadow: 4px 4px 0 var(--ink), -2px -2px 0 var(--ink), 0 0 24px rgba(255, 190, 90, 0.5); }
+.hub-title .s { font-style: italic; color: var(--cream); text-shadow: 2px 2px 0 var(--ink); }
+@keyframes hubTitle { 0% { opacity: 0; transform: translate(-50%, 12px); } 15% { opacity: 1; transform: translate(-50%, 0); } 75% { opacity: 1; } 100% { opacity: 0; } }
+.hub-hint { position: absolute; left: 18px; top: 14px; font-size: 0.8em; opacity: 0.7; color: var(--cream); text-shadow: 2px 2px 0 var(--ink); }
+.hub-code { position: absolute; right: 18px; top: 14px; pointer-events: auto; cursor: pointer; text-align: right; background: rgba(20, 10, 32, 0.78); border: 3px solid var(--ink); border-radius: 12px; padding: 0.35em 0.8em; box-shadow: 0 0 0 2px var(--gold-dark); }
+.hub-code small { display: block; font-size: 0.65em; opacity: 0.8; }
+.hub-code b { font-size: 1.5em; letter-spacing: 0.12em; color: var(--gold); }
+.hub-code .party { font-size: 0.7em; opacity: 0.85; max-width: 22em; }
+.hub-prompt { position: absolute; left: 50%; bottom: 13%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.6em; background: rgba(20, 10, 32, 0.85); border: 3px solid var(--ink); border-radius: 12px; padding: 0.4em 1em; box-shadow: 0 0 0 2px var(--gold-dark); color: var(--cream); white-space: nowrap; }
+.hub-prompt .key { background: var(--gold); color: var(--ink); border-radius: 6px; padding: 0 0.45em; font-size: 0.9em; }
+.hub-prompt small { opacity: 0.8; font-family: var(--body, var(--head)); }
+.hub-dialogue { position: absolute; left: 50%; bottom: 5%; transform: translateX(-50%); width: min(760px, 92vw); display: flex; gap: 1em; align-items: flex-start; background: linear-gradient(180deg, rgba(42, 22, 64, 0.95), rgba(26, 13, 40, 0.95)); border: 4px solid var(--ink); border-radius: 16px; padding: 0.8em 1.1em; box-shadow: 0 0 0 3px var(--gold-dark), 0 12px 30px rgba(0, 0, 0, 0.6); pointer-events: auto; }
+.hub-dialogue img { width: 76px; height: 76px; border-radius: 50%; border: 3px solid var(--ink); box-shadow: 0 0 0 2px var(--gold-dark); flex: none; object-fit: cover; background: #2a1a3a; }
+.hub-dialogue .who { color: var(--gold); font-size: 1.05em; }
+.hub-dialogue .who small { color: var(--cream); opacity: 0.7; font-size: 0.75em; }
+.hub-dialogue .line { margin-top: 0.3em; font-family: var(--body, var(--head)); line-height: 1.4; color: var(--cream); }
+.hub-dialogue .more { margin-top: 0.4em; font-size: 0.75em; opacity: 0.65; text-align: right; }
+@media (max-width: 640px) { .hub-title .t { font-size: 2em; } .hub-dialogue img { width: 52px; height: 52px; } }

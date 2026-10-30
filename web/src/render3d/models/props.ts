@@ -521,6 +521,22 @@ export function lampPost(ghost: boolean, red = false): THREE.BufferGeometry {
   return geo;
 }
 
+/**
+ * A hand-painted "coming soon" signpost for the Midway hub's closed attractions (D-60): two weathered
+ * posts, a cream board with a red border and a chained-off bar across the front. The words themselves
+ * float above it as a screen label.
+ */
+export function signpost(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  const wood = weather(PAL.woodDark, 0.5);
+  for (const sx of [-1, 1]) m.add(cyl(3.2, 3.8, 92, 6), { col: wood, pos: [sx * 34, 46, 0], surf: SURF.wood });
+  m.add(rbox(84, 40, 4, 2, 1), { col: PAL.redDeep, pos: [0, 74, 1], surf: SURF.paint });
+  m.add(rbox(76, 32, 4.6, 2, 1), { col: weather(PAL.cream, 0.3), pos: [0, 74, 1.2], surf: SURF.paint });
+  for (let k = 0; k < 5; k++) m.add(box(10, 2.4, 2.4), { col: PAL.iron, pos: [-24 + k * 12, 28, 6], rot: [0, 0, k % 2 ? 0.5 : -0.5], surf: SURF.iron });
+  m.add(box(80, 4, 4), { col: weather(PAL.mustard, 0.4), pos: [0, 30, 5], surf: SURF.paint });
+  return m.build({ ao: 0.25 });
+}
+
 /** Emblem plate hung beneath a soul lamp. */
 export function lampSymbol(kind: number): THREE.BufferGeometry {
   return plaque(kind);

@@ -30,6 +30,8 @@ import { GuestSession, HostSession, runConfigFromStart } from './net/session';
 import type { GuestProfile, StartCfg } from './net/protocol';
 import { isValidCode, normalizeCode } from './net/codes';
 import { describeNetConfig, loadNetConfig } from './net/config';
+import { HubHud, type HubLabel } from './ui/hubHud';
+import { HUB_EXITS, HUB_NPCS, HUB_SPAWN, HUB_SPOTS } from './data/hub';
 import { NetError, hostLobby, joinLobby, probeReach, reachAdvice, type HostHandle, type Reach } from './net/peer';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './sim/constants';
 
@@ -81,7 +83,7 @@ class BackgroundClock {
   }
 }
 
-type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results' | 'mp' | 'mp_join' | 'lobby' | 'netmsg';
+type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results' | 'mp' | 'mp_join' | 'lobby' | 'netmsg' | 'hub' | 'midway';
 
 export class App {
   canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -130,6 +132,16 @@ export class App {
   private bgLast = 0;
   /** when the animation-frame loop last ran (the background clock takes over when it stalls) */
   private lastFrameAt = 0;
+  /** the Midway hub's screen layer (D-60) */
+  private hubHud!: HubHud;
+  /** the conversation open on the Midway: which cast member, which line */
+  private hubTalk: { npc: number; line: number } | null = null;
+  /** what interact would use right now on the Midway */
+  private hubTarget: { kind: 'npc' | 'booth' | 'bigtop' | 'exit'; i: number } | null = null;
+  /** co-op host: who was on the Midway when it was last built (it is rebuilt when that changes) */
+  private hubParty = '';
+  /** this night unlocked the Midway (announced on the results) */
+  private hubJustUnlocked = false;
   /** guest: finished its prize wheel at this mirror time, waiting for the host's night to resume */
   private guestPrizeAt = -1;
   private chestQueue: (() => void)[] = [];
@@ -175,6 +187,12 @@ export class App {
     if (import.meta.env.DEV) console.info(`[boot] assets ${(t1 - t0).toFixed(0)} ms, renderer ${(t2 - t1).toFixed(0)} ms`);
     this.input.aimScaleY = this.renderer.aimScaleY;
     this.hud = new Hud(this.assets);
+    this.hubHud = new HubHud((code) => void navigator.clipboard?.writeText(code));
+    // alpha testing aid: ?unlock=midway opens the hub on this save without finishing the Last Song
+    if (new URLSearchParams(location.search).get('unlock') === 'midway') {
+      this.save.data.midwayTester = true;
+      this.save.save();
+    }
     this.draft = new DraftView(this.assets, (i) => this.pickDraft(i), () => this.rerollDraft(), (i) => this.banishDraft(i), () => this.skipDraft());
     this.prizeUi = new PrizeOverlay(() => this.prize.skip(false));
     this.prize = new PrizeWheel(this.renderer.camera, this.assets, this.prizeUi, this.audio);
@@ -226,11 +244,22 @@ export class App {
       const from = arg;
       this.settingsBack = from === 'pause' ? () => this.go('paused') : () => this.go('title');
     }
+    // once the first night is fully completed, the Midway takes the main menu's place (D-60)
+    // (and backing out of any menu opened on a Midway, yours or a friend's, returns to it)
+    if (state === 'title' && (this.game?.hub || (!this.net && this.save.hubUnlocked()))) state = 'hub';
+    if (state === 'hub' && !this.game?.hub) return this.startHub();
     this.screenEl?.remove();
     this.screenEl = null;
     this.state = state;
     let el: HTMLElement | null = null;
     switch (state) {
+      case 'hub':
+        this.audio.setPausedFilter(false);
+        this.audio.setCue('menu');
+        break;
+      case 'midway':
+        el = this.midwayMenuEl();
+        break;
       case 'press':
         el = S.pressStart(this.ctx, () => this.pressed());
         break;
@@ -353,6 +382,7 @@ export class App {
 
   /** Common run setup for solo, the co-op host's night and the co-op guest's mirror. */
   private beginRun(g: Game, character: string, title: string, sub: string): void {
+    this.hubHud.root.remove();
     this.game?.bus.clear();
     this.game = g;
     g.setCtx(g.players[this.localIndex] ?? g.players[0]);
@@ -651,10 +681,12 @@ export class App {
         // the reward is permanent: the Steam Calliope joins the draft pool for good
         const s = this.save;
         for (const id of SECRET_UNLOCKS) if (!s.data.unlocks.includes(id)) s.data.unlocks.push(id);
+        const wasLocked = !s.hubUnlocked();
         const rec = (s.data.quests[q.chain] ??= { completions: 0, bestStage: 0 });
         rec.completions++;
         rec.bestStage = Math.max(rec.bestStage, 7);
         s.save();
+        if (wasLocked) this.hubJustUnlocked = true;
         this.hud.banner('THE LAST SONG', 'The music has ended. The Steam Calliope will remember you.', 'gold', 5);
         break;
       }
@@ -732,12 +764,16 @@ export class App {
       this.state = 'results';
       this.hud.root.classList.add('under');
       if (st.trueEnding) notes.unshift('The Steam Calliope now plays in the draft pool.');
+      if (this.hubJustUnlocked) {
+        notes.unshift('THE MIDWAY IS YOURS: from now on the carnival opens as your hub. Walk the grounds, visit the cast, and enter the Big Top for another night.');
+        this.hubJustUnlocked = false;
+      }
       const actions = net
         ? net.role === 'host'
-          ? { again: () => this.coopToLobby(), againLabel: 'Back to the Lobby', menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound') }
+          ? { again: () => this.coopToLobby(), againLabel: this.save.hubUnlocked() ? 'Back to the Midway' : 'Back to the Lobby', menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound') }
           : { again: () => this.hud.toastMsg(`Waiting for ${g.players[0]?.name ?? 'the host'} to head back to the lobby…`), againLabel: 'Wait for Host', menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound') }
         : { again: () => this.lastRun && this.startRun(this.lastRun), menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound'), endless: canEndless ? () => this.goEndless() : undefined };
-      const el = S.resultsScreen(this.ctx, st, { achievements: earned.map((a) => `${a.name} — ${a.desc} (+${a.reward} LT)`), newUnlocks: notes, dailyBest }, actions);
+      const el = S.resultsScreen(this.ctx, st, { achievements: earned.map((a) => `${a.name} — ${a.desc} (+${a.reward} LT)`), newUnlocks: notes, dailyBest }, { ...actions, menuLabel: net ? (net.role === 'host' ? 'Close the Lobby' : 'Leave') : this.save.hubUnlocked() ? 'To the Midway' : undefined });
       this.ui.append(el);
       this.screenEl = el;
       this.nav = new FocusNav(el);
@@ -769,6 +805,8 @@ export class App {
 
   /** Tear down the in-run views (HUD, overlays, the game) without leaving any session. */
   private endRunView(): void {
+    this.hubHud?.root.remove();
+    this.hubTalk = null;
     this.chestQueue = [];
     this.prize.finishNow();
     this.hud.root.remove();
@@ -794,6 +832,20 @@ export class App {
   private onNav(e: NavEvent): void {
     if (this.state === 'press') {
       this.pressed();
+      return;
+    }
+    if (this.state === 'hub') {
+      if (e === 'pause' || e === 'back') {
+        if (this.hubTalk) this.hubTalk = null;
+        else {
+          this.audio.play('ui_click');
+          this.go('midway');
+        }
+      } else if (e === 'confirm' || e === 'interact') this.hubInteract();
+      return;
+    }
+    if (this.state === 'midway' && (e === 'pause' || e === 'back')) {
+      this.go('hub');
       return;
     }
     if (this.state === 'playing' && this.game) {
@@ -859,14 +911,18 @@ export class App {
     const playing = this.state === 'playing' && g;
     // player screen position for mouse aim
     const cssW = window.innerWidth, cssH = window.innerHeight;
-    const target = g && (playing || this.state === 'paused') ? g.player : this.demo!.player;
+    const target = g && (playing || this.state === 'paused' || g.hub) ? g.player : this.demo!.player;
     const sp = this.renderer.worldToScreen(target.x, target.y, cssW, cssH, 30);
     this.input.poll(sp.x, sp.y);
-    if (net?.role === 'guest' && g && (this.state === 'playing' || this.state === 'paused' || this.state === 'results')) {
+    if (net?.role === 'guest' && g && (this.state === 'playing' || this.state === 'paused' || this.state === 'results' || g.hub)) {
       this.guestFrame(dt, t, cssW, cssH);
       return;
     }
     const hs = net?.role === 'host' && g ? net.host : null;
+    if (g?.hub) {
+      this.hubFrame(dt, cssW, cssH, hs);
+      return;
+    }
     if (playing) {
       g!.input.moveX = this.input.moveX;
       g!.input.moveY = this.input.moveY;
@@ -936,7 +992,245 @@ export class App {
   }
 
   private guestProfile(name: string): GuestProfile {
-    return { ...this.profileBase(name), chars: CHARACTERS.filter((c) => this.save.characterAvailable(c.id)).map((c) => c.id) };
+    return { ...this.profileBase(name), chars: CHARACTERS.filter((c) => this.save.characterAvailable(c.id)).map((c) => c.id), pref: this.hubCharacter() };
+  }
+
+  // =================================================================== the Midway hub (D-60)
+  /** The starting cast this save has unlocked: they stand at their games on the Midway. */
+  private hubCast(): string[] {
+    return HUB_NPCS.filter((n) => this.save.characterAvailable(n.char)).map((n) => n.char);
+  }
+
+  /** Who you walk the Midway as: the fool you last played. */
+  private hubCharacter(): string {
+    const s = this.save;
+    return s.characterAvailable(s.data.last.character) ? s.data.last.character : 'carny';
+  }
+
+  /** Walk onto the Midway alone (a co-op host rebuilds the shared one instead). */
+  private startHub(): void {
+    if (this.net?.role === 'host') return this.restartHub();
+    this.endRunView();
+    const ch = this.hubCharacter();
+    const g = new Game({ character: ch, difficulty: 'midway', curse: false, seed: (Math.random() * 2 ** 31) | 0, players: [{ character: ch, name: L.loadName() || 'You' }], hub: { npcs: this.hubCast() } });
+    this.beginHub(g, 0);
+  }
+
+  /** Co-op host: (re)build the Midway for everyone seated, keeping each where they stood, and send it out. */
+  private restartHub(): void {
+    if (this.net?.role !== 'host') return this.startHub();
+    const hs = this.net.host;
+    const old = this.game?.hub ? this.game : null;
+    this.hubParty = this.hubPartyKey();
+    if (!hs.hostCharacter) hs.hostCharacter = this.hubCharacter();
+    const names = [hs.self.name, ...hs.guests.map((s) => s.profile.name)];
+    const at = names.map((nm, i) => {
+      const p = old?.players.find((q) => q.name === nm);
+      return p ? { x: p.x, y: p.y } : { x: HUB_SPAWN.x + (i - 2) * 60, y: HUB_SPAWN.y + 30 };
+    });
+    const cfg = hs.startHub({ seed: (Math.random() * 2 ** 31) | 0, unlocked: [...this.save.unlockedSet()], questMemory: {}, npcs: this.hubCast(), at });
+    this.endRunView();
+    const g = new Game(runConfigFromStart(cfg));
+    hs.attachGame(g);
+    this.beginHub(g, 0);
+  }
+
+  private hubPartyKey(): string {
+    return this.net?.role === 'host' ? this.net.host.guests.map((s) => `${s.index}:${s.profile.name}:${s.connected}`).join('|') : '';
+  }
+
+  /** Guest: the host is on the Midway; build the mirror the session will feed. */
+  private startGuestHub(cfg: StartCfg): Game {
+    void this.audio.unlock();
+    this.mpStatus = '';
+    this.mpBusy = false;
+    this.endRunView();
+    const g = new Game(runConfigFromStart(cfg));
+    this.beginHub(g, this.net?.role === 'guest' ? this.net.guest.slot : 1);
+    setTimeout(() => this.sendView(), 0);
+    return g;
+  }
+
+  /** Step into a built hub world (solo, the host's, or a guest's mirror). */
+  private beginHub(g: Game, local: number): void {
+    this.game?.bus.clear();
+    this.game = g;
+    this.localIndex = local;
+    g.setCtx(g.players[local] ?? g.players[0]);
+    this.hubTalk = null;
+    this.hubTarget = null;
+    this.acc = 0;
+    this.renderer.fx.clear();
+    this.renderer.dawn = 0;
+    this.renderer.snapCamera(g.player.x, g.player.y);
+    this.hud.root.remove();
+    if (!this.hubHud.root.isConnected) this.ui.append(this.hubHud.root);
+    this.hubHud.welcome();
+    this.go('hub');
+  }
+
+  /** Solo / host frame on the Midway: walk (menus over it leave everyone idle), tick, render, labels. */
+  private hubFrame(dt: number, cssW: number, cssH: number, hs: HostSession | null): void {
+    const g = this.game!;
+    const walking = this.state === 'hub' && !this.hubTalk;
+    g.inputs[this.localIndex].moveX = walking ? this.input.moveX : 0;
+    g.inputs[this.localIndex].moveY = walking ? this.input.moveY : 0;
+    this.acc += dt;
+    let n = 0;
+    while (this.acc >= TICK && n < 5) {
+      hs?.beforeTick(g);
+      g.tick();
+      this.acc -= TICK;
+      n++;
+    }
+    if (n >= 5) this.acc = 0;
+    g.setCtx(g.players[this.localIndex] ?? g.players[0]);
+    this.renderer.render(g, Math.min(1, this.acc / TICK), dt);
+    this.updateHubHud(cssW, cssH);
+  }
+
+  /** Labels over the cast and landmarks, the nearest thing to use, the conversation, the lobby code. */
+  private updateHubHud(cssW: number, cssH: number): void {
+    const g = this.game!;
+    const rep = this.net?.role === 'guest' ? this.net.guest.replica : null;
+    const me = rep ? rep.localDrawPos() : g.players[this.localIndex] ?? g.player;
+    const toS = (x: number, y: number, hgt: number) => this.renderer.worldToScreen(x, y, cssW, cssH, hgt);
+    const shown = (s: { x: number; y: number }) => s.x > -80 && s.x < cssW + 80 && s.y > -40 && s.y < cssH + 120;
+    const labels: HubLabel[] = [];
+    let best: { kind: 'npc' | 'booth' | 'bigtop' | 'exit'; i: number } | null = null;
+    let bd = Infinity;
+    const consider = (kind: 'npc' | 'booth' | 'bigtop' | 'exit', i: number, x: number, y: number, r: number) => {
+      const d = Math.hypot(me.x - x, me.y - y);
+      if (d < r && d < bd) [bd, best] = [d, { kind, i }];
+    };
+    g.hubNpcs.forEach((n, i) => {
+      const s = toS(n.x, n.y, 112);
+      if (shown(s)) labels.push({ x: s.x, y: s.y, text: n.char.name, sub: `at ${HUB_NPCS.find((d) => d.char === n.char.id)?.at ?? ''}`, kind: 'npc' });
+      consider('npc', i, n.x, n.y, 115);
+    });
+    for (const [kind, sp] of [['booth', HUB_SPOTS.booth], ['bigtop', HUB_SPOTS.bigTop]] as const) {
+      const s = toS(sp.x, sp.y - (kind === 'bigtop' ? 60 : 100), kind === 'bigtop' ? 330 : 190);
+      if (shown(s)) labels.push({ x: s.x, y: s.y, text: sp.label, sub: sp.sub, kind: 'spot' });
+      consider(kind, 0, sp.x, sp.y, sp.r);
+    }
+    HUB_EXITS.forEach((e, i) => {
+      const s = toS(e.x, e.y - 30, 130);
+      if (shown(s)) labels.push({ x: s.x, y: s.y, text: e.label, sub: e.sub, kind: 'exit' });
+      consider('exit', i, e.x, e.y, e.r);
+    });
+    if (g.players.length > 1) {
+      g.players.forEach((p, i) => {
+        if (i === this.localIndex) return;
+        const s = toS(p.x, p.y, 100);
+        if (shown(s)) labels.push({ x: s.x, y: s.y, text: p.name, kind: 'player', cls: `p${i + 1}` });
+      });
+    }
+    this.hubTarget = best;
+    if (this.hubTalk) {
+      const n = g.hubNpcs[this.hubTalk.npc];
+      if (!n || Math.hypot(me.x - n.x, me.y - n.y) > 230) this.hubTalk = null;
+    }
+    let dialogue = null;
+    if (this.hubTalk) {
+      const n = g.hubNpcs[this.hubTalk.npc];
+      const d = HUB_NPCS.find((x) => x.char === n.char.id)!;
+      dialogue = { name: n.char.name, at: d.at, portrait: this.assets.portrait(n.char.id), text: d.lines[this.hubTalk.line], page: this.hubTalk.line + 1 < d.lines.length ? 'E / A: more  ·  Esc: goodbye' : 'E / A: goodbye' };
+    }
+    const key = this.input.usingGamepad ? 'A' : 'E';
+    let prompt: { text: string; sub?: string; key: string } | null = null;
+    const t = this.hubTarget as { kind: 'npc' | 'booth' | 'bigtop' | 'exit'; i: number } | null;
+    if (!dialogue && t) {
+      if (t.kind === 'npc') prompt = { key, text: `Talk to ${g.hubNpcs[t.i].char.name}` };
+      else if (t.kind === 'booth') prompt = { key, text: 'Ticket Booth', sub: 'spend your Lost Tickets' };
+      else if (t.kind === 'bigtop') prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Big Top', sub: 'the host starts the night here' } : { key, text: 'Enter the Big Top', sub: 'begin the First Night' };
+      else prompt = { key: '✕', text: HUB_EXITS[t.i].label, sub: 'coming soon: the gates are chained shut' };
+    }
+    const hs = this.net?.role === 'host' ? this.net.host : null;
+    this.hubHud.root.classList.toggle('under', this.state !== 'hub');
+    this.hubHud.update({ labels, prompt, dialogue, code: hs ? hs.lobby.code : null, party: g.players.map((p) => p.name) });
+  }
+
+  /** Interact on the Midway: talk, shop, start the night, or rattle a chained gate. */
+  private hubInteract(): void {
+    const g = this.game;
+    const t = this.hubTarget;
+    if (!g) return;
+    if (this.hubTalk && (!t || t.kind !== 'npc' || t.i !== this.hubTalk.npc)) {
+      this.hubTalk = null;
+      return;
+    }
+    if (!t) return;
+    switch (t.kind) {
+      case 'npc': {
+        const d = HUB_NPCS.find((x) => x.char === g.hubNpcs[t.i].char.id)!;
+        this.audio.play('ui_click', { vol: 0.45 });
+        if (this.hubTalk?.npc === t.i) {
+          if (this.hubTalk.line + 1 < d.lines.length) this.hubTalk.line++;
+          else this.hubTalk = null;
+        } else this.hubTalk = { npc: t.i, line: 0 };
+        return;
+      }
+      case 'booth':
+        this.audio.play('ui_click', { vol: 0.5 });
+        return this.go('lostfound');
+      case 'bigtop':
+        if (this.net?.role === 'guest') return;
+        this.audio.play('select', { vol: 0.6 });
+        if (this.net?.role === 'host') return this.hubToRunLobby();
+        return this.go('charselect');
+      case 'exit':
+        this.audio.play('clunk', { vol: 0.5 });
+        return;
+    }
+  }
+
+  /** Co-op host at the Big Top: everyone to character select for the First Night. */
+  private hubToRunLobby(): void {
+    if (this.net?.role !== 'host') return;
+    this.net.host.toLobby();
+    this.endRunView();
+    this.makeDemo();
+    this.go('lobby');
+  }
+
+  /** The Midway's pause menu: what the main menu used to offer, minus what the grounds already have. */
+  private midwayMenuEl(): HTMLElement {
+    const role = this.net?.role ?? null;
+    const items: { label: string; fn: () => void; cls?: string }[] = [{ label: 'Back to the Midway', fn: () => this.go('hub') }];
+    if (!role) {
+      items.push({ label: 'Invite Friends', fn: () => void this.hostGame(L.loadName() || 'Host') });
+      items.push({
+        label: 'Join a Friend',
+        fn: () => {
+          this.endRunView();
+          this.makeDemo();
+          this.go('mp_join');
+        },
+      });
+      if (this.save.dailyAvailable()) items.push({ label: 'Daily Run', fn: () => this.go('daily') });
+    } else if (role === 'host') {
+      items.push({
+        label: 'Close the Lobby',
+        fn: () => {
+          this.leaveNet(true);
+          this.startHub();
+        },
+      });
+    } else items.push({ label: 'Leave the Midway', fn: () => this.toMenu() });
+    items.push({ label: 'Carnival-pedia', fn: () => this.go('pedia') }, { label: 'Settings', fn: () => this.go('settings') });
+    items.push({
+      label: 'Title Screen',
+      cls: 'small red',
+      fn: () => {
+        this.leaveNet(true);
+        this.endRunView();
+        this.makeDemo();
+        this.go('press');
+      },
+    });
+    const g = this.game;
+    const text = role === 'host' ? `Lobby code ${this.net!.role === 'host' ? (this.net as Extract<NetCtx, { role: 'host' }>).host.lobby.code : ''} · ${g?.players.length ?? 1} on the Midway` : role === 'guest' ? 'You are on a friend\'s Midway.' : 'Walk the grounds: the ticket booth sells the Lost & Found, and the Big Top begins the night.';
+    return L.menuPanel(this.ctx, 'The Midway', text, items);
   }
 
   private startBgClock(): void {
@@ -960,7 +1254,8 @@ export class App {
     const hs = n.host;
     hs.update(now, dt * 1000);
     const g = this.game;
-    if (!g || this.state !== 'playing') return;
+    // the night, or the Midway (D-60): the host's world is everyone's, so it keeps turning
+    if (!g || (this.state !== 'playing' && !g.hub)) return;
     if (!this.overlayPause && g.phase !== 'draft' && !hs.paused && hs.prizeReady) {
       this.acc += dt;
       let k = 0;
@@ -1002,7 +1297,8 @@ export class App {
       this.mpBusy = false;
       this.mpStatus = '';
       this.startBgClock();
-      this.go('lobby');
+      if (this.save.hubUnlocked()) this.restartHub(); // friends who join walk onto the Midway (D-60)
+      else this.go('lobby');
     } catch (e) {
       this.mpBusy = false;
       this.mpStatus = (e as Error).message;
@@ -1088,12 +1384,18 @@ export class App {
         difficulty: (id, curse) => n.role === 'host' && n.host.setDifficulty(id, curse),
         start: () => this.startHostRun(),
         leave: () => this.leaveNet(false, 'mp'),
+        midway: n.role === 'host' && this.save.hubUnlocked() ? () => this.restartHub() : undefined,
       },
     });
   }
 
   /** Lobby changed: rebuild the screen if anything but the latency readout changed. */
   private refreshLobby(): void {
+    // co-op host on the Midway: someone joined or left, so rebuild the hub around the new party (D-60)
+    if (this.net?.role === 'host' && this.net.host.inHub && this.game?.hub) {
+      if (this.hubPartyKey() !== this.hubParty) this.restartHub();
+      return;
+    }
     if (this.state !== 'lobby') return;
     const n = this.net;
     const lobby = n?.role === 'host' ? n.host.lobby : n?.guest.lobby;
@@ -1136,6 +1438,7 @@ export class App {
 
   /** Guest: the host started (or we rejoined) a night — build the mirror the session will feed. */
   private startGuestRun(cfg: StartCfg, resume: boolean): Game {
+    if (cfg.hub) return this.startGuestHub(cfg);
     void this.audio.unlock();
     this.mpStatus = '';
     this.mpBusy = false;
@@ -1183,7 +1486,7 @@ export class App {
     const g = this.game!;
     const rep = gs.replica;
     // only walk while the host's night is actually running (otherwise the host discards the steps)
-    const live = this.state === 'playing' && g.phase === 'play' && !gs.pausedBy && !this.prize.active && !!rep && !rep.frozen;
+    const live = (this.state === 'playing' || (this.state === 'hub' && g.hub)) && g.phase === 'play' && !gs.pausedBy && !this.prize.active && !!rep && !rep.frozen;
     if (live) {
       this.acc += dt;
       let n = 0;
@@ -1213,7 +1516,7 @@ export class App {
     if (this.state === 'playing') {
       this.updateCoopHud();
       this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y) => this.renderer.worldToScreen(x, y, cssW, cssH) });
-    }
+    } else if (g.hub) this.updateHubHud(cssW, cssH);
   }
 
   /** The co-op layer of the HUD: partner card, waiting notes, latency, diagnostics (F3). */
@@ -1254,6 +1557,7 @@ export class App {
   private coopToLobby(): void {
     if (this.net?.role !== 'host') return this.toMenu();
     this.net.host.backToLobby();
+    if (this.save.hubUnlocked()) return this.restartHub(); // everyone walks back onto the Midway (D-60)
     this.endRunView();
     this.makeDemo();
     this.go('lobby');

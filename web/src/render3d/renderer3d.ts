@@ -20,6 +20,8 @@ import { CHARACTERS, ENEMY_MODELS, ITEM_MODELS, geometryFor, type ModelDef } fro
 import { Ground3D } from './world/ground';
 import { LightShafts, Motes } from './world/atmosphere';
 import { LAST_SONG } from '../data/quests';
+import { HUB_EXITS } from '../data/hub';
+import { signpost } from './models/props';
 import { PropSet } from './world/props';
 import { Clutter } from './world/clutter';
 import { BossRigs } from './bosses';
@@ -412,6 +414,7 @@ export class GameRenderer3D {
       this.addShapes.alphaScale = this.fxAdd.alphaScale = op;
     }
     g.setCtx(p);
+    if (g.hub) this.drawHub(g, dt);
     this.drawProjectiles(g, alpha);
     this.addShapes.alphaScale = this.fxAdd.alphaScale = 1;
     for (const b of this.abilityBatches) fadeBatch(b, op);
@@ -1049,7 +1052,20 @@ export class GameRenderer3D {
     pool.add(px, py, 140, 0.35 * pulse, col[0], col[1], col[2], 30, 2);
   }
 
-  private drawPlayer(g: Game, p: Player, px: number, py: number, dt: number): void {
+  /** The Midway hub (D-60): the cast at their games, turning to face whoever walks up; the closed attractions' signs. */
+  private drawHub(g: Game, dt: number): void {
+    const me = g.player;
+    for (const npc of g.hubNpcs) {
+      const dx = me.x - npc.x, dy = me.y - npc.y;
+      const near = dx * dx + dy * dy < 280 * 280;
+      this.yaw.set(-1 - npc.index, this.smoothYaw(-1000 + npc.index, near ? Math.atan2(dx, dy) : 0, dt, 5));
+      this.drawPlayer(g, npc, npc.x, npc.y, dt, true);
+    }
+    const b = this.batch('hub_sign', { build: () => signpost(), rim: [0, 0, 0, 0] }, HUB_EXITS.length);
+    for (const e of HUB_EXITS) b.add(e.x, e.y - 30, 0, 0, 1.15);
+  }
+
+  private drawPlayer(g: Game, p: Player, px: number, py: number, dt: number, npc = false): void {
     if (p.downed) {
       this.drawCoffin(p, px, py);
       return;
@@ -1062,7 +1078,7 @@ export class GameRenderer3D {
     const yaw = this.smoothYaw(yawId, target, dt, 12);
     const s = def.scale ?? 1;
     const [ra, rb, bl] = this.playerRows(p, px, py, dt, p.char.id);
-    if (g.players.length > 1) {
+    if (g.players.length > 1 && !npc) {
       // who is who: a soft coloured halo at each player's feet
       const col = PLAYER_COLS[p.index % PLAYER_COLS.length];
       this.addShapes.ring(px, py, 24, 30, col[0], col[1], col[2], 0.0, 0.45);

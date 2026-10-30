@@ -60,6 +60,8 @@ export interface SaveData {
   settings: Settings;
   /** Easter-egg memory per quest chain (D-32): completions and furthest stage ever reached. */
   quests: Record<string, { completions: number; bestStage: number }>;
+  /** the Midway hub was opened by the alpha-testing unlock (D-60), not by finishing the Last Song */
+  midwayTester?: boolean;
 }
 
 export const DEFAULT_BINDINGS: Record<string, string[]> = {
@@ -69,6 +71,8 @@ export const DEFAULT_BINDINGS: Record<string, string[]> = {
   right: ['KeyD', 'ArrowRight'],
   pause: ['Escape', 'KeyP'],
   confirm: ['Enter', 'Space'],
+  /** talk / use in the Midway hub (D-60); confirm and the pad's A button work too */
+  interact: ['KeyE'],
   reroll: ['KeyR'],
   banish: ['KeyB'],
   skip: ['KeyX'],
@@ -298,6 +302,10 @@ export class SaveManager {
   }
   endlessAvailable(): boolean {
     return this.hasAchievement('beat_ringmaster');
+  }
+  /** The Midway hub (D-60): the first night fully completed — its secret quest carried to True Dawn. */
+  hubUnlocked(): boolean {
+    return (this.data.quests.last_song?.completions ?? 0) > 0 || !!this.data.midwayTester;
   }
   dailyAvailable(): boolean {
     return this.data.stats.runs >= 1;

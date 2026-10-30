@@ -50,6 +50,8 @@ export interface GuestProfile {
   aimMode: AimMode;
   /** characters the guest's save has unlocked (the lobby only lets them pick these) */
   chars: string[];
+  /** the character they last played (what they walk the Midway hub as, D-60) */
+  pref?: string;
 }
 
 /** The shared run definition the host sends at start; the guest builds its mirror Game from it. */
@@ -60,6 +62,8 @@ export interface StartCfg {
   unlocked: string[];
   questMemory: Record<string, number>;
   players: { character: string; name: string; meta: { axis: string; value: number }[]; aimMode: AimMode; rerolls: number; banishes: number; canSkip: boolean }[];
+  /** set when this is the Midway hub rather than a night (D-60): the cast to show and where players stand */
+  hub?: { npcs: string[]; at?: { x: number; y: number }[] };
 }
 
 // ------------------------------------------------------------------ messages
@@ -144,6 +148,7 @@ export function cleanProfile(v: unknown): GuestProfile | null {
     canSkip: v.canSkip === true,
     aimMode: v.aimMode === 'manual' || v.aimMode === 'hybrid' ? v.aimMode : 'auto',
     chars,
+    pref: isStr(v.pref, 32) && CHARACTER_MAP[v.pref as keyof typeof CHARACTER_MAP] ? v.pref : undefined,
   };
 }
 
@@ -275,7 +280,14 @@ function cleanStart(v: unknown): StartCfg | null {
   const unlocked = Array.isArray(v.unlocked) ? v.unlocked.filter((s): s is string => isStr(s, 40)).slice(0, 256) : [];
   const questMemory: Record<string, number> = {};
   if (isObj(v.questMemory)) for (const [k, n] of Object.entries(v.questMemory).slice(0, 16)) if (isStr(k, 32) && isInt(n, 0, 1e6)) questMemory[k] = n;
+  let hub: StartCfg['hub'];
+  if (isObj(v.hub)) {
+    const npcs = Array.isArray(v.hub.npcs) ? v.hub.npcs.filter((c): c is string => isStr(c, 32) && !!CHARACTER_MAP[c as keyof typeof CHARACTER_MAP]).slice(0, 12) : [];
+    const at = Array.isArray(v.hub.at) ? v.hub.at.slice(0, MAX_PLAYERS).map((q) => (isObj(q) && isNum(q.x) && isNum(q.y) ? { x: Math.max(-3000, Math.min(3000, q.x)), y: Math.max(-3000, Math.min(3000, q.y)) } : { x: 0, y: 330 })) : undefined;
+    hub = { npcs, at };
+  }
   return {
+    hub,
     seed: v.seed,
     difficulty: isStr(v.difficulty, 24) && DIFFICULTY_MAP[v.difficulty as keyof typeof DIFFICULTY_MAP] ? v.difficulty : 'midway',
     curse: v.curse === true,

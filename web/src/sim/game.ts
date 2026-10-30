@@ -23,6 +23,7 @@ import {
 import { CarnivalEvents } from './carnivalEvents';
 import { QuestSystem, type QuestCue } from './quest';
 import { MAP_ID } from '../data/quests';
+import { HUB_NPCS } from '../data/hub';
 import { CHESTS, COOP, HEALING, TICKETS, voucherValue, xpToNext } from '../data/progression';
 import { FxQueue } from './fx';
 import { Player } from './player';
@@ -54,6 +55,12 @@ export interface RunConfig {
   godMode?: boolean;
   /** Persistent quest memory from the save (e.g. how often the Last Song was completed). */
   questMemory?: Record<string, number>;
+  /**
+   * The Midway hub (D-60): a peaceful walk around the first map instead of a night. `npcs` are the
+   * cast to stand at their games (the hosting save's unlocked starters); `at` keeps players where they
+   * stood when the hub is rebuilt for someone joining.
+   */
+  hub?: { npcs: string[]; at?: { x: number; y: number }[] };
 }
 
 export interface InputState {
@@ -172,6 +179,10 @@ export class Game {
   level = 1;
   xp = 0;
   xpToNext = 0;
+  /** The Midway hub (D-60): no night, just the grounds and the cast. */
+  readonly hub: boolean;
+  /** the cast standing at their games in the hub */
+  hubNpcs: Player[] = [];
   pendingLevels = 0;
   /** Per-player draft hands while a level-up is open; null once that player has chosen. */
   drafts: (DraftOption[] | null)[] = [];
@@ -223,6 +234,7 @@ export class Game {
 
   constructor(cfg: RunConfig) {
     this.cfg = cfg;
+    this.hub = !!cfg.hub;
     this.rng = new Rng(cfg.seed);
     this.diff = DIFFICULTY_MAP[cfg.difficulty] ?? DIFFICULTY_MAP.midway;
     const party = cfg.players?.length ? cfg.players.slice(0, COOP.maxPlayers) : [{ character: cfg.character }];
@@ -241,8 +253,9 @@ export class Game {
       pl.canSkip = !!(i === 0 ? cfg.canSkip : pc.canSkip);
       pl.aimMode = (i === 0 ? cfg.aimMode : pc.aimMode) ?? 'auto';
       pl.initHp();
-      pl.x = pl.px = PLAYER_SPAWN.x + (i - (party.length - 1) / 2) * 70;
-      pl.y = pl.py = PLAYER_SPAWN.y;
+      const at = cfg.hub?.at?.[i];
+      pl.x = pl.px = at?.x ?? PLAYER_SPAWN.x + (i - (party.length - 1) / 2) * 70;
+      pl.y = pl.py = at?.y ?? PLAYER_SPAWN.y;
       pl.faceY = -1;
       pl.faceX = 0;
       this.players.push(pl);
@@ -271,9 +284,23 @@ export class Game {
     this.events = new CarnivalEvents(this);
     for (const pl of this.players) {
       this.setCtx(pl);
-      pl.weapons.add(pl.char.startWeapon);
+      if (!this.hub) pl.weapons.add(pl.char.startWeapon);
     }
     this.setCtx(this.players[0]);
+    // the Midway's cast: unlocked starters waiting at their games (they never move)
+    for (const id of cfg.hub?.npcs ?? []) {
+      const def = HUB_NPCS.find((n) => n.char === id);
+      if (!def) continue;
+      const npc = new Player(id);
+      npc.index = -10 - this.hubNpcs.length;
+      npc.name = npc.char.name;
+      npc.x = npc.px = def.x;
+      npc.y = npc.py = def.y;
+      npc.faceY = 1;
+      npc.initHp();
+      npc.weapons = new Weapons(this); // empty: the renderer's animation reads it
+      this.hubNpcs.push(npc);
+    }
     this.foodTimer = this.rng.range(HEALING.foodFirst[0], HEALING.foodFirst[1]);
     this.goldenTimer = this.rng.range(150, 330);
     this.director.init();
@@ -346,6 +373,7 @@ export class Game {
   // ------------------------------------------------------------------ tick
   /** Advance one fixed step (TICK seconds). */
   tick(): void {
+    if (this.hub) return this.tickHub();
     if (this.phase === 'ended' || this.phase === 'draft') return;
     let dt = TICK;
     if (this.hitstop > 0) {
@@ -431,6 +459,24 @@ export class Game {
     // Dawn trigger (D-01).
     if (!this.endless && this.ringmasterDefeated && this.time >= DAWN_TIME - 1e-6 && this.phase === 'play') this.beginDawn();
     if (this.endless) this.checkEndlessAchievements();
+  }
+
+  /** The Midway (D-60): nothing spawns, nothing fights, the clock stands still; the party walks the grounds. */
+  private tickHub(): void {
+    const dt = TICK;
+    this.tickCount++;
+    this.realTime += dt;
+    for (const p of this.players) {
+      this.setCtx(p);
+      p.px = p.x;
+      p.py = p.y;
+      const [mx, my] = steer(p, this.input.moveX, this.input.moveY);
+      const speed = p.stats.moveSpeed();
+      moveBody(p, mx, my, speed, dt, this.bosses, false);
+      p.animT += dt * (p.moving ? speed / 220 : 0.4);
+    }
+    for (const n of this.hubNpcs) n.animT += dt * 0.4;
+    this.setCtx(this.players[0]);
   }
 
   private updateAct(): void {

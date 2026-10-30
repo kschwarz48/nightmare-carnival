@@ -42,6 +42,11 @@ The rules follow Vampire Survivors co-op:
 
 After the night, the host can press **Back to the Lobby** for another round with the same connection.
 
+**The Midway (D-60).** If the host has fully completed the first night, friends who join land on the
+host's **Midway hub** instead of the lobby screen. Everyone walks the grounds together, and more
+friends can join while the party is there. The host walks into the **Big Top** to take everyone to
+character select; after the night, **Back to the Midway** returns everyone to the hub.
+
 **F3** toggles the network diagnostics: latency, snapshot rate and size, loss, the connection route,
 and prediction error. A small **● NN ms** latency readout is always shown in co-op.
 
@@ -369,7 +374,7 @@ Two people, **two different networks**: e.g. one on home Wi-Fi, one on a phone h
 
 | Scope | Status |
 |---|---|
-| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 176 tests in the whole suite |
+| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 181 tests in the whole suite |
 | Two browser tabs on **one machine**, real PeerJS Cloud signalling and WebRTC | **Done**: see the list below |
 | The **deployed site** (Netlify), two tabs on one machine | **Done**: see below |
 | **Three** tabs on one machine (host + two guests), real PeerJS, dev server | **Done** (2026-10-30): six-seat lobby, shared characters, 3 + 3 slots, party HUD, both guests kept alive in background tabs, mirrors matched the host |

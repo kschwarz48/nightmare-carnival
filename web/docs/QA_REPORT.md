@@ -115,6 +115,37 @@ understate that character.
 
 ---
 
+## The Midway hub — 2026-10-30 (D-60)
+
+**Automated:** 181 tests pass (typecheck clean, production build OK). New `tests/hub.test.ts` covers:
+- the unlock rule (a finale without True Dawn doesn't count);
+- a peaceful hub: 60 s with no spawns, shots, damage or clock, the party walking, and the dormant
+  bosses staying asleep;
+- the cast: only unlocked members appear, all on open ground inside the map, and the coming
+  attractions are hinted;
+- positions kept across a rebuild;
+- online: a guest lands on the host's hub, walks as their last fool, sees the host's cast, a newcomer
+  is let in mid-hub, and the Big Top takes everyone to the lobby.
+
+**Live (dev server, two tabs, real PeerJS):**
+- **Solo:** pressing start lands on the Midway, with labels over the cast, Big Top and booth. Talking
+  to the Carny pages through three lines and closes. The booth opens the Lost & Found and returns. The
+  Big Top opens character select and returns. A gate reads "coming soon". Esc opens the Midway menu.
+  A night started from the Big Top shows the run HUD, and abandoning returns to the Midway.
+- **Co-op:**
+  - **Hosting:** inviting from the Midway's menu shows the code on the HUD, and a friend joins
+    straight onto the hub.
+  - **Movement:** the friend's walking reaches the host.
+  - **Big Top round trip:** the Big Top takes both to character select, and "Back to the Midway"
+    returns both.
+  - **Full night:** both played a night, and the results' "Back to the Midway" brought both back.
+- **Defects found and fixed:** the cast had no weapons list (a renderer crash every frame). The host's
+  hidden tab stopped ticking the Midway, discarding the friend's steps.
+
+**Not verified:** the hub on the deployed site; a real six-player Midway; mobile layout.
+
+---
+
 ## Max-out pacing, readability, connection diagnostics — 2026-10-30 (D-57 … D-59)
 
 **Automated:** 176 tests pass (typecheck clean, production build OK). Chest tests now assert that

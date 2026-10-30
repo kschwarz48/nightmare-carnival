@@ -321,3 +321,30 @@ Sessions speak to a `NetLink` interface, so the whole flow is tested headless ov
   with relay / address hidden / WebRTC blocked, with the Opera fix in the warnings. A join that finds
   the lobby but never connects explains why, using that check. The host gets a notice when someone's
   join attempt stalls.
+
+### D-60 · The Midway: the first map becomes the hub
+- **Unlock.** Fully completing the first night (its secret quest, the Last Song, carried to True Dawn)
+  opens the Midway for good (`SaveManager.hubUnlocked()`). The results screen announces it. For alpha
+  testing, `?unlock=midway` on the URL opens it on that browser's save (`midwayTester`).
+- **Arrival.** With the Midway open, pressing start lands you on the carnival grounds instead of the
+  main menu; backing out of any menu returns there. It's the same map in a peaceful mode
+  (`RunConfig.hub`): nothing spawns, no weapons fire, the clock stands still, and the dormant Big Top
+  and Ferris Wheel stay scenery. Bradley's theme plays.
+- **What's there.**
+  - **Ticket booth:** opens the Lost & Found.
+  - **The Big Top:** begins the First Night (character select). Afterwards the results lead back to
+    the Midway.
+  - **The cast:** each unlocked starting character stands at their game and turns to face you. The
+    Carny is at the Ring Toss, the Strongman at the High Striker, the Fortune Teller at Zoltana's
+    cabinet, the Ride Operator at the carousel, the Lost Child at the Prize Stand, and the Ringleader
+    at the Big Top. Each has three lines of lore, and three of them hint at the next attractions.
+  - **Coming soon signs:** chained gates at the Fun House door, the Boardwalk (on the promenade) and
+    the Ghost Train (the east fence).
+  - **Esc menu:** invite or join friends, Daily Run, Carnival-pedia, Settings, Title Screen.
+- **Co-op.** A host whose save has the Midway invites from its menu; friends who join walk onto the
+  host's Midway, whatever their own saves have unlocked. Joining stays open there, unlike a night. The
+  host rebuilds the hub when the party changes, keeping everyone where they stood, and sends it as a
+  start config with `hub` set (`HostSession.startHub`). Guests walk as the fool they last played. At the
+  Big Top the host takes everyone to character select (`toLobby`); "Back to the Midway" returns from
+  there, and after a night everyone comes back to the hub. The background clock keeps the host's
+  Midway ticking while their tab is hidden, as it does for a night.

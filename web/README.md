@@ -23,7 +23,7 @@ npm run dev        # http://127.0.0.1:5173
 | Command | What it does |
 |---|---|
 | `npm run dev` | Vite dev server with hot reload and the dev-only testing tools |
-| `npm test` | Vitest suite (176 tests, including an accelerated full 25-minute run and the online co-op netcode over a simulated lossy network) |
+| `npm test` | Vitest suite (181 tests, including an accelerated full 25-minute run and the online co-op netcode over a simulated lossy network) |
 | `npm run typecheck` | TypeScript `--noEmit` |
 | `npm run build` | Type-checks, then produces a static production build in `web/dist/` |
 | `npm run preview` | Serves `web/dist/` locally to check the production build |
@@ -38,6 +38,14 @@ co-op (WebRTC) works; signalling/TURN options are in [`docs/MULTIPLAYER.md`](doc
 
 The alpha is live on Netlify at **https://nightmare-carnival.netlify.app**. `netlify.toml` holds the settings, and
 [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md) §4 has the steps to ship an update.
+
+### The Midway hub
+
+Fully complete the first night (the Last Song, through to True Dawn) and the carnival becomes your
+hub: you arrive on the grounds, visit the cast at their games, spend Lost Tickets at the ticket booth,
+and enter the Big Top for another night. Friends who join your online game walk the Midway with you.
+For alpha testing, add `?unlock=midway` to the URL to open it without finishing the quest. Details:
+D-60 in [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md).
 
 ### Online co-op (alpha)
 

@@ -121,6 +121,7 @@ export function runConfigFromStart(c: StartCfg): RunConfig {
     unlocked: new Set(c.unlocked),
     questMemory: c.questMemory,
     players: c.players.map((p) => ({ character: p.character, name: p.name, meta: p.meta, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, aimMode: p.aimMode })),
+    hub: c.hub,
   };
 }
 
@@ -140,6 +141,8 @@ export class HostSession {
   hostCharacter: string | null = null;
   hostReady = false;
   hostPaused = false;
+  /** the party is walking the Midway hub (D-60): joining stays open, drops just leave */
+  inHub = false;
   /** what the night is waiting on right now (recomputed every update, sent to the guests on change) */
   hold: HoldStatus = { why: '', who: [] };
   private holdKey = '';
@@ -251,9 +254,42 @@ export class HostSession {
     return this.startCfg;
   }
 
+  /**
+   * The Midway hub (D-60): everyone seated walks the grounds together. Unlike a night, it stays open
+   * to newcomers; the app rebuilds it (keeping where everyone stood) whenever the party changes.
+   */
+  startHub(o: { seed: number; unlocked: string[]; questMemory: Record<string, number>; npcs: string[]; at?: { x: number; y: number }[] }): StartCfg {
+    const me = this.self;
+    const entry = (character: string, name: string, p: HostProfile | GuestProfile) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip });
+    this.startCfg = {
+      seed: o.seed >>> 0,
+      difficulty: this.lobby.difficulty,
+      curse: false,
+      unlocked: o.unlocked,
+      questMemory: o.questMemory,
+      hub: { npcs: o.npcs, at: o.at },
+      players: [entry(this.hostCharacter ?? 'carny', me.name, me), ...this.guests.map((s) => entry(s.character ?? s.profile.pref ?? s.profile.chars[0] ?? 'carny', s.profile.name, s.profile))],
+    };
+    this.inHub = true;
+    this.lobby.inRun = false;
+    for (const s of this.live) this.sendTo(s, { t: 'start', cfg: this.startCfg, slot: s.index });
+    return this.startCfg;
+  }
+
+  /** From the hub to the night's character select: everyone goes to the lobby screen (D-60). */
+  toLobby(): void {
+    this.detachGame();
+    this.inHub = false;
+    this.startCfg = null;
+    for (const s of this.guests) s.ready = false;
+    this.broadcast({ t: 'to_lobby' });
+    this.broadcastLobby();
+  }
+
   /** After a run: everyone back to the lobby, connections kept, empty seats closed up. */
   backToLobby(): void {
     this.detachGame();
+    this.inHub = false;
     this.lobby.inRun = false;
     this.hostReady = false;
     this.hostPaused = false;
@@ -331,7 +367,7 @@ export class HostSession {
     s.waitUntil = 0;
     this.resetStream(s);
     link.sendMsg({ t: 'welcome', v: PROTO, slot: s.index, token: s.token, lobby: this.lobby } satisfies HostMsg);
-    if (this.lobby.inRun && this.startCfg) {
+    if ((this.lobby.inRun || this.inHub) && this.startCfg) {
       // the guest rebuilds its mirror from scratch: its stream restarts with a full snapshot and the
       // whole dictionary (the other guests' streams are untouched)
       link.sendMsg({ t: 'start', cfg: this.startCfg, resume: true, slot: s.index } satisfies HostMsg);

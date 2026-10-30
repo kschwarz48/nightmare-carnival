@@ -23,6 +23,8 @@ See `QA_REPORT.md` for evidence and limitations.
       with delta snapshots and prediction, lobby/codes/reconnect, co-op HUD — `MULTIPLAYER.md`
 - [x] Online parties of up to six (D-54); music by Bradley on menus and bosses, waltz between (D-55);
       melody lamps, tent inhale and tarp, first-chest pre-warm (D-56)
+- [x] The Midway hub (D-60): unlocked by fully completing the first night; cast with lore, ticket booth,
+      Big Top, coming soon gates; shared online
 - [x] Alpha deployed on Netlify: https://nightmare-carnival.netlify.app — `MULTIPLAYER.md` §4
 
 ## Outstanding / recommended next steps

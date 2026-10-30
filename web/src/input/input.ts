@@ -3,7 +3,7 @@
 
 import { DEFAULT_BINDINGS } from '../meta/save';
 
-export type NavEvent = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'reroll' | 'banish' | 'skip';
+export type NavEvent = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'reroll' | 'banish' | 'skip' | 'interact';
 
 export class Input {
   private keys = new Set<string>();
@@ -70,6 +70,7 @@ export class Input {
           if (!codes.includes(e.code)) continue;
           if (action === 'pause') this.emit('pause');
           if (action === 'confirm') this.emit('confirm');
+          if (action === 'interact') this.emit('interact');
           if (action === 'reroll') this.emit('reroll');
           if (action === 'banish') this.emit('banish');
           if (action === 'skip') this.emit('skip');

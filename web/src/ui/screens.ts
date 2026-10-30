@@ -149,7 +149,7 @@ export function pauseScreen(c: UICtx, g: { weapons: string[]; passives: string[]
 }
 
 // ===================================================================== results
-export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: string[]; newUnlocks: string[]; dailyBest: boolean }, actions: { again: () => void; againLabel?: string; menu: () => void; lostfound: () => void; endless?: () => void }): HTMLElement {
+export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: string[]; newUnlocks: string[]; dailyBest: boolean }, actions: { again: () => void; againLabel?: string; menu: () => void; menuLabel?: string; lostfound: () => void; endless?: () => void }): HTMLElement {
   const total = Math.max(1, st.weapons.reduce((n, w) => n + w.damage, 0));
   const ch = CHARACTER_MAP[st.character];
   const won = st.won;
@@ -165,7 +165,7 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
   const rows = st.weapons.slice().sort((a, b) => b.damage - a.damage).map((w) => h('tr', {}, h('td', {}, h('img', { src: c.assets.weaponIcon(w.id) })), h('td', {}, WEAPONS[w.id]?.name ?? w.id), h('td', {}, WEAPONS[w.id]?.isEvolution ? '✦' : `Lv ${w.level}`), h('td', { class: 'barcell' }, h('i', { style: { width: `${(w.damage / total) * 100}%` } })), h('td', {}, fmtNum(w.damage))));
   const buttons = h('div', { class: 'cs-actions' });
   if (actions.endless && won && !st.endless) buttons.append(btn('Lock In (Endless)', () => { c.click(); actions.endless!(); }, 'red'));
-  buttons.append(btn(actions.againLabel ?? (st.daily ? 'Menu' : 'Run Again'), () => { c.click(); (st.daily && !actions.againLabel ? actions.menu : actions.again)(); }, '', { 'data-default': '' }), btn('Lost & Found', () => { c.click(); actions.lostfound(); }, 'purple'), btn('Main Menu', () => { c.click(); actions.menu(); }, 'small'));
+  buttons.append(btn(actions.againLabel ?? (st.daily ? 'Menu' : 'Run Again'), () => { c.click(); (st.daily && !actions.againLabel ? actions.menu : actions.again)(); }, '', { 'data-default': '' }), btn('Lost & Found', () => { c.click(); actions.lostfound(); }, 'purple'), btn(actions.menuLabel ?? 'Main Menu', () => { c.click(); actions.menu(); }, 'small'));
   return h('div', { class: 'screen results dim' }, h('div', { class: 'panel bulbs' },
     h('h1', { class: `title-text ${won ? 'win' : 'lose'}` }, st.trueEnding ? 'THE LAST SONG' : st.endless ? 'CURTAIN CALL' : won ? 'DAWN!' : 'YOU DIED'),
     h('div', { class: 'flavor' }, flavor),
