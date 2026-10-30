@@ -40,6 +40,8 @@ export class Replica {
   interval = 50;
   received = 0;
   dropped = 0;
+  /** the host's night is held although its phase says 'play' (pause, prize wheel, dropped partner) */
+  frozen = false;
   private bosses = new Map<number, BossBase>();
   private bossState: Record<string, unknown>[] = [];
   /** boss state after each applied snapshot: the baselines the host's boss deltas refer to */
@@ -98,6 +100,7 @@ export class Replica {
     g.finaleActive = !!(s.flags & GF.finaleActive);
     g.trueEnding = !!(s.flags & GF.trueEnding);
     g.ringmasterDefeated = !!(s.flags & GF.ringmasterDefeated);
+    this.frozen = !!(s.flags & GF.frozen);
     g.tiltAngle = s.tilt;
     g.dawnT = s.dawnT;
     g.tickCount = s.tick;

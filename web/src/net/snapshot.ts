@@ -89,7 +89,7 @@ export interface Snapshot {
 }
 
 /** Game-wide flags packed in one byte. */
-export const GF = { stalled: 1, victoryLap: 2, endless: 4, finaleActive: 8, trueEnding: 16, ringmasterDefeated: 32 };
+export const GF = { stalled: 1, victoryLap: 2, endless: 4, finaleActive: 8, trueEnding: 16, ringmasterDefeated: 32, frozen: 64 };
 /** Player flags. */
 export const PF = { moving: 1, dead: 2, downed: 4, shieldReady: 8, reviveAssist: 16 };
 /** Enemy flags: identity (static part) and status (state part). */
@@ -312,6 +312,8 @@ export interface EncodeCtx {
   view: View;
   fx: FxEvent[];
   sfx: SfxEvt[];
+  /** the host's night is held (a pause, a prize wheel still showing, a dropped partner) */
+  frozen?: boolean;
 }
 
 /**
@@ -349,7 +351,7 @@ export class SnapshotEncoder {
     w.frac(g.darkness);
     w.f32(g.director.wind);
     w.u8(g.act);
-    w.u8((g.stalled ? GF.stalled : 0) | (g.victoryLap ? GF.victoryLap : 0) | (g.endless ? GF.endless : 0) | (g.finaleActive ? GF.finaleActive : 0) | (g.trueEnding ? GF.trueEnding : 0) | (g.ringmasterDefeated ? GF.ringmasterDefeated : 0));
+    w.u8((g.stalled ? GF.stalled : 0) | (g.victoryLap ? GF.victoryLap : 0) | (g.endless ? GF.endless : 0) | (g.finaleActive ? GF.finaleActive : 0) | (g.trueEnding ? GF.trueEnding : 0) | (g.ringmasterDefeated ? GF.ringmasterDefeated : 0) | (c.frozen ? GF.frozen : 0));
     w.f32(g.tiltAngle);
     w.f32(g.dawnT);
     w.u16(d.id(g.nextDraftRarity));

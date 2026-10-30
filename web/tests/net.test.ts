@@ -75,8 +75,12 @@ describe('binary codec', () => {
     w.u16(-5);
     w.i16(99999);
     w.f32(NaN);
+    // a decaying timer read a hair below zero (hurt flash, dash, i-frames) must not wrap to 252
+    w.u8(-0.0166 * 255);
+    w.u8(300);
+    w.u8(NaN);
     const r = new Reader(w.done());
-    expect([r.i8(), r.u16(), r.i16(), r.f32()]).toEqual([127, 0, 32767, 0]);
+    expect([r.i8(), r.u16(), r.i16(), r.f32(), r.u8(), r.u8(), r.u8()]).toEqual([127, 0, 32767, 0, 0, 255, 0]);
   });
 
   it('syncs the string dictionary incrementally and ignores gaps', () => {
@@ -475,7 +479,7 @@ class Harness {
   playFrame = (guestInput: () => [number, number]) => () => {
     const g = this.game!;
     const gs = this.guest;
-    if (gs.state === 'run' && gs.game && gs.game.phase === 'play' && !gs.pausedBy) {
+    if (gs.state === 'run' && gs.game && gs.game.phase === 'play' && !gs.pausedBy && !gs.replica?.frozen) {
       const [mx, my] = guestInput();
       gs.step(mx, my, 0, 0, false);
       gs.replica!.frame(1 / 60);
@@ -608,7 +612,20 @@ describe('a synchronized co-op run over a lossy network', () => {
       }
     };
     g.bus.on('chest', () => h.host.prizeHostDone());
-    const frame = h.playFrame(() => [Math.cos(h.now / 900), Math.sin(h.now / 1300)]);
+    const play = h.playFrame(() => [Math.cos(h.now / 900), Math.sin(h.now / 1300)]);
+    // sample how far the guest's drawn self is from the host's truth while walking normally (not
+    // during the host-side bumper-car dash, which the guest cannot predict, nor right after it)
+    const gaps: number[] = [];
+    let lastDash = -1e9;
+    const frame = () => {
+      play();
+      const r = gs.replica;
+      if (g.players[1].dashT > 0) lastDash = h.now;
+      if (r && gs.game?.phase === 'play' && !r.frozen && g.phase === 'play' && h.now - lastDash > 600) {
+        const d = r.localDrawPos();
+        gaps.push(Math.hypot(d.x - g.players[1].x, d.y - g.players[1].y));
+      }
+    };
     h.run(90_000, frame);
     // a chest for the pair: split prizes, both screens show the wheel, the night waits for both
     const p1 = g.players[1];
@@ -628,13 +645,103 @@ describe('a synchronized co-op run over a lossy network', () => {
     expect(Math.abs(m.kills - g.kills)).toBeLessThan(40);
     expect(m.players[1].weapons.list.map((w) => w.def.id)).toEqual(g.players[1].weapons.list.map((w) => w.def.id));
     // prediction: the guest sees itself close to where the host has it (one-way latency ≈ 45 ms)
-    const drawn = gs.replica!.localDrawPos();
-    expect(Math.hypot(drawn.x - g.players[1].x, drawn.y - g.players[1].y)).toBeLessThan(40);
+    // the prediction leads the host by the inputs still in flight (~45 ms one way + buffering)
+    gaps.sort((a, b) => a - b);
+    const median = gaps[gaps.length >> 1], p90 = gaps[Math.floor(gaps.length * 0.9)];
+    expect(gaps.length).toBeGreaterThan(2000);
+    expect(median).toBeLessThan(25);
+    expect(p90).toBeLessThan(45);
     // diagnostics are live
     expect(h.host.diag.snapRate).toBeGreaterThan(15);
     expect(gs.diag.rtt).toBeGreaterThan(60);
     expect(gs.diag.rtt).toBeLessThan(200);
-    console.info(`[net] 90 s co-op over 45±15 ms, 3% loss: host ${h.host.diag.bytesPerSec.toFixed(0)} B/s @ ${h.host.diag.snapRate.toFixed(1)} Hz, last snap ${h.host.diag.snapBytes} B; starved ${h.host.diag.starved}, dropped ${h.host.diag.dropped}; guest rtt ${gs.diag.rtt.toFixed(0)} ms, snaps lost ${gs.diag.snapLost}, pred err ${gs.diag.predErr.toFixed(2)}`);
+    console.info(`[net] 90 s co-op over 45±15 ms, 3% loss: host ${h.host.diag.bytesPerSec.toFixed(0)} B/s @ ${h.host.diag.snapRate.toFixed(1)} Hz, last snap ${h.host.diag.snapBytes} B; starved ${h.host.diag.starved}, dropped ${h.host.diag.dropped}; guest rtt ${gs.diag.rtt.toFixed(0)} ms, snaps lost ${gs.diag.snapLost}; drawn-vs-host gap median ${median.toFixed(1)} p90 ${p90.toFixed(1)} (n=${gaps.length})`);
+  });
+
+  it('applies every guest input once, even when the host ticks unevenly (144 Hz display, bursty frames)', () => {
+    for (const mode of ['144hz', 'bursty'] as const) {
+      const h = new Harness({ latency: 35, jitter: 10, seed: 3 });
+      h.run(100);
+      const g = h.startRun();
+      g.addXp(-1e9); // no level-ups: this test is about movement only
+      const gs = h.guest;
+      const sent: number[] = [];
+      let acc = 0, frame = 0;
+      // the guest walks right for two seconds at its own steady 60 Hz
+      const step = (ms: number) => {
+        const end = h.now + ms;
+        while (h.now < end) {
+          const dtMs = mode === '144hz' ? 1000 / 144 : 1000 / 60;
+          h.now += dtMs;
+          frame++;
+          h.net.pump(h.now);
+          h.host.update(h.now, dtMs);
+          gs.update(h.now);
+          gs.replica?.frame(dtMs / 1000);
+          if (frame % (mode === '144hz' ? 2.4 : 1) < 1 && gs.state === 'run' && gs.game?.phase === 'play' && sent.length < 120) {
+            gs.step(1, 0, 0, 0, false);
+            sent.push(1);
+          }
+          // the host's sim: 144 Hz frames tick every ~2.4 frames; bursty frames run 4 ticks every 4th frame
+          if (mode === '144hz') {
+            acc += dtMs;
+            while (acc >= 1000 / 60) {
+              acc -= 1000 / 60;
+              h.host.beforeTick(g);
+              g.tick();
+            }
+          } else if (frame % 4 === 0) {
+            for (let k = 0; k < 4; k++) {
+              h.host.beforeTick(g);
+              g.tick();
+            }
+          }
+          g.fx.drain();
+          if (g.phase === 'draft') autoDraft(g);
+        }
+      };
+      h.host.beforeTick(g); // the night is running when the guest starts walking
+      g.tick();
+      const startX = g.players[1].x;
+      step(3000);
+      // 120 inputs of full-right movement at the Strongman's speed, applied exactly once each
+      const moved = g.players[1].x - startX;
+      const speed = g.players[1].stats.moveSpeed();
+      expect(h.host.diag.dropped).toBe(0);
+      expect(moved).toBeGreaterThan(speed * 1.9); // ~2 s of walking (a few repeats may add a step or two)
+      expect(moved).toBeLessThan(speed * 2.15);
+      // and the guest's prediction agrees with the host once everything has landed
+      expect(Math.abs(gs.replica!.localDrawPos().x - g.players[1].x)).toBeLessThan(10);
+    }
+  });
+
+  it('holds the guest still while the host lingers on a prize wheel (no snap-back afterwards)', () => {
+    const h = new Harness({ latency: 40, jitter: 8, seed: 11 });
+    h.run(100);
+    const g = h.startRun();
+    g.addXp(-1e9);
+    let hostDoneAt = Infinity;
+    g.bus.on('chest', () => (hostDoneAt = h.now + 2500)); // the host watches its wheel for 2.5 s
+    const frame = h.playFrame(() => [1, 0]);
+    const tick = () => {
+      if (h.now >= hostDoneAt) {
+        hostDoneAt = Infinity;
+        h.host.prizeHostDone();
+      }
+      frame();
+    };
+    h.run(1000, tick);
+    g.spawnPickup('chest', g.players[1].x, g.players[1].y, 0);
+    h.run(500, tick);
+    expect(h.host.prizeReady).toBe(false);
+    const droppedBefore = h.host.diag.dropped;
+    h.run(1500, tick); // guest finished its wheel at once, host still watching
+    expect(h.guest.replica!.frozen).toBe(true);
+    h.run(2000, tick); // host done: the night runs again
+    expect(h.host.prizeReady).toBe(true);
+    // only the steps in flight when the freeze began were discarded, not seconds of walking
+    expect(h.host.diag.dropped - droppedBefore).toBeLessThan(12);
+    expect(Math.abs(h.guest.replica!.localDrawPos().x - g.players[1].x)).toBeLessThan(25);
   });
 
   it('pauses for everyone when either player pauses', () => {

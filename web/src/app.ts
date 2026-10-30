@@ -1,6 +1,7 @@
 // Application conductor: screen state machine, fixed-timestep loop (60 Hz sim, interpolated
-// render), sim → audio/HUD/save event wiring, tutorials, the attract-mode menu background, and the
-// development-only timeline tools (stripped from production builds).
+// render), sim → audio/HUD/save event wiring, tutorials, the attract-mode menu background, online
+// co-op (lobby, host loop, guest mirror loop — D-52), and the development-only timeline tools
+// (stripped from production builds).
 
 import { AudioEngine } from './audio/audio';
 import { Input, type NavEvent } from './input/input';
@@ -24,8 +25,45 @@ import type { QuestCue } from './sim/quest';
 import { FocusNav, h } from './ui/dom';
 import * as S from './ui/screens';
 import { dailyInfo } from './ui/screens';
+import * as L from './ui/lobby';
+import { GuestSession, HostSession, runConfigFromStart } from './net/session';
+import type { GuestProfile, StartCfg } from './net/protocol';
+import { isValidCode, normalizeCode } from './net/codes';
+import { describeNetConfig, loadNetConfig } from './net/config';
+import { hostLobby, joinLobby, type HostHandle } from './net/peer';
+import { VIEW_HALF_X, VIEW_HALF_Y } from './sim/constants';
 
-type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results';
+/** The online session this tab is part of (D-52). */
+type NetCtx = { role: 'host'; host: HostSession; handle: HostHandle | null } | { role: 'guest'; guest: GuestSession; code: string };
+type CoopStatus = { text: string; action?: { label: string; fn: () => void } } | null;
+
+/**
+ * A clock that keeps ticking while the tab is hidden: browsers stop requestAnimationFrame and
+ * throttle timers in background tabs, which would freeze the host's night (and drop the guest's
+ * keepalives) whenever someone alt-tabs. Messages from a worker keep arriving at full rate.
+ */
+class BackgroundClock {
+  private w: Worker | null = null;
+  private url = '';
+  constructor(fn: () => void, ms = 16) {
+    try {
+      this.url = URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${ms});`], { type: 'text/javascript' }));
+      this.w = new Worker(this.url);
+      this.w.onmessage = () => {
+        if (document.hidden) fn();
+      };
+    } catch {
+      /* no workers: a hidden tab simply pauses (documented) */
+    }
+  }
+  stop(): void {
+    this.w?.terminate();
+    this.w = null;
+    if (this.url) URL.revokeObjectURL(this.url);
+  }
+}
+
+type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results' | 'mp' | 'mp_join' | 'lobby' | 'netmsg';
 
 export class App {
   canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -57,10 +95,33 @@ export class App {
   overlayPause = false;
   private ctx!: S.UICtx;
   private runStart = 0;
+  // ---- online co-op (D-52)
+  net: NetCtx | null = null;
+  /** this machine's player slot: 0 for solo and the host, 1 for a guest */
+  localIndex = 0;
+  private mpStatus = '';
+  private mpTone: 'info' | 'warn' = 'info';
+  private mpBusy = false;
+  private lobbyKey = '';
+  private showNetDiag = false;
+  private netDesc = '';
+  private bgClock: BackgroundClock | null = null;
+  private bgLast = 0;
+  /** guest: finished its prize wheel at this mirror time, waiting for the host's night to resume */
+  private guestPrizeAt = -1;
+  private chestQueue: (() => void)[] = [];
 
   constructor() {
     this.input = new Input(this.canvas);
     this.input.onNav((e) => this.onNav(e));
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'F3' && this.net) {
+        this.showNetDiag = !this.showNetDiag;
+        e.preventDefault();
+      }
+    });
+    // leaving the page mid-session: tell the other side right away instead of letting it time out
+    window.addEventListener('pagehide', () => this.leaveNet(true));
   }
 
   async boot(): Promise<void> {
@@ -86,7 +147,7 @@ export class App {
     if (import.meta.env.DEV) console.info(`[boot] assets ${(t1 - t0).toFixed(0)} ms, renderer ${(t2 - t1).toFixed(0)} ms`);
     this.input.aimScaleY = this.renderer.aimScaleY;
     this.hud = new Hud(this.assets);
-    this.draft = new DraftView(this.assets, (i) => this.pickDraft(i), () => this.game?.rerollDraft(), (i) => this.game?.banishDraft(i), () => this.game?.skipDraft());
+    this.draft = new DraftView(this.assets, (i) => this.pickDraft(i), () => this.rerollDraft(), (i) => this.banishDraft(i), () => this.skipDraft());
     this.prizeUi = new PrizeOverlay(() => this.prize.skip(false));
     this.prize = new PrizeWheel(this.renderer.camera, this.assets, this.prizeUi, this.audio);
     this.ctx = {
@@ -97,7 +158,10 @@ export class App {
       applySettings: () => this.applySettings(),
     };
     this.applySettings();
-    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('resize', () => {
+      this.resize();
+      this.sendView();
+    });
     this.resize();
     this.makeDemo();
     ld.el.remove();
@@ -163,9 +227,37 @@ export class App {
       case 'paused': {
         const g = this.game!;
         this.audio.setPausedFilter(true);
-        el = S.pauseScreen(this.ctx, { weapons: g.weapons.list.map((w) => w.def.id), passives: [...g.player.passives.keys()], time: g.time, kills: g.kills }, () => this.resume(), () => this.abandon());
+        // co-op: a pause stops the night for both players (the partner sees who paused)
+        if (this.net?.role === 'host') this.net.host.setPaused(true);
+        else if (this.net?.role === 'guest') this.net.guest.pause(true);
+        const quit = this.net?.role === 'guest' ? 'Leave the Night' : 'Abandon Night';
+        el = S.pauseScreen(this.ctx, { weapons: g.weapons.list.map((w) => w.def.id), passives: [...g.player.passives.keys()], time: g.time, kills: g.kills }, () => this.resume(), () => this.abandon(), quit);
         break;
       }
+      case 'mp':
+        el = L.multiplayerMenu(this.ctx, {
+          name: L.loadName(), status: this.mpStatus, busy: this.mpBusy,
+          host: (n) => void this.hostGame(n),
+          join: (n) => {
+            L.storeName(n);
+            this.mpStatus = '';
+            this.go('mp_join');
+          },
+          back: () => {
+            this.mpStatus = '';
+            this.go('title');
+          },
+        });
+        break;
+      case 'mp_join':
+        el = L.joinScreen(this.ctx, { status: this.mpStatus, tone: this.mpTone, busy: this.mpBusy, join: (code) => void this.joinGame(code), back: () => this.leaveNet(false, 'mp') });
+        break;
+      case 'lobby':
+        el = this.lobbyEl();
+        break;
+      case 'netmsg':
+        el = L.netNotice(this.ctx, arg?.title ?? 'Connection', arg?.text ?? '', arg?.actions ?? [{ label: 'Back to Menu', fn: () => this.toMenu() }]);
+        break;
       case 'playing':
         this.audio.setPausedFilter(false);
         break;
@@ -225,38 +317,53 @@ export class App {
       aimMode: this.save.data.settings.aimMode,
       questMemory: Object.fromEntries(Object.entries(this.save.data.quests).map(([k, v]) => [k, v.completions])),
     };
+    this.localIndex = 0;
+    this.beginRun(new Game(cfg), o.character, o.daily ? 'DAILY RUN' : 'MIDNIGHT', o.daily ? dailyInfo().modName : 'The gates lock behind you…');
+  }
+
+  /** Common run setup for solo, the co-op host's night and the co-op guest's mirror. */
+  private beginRun(g: Game, character: string, title: string, sub: string): void {
     this.game?.bus.clear();
-    this.game = new Game(cfg);
-    this.wireGame(this.game);
+    this.game = g;
+    g.setCtx(g.players[this.localIndex] ?? g.players[0]);
+    this.wireGame(g);
     this.renderer.fx.clear();
     this.renderer.dawn = 0;
-    this.renderer.snapCamera(this.game.player.x, this.game.player.y);
+    this.renderer.snapCamera(g.player.x, g.player.y);
     this.dawnT = -1;
     this.hud.reset();
     this.hud.root.classList.remove('under');
-    this.hud.setPortrait(o.character);
+    this.hud.setPortrait(character);
+    this.hud.coopInfo = null;
     if (!this.hud.root.isConnected) this.ui.append(this.hud.root);
     this.ui.append(this.draft.root, this.prizeUi.root, this.fortune.root);
     this.draft.hide();
     this.prizeUi.hide();
+    this.prizeUi.owners = g.players.length > 1 ? g.players.map((p) => p.name) : null;
     this.fortune.hide();
     this.overlayPause = false;
+    this.chestQueue = [];
+    this.guestPrizeAt = -1;
     this.acc = 0;
     this.runStart = performance.now();
     this.go('playing');
     this.audio.setCue('act1');
-    this.hud.banner(o.daily ? 'DAILY RUN' : 'MIDNIGHT', o.daily ? dailyInfo().modName : 'The gates lock behind you…', 'gold', 3);
+    this.hud.banner(title, sub, 'gold', 3);
     this.tutorial('move', 'Move with <b>WASD</b>, the <b>arrow keys</b> or the <b>left stick</b>. Your weapons fire on their own.');
   }
 
   private wireGame(g: Game): void {
     const a = this.audio;
+    // co-op: events about one player are this machine's only if they are about its player
+    const mine = (pl?: number) => (pl ?? 0) === this.localIndex;
+    const nameOf = (pl?: number) => g.players[pl ?? 0]?.name ?? 'Your partner';
     const camPan = (x?: number) => (x === undefined ? 0 : Math.max(-1, Math.min(1, (x - this.renderer.camX) / (this.renderer.viewWidth * 0.6))));
     g.bus.on('sfx', (e) => {
       if (e.x !== undefined && Math.abs(e.x - this.renderer.camX) > this.renderer.viewWidth * 0.9) return;
       a.play(e.id, { vol: e.vol, pitch: e.pitch, pan: camPan(e.x) });
     });
     g.bus.on('pickup', (e) => {
+      if (!mine(e.player)) return;
       if (e.kind === 'ticket') a.pickup();
       else if (e.kind === 'food' || e.kind === 'funnel') a.play('heal', { vol: 0.6 });
       else if (e.kind === 'golden') a.play('evolve', { vol: 0.5, pitch: 1.4 });
@@ -265,15 +372,30 @@ export class App {
     });
     g.bus.on('levelup', () => a.play('levelup', { vol: 0.55 }));
     g.bus.on('draft', (e) => {
+      if (!mine(e.player)) return;
       this.draft.show(g, e.options);
       this.tutorial('draft', 'Pick one prize. Weapons level to <b>8</b>; a maxed weapon + its matching passive can <b>EVOLVE</b>.');
     });
-    g.bus.on('player_hurt', () => {
+    g.bus.on('player_hurt', (e) => {
+      if (!mine(e.player)) return;
       a.play('hurt', { vol: 0.6 });
       this.input.rumble(0.5, 120);
     });
-    g.bus.on('shield_pop', () => this.hud.toastMsg('Balloon Shield popped!'));
-    g.bus.on('player_revive', () => this.hud.banner('SECOND WIND!', 'A revive balloon carries you back up', 'gold'));
+    g.bus.on('shield_pop', (e) => {
+      if (mine(e.player)) this.hud.toastMsg('Balloon Shield popped!');
+    });
+    g.bus.on('player_revive', (e) => {
+      if (!mine(e.player)) {
+        this.hud.toastMsg(`${nameOf(e.player)} is back on their feet!`);
+        return;
+      }
+      this.hud.banner('SECOND WIND!', g.players.length > 1 ? 'Back on your feet — and into the fray' : 'A revive balloon carries you back up', 'gold');
+    });
+    g.bus.on('player_downed', (e) => {
+      a.play('toll', { vol: 0.7 });
+      if (mine(e.player)) this.hud.banner('IN A COFFIN', `The lid creaks open on its own — faster with ${nameOf(1 - this.localIndex)} beside you`, 'danger', 3.4);
+      else this.hud.banner(`${nameOf(e.player).toUpperCase()} HAS FALLEN!`, 'Stand by their coffin to bring them back', 'danger', 3.4);
+    });
     g.bus.on('boss_warning', (e) => {
       a.play('warning', { vol: 0.9 });
       a.setCue('silence');
@@ -302,16 +424,29 @@ export class App {
     });
     g.bus.on('banner', (e) => this.hud.banner(e.text, e.sub, e.style ?? '', 2.8));
     g.bus.on('chest', (e) => {
-      // the prize wheel PRESENTS what the sim already granted (entries) — it never rolls again (D-34)
-      a.play('chest', { vol: 0.6 });
-      this.overlayPause = true;
-      const fillers = [...g.weapons.list.map((w) => this.assets.weaponIcon(w.def.id)), ...[...g.player.passives.keys()].map((id) => this.assets.passiveIcon(id))];
-      const entries = e.entries ?? e.items.map((label) => ({ type: 'level' as const, id: g.weapons.list[0]?.def.id ?? 'throwing_cards', label }));
-      this.prize.start(entries, fillers, () => {
-        this.overlayPause = false;
-      });
+      // the prize wheel PRESENTS what the sim already granted (entries) — it never rolls again (D-34).
+      // Co-op: both screens show the same split wheel; the night resumes once both have watched it.
+      const show = () => {
+        a.play('chest', { vol: 0.6 });
+        this.overlayPause = true;
+        const fillers = g.players.flatMap((p) => [...p.weapons.list.map((w) => this.assets.weaponIcon(w.def.id)), ...[...p.passives.keys()].map((id) => this.assets.passiveIcon(id))]);
+        const entries = e.entries ?? e.items.map((label) => ({ type: 'level' as const, id: g.weapons.list[0]?.def.id ?? 'throwing_cards', label }));
+        this.prize.start(entries, fillers, () => {
+          this.overlayPause = false;
+          if (this.net?.role === 'host') this.net.host.prizeHostDone();
+          else if (this.net?.role === 'guest') {
+            this.net.guest.prizeDone();
+            this.guestPrizeAt = g.time;
+          }
+          const next = this.chestQueue.shift();
+          if (next) next();
+        });
+      };
+      if (this.prize.active) this.chestQueue.push(show);
+      else show();
     });
     g.bus.on('meta_currency', (e) => {
+      if (!mine(e.player)) return;
       // Lost & Found vouchers are banked immediately so they survive a lost or abandoned run (D-31)
       this.save.data.lostTickets += e.amount;
       this.save.data.totalEarned += e.amount;
@@ -351,8 +486,28 @@ export class App {
   pickDraft(i: number): void {
     const g = this.game;
     if (!g) return;
-    g.chooseDraft(i);
-    if (g.phase !== 'draft') this.draft.hide();
+    if (this.net?.role === 'guest') {
+      // the host applies it; the host re-sends the hand if it was refused
+      this.net.guest.draft('choose', i);
+      this.draft.hide();
+      return;
+    }
+    g.chooseDraft(i, this.localIndex);
+    if (!g.draftPending(this.localIndex)) this.draft.hide();
+  }
+  private rerollDraft(): void {
+    if (this.net?.role === 'guest') this.net.guest.draft('reroll');
+    else this.game?.rerollDraft(this.localIndex);
+  }
+  private banishDraft(i: number): void {
+    if (this.net?.role === 'guest') this.net.guest.draft('banish', i);
+    else this.game?.banishDraft(i, this.localIndex);
+  }
+  private skipDraft(): void {
+    if (this.net?.role === 'guest') {
+      this.net.guest.draft('skip');
+      this.draft.hide();
+    } else this.game?.skipDraft(this.localIndex);
   }
 
   /** The Last Song's cues: every step answers with sound and light, never with UI checklists (D-32). */
@@ -459,15 +614,23 @@ export class App {
   private resume(): void {
     this.screenEl?.remove();
     this.screenEl = null;
+    if (this.net?.role === 'host') this.net.host.setPaused(false);
+    else if (this.net?.role === 'guest') this.net.guest.pause(false);
     this.go('playing');
   }
 
   private abandon(): void {
     const g = this.game;
     if (!g) return;
+    if (this.net?.role === 'guest') {
+      // a guest cannot end the host's night: they step out, and the host carries on
+      this.leaveNet(false);
+      return;
+    }
     this.screenEl?.remove();
     this.screenEl = null;
     this.state = 'playing';
+    if (this.net?.role === 'host') this.net.host.setPaused(false);
     g.endRun(false);
   }
 
@@ -511,18 +674,20 @@ export class App {
     this.draft.hide();
     this.prizeUi.hide();
     this.fortune.hide();
-    const canEndless = st.won && !st.endless && s.endlessAvailable();
+    const canEndless = st.won && !st.endless && s.endlessAvailable() && !this.net;
+    const net = this.net;
     setTimeout(() => {
+      if (this.game !== g) return; // already back in the lobby / menu
       this.screenEl?.remove();
       this.state = 'results';
       this.hud.root.classList.add('under');
       if (st.trueEnding) notes.unshift('The Steam Calliope now plays in the draft pool.');
-      const el = S.resultsScreen(this.ctx, st, { achievements: earned.map((a) => `${a.name} — ${a.desc} (+${a.reward} LT)`), newUnlocks: notes, dailyBest }, {
-        again: () => this.lastRun && this.startRun(this.lastRun),
-        menu: () => this.toMenu(),
-        lostfound: () => this.toMenu('lostfound'),
-        endless: canEndless ? () => this.goEndless() : undefined,
-      });
+      const actions = net
+        ? net.role === 'host'
+          ? { again: () => this.coopToLobby(), againLabel: 'Back to the Lobby', menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound') }
+          : { again: () => this.hud.toastMsg(`Waiting for ${g.players[0]?.name ?? 'the host'} to head back to the lobby…`), againLabel: 'Wait for Host', menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound') }
+        : { again: () => this.lastRun && this.startRun(this.lastRun), menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound'), endless: canEndless ? () => this.goEndless() : undefined };
+      const el = S.resultsScreen(this.ctx, st, { achievements: earned.map((a) => `${a.name} — ${a.desc} (+${a.reward} LT)`), newUnlocks: notes, dailyBest }, actions);
       this.ui.append(el);
       this.screenEl = el;
       this.nav = new FocusNav(el);
@@ -546,7 +711,18 @@ export class App {
   }
 
   private toMenu(next: State = 'title'): void {
+    this.leaveNet(true);
+    this.endRunView();
+    this.makeDemo();
+    this.go(next);
+  }
+
+  /** Tear down the in-run views (HUD, overlays, the game) without leaving any session. */
+  private endRunView(): void {
+    this.chestQueue = [];
+    this.prize.finishNow();
     this.hud.root.remove();
+    this.hud.coopInfo = null;
     this.draft.hide();
     this.prizeUi.hide();
     this.fortune.hide();
@@ -554,8 +730,6 @@ export class App {
     this.game = null;
     this.renderer.fx.clear();
     this.renderer.dawn = 0;
-    this.makeDemo();
-    this.go(next);
   }
 
   private tutorial(id: string, html: string): void {
@@ -580,18 +754,18 @@ export class App {
       }
       if (this.draft.visible) {
         const g = this.game;
-        if (e === 'reroll') g.rerollDraft();
+        if (e === 'reroll') this.rerollDraft();
         else if (e === 'banish') this.draft.toggleBanish();
-        else if (e === 'skip') g.skipDraft();
+        else if (e === 'skip') this.skipDraft();
         else if (e === 'confirm') this.draft.nav.activate();
         else if (e === 'up' || e === 'down' || e === 'left' || e === 'right') {
           this.draft.nav.move(e);
           this.audio.play('ui_hover', { vol: 0.3 });
         }
-        if (g.phase !== 'draft') this.draft.hide();
+        if (this.net?.role !== 'guest' && !g.draftPending(this.localIndex)) this.draft.hide();
         return;
       }
-      if (e === 'pause' && this.game.phase === 'play') {
+      if (e === 'pause' && (this.game.phase === 'play' || (this.net && this.game.phase === 'draft'))) {
         this.audio.play('ui_click');
         this.go('paused');
       }
@@ -601,6 +775,8 @@ export class App {
       this.resume();
       return;
     }
+    // the lobby screens are left with their own buttons (Back would silently drop the session)
+    if ((this.state === 'lobby' || this.state === 'mp_join' || this.state === 'netmsg') && (e === 'back' || e === 'pause')) return;
     if (!this.nav) return;
     if (e === 'up' || e === 'down' || e === 'left' || e === 'right') {
       const cur = this.nav.current as any;
@@ -626,12 +802,20 @@ export class App {
     if (dt > 0.25) dt = 0.25;
     this.fps += (1 / Math.max(0.001, dt) - this.fps) * 0.05;
     const g = this.game;
+    const net = this.net;
+    if (net?.role === 'host') net.host.update(t, dt * 1000);
+    else if (net?.role === 'guest') net.guest.update(t);
     const playing = this.state === 'playing' && g;
     // player screen position for mouse aim
     const cssW = window.innerWidth, cssH = window.innerHeight;
-    const target = playing ? g!.player : this.demo!.player;
+    const target = g && (playing || this.state === 'paused') ? g.player : this.demo!.player;
     const sp = this.renderer.worldToScreen(target.x, target.y, cssW, cssH, 30);
     this.input.poll(sp.x, sp.y);
+    if (net?.role === 'guest' && g && (this.state === 'playing' || this.state === 'paused' || this.state === 'results')) {
+      this.guestFrame(dt, t, cssW, cssH);
+      return;
+    }
+    const hs = net?.role === 'host' && g ? net.host : null;
     if (playing) {
       g!.input.moveX = this.input.moveX;
       g!.input.moveY = this.input.moveY;
@@ -649,26 +833,35 @@ export class App {
         this.renderer.fx.screenFlashCol = [1, 0.85, 0.7];
       });
       this.fortune.update(dt);
-      if (!this.overlayPause && g!.phase !== 'draft') {
+      // co-op host: the night also holds for a pause, a prize wheel or a dropped partner on either side
+      const held = !!hs && (hs.paused || !hs.prizeReady);
+      if (!this.overlayPause && g!.phase !== 'draft' && !held) {
         this.acc += dt * this.simSpeed;
         let n = 0;
         const maxTicks = Math.max(5, Math.ceil(this.simSpeed * 5));
         while (this.acc >= TICK && n < maxTicks) {
+          hs?.beforeTick(g!);
           g!.tick();
           this.acc -= TICK;
           n++;
         }
         if (n >= maxTicks) this.acc = 0;
       }
+      hs?.captureFx(g!.fx.events); // the guest's copy of this frame's sparks, before the renderer drains them
+      if (g!.phase === 'draft' && this.draft.visible && !g!.draftPending(this.localIndex)) this.draft.hide();
       if (this.dawnT >= 0) {
         this.dawnT += dt;
         this.renderer.dawn = Math.min(1, this.dawnT / 4);
       }
-      const alpha = this.overlayPause || g!.phase === 'draft' ? 1 : Math.min(1, this.acc / TICK);
+      const alpha = this.overlayPause || g!.phase === 'draft' || held ? 1 : Math.min(1, this.acc / TICK);
       this.renderer.render(g!, alpha, dt);
+      this.updateCoopHud();
       this.hud.update(g!, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y) => this.renderer.worldToScreen(x, y, cssW, cssH) });
     } else if (this.state === 'paused' || this.state === 'results') {
-      if (g) this.renderer.render(g, 1, dt);
+      if (g) {
+        hs?.captureFx(g.fx.events);
+        this.renderer.render(g, 1, dt);
+      }
     } else if (this.demo) {
       // attract mode behind the menus
       this.demoAutopilot(this.demo);
@@ -683,6 +876,376 @@ export class App {
       if (this.demo.time > 400 || this.demo.phase === 'ended') this.makeDemo();
       this.renderer.render(this.demo, Math.min(1, this.acc / TICK), dt, { menu: true });
     }
+  }
+
+  // =================================================================== online co-op (D-52)
+  private profileBase(name: string) {
+    const perk = (id: string) => this.save.perkLevel(id);
+    return { name, meta: this.save.metaStats(), rerolls: perk('reroll'), banishes: perk('banish'), canSkip: this.save.isUnlocked('f_skip'), aimMode: this.save.data.settings.aimMode ?? 'auto' };
+  }
+
+  private guestProfile(name: string): GuestProfile {
+    return { ...this.profileBase(name), chars: CHARACTERS.filter((c) => this.save.characterAvailable(c.id)).map((c) => c.id) };
+  }
+
+  private startBgClock(): void {
+    if (this.bgClock) return;
+    this.bgLast = performance.now();
+    this.bgClock = new BackgroundClock(() => this.background());
+  }
+
+  /** Runs only while the tab is hidden: keep the host's night (and everyone's keepalives) going. */
+  private background(): void {
+    const now = performance.now();
+    const dt = Math.min(0.25, (now - this.bgLast) / 1000);
+    this.bgLast = now;
+    const n = this.net;
+    if (!n) return;
+    if (n.role === 'guest') {
+      n.guest.update(now);
+      n.guest.game?.fx.drain();
+      return;
+    }
+    const hs = n.host;
+    hs.update(now, dt * 1000);
+    const g = this.game;
+    if (!g || this.state !== 'playing') return;
+    if (!this.overlayPause && g.phase !== 'draft' && !hs.paused && hs.prizeReady) {
+      this.acc += dt;
+      let k = 0;
+      while (this.acc >= TICK && k < 15) {
+        hs.beforeTick(g);
+        g.tick();
+        this.acc -= TICK;
+        k++;
+      }
+      if (k >= 15) this.acc = 0;
+    }
+    hs.captureFx(g.fx.events);
+    g.fx.drain(); // nobody is drawing them
+  }
+
+  private async hostGame(name: string): Promise<void> {
+    L.storeName(name);
+    this.mpBusy = true;
+    this.mpStatus = 'Opening a lobby…';
+    this.mpTone = 'info';
+    this.go('mp');
+    const session = new HostSession('', this.profileBase(name));
+    try {
+      const cfg = await loadNetConfig();
+      this.netDesc = describeNetConfig(cfg);
+      const handle = await hostLobby(cfg, (link) => session.accept(link), (t) => this.netToast(t, 'warn'));
+      if (this.state !== 'mp') {
+        handle.close();
+        return;
+      }
+      session.lobby.code = handle.code;
+      this.net = { role: 'host', host: session, handle };
+      this.localIndex = 0;
+      session.onLobby = () => this.refreshLobby();
+      session.onNotice = (t, tone) => this.netToast(t, tone);
+      const s = this.save;
+      session.setCharacter(s.characterAvailable(s.data.last.character) ? s.data.last.character : 'carny');
+      session.setDifficulty(s.difficultyAvailable(s.data.last.difficulty) ? s.data.last.difficulty : 'midway', false);
+      this.mpBusy = false;
+      this.mpStatus = '';
+      this.startBgClock();
+      this.go('lobby');
+    } catch (e) {
+      this.mpBusy = false;
+      this.mpStatus = (e as Error).message;
+      this.mpTone = 'warn';
+      if (this.state === 'mp') this.go('mp');
+    }
+  }
+
+  private async joinGame(raw: string): Promise<void> {
+    const code = normalizeCode(raw);
+    if (!isValidCode(code)) {
+      this.mpStatus = 'Lobby codes are six letters and numbers (there is no O, 0, I, L or 1).';
+      this.mpTone = 'warn';
+      this.go('mp_join');
+      return;
+    }
+    this.mpBusy = true;
+    this.mpStatus = `Calling lobby ${code}…`;
+    this.mpTone = 'info';
+    this.go('mp_join');
+    try {
+      const cfg = await loadNetConfig();
+      this.netDesc = describeNetConfig(cfg);
+      const link = await joinLobby(code, cfg);
+      if (this.state !== 'mp_join') {
+        link.close('left');
+        return;
+      }
+      let token: string | null = null;
+      try {
+        token = sessionStorage.getItem(`nc-seat-${code}`);
+      } catch {
+        /* no storage: no reconnect token */
+      }
+      const gs = new GuestSession(link, this.guestProfile(L.loadName() || 'Player'), token, performance.now());
+      this.net = { role: 'guest', guest: gs, code };
+      this.localIndex = 1;
+      gs.onWelcome = (lobby) => {
+        try {
+          if (gs.token) sessionStorage.setItem(`nc-seat-${code}`, gs.token);
+        } catch {
+          /* ignore */
+        }
+        this.mpBusy = false;
+        this.mpStatus = lobby.inRun ? 'Rejoining the night…' : '';
+        if (!lobby.inRun) this.go('lobby');
+      };
+      gs.onLobby = () => this.refreshLobby();
+      gs.onStart = (c, resume) => this.startGuestRun(c, resume);
+      gs.onEvent = (type, e) => this.guestEvent(type, e);
+      gs.onToLobby = () => this.guestToLobby();
+      gs.onClosed = (reason) => this.netClosed(reason);
+      this.startBgClock();
+    } catch (e) {
+      this.mpBusy = false;
+      this.mpStatus = (e as Error).message;
+      this.mpTone = 'warn';
+      if (this.state === 'mp_join') this.go('mp_join');
+    }
+  }
+
+  private lobbyKeyOf(): string {
+    const n = this.net;
+    const lobby = n?.role === 'host' ? n.host.lobby : n?.guest.lobby;
+    if (!lobby) return '';
+    return JSON.stringify({ ...lobby, players: lobby.players.map((p) => p && { ...p, rtt: 0 }) }) + this.mpStatus + (n?.role === 'host' && n.host.canStart());
+  }
+
+  private lobbyEl(): HTMLElement {
+    const n = this.net;
+    const lobby = n?.role === 'host' ? n.host.lobby : n?.guest.lobby;
+    if (!n || !lobby) return L.netNotice(this.ctx, 'Lobby', 'Not connected.', [{ label: 'Back', fn: () => this.go('mp') }]);
+    this.lobbyKey = this.lobbyKeyOf();
+    return L.lobbyScreen(this.ctx, lobby, this.localIndex, {
+      canStart: n.role === 'host' && n.host.canStart(),
+      status: this.mpStatus,
+      tone: this.mpTone,
+      actions: {
+        pick: (id) => (n.role === 'host' ? n.host.setCharacter(id) : n.guest.pick(id)),
+        ready: (r) => (n.role === 'host' ? n.host.setReady(r) : n.guest.setReady(r)),
+        difficulty: (id, curse) => n.role === 'host' && n.host.setDifficulty(id, curse),
+        start: () => this.startHostRun(),
+        leave: () => this.leaveNet(false, 'mp'),
+      },
+    });
+  }
+
+  /** Lobby changed: rebuild the screen if anything but the latency readout changed. */
+  private refreshLobby(): void {
+    if (this.state !== 'lobby') return;
+    const n = this.net;
+    const lobby = n?.role === 'host' ? n.host.lobby : n?.guest.lobby;
+    if (!lobby) return;
+    if (this.lobbyKeyOf() === this.lobbyKey) {
+      const other = lobby.players[1 - this.localIndex];
+      const ping = this.screenEl?.querySelector(`.mp-card.p${2 - this.localIndex} .mp-ping`);
+      if (ping && other?.rtt) ping.textContent = `${other.rtt} ms`;
+      return;
+    }
+    this.go('lobby');
+  }
+
+  private netToast(text: string, tone: 'info' | 'warn' = 'info'): void {
+    if (this.game && (this.state === 'playing' || this.state === 'paused')) this.hud.toastMsg(text, 4000);
+    else {
+      this.mpStatus = text;
+      this.mpTone = tone;
+      if (this.state === 'lobby') this.refreshLobby();
+    }
+  }
+
+  private startHostRun(): void {
+    if (this.net?.role !== 'host') return;
+    const hs = this.net.host;
+    const cfg = hs.start({
+      seed: (Math.random() * 2 ** 31) | 0,
+      unlocked: [...this.save.unlockedSet()],
+      questMemory: Object.fromEntries(Object.entries(this.save.data.quests).map(([k, v]) => [k, v.completions])),
+    });
+    if (!cfg) return;
+    void this.audio.unlock();
+    this.mpStatus = '';
+    this.localIndex = 0;
+    const g = new Game(runConfigFromStart(cfg));
+    hs.attachGame(g);
+    this.beginRun(g, cfg.players[0].character, 'MIDNIGHT', `${cfg.players[1].name} is with you — the gates lock behind you both…`);
+  }
+
+  /** Guest: the host started (or we rejoined) a night — build the mirror the session will feed. */
+  private startGuestRun(cfg: StartCfg, resume: boolean): Game {
+    void this.audio.unlock();
+    this.mpStatus = '';
+    this.mpBusy = false;
+    this.localIndex = 1;
+    if (this.game) this.endRunView();
+    const g = new Game(runConfigFromStart(cfg));
+    this.beginRun(g, cfg.players[1].character, resume ? 'BACK IN THE NIGHT' : 'MIDNIGHT', resume ? 'Reconnected to the host' : `${cfg.players[0].name} is with you — the gates lock behind you both…`);
+    setTimeout(() => this.sendView(), 0);
+    return g;
+  }
+
+  /** Guest: replay a host event on the mirror's bus, so the solo UI wiring handles it. */
+  private guestEvent(type: string, e: unknown): void {
+    const g = this.net?.role === 'guest' ? this.net.guest.game : null;
+    if (!g) return;
+    try {
+      g.bus.emit(type as never, e as never);
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[net] event failed', type, err);
+    }
+  }
+
+  /** Tell the host how much of the world this screen shows (interest management). */
+  private sendView(): void {
+    if (this.net?.role !== 'guest') return;
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    this.net.guest.sendView(VIEW_HALF_X * Math.max(1, aspect / (16 / 9)), VIEW_HALF_Y * Math.max(1, 16 / 9 / aspect));
+  }
+
+  /** Guest frame: predict our own fool, interpolate everything else, render the mirror. */
+  private guestFrame(dt: number, now: number, cssW: number, cssH: number): void {
+    const gs = (this.net as Extract<NetCtx, { role: 'guest' }>).guest;
+    const g = this.game!;
+    const rep = gs.replica;
+    // only walk while the host's night is actually running (otherwise the host discards the steps)
+    const live = this.state === 'playing' && g.phase === 'play' && !gs.pausedBy && !this.prize.active && !!rep && !rep.frozen;
+    if (live) {
+      this.acc += dt;
+      let n = 0;
+      while (this.acc >= TICK && n < 5) {
+        gs.step(this.input.moveX, this.input.moveY, this.input.aimX, this.input.aimY, this.input.aimActive);
+        this.acc -= TICK;
+        n++;
+      }
+      if (n >= 5) this.acc = 0;
+    } else this.acc = 0;
+    rep?.frame(dt);
+    if (this.state === 'playing') {
+      const pb = this.renderer.post;
+      pb.bloomScale += ((this.prize.active ? 0.35 : 1) - pb.bloomScale) * Math.min(1, dt * 6);
+      this.prize.update(dt, (k) => {
+        this.renderer.fx.screenFlash = Math.max(this.renderer.fx.screenFlash, k);
+        this.renderer.fx.screenFlashCol = [1, 0.85, 0.7];
+      });
+      this.fortune.update(dt);
+    }
+    if (this.dawnT >= 0) {
+      this.dawnT += dt;
+      this.renderer.dawn = Math.min(1, this.dawnT / 4);
+    }
+    const local = rep ? rep.localDrawPos(live ? Math.min(1, this.acc / TICK) : 1) : undefined;
+    this.renderer.render(g, rep ? rep.alpha(now) : 1, dt, { local });
+    if (this.state === 'playing') {
+      this.updateCoopHud();
+      this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y) => this.renderer.worldToScreen(x, y, cssW, cssH) });
+    }
+  }
+
+  /** The co-op layer of the HUD: partner card, waiting notes, latency, diagnostics (F3). */
+  private updateCoopHud(): void {
+    const n = this.net;
+    const g = this.game;
+    if (!n || !g || g.players.length < 2) {
+      this.hud.coopInfo = null;
+      return;
+    }
+    const other = g.players[1 - this.localIndex];
+    let status: CoopStatus = null;
+    let gone = false;
+    const d = n.role === 'host' ? n.host.diag : n.guest.diag;
+    if (n.role === 'host') {
+      const hs = n.host;
+      gone = !hs.guestConnected;
+      if (hs.waitingFor) status = { text: `${hs.waitingFor} lost connection — waiting for them to rejoin…`, action: { label: 'Carry on alone', fn: () => hs.continueWithout() } };
+      else if (hs.seat?.paused && hs.guestConnected) status = { text: `Paused by ${hs.guestName}` };
+      else if (g.phase === 'draft' && !g.draftPending(0) && g.draftPending(1)) status = { text: `Waiting for ${hs.guestName} to choose…` };
+      else if (hs.prizeWaitingOnGuest && !this.prize.active) status = { text: `Waiting for ${hs.guestName} at the prize wheel…` };
+    } else {
+      const gs = n.guest;
+      if (this.guestPrizeAt >= 0 && g.time !== this.guestPrizeAt) this.guestPrizeAt = -1;
+      if (gs.pausedBy) status = { text: `Paused by ${gs.pausedBy}` };
+      else if (g.phase === 'draft' && !this.draft.visible) status = { text: `Waiting for ${other.name} to choose…` };
+      else if (gs.replica?.frozen && !this.prize.active) status = { text: this.guestPrizeAt >= 0 ? `Waiting for ${other.name} at the prize wheel…` : `Waiting for ${other.name}…` };
+    }
+    const diag = this.showNetDiag
+      ? [
+          `${d.role.toUpperCase()}  rtt ${d.rtt.toFixed(0)} ms  ${d.unreliable ? 'datagram channel' : 'reliable channel only'}  route ${d.route || '?'}`,
+          `snapshots ${d.snapRate.toFixed(1)} Hz  ${(d.bytesPerSec / 1024).toFixed(1)} KB/s  last ${d.snapBytes} B  lost ${d.snapLost}  skipped ${d.skipped}`,
+          n.role === 'host' ? `guest inputs: queue ${d.inputQueue}  starved ${d.starved}  dropped ${d.dropped}  invalid ${d.invalid}` : `prediction error ${d.predErr.toFixed(1)}  interval ${d.interval.toFixed(0)} ms  invalid ${d.invalid}`,
+          this.netDesc,
+        ].join('\n')
+      : null;
+    this.hud.coopInfo = { local: this.localIndex, partnerGone: gone, ping: d.rtt, diag, status };
+  }
+
+  /** Host, after a co-op night: everyone back to the lobby, connection kept. */
+  private coopToLobby(): void {
+    if (this.net?.role !== 'host') return this.toMenu();
+    this.net.host.backToLobby();
+    this.endRunView();
+    this.makeDemo();
+    this.go('lobby');
+  }
+
+  /** Guest: the host took everyone back to the lobby. */
+  private guestToLobby(): void {
+    this.endRunView();
+    this.makeDemo();
+    this.go('lobby');
+  }
+
+  /** Guest: the session ended (host left, connection lost, or the host refused us). */
+  private netClosed(reason: string): void {
+    const inRun = !!this.game;
+    const joining = this.state === 'mp_join';
+    this.stopNet();
+    if (joining) {
+      this.mpBusy = false;
+      this.mpStatus = reason;
+      this.mpTone = 'warn';
+      this.go('mp_join');
+      return;
+    }
+    if (inRun) {
+      this.endRunView();
+      this.makeDemo();
+    }
+    this.go('netmsg', { title: 'The Show Is Over', text: reason, actions: [{ label: 'Back to Menu', fn: () => this.go('title') }, { label: 'Multiplayer', fn: () => this.go('mp'), cls: 'purple' }] });
+  }
+
+  /** Leave whatever session this tab is in (host: closes the lobby for the guest). */
+  private leaveNet(quiet: boolean, next?: State): void {
+    const n = this.net;
+    if (n?.role === 'host') {
+      n.host.close(this.game ? 'The host ended the night.' : 'The host closed the lobby.');
+      n.handle?.close();
+    } else if (n?.role === 'guest') n.guest.leave();
+    const inRun = !!this.game && !!n;
+    this.stopNet();
+    if (quiet) return;
+    if (inRun) {
+      this.endRunView();
+      this.makeDemo();
+    }
+    this.mpStatus = '';
+    this.go(next ?? 'title');
+  }
+
+  private stopNet(): void {
+    this.net = null;
+    this.localIndex = 0;
+    this.bgClock?.stop();
+    this.bgClock = null;
+    this.mpBusy = false;
   }
 
   demoAutopilot(g: Game): void {

@@ -11,7 +11,19 @@ import type { Game } from '../sim/game';
 import type { DraftOption } from '../sim/draft';
 import { readyEvolutions } from '../sim/draft';
 import { FocusNav, fmtTime, h } from './dom';
-import { MAX_PASSIVES, MAX_WEAPONS } from '../sim/weapons';
+
+/** What the co-op layer of the HUD shows (set by the app every frame during an online run). */
+export interface CoopHud {
+  /** this machine's player slot */
+  local: number;
+  partnerGone?: boolean;
+  /** round-trip latency to the other machine (ms) */
+  ping?: number;
+  /** multi-line diagnostics text, or null when the panel is closed */
+  diag?: string | null;
+  /** a waiting note (partner choosing, paused, reconnecting) with an optional action */
+  status?: { text: string; action?: { label: string; fn: () => void } } | null;
+}
 
 export class Hud {
   root: HTMLDivElement;
@@ -40,6 +52,14 @@ export class Hud {
   private lastHp = -1;
   private bossKey = '';
   private indicators: HTMLDivElement;
+  private partner: HTMLDivElement;
+  private tags: HTMLDivElement;
+  private statusEl: HTMLDivElement;
+  private pingEl: HTMLDivElement;
+  private diagEl: HTMLDivElement;
+  private statusKey = '';
+  private partnerKey = '';
+  coopInfo: CoopHud | null = null;
   showFps = false;
 
   constructor(private assets: Assets) {
@@ -62,7 +82,12 @@ export class Hud {
     this.toast = h('div', { class: 'toast' });
     this.fpsEl = h('div', { class: 'fps hidden' });
     this.indicators = h('div', { class: 'passthrough' });
-    this.root.append(xp, this.lvl, this.preview, clock, this.act, this.hpWrap, this.tray, this.statsR, this.boss, this.toast, this.fpsEl, this.indicators);
+    this.partner = h('div', { class: 'coop-partner hidden' });
+    this.tags = h('div', { class: 'passthrough' });
+    this.statusEl = h('div', { class: 'coop-status hidden' });
+    this.pingEl = h('div', { class: 'net-ping hidden' });
+    this.diagEl = h('div', { class: 'net-diag hidden' });
+    this.root.append(xp, this.lvl, this.preview, clock, this.act, this.hpWrap, this.tray, this.statsR, this.boss, this.toast, this.fpsEl, this.indicators, this.partner, this.tags, this.statusEl, this.pingEl, this.diagEl);
   }
 
   setPortrait(charId: string): void {
@@ -109,11 +134,12 @@ export class Hud {
     } else this.preview.classList.add('hidden');
     // tray (rebuilt only when the build changes)
     const ready = new Set(readyEvolutions(g));
-    const key = g.weapons.list.map((w) => `${w.def.id}:${w.level}${ready.has(w.def.id) ? '!' : ''}`).join(',') + '|' + [...p.passives].map(([id, l]) => `${id}:${l}`).join(',');
+    const slots = g.slots;
+    const key = `${slots.weapons}/${slots.passives}|` + g.weapons.list.map((w) => `${w.def.id}:${w.level}${ready.has(w.def.id) ? '!' : ''}`).join(',') + '|' + [...p.passives].map(([id, l]) => `${id}:${l}`).join(',');
     if (key !== this.trayKey) {
       this.trayKey = key;
       const wg = h('div', { class: 'group' });
-      for (let i = 0; i < MAX_WEAPONS; i++) {
+      for (let i = 0; i < slots.weapons; i++) {
         const w = g.weapons.list[i];
         if (!w) {
           wg.append(h('div', { class: 'slot empty' }));
@@ -124,7 +150,7 @@ export class Hud {
       }
       const pg = h('div', { class: 'group' });
       const ps = [...p.passives];
-      for (let i = 0; i < MAX_PASSIVES; i++) {
+      for (let i = 0; i < slots.passives; i++) {
         const e = ps[i];
         if (!e) {
           pg.append(h('div', { class: 'slot empty' }));
@@ -173,6 +199,59 @@ export class Hud {
     this.fpsEl.classList.toggle('hidden', !this.showFps);
     if (this.showFps) this.fpsEl.textContent = `${fps.toFixed(0)} fps · ${g.active.length} enemies · ${g.projs.reduce((n, q) => n + (q.alive ? 1 : 0), 0)} proj`;
     this.updateIndicators(g, screen);
+    this.updateCoop(g, screen);
+  }
+
+  /** Online co-op: the partner's card, name tags (or edge arrows), waiting notes, latency. */
+  private updateCoop(g: Game, screen: { w: number; h: number; toScreen: (x: number, y: number) => { x: number; y: number } }): void {
+    const info = this.coopInfo;
+    const on = !!info && g.players.length > 1;
+    this.partner.classList.toggle('hidden', !on);
+    this.pingEl.classList.toggle('hidden', !on || info?.ping === undefined);
+    this.diagEl.classList.toggle('hidden', !on || !info?.diag);
+    if (!on || !info) {
+      if (this.tags.childElementCount) this.tags.replaceChildren();
+      this.statusEl.classList.add('hidden');
+      this.statusKey = '';
+      return;
+    }
+    const other = g.players.find((q) => q.index !== info.local) ?? g.players[0];
+    const pct = Math.max(0, Math.min(100, (other.hp / other.stats.maxHp()) * 100));
+    const st = info.partnerGone ? 'Reconnecting…' : other.downed ? 'In a coffin — stand by to revive!' : other.dead ? 'Down' : '';
+    const pk = `${other.index}|${other.char.id}|${other.name}|${Math.round(pct)}|${st}`;
+    if (pk !== this.partnerKey) {
+      this.partnerKey = pk;
+      this.partner.className = `coop-partner p${other.index + 1}${other.downed || info.partnerGone ? ' down' : ''}`;
+      this.partner.replaceChildren(h('img', { src: this.assets.portrait(other.char.id), alt: '' }), h('div', {}, h('div', {}, other.name), h('div', { class: 'bar' }, h('i', { style: { width: `${pct}%` } })), st ? h('div', { class: 'st' }, st) : null));
+    }
+    // name tags over the other players, or an arrow at the screen edge when they are off-screen
+    const kids: HTMLElement[] = [];
+    for (const q of g.players) {
+      if (q.index === info.local) continue;
+      const s = screen.toScreen(q.x, q.y);
+      const cls = `p${q.index + 1}`;
+      if (s.x > 0 && s.x < screen.w && s.y > 60 && s.y < screen.h) kids.push(h('div', { class: `coop-tag ${cls}`, style: { left: `${s.x}px`, top: `${s.y - 74}px` } }, q.downed ? `⚰ ${q.name}` : q.name));
+      else {
+        const m = 30;
+        const x = Math.max(m, Math.min(screen.w - m, s.x)), y = Math.max(m + 100, Math.min(screen.h - m - 70, s.y));
+        kids.push(h('div', { class: 'indicator', style: { left: `${x}px`, top: `${y}px` } }, h('i', { style: { background: q.index === 0 ? '#ffd27a' : '#8af4ff', color: '#17110e' } }, q.downed ? '⚰' : q.name.slice(0, 1).toUpperCase())));
+      }
+    }
+    this.tags.replaceChildren(...kids);
+    const sk = info.status ? info.status.text + (info.status.action?.label ?? '') : '';
+    if (sk !== this.statusKey) {
+      this.statusKey = sk;
+      this.statusEl.classList.toggle('hidden', !info.status);
+      if (info.status) {
+        const a = info.status.action;
+        this.statusEl.replaceChildren(h('span', {}, info.status.text), ...(a ? [h('button', { class: 'btn small', onclick: a.fn }, a.label)] : []));
+      }
+    }
+    if (info.ping !== undefined) {
+      this.pingEl.textContent = `● ${Math.round(info.ping)} ms`;
+      this.pingEl.classList.toggle('bad', info.ping > 160);
+    }
+    if (info.diag) this.diagEl.textContent = info.diag;
   }
 
   /** Edge arrows pointing at off-screen chests, food and bosses. */

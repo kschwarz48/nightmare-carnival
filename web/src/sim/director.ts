@@ -62,7 +62,8 @@ export class Director {
     if (this.g.cfg.curse) c = Math.min(400, Math.round(c * CURSE.capMult));
     c = Math.round(c * this.g.events.capMult);
     if (this.g.endless) c = Math.min(460, c + Math.floor((this.g.time - this.g.endlessStart) / 60) * 8);
-    return c;
+    // co-op: a bigger crowd for a bigger party (the pool holds 560)
+    return Math.min(520, Math.round(c * this.g.partyScale.density));
   }
 
   activeWave(): WaveDef {
@@ -343,8 +344,20 @@ export class Director {
     }
   }
 
-  /** Density blended toward the next wave over the back half of each window (no step jumps). */
+  /** Wave density for this moment, scaled for the party size (co-op: denser waves, arriving faster). */
   private blended(wave: WaveDef): { minAlive: number; maxAlive: number; interval: number; batch: number } {
+    const out = this.blendedSolo(wave);
+    const dens = this.g.partyScale.density;
+    if (dens !== 1) {
+      out.minAlive *= dens;
+      out.maxAlive *= dens;
+      out.interval /= dens;
+    }
+    return out;
+  }
+
+  /** Density blended toward the next wave over the back half of each window (no step jumps). */
+  private blendedSolo(wave: WaveDef): { minAlive: number; maxAlive: number; interval: number; batch: number } {
     const out = this.scratch;
     out.minAlive = wave.minAlive;
     out.maxAlive = wave.maxAlive;

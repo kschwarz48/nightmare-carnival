@@ -34,7 +34,8 @@ export class Writer {
   }
   u8(v: number): void {
     this.need(1);
-    this.dv.setUint8(this.o, v & 0xff);
+    // clamp, never wrap: a timer that decayed to -0.01 must arrive as 0, not 252
+    this.dv.setUint8(this.o, Math.max(0, Math.min(255, Math.round(v))) || 0);
     this.o += 1;
   }
   i8(v: number): void {

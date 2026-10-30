@@ -58,6 +58,10 @@ interface Seat {
   goneAt: number;
   /** consecutive ticks the input buffer has sat deeper than the target cushion */
   deepTicks: number;
+  /** when the last new input arrived (a silent guest stops moving instead of running on) */
+  lastInputAt: number;
+  /** consecutive ticks covered by repeating the last input while the buffer was empty */
+  repeats: number;
 }
 
 export interface NetDiag {
@@ -132,7 +136,8 @@ export class HostSession {
   private prizeHost = 0;
   private prizeGuest = 0;
   private prizeHostDoneAt = 0;
-  private ticked = false;
+  /** when the night last advanced (inputs that arrive while it is frozen are spent, see update) */
+  private lastTickAt = 0;
   readonly diag = blankDiag('host');
 
   // UI hooks
@@ -309,7 +314,7 @@ export class HostSession {
     const seat: Seat = {
       link: null, profile: m.profile, token: randomToken(), character: null, ready: false, connected: false, lastHeard: this.now, rtt: 0,
       view: { hx: 900, hy: 700 }, queue: [], lastQueued: 0, lastApplied: 0, lastInput: null, ackSnap: 0, dictAck: 0, invalid: 0,
-      limiter: new RateLimiter(40, 80, this.now), binLimiter: new RateLimiter(180, 240, this.now), paused: false, goneAt: 0, deepTicks: 0,
+      limiter: new RateLimiter(40, 80, this.now), binLimiter: new RateLimiter(180, 240, this.now), paused: false, goneAt: 0, deepTicks: 0, lastInputAt: 0, repeats: 0,
     };
     if (m.profile.name === this.self.name) seat.profile.name = `${m.profile.name} 2`.slice(0, 16);
     this.seat = seat;
@@ -453,6 +458,7 @@ export class HostSession {
       if (s.lastQueued && i.seq > s.lastQueued + 120) continue; // implausible jump
       s.queue.push(i);
       s.lastQueued = i.seq;
+      s.lastInputAt = this.now;
     }
   }
 
@@ -490,6 +496,7 @@ export class HostSession {
     this.dict = new StringDict();
     this.enc = new SnapshotEncoder();
     this.snapSeq = 0;
+    this.lastTickAt = this.now;
     this.prizeHost = this.prizeGuest = 0;
     if (this.seat) {
       this.seat.dictAck = 0;
@@ -528,7 +535,7 @@ export class HostSession {
       case 'draft': {
         if (pl !== 1) return;
         const p1 = g.players[1];
-        this.send({ t: 'ev', type, e: { options: ev.options, player: 1, rerolls: p1.rerolls, banishes: p1.banishes, canSkip: p1.canSkip } });
+        this.send({ t: 'ev', type, e: { options: ev.options, player: 1, rerolls: p1.rerolls, banishes: p1.banishes, canSkip: p1.canSkip, level: g.level } });
         return;
       }
       case 'draft_done':
@@ -549,29 +556,39 @@ export class HostSession {
   beforeTick(g: Game): void {
     const s = this.seat;
     const inp = g.inputs[1];
-    this.ticked = true;
+    this.lastTickAt = this.now;
     if (!s || !inp) return;
     if (!s.connected) {
       inp.moveX = inp.moveY = 0;
       inp.aimActive = false;
       return;
     }
-    // Keep the buffer shallow: every queued input is latency the guest feels. A burst after a stall
-    // is cut back at once; a buffer that merely stays a little deep loses one input at a time.
-    if (s.queue.length > 8) this.dropInputs(s, s.queue.length - 2);
-    else if (s.queue.length > 2) {
-      if (++s.deepTicks > 20) {
+    // Every guest input should be applied exactly once, in order. Frames on either machine arrive
+    // unevenly (a 144 Hz display ticks on some frames and not others; a busy frame runs several
+    // ticks), so the buffer breathes; only a backlog that persists — latency the guest would feel —
+    // is shaved, one input at a time, and only a huge one (a stall) is cut at once.
+    if (s.queue.length > 30) this.dropInputs(s, s.queue.length - 4);
+    if (s.queue.length > 4) {
+      if (++s.deepTicks > 30) {
         this.dropInputs(s, 1);
-        s.deepTicks = 0;
+        s.deepTicks = 20;
       }
     } else s.deepTicks = 0;
     let next = s.queue.shift();
     if (next) {
       s.lastApplied = next.seq;
       s.lastInput = next;
-    } else {
+      s.repeats = 0;
+    } else if (s.lastInput && s.repeats < 2 && this.now - s.lastInputAt < 250) {
+      // a packet a tick or two late: keep doing what they were doing (prediction absorbs it)
+      s.repeats++;
       this.diag.starved++;
-      next = s.lastInput ?? undefined;
+      next = s.lastInput;
+    } else {
+      // nothing to apply: stand still until their next input arrives
+      inp.moveX = inp.moveY = 0;
+      inp.aimActive = false;
+      return;
     }
     if (next) {
       inp.moveX = next.mx;
@@ -629,12 +646,11 @@ export class HostSession {
       // an absent partner's level-up must not hold the night: take their first card for them
       g.chooseDraft(Math.max(0, g.drafts[1]!.findIndex((o) => !o.disabled)), 1);
     }
-    if (g && s && !this.ticked && s.queue.length) {
-      // the night is not running (draft, prize wheel, pause): inputs that arrive now were predicted
-      // by a guest who had not heard yet — count them as spent so its prediction snaps to the truth
+    if (g && s && s.queue.length && now - this.lastTickAt > 150) {
+      // the night is frozen (draft, prize wheel, pause): inputs that arrive now were predicted by a
+      // guest who had not heard yet — count them as spent so its prediction snaps to the truth
       this.dropInputs(s, s.queue.length);
     }
-    this.ticked = false;
     if (this.prizeGuest > 0 && this.prizeHost === 0 && now - this.prizeHostDoneAt > PRIZE_WAIT) this.prizeGuest = 0;
     this.diag.connected = !!s?.connected;
     this.diag.rtt = s?.rtt ?? 0;
@@ -664,7 +680,7 @@ export class HostSession {
     }
     const p = g.players[1];
     const view = { x: p.x, y: p.y, hx: s.view.hx, hy: s.view.hy };
-    const buf = this.enc.encode(g, { seq: ++this.snapSeq, ackInput: s.lastApplied, ackSnap: s.ackSnap, dict: this.dict, dictFrom: s.dictAck, view, fx: this.fx, sfx: this.sfx });
+    const buf = this.enc.encode(g, { seq: ++this.snapSeq, ackInput: s.lastApplied, ackSnap: s.ackSnap, dict: this.dict, dictFrom: s.dictAck, view, fx: this.fx, sfx: this.sfx, frozen: this.paused || !this.prizeReady });
     this.fx.length = 0;
     this.sfx.length = 0;
     s.link.sendBin(buf);
@@ -803,13 +819,15 @@ export class GuestSession {
       case 'ev':
         if (this.state !== 'run' || !this.game) return;
         if (m.type === 'draft') {
-          const e = m.e as { rerolls?: number; banishes?: number; canSkip?: boolean };
+          // the hand can arrive before the snapshot that carries the new level and tokens
+          const e = m.e as { rerolls?: number; banishes?: number; canSkip?: boolean; level?: number };
           const p = this.game.players[this.slot];
           if (p && typeof e?.rerolls === 'number') {
             p.rerolls = e.rerolls;
             p.banishes = e.banishes ?? 0;
             p.canSkip = !!e.canSkip;
           }
+          if (typeof e?.level === 'number' && e.level > 0 && e.level < 10000) this.game.level = e.level;
         }
         this.onEvent(m.type, m.e);
         return;

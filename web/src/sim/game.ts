@@ -295,6 +295,11 @@ export class Game {
   get coop(): boolean {
     return this.players.length > 1;
   }
+  /** Party-size scaling (D-51): crowd density and enemy/boss toughness. Both 1 in solo. */
+  get partyScale(): { density: number; hp: number } {
+    const i = Math.min(COOP.density.length - 1, this.players.length);
+    return { density: COOP.density[i], hp: COOP.hp[i] };
+  }
   /** Is this player up and fighting? */
   isUp(p: Player): boolean {
     return !p.dead && !p.downed;
@@ -619,7 +624,7 @@ export class Game {
     e.affixes.length = 0;
     e.shield = 0;
     const eliteHp = elite ? 6 : 1;
-    e.maxHp = e.hp = def.hp * sc.hp * this.diff.hpMult * curseHp * eliteHp * (opts.hpMult ?? 1);
+    e.maxHp = e.hp = def.hp * sc.hp * this.diff.hpMult * curseHp * eliteHp * (opts.hpMult ?? 1) * this.partyScale.hp;
     e.dmg = def.contact * sc.dmg * this.diff.dmgMult * (elite ? 1.5 : 1);
     e.speed = def.speed * sc.speed * curseSpd * (elite ? 0.85 : 1);
     e.tickets = Math.max(1, Math.round(def.tickets * sc.tickets * (elite ? 5 : 1)));

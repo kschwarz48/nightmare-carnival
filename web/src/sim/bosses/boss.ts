@@ -72,7 +72,7 @@ export abstract class BossBase {
     this.uid = g.nextUid++;
     this.encore = !!opts.encore;
     const curse = g.cfg.curse ? CURSE.hpMult : 1;
-    this.maxHp = this.hp = def.hp * g.diff.hpMult * curse * (this.encore ? 0.4 : 1) * (g.endless ? 1 + 0.12 * Math.max(0, (g.time - g.endlessStart) / 60) : 1);
+    this.maxHp = this.hp = def.hp * g.diff.hpMult * curse * (this.encore ? 0.4 : 1) * (g.endless ? 1 + 0.12 * Math.max(0, (g.time - g.endlessStart) / 60) : 1) * g.partyScale.hp;
     this.dmgMult = g.diff.dmgMult * (this.encore ? 1.25 : 1);
     this.enrageT = def.enrage;
     this.body = this.addPart('body', def.radius * 0.85);

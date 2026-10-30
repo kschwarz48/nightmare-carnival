@@ -118,6 +118,11 @@ export const COOP = {
   reviveHpFrac: 0.5,
   /** crowd density multiplier by party size (more bodies to chase, more to feed shared XP) */
   density: [1, 1, 1.25, 1.45, 1.6] as number[],
+  /**
+   * enemy and boss HP multiplier by party size. Two players bring roughly twice the weapons early and
+   * ~1.3x a solo build once their 4 slots are full (vs 6 solo), so HP rises less than linearly.
+   */
+  hp: [1, 1, 1.3, 1.5, 1.7] as number[],
   /** a boss re-picks the nearest living player at most this often (seconds) */
   bossRetarget: 2.5,
 };

@@ -11,6 +11,8 @@ const KIND_LABEL: Record<ChestEntry['type'], string> = {
 
 export class PrizeOverlay implements PrizeUi {
   root = h('div', { class: 'prize-ui hidden' });
+  /** Co-op: player names by slot, so every prize shows whose it is (null in solo). */
+  owners: string[] | null = null;
   private titleEl = h('div', { class: 'prize-title' });
   private capEl = h('div', { class: 'prize-cap' });
   private sumEl = h('div', { class: 'prize-sum' });
@@ -39,15 +41,15 @@ export class PrizeOverlay implements PrizeUi {
       return;
     }
     this.capEl.className = `prize-cap on ${e.type}`;
-    this.capEl.replaceChildren(h('img', { src: icon, alt: '' }), h('div', {}, h('small', {}, KIND_LABEL[e.type]), h('b', {}, e.label)));
+    this.capEl.replaceChildren(h('img', { src: icon, alt: '' }), h('div', {}, h('small', {}, this.who(e), KIND_LABEL[e.type]), h('b', {}, e.label)));
   }
 
   summary(entries: ChestEntry[], icons: string[]): void {
     this.root.classList.remove('hidden');
     this.capEl.classList.remove('on');
     this.titleEl.className = `prize-title ${entries.some((e) => e.type === 'evolution') ? 'evolution' : 'normal'}`;
-    this.titleEl.textContent = entries.length > 1 ? 'YOUR WINNINGS' : 'YOUR PRIZE';
-    this.sumEl.replaceChildren(...entries.map((e, i) => h('div', { class: `item ${e.type}`, style: { animationDelay: `${0.08 + i * 0.12}s` } }, h('img', { src: icons[i], alt: '' }), h('span', {}, e.label))), h('div', { class: 'muted cont' }, 'Press any button to continue'));
+    this.titleEl.textContent = this.owners ? 'THE WINNINGS' : entries.length > 1 ? 'YOUR WINNINGS' : 'YOUR PRIZE';
+    this.sumEl.replaceChildren(...entries.map((e, i) => h('div', { class: `item ${e.type}`, style: { animationDelay: `${0.08 + i * 0.12}s` } }, h('img', { src: icons[i], alt: '' }), h('span', {}, this.who(e), e.label))), h('div', { class: 'muted cont' }, 'Press any button to continue'));
     this.sumEl.classList.add('on');
     this.hint.classList.add('hidden');
   }
@@ -56,6 +58,11 @@ export class PrizeOverlay implements PrizeUi {
     this.root.classList.add('hidden');
     this.capEl.classList.remove('on');
     this.sumEl.classList.remove('on');
+  }
+
+  private who(e: ChestEntry): HTMLElement | null {
+    if (!this.owners || e.player === undefined) return null;
+    return h('span', { class: `who p${e.player + 1}` }, this.owners[e.player] ?? `P${e.player + 1}`);
   }
 }
 
