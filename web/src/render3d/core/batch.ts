@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { shareGeometry } from './geo';
-import { actorDepthMaterial } from './materials';
+import { actorDepthMaterial, outlineMaterial } from './materials';
 
 export class ActorBatch {
   mesh: THREE.InstancedMesh;
@@ -19,8 +19,10 @@ export class ActorBatch {
   private aRi: THREE.InstancedBufferAttribute;
   /** Default rim for this model (readability against the dark). */
   rim: [number, number, number, number] = [0, 0, 0, 0];
+  /** Ink silhouette sharing this batch's geometry and instance data (D-44). */
+  outline: THREE.InstancedMesh | null = null;
 
-  constructor(geo: THREE.BufferGeometry, mat: THREE.MeshStandardMaterial, cap: number, o: { shadow?: boolean; receive?: boolean; order?: number } = {}) {
+  constructor(geo: THREE.BufferGeometry, mat: THREE.MeshStandardMaterial, cap: number, o: { shadow?: boolean; receive?: boolean; order?: number; outline?: boolean } = {}) {
     this.cap = cap;
     const g = shareGeometry(geo);
     this.an = new Float32Array(cap * 4);
@@ -41,6 +43,12 @@ export class ActorBatch {
     this.mesh.receiveShadow = o.receive ?? true;
     if (o.shadow) this.mesh.customDepthMaterial = actorDepthMaterial(mat);
     if (o.order !== undefined) this.mesh.renderOrder = o.order;
+    if (o.outline) {
+      this.outline = new THREE.InstancedMesh(g, outlineMaterial(mat), cap);
+      this.outline.instanceMatrix = this.mesh.instanceMatrix;
+      this.outline.frustumCulled = false;
+      this.outline.count = 0;
+    }
   }
 
   begin(): void {
@@ -100,6 +108,7 @@ export class ActorBatch {
 
   end(): void {
     this.mesh.count = this.count;
+    if (this.outline) this.outline.count = this.count;
     if (this.count === 0) return;
     const im = this.mesh.instanceMatrix;
     im.clearUpdateRanges();

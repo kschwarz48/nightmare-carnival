@@ -144,7 +144,7 @@ describe('organic balloon drifts (D-33)', () => {
   }, 60000);
 });
 
-describe('pacing: wave blending and recovery (D-30)', () => {
+describe('pacing: wave blending and recovery (D-43)', () => {
   it('density ramps smoothly toward the next wave instead of stepping', () => {
     const g = makeGame({ godMode: true });
     const w = WAVES[2], next = WAVES[3];
@@ -175,7 +175,7 @@ describe('pacing: wave blending and recovery (D-30)', () => {
   });
 });
 
-describe('progression curve (D-30)', () => {
+describe('progression curve (D-43)', () => {
   it('early levels are quick, requirements rise, plateaus at 20 and 40', () => {
     expect(xpToNext(1)).toBe(5);
     expect(xpToNext(5)).toBeLessThan(xpToNext(15));

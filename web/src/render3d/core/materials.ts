@@ -343,6 +343,46 @@ export function actorDepthMaterial(src: THREE.MeshStandardMaterial): THREE.MeshD
   return m;
 }
 
+/** Ink thickness in world units (≈1.3 px on screen; the renderer updates it on resize/zoom). */
+export const ink = { uInkThick: { value: 1.2 }, uInkCol: { value: new THREE.Color(0x0b0809) } };
+
+/**
+ * Hand-inked silhouettes (D-44): an inverted hull drawn with the same skinning/animation as the
+ * source material — back faces pushed out along the animated normal, filled with ink.
+ */
+export function outlineMaterial(src: THREE.MeshStandardMaterial): THREE.ShaderMaterial {
+  const d = src.userData.nc as NcData;
+  const skin = src.defines?.NC_SKIN !== undefined;
+  return new THREE.ShaderMaterial({
+    defines: skin ? { NC_SKIN: '' } : {},
+    uniforms: { ...d, ...ink },
+    vertexShader: /* glsl */ `
+      ${V_HEAD}
+      uniform float uInkThick;
+      void main() {
+        vec3 objectNormal = normal;
+        ${V_AN}
+        ${V_SKIN_N}
+        vec3 transformed = position;
+        ${V_SKIN_P}
+        #ifdef USE_INSTANCING
+        mat4 ncM = modelMatrix * instanceMatrix;
+        #else
+        mat4 ncM = modelMatrix;
+        #endif
+        // push out in world space so the line keeps a constant on-screen width under instance scale
+        vec4 w = ncM * vec4(transformed, 1.0);
+        vec3 wn = normalize(mat3(ncM) * objectNormal);
+        w.xyz += wn * uInkThick;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uInkCol;
+      void main() { gl_FragColor = vec4(uInkCol, 1.0); }`,
+    side: THREE.BackSide,
+  });
+}
+
 export function ncData(m: THREE.Material): NcData {
   return m.userData.nc as NcData;
 }

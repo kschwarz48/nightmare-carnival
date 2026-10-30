@@ -1,4 +1,4 @@
-// Headless progression measurement (D-30). Runs every character through full nights with the smart
+// Headless progression measurement (D-43). Runs every character through full nights with the smart
 // pilot + draft policy and records the level curve, ticket income, chests, vouchers, balloon drifts
 // and crowd density. `god` mode isolates progression from survival; without it, deaths are counted.
 // Usage: npx vite-node scripts/progression.ts [god|mortal] [seeds=3]

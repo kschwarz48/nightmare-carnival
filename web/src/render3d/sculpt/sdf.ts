@@ -143,11 +143,12 @@ export class Sculpt {
   private prims: Prim[] = [];
   private details: THREE.BufferGeometry[] = [];
 
-  constructor(private cell = 1.5, private jointBand = 5) {}
+  /** `kScale` scales every smooth-blend radius: < 1 gives crisper seams between parts (D-44). */
+  constructor(private cell = 1.5, private jointBand = 5, private kScale = 1) {}
 
   add(s: Shape, o: PrimOpts = {}): this {
     const [lo, hi] = bounds(s);
-    const k = o.k ?? 3;
+    const k = (o.k ?? 3) * this.kScale;
     const col = typeof o.col === 'function' ? o.col : o.col instanceof THREE.Color ? o.col : C(o.col ?? 0xffffff);
     this.prims.push({ s, k, col, surf: o.surf ?? [0.6, 0], emit: o.emit ?? 0, bone: o.bone ?? 0, sub: !!o.sub, inv: rotInv((s as { rot?: V3 }).rot), lo, hi });
     return this;
@@ -200,7 +201,8 @@ export class Sculpt {
     return d;
   }
 
-  build(o: { ao?: number; aoScale?: number } = {}): THREE.BufferGeometry {
+  build(o: { ao?: number; aoScale?: number; paint?: number } = {}): THREE.BufferGeometry {
+    const paint = o.paint ?? 1;
     const h = this.cell;
     const lo = new THREE.Vector3(1e9, 1e9, 1e9), hi = new THREE.Vector3(-1e9, -1e9, -1e9);
     for (const p of this.prims) {
@@ -285,10 +287,12 @@ export class Sculpt {
     const pv = new THREE.Vector3(), nvv = new THREE.Vector3();
     for (let i = 0; i < nv; i++) {
       const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
-      // gradient normal
-      const gx = this.field(x + e, y, z) - this.field(x - e, y, z);
-      const gy = this.field(x, y + e, z) - this.field(x, y - e, z);
-      const gz = this.field(x, y, z + e) - this.field(x, y, z - e);
+      // gradient normal (and, from the same six samples, the field's Laplacian ≈ curvature)
+      const fx1 = this.field(x + e, y, z), fx0 = this.field(x - e, y, z);
+      const fy1 = this.field(x, y + e, z), fy0 = this.field(x, y - e, z);
+      const fz1 = this.field(x, y, z + e), fz0 = this.field(x, y, z - e);
+      const gx = fx1 - fx0, gy = fy1 - fy0, gz = fz1 - fz0;
+      const lap = (fx1 + fx0 + fy1 + fy0 + fz1 + fz0 - 6 * this.field(x, y, z)) / (e * e);
       const gl = Math.hypot(gx, gy, gz) || 1;
       const nx_ = gx / gl, ny_ = gy / gl, nz_ = gz / gl;
       nor[i * 3] = nx_; nor[i * 3 + 1] = ny_; nor[i * 3 + 2] = nz_;
@@ -329,6 +333,12 @@ export class Sculpt {
           occ += wgt * Math.max(0, (sd - f) / sd);
         }
         tmpC.multiplyScalar(1 - aoK * Math.min(1, occ * 1.4));
+      }
+      // hand-painted wear: convex edges catch a lighter stroke, creases sink darker (D-44)
+      if (paint > 0) {
+        const edge = Math.max(-1, Math.min(1, lap * 1.6 * aoS));
+        const hi = edge > 0.2 ? (edge - 0.2) / 0.8 : 0, lo = edge < -0.15 ? (-edge - 0.15) / 0.85 : 0;
+        tmpC.multiplyScalar(1 + 0.42 * paint * hi * hi - 0.32 * paint * lo);
       }
       col[i * 3] = tmpC.r; col[i * 3 + 1] = tmpC.g; col[i * 3 + 2] = tmpC.b;
       su[i * 3] = p1!.surf[0]; su[i * 3 + 1] = p1!.surf[1]; su[i * 3 + 2] = p1!.emit;

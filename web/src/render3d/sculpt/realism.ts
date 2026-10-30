@@ -67,22 +67,23 @@ export function realFace(sc: Sculpt, P: Proportions, bone: number, o: { iris?: n
 }
 
 /** A messy mop of hair: clumps over the crown and back, a few locks falling across the brow. */
-export function messyHair(sc: Sculpt, P: Proportions, bone: number, col: number, o: { volume?: number; fringe?: number; seed?: number } = {}): void {
+export function messyHair(sc: Sculpt, P: Proportions, bone: number, col: number, o: { volume?: number; fringe?: number; seed?: number; locks?: number } = {}): void {
   const r = P.headR * (o.volume ?? 1), y = P.headY;
   const hair = C(col);
   const tone: ColorFn = (p) => hair.clone().multiplyScalar(0.8 + 0.4 * vnoise(p.x * 1.4, p.y * 1.4, p.z * 1.4));
   sc.add({ t: 'ell', c: [0, y + r * 0.5, -r * 0.18], r: [r * 1.0, r * 0.66, r * 1.0] }, { col: tone, bone, k: 1, surf: SURF.cloth });
   const seed = o.seed ?? 3;
-  for (let i = 0; i < 11; i++) {
-    const a = (i / 11) * Math.PI * 2 + seed;
+  const locks = o.locks ?? 16;
+  for (let i = 0; i < locks; i++) {
+    const a = (i / locks) * Math.PI * 2 + seed;
     const front = Math.cos(a - Math.PI / 2) > 0.55;
     if (front && i % 2) continue;
     const tipR = r * (1.08 + 0.12 * vnoise(i, seed, 1));
-    sc.add({ t: 'cap', a: [Math.cos(a) * r * 0.5, y + r * 0.62, Math.sin(a) * r * 0.5 - r * 0.15], b: [Math.cos(a) * tipR, y + r * (0.15 + 0.3 * vnoise(i, 2, seed)), Math.sin(a) * tipR - r * 0.1], ra: r * 0.32, rb: r * 0.1 }, { col: tone, bone, k: 0.9, surf: SURF.cloth });
+    sc.add({ t: 'cap', a: [Math.cos(a) * r * 0.5, y + r * 0.62, Math.sin(a) * r * 0.5 - r * 0.15], b: [Math.cos(a) * tipR, y + r * (0.15 + 0.3 * vnoise(i, 2, seed)), Math.sin(a) * tipR - r * 0.1], ra: r * 0.27, rb: r * 0.04 }, { col: tone, bone, k: 0.35, surf: SURF.cloth });
   }
   for (let i = 0; i < (o.fringe ?? 3); i++) {
     const x = (i - 1) * r * 0.32 + 0.4;
-    sc.add({ t: 'cap', a: [x, y + r * 0.85, r * 0.55], b: [x + r * 0.12 * (i - 1), y + r * 0.32, r * 0.95], ra: r * 0.17, rb: r * 0.05 }, { col: tone, bone, k: 0.6, surf: SURF.cloth });
+    sc.add({ t: 'cap', a: [x, y + r * 0.85, r * 0.55], b: [x + r * 0.12 * (i - 1), y + r * 0.32, r * 0.95], ra: r * 0.15, rb: r * 0.025 }, { col: tone, bone, k: 0.25, surf: SURF.cloth });
   }
 }
 
@@ -125,7 +126,11 @@ export function realBody(sc: Sculpt, P: Proportions, b: (n: string) => number, c
     const wr: V3 = [s * (P.shoulderX + P.armOut * 1.6), P.wristY, 0.6];
     sc.add({ t: 'cap', a: sh, b: el, ra: P.arm[0], rb: P.arm[1] }, { col: c.shirt, bone: b(`arm${n}`), k: 1.2, surf: cloth });
     sc.add({ t: 'cap', a: el, b: wr, ra: P.arm[1] * 0.95, rb: P.arm[2] }, { col: c.rolled ? c.skin : c.shirt, bone: b(`fore${n}`), k: 0.8, surf: c.rolled ? SURF.skin : cloth });
-    if (c.rolled) sc.add({ t: 'tor', c: [el[0], el[1] + 0.5, el[2]], R: P.arm[1] + 0.35, r: 1.05 }, { col: c.shirt, bone: b(`arm${n}`), k: 0.5, surf: cloth });
+    if (c.rolled) {
+      // a rolled sleeve: two stacked folds with a crease between
+      sc.add({ t: 'tor', c: [el[0], el[1] + 0.2, el[2]], R: P.arm[1] + 0.4, r: 0.85 }, { col: c.shirt, bone: b(`arm${n}`), k: 0.15, surf: cloth });
+      sc.add({ t: 'tor', c: [el[0], el[1] + 1.5, el[2]], R: P.arm[1] + 0.35, r: 0.75 }, { col: c.shirt, bone: b(`arm${n}`), k: 0.15, surf: cloth });
+    }
     bareHand(sc, wr, s, P.arm[2], c.hands ?? c.skin, b(`hand${n}`));
     if (c.skipLegs) continue;
     const hp: V3 = [s * P.stance, P.hip - 1, 0];
@@ -135,8 +140,11 @@ export function realBody(sc: Sculpt, P: Proportions, b: (n: string) => number, c
     sc.add({ t: 'cap', a: kn, b: an, ra: P.leg[1] + 0.6, rb: P.leg[2] + 0.8 }, { col: c.trousers, bone: b(`shin${n}`), k: 1, surf: cloth });
     if (c.cuffs) sc.add({ t: 'tor', c: [an[0], an[1] + 1, an[2]], R: P.leg[2] + 0.9, r: 0.9 }, { col: c.trousers, bone: b(`shin${n}`), k: 0.4, surf: cloth });
     if (c.sock !== undefined) sc.add({ t: 'cap', a: [an[0], an[1] + 0.2, an[2]], b: [an[0], P.ankle - 1, an[2] + 0.2], ra: P.leg[2] + 0.2, rb: P.leg[2] + 0.3 }, { col: c.sock, bone: b(`foot${n}`), k: 0.5, surf: cloth });
-    sc.add({ t: 'ell', c: [an[0], 1.9, 2.4], r: [2.6, 1.9, 5.2], rot: [-0.05, 0, 0] }, { col: c.shoe, bone: b(`foot${n}`), k: 1, surf: SURF.rubber });
-    sc.add({ t: 'box', c: [an[0], 0.6, 0.2], h: [2.4, 0.7, 4.8], r: 0.5 }, { col: C(c.shoe).multiplyScalar(0.6), bone: b(`foot${n}`), k: 0.6, surf: SURF.rubber });
+    // shoe: a defined upper, a hard welted sole and heel, laces across the instep
+    sc.add({ t: 'ell', c: [an[0], 2.1, 2.4], r: [2.5, 1.8, 5.0], rot: [-0.05, 0, 0] }, { col: c.shoe, bone: b(`foot${n}`), k: 0.5, surf: SURF.rubber });
+    sc.add({ t: 'box', c: [an[0], 0.55, 2.4], h: [2.7, 0.55, 5.3], r: 0.35 }, { col: C(c.shoe).multiplyScalar(0.45), bone: b(`foot${n}`), k: 0.1, surf: SURF.rubber });
+    sc.add({ t: 'box', c: [an[0], 1.0, -1.6], h: [2.3, 0.9, 1.4], r: 0.3 }, { col: C(c.shoe).multiplyScalar(0.4), bone: b(`foot${n}`), k: 0.1, surf: SURF.rubber });
+    for (let k = 0; k < 3; k++) sc.detail(rbox(2.6, 0.22, 0.3, 0.08, 1), { col: 0x0e0a08, bone: b(`foot${n}`), pos: [an[0], 3.1 - k * 0.35, 3.0 + k * 0.85], rot: [-0.55, 0, k % 2 ? 0.25 : -0.25], surf: SURF.cloth });
   }
 }
 

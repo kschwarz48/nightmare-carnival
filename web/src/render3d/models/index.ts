@@ -38,7 +38,7 @@ export function geometryFor(key: string, def: ModelDef): THREE.BufferGeometry {
 }
 
 export const CHARACTERS: Record<string, ModelDef> = Object.fromEntries(
-  CHARACTER_IDS.map((id) => [id, { build: () => characterModel(id).geo, rig: () => characterModel(id).rig, rim: [0.55, 0.68, 0.95, 0.5], shadow: true, scale: 1.08 } as ModelDef]),
+  CHARACTER_IDS.map((id) => [id, { build: () => characterModel(id).geo, rig: () => characterModel(id).rig, rim: [0.75, 0.72, 0.68, 0.22], shadow: true, scale: 1.08 } as ModelDef]),
 );
 
 export { ENEMY_MODELS, ITEM_MODELS };

@@ -29,6 +29,7 @@ export function installDevTools(app: App): void {
           g.player.y = g.player.py = o.y;
         }
         app.renderer.snapCamera(g.player.x + (o.dx ?? 0), g.player.y + (o.dy ?? 0));
+        app.renderer.inspect = (o.zoom ?? 1) > 1 ? { x: g.player.x + (o.dx ?? 0), y: g.player.y + (o.dy ?? 0) } : null;
         return { enemies: g.active.length, t: Math.round(g.time) };
       },
       /** Spawn a boss awake right next to the player (visual testing). */

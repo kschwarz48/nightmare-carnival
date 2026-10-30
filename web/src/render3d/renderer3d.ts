@@ -14,7 +14,7 @@ import type { Game } from '../sim/game';
 import type { Enemy, Hazard } from '../sim/entities';
 import { ActorBatch } from './core/batch';
 import { BillboardLayer, DecalBatch, camBasis } from './core/billboard';
-import { actorMaterial, pool, shared } from './core/materials';
+import { actorMaterial, ink, pool, shared } from './core/materials';
 import { CHARACTERS, ENEMY_MODELS, ITEM_MODELS, geometryFor, type ModelDef } from './models';
 import { Ground3D } from './world/ground';
 import { LightShafts, Motes } from './world/atmosphere';
@@ -104,8 +104,9 @@ export class GameRenderer3D {
   private pPrevCd = 0;
   private pPrevX = 0;
   private pPrevY = 0;
-  /** Dev-only inspection zoom (1 = gameplay framing). */
+  /** Dev-only inspection zoom (1 = gameplay framing) and camera lock. */
   zoom = 1;
+  inspect: { x: number; y: number } | null = null;
 
   constructor(private canvas: HTMLCanvasElement, readonly assets: Assets) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
@@ -206,6 +207,8 @@ export class GameRenderer3D {
     this.camera.updateProjectionMatrix();
     this.applyQuality();
     this.post.setSize(w, h, pixelRatio);
+    // ink lines stay ~1.3 CSS px wide whatever the zoom
+    ink.uInkThick.value = (1.6 * this.viewH) / h;
   }
 
   private applyQuality(): void {
@@ -252,11 +255,12 @@ export class GameRenderer3D {
     if (!b) {
       const rig = def.rig?.();
       const mat = actorMaterial({ animA: def.anim?.a, animB: def.anim?.b, emitBoost: def.emitBoost ?? 3, boneTex: rig?.tex, matte: !!rig || key.startsWith('s_') });
-      b = new ActorBatch(geometryFor(key, def), mat, cap, { shadow: def.shadow ?? false });
+      b = new ActorBatch(geometryFor(key, def), mat, cap, { shadow: def.shadow ?? false, outline: !!rig || key.startsWith('s_') });
       if (def.rim) b.rim = def.rim;
       this.batches.set(key, b);
       this.batchList.push(b);
       this.scene.add(b.mesh);
+      if (b.outline) this.scene.add(b.outline);
     }
     return b;
   }
@@ -301,6 +305,10 @@ export class GameRenderer3D {
     const k = 1 - Math.exp(-dt * (opts.menu ? 1.5 : 7));
     this.camX += (px + lookX - this.camX) * k;
     this.camY += (py + lookY - this.camY) * k;
+    if (this.inspect) {
+      this.camX = this.inspect.x;
+      this.camY = this.inspect.y;
+    }
     const halfGroundH = this.viewH / 2 / SIN_EL;
     const mx = MAP_HALF + 140 - this.viewW / 2;
     this.camX = clamp(this.camX, -mx, mx);
@@ -986,8 +994,8 @@ export class GameRenderer3D {
 const BALLOON_TINTS: [number, number, number][] = [
   [0.62, 0.1, 0.08], [0.66, 0.46, 0.1], [0.12, 0.34, 0.34], [0.38, 0.14, 0.42], [0.62, 0.55, 0.4], [0.24, 0.38, 0.12],
 ];
-/** Neon colours per ticket tier (blue → green → gold). */
-const NEON: [number, number, number][] = [[0.12, 0.5, 1], [0.15, 0.95, 0.4], [1, 0.7, 0.12]];
+/** Neon colours per ticket tier (blue → green → magenta, D-27). */
+const NEON: [number, number, number][] = [[0.12, 0.5, 1], [0.15, 0.95, 0.4], [1, 0.23, 0.82]];
 const PLUSH_TINTS: [number, number, number][] = [[0.75, 0.55, 0.4], [0.9, 0.85, 0.75], [0.6, 0.62, 0.68], [0.85, 0.6, 0.6]];
 
 function orbGeo(): THREE.BufferGeometry {

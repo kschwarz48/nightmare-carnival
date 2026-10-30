@@ -23,7 +23,7 @@ import { COT_EL as COT } from './core/view';
 
 abstract class Rig {
   group = new THREE.Group();
-  mat = actorMaterial({ emitBoost: 3, envIntensity: 0.6 });
+  mat = actorMaterial({ emitBoost: 3, matte: true });
   depth = actorDepthMaterial(this.mat);
   constructor(scene: THREE.Scene) {
     this.group.visible = false;

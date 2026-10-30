@@ -27,7 +27,7 @@ function ticketShape(w: number, h: number): THREE.Shape {
 // ---------------------------------------------------------------- pickups
 /**
  * A ticket as a little neon sign (D-41): a dark enamel ticket outlined in a glowing neon tube with a
- * neon star inside — colour-coded by value (blue → green → gold, like the XP bar) so pickups never
+ * neon star inside — colour-coded by value (blue → green → magenta, D-27) so pickups never
  * read as danger (enemy fire is orange/white).
  */
 function ticket(neon: number, size: number): THREE.BufferGeometry {
@@ -351,7 +351,7 @@ export const ITEM_MODELS: Record<string, ModelDef> = {
   // pickups
   ticket0: { build: () => ticket(0x1f8fff, 0.95), rim: NO_RIM, emitBoost: 2.6 },
   ticket1: { build: () => ticket(0x22e866, 1.08), rim: NO_RIM, emitBoost: 2.6 },
-  ticket2: { build: () => ticket(0xffb51f, 1.3), rim: NO_RIM, emitBoost: 3 },
+  ticket2: { build: () => ticket(0xff3ad2, 1.3), rim: NO_RIM, emitBoost: 3 },
   bank: { build: bank, rim: NO_RIM },
   food: { build: food, rim: NO_RIM, shadow: true },
   funnel: { build: funnel, rim: NO_RIM, shadow: true },
