@@ -5,6 +5,7 @@
 import { dist2 } from '../../core/math';
 import type { BossDef } from '../../data/bosses';
 import { CURSE } from '../../data/difficulty';
+import { CHESTS } from '../../data/progression';
 import { BossPart, type Hazard, type HazardShape } from '../entities';
 import type { Game } from '../game';
 import { Coroutine, CoroutineSet, type Co } from '../script';
@@ -17,6 +18,10 @@ export interface Attack {
 
 export interface BossOpts {
   encore?: boolean;
+  /** Wake at once (scripted arrivals such as the Calliope). */
+  immediate?: boolean;
+  /** No reward chest on defeat (the Calliope ends the night instead). */
+  noChest?: boolean;
 }
 
 export abstract class BossBase {
@@ -130,7 +135,7 @@ export abstract class BossBase {
     }
     if (!this.awake) {
       const held = g.bosses.some((b) => b !== this && b.awake && !b.dead);
-      if (this.encore || (g.time >= this.gate && !held && g.director.gateOpen(this.def.id))) this.wake();
+      if (this.encore || this.opts.immediate || (g.time >= this.gate && !held && g.director.gateOpen(this.def.id))) this.wake();
       else {
         this.updateParts();
         return;
@@ -302,7 +307,11 @@ export abstract class BossBase {
     yield* this.defeatSequence();
     const g = this.g;
     // Reward (doc 05 shared rules): guaranteed chest, ticket burst, small heal.
-    g.spawnPickup('chest', this.x, this.y + 20, 0).rolls = this.encore ? 3 : g.rng.int(4, 6);
+    if (!this.opts.noChest) {
+      const ch = g.spawnPickup('chest', this.x, this.y + 20, 0);
+      ch.rolls = this.encore ? 3 : g.rng.int(CHESTS.bossRolls[0], CHESTS.bossRolls[1]);
+      ch.src = 'boss';
+    }
     for (let i = 0; i < 16; i++) {
       const a = g.rng.angle();
       const pk = g.spawnPickup('ticket', this.x, this.y, Math.round(6 + g.minutes));

@@ -3,7 +3,7 @@
 
 export type WeaponKind =
   | 'cards' | 'mallet' | 'tarot' | 'bumper' | 'plush' | 'tophat' | 'popcorn' | 'darts' | 'fireworks'
-  | 'cotton' | 'rings' | 'cannon' | 'snowcone' | 'grill' | 'laser' | 'orbs' | 'bell' | 'mirror';
+  | 'cotton' | 'rings' | 'cannon' | 'snowcone' | 'grill' | 'laser' | 'orbs' | 'bell' | 'mirror' | 'calliope';
 
 export type Archetype = 'crit' | 'aoe' | 'dot' | 'orbit' | 'summon' | 'mobility';
 
@@ -212,6 +212,16 @@ export const WEAPONS: Record<string, WeaponDef> = {
     lore: 'In the funhouse there are two of you. Only one of you is scared.',
   }),
 
+  steam_calliope: W({
+    id: 'steam_calliope', name: 'Steam Calliope', kind: 'calliope', unlock: 'w_calliope',
+    desc: 'A tiny haunted organ plays spiralling notes that drift outward through the crowd.',
+    levelText: ['', '', '+2 notes', '+3 damage', '−0.25s cooldown', '+2 notes, +1 pierce', '+4 damage', '−0.25s cooldown', '+2 notes, +5 damage'],
+    damage: 9, cooldown: 2.2, area: 1, amount: 6, speed: 230, pierce: 1, duration: 1.8, knockback: 0.4,
+    lv: { dmg: [0, 0, 3, 0, 0, 4, 0, 5], cd: [0, 0, 0, -0.25, 0, 0, -0.25, 0], area: Z8, amount: [0, 2, 0, 0, 2, 0, 0, 2], pierce: [0, 0, 0, 0, 1, 0, 0, 0] },
+    maxLevel: 8, evolvesTo: 'grand_requiem', evoPassive: 'magnet_glove', archetypes: ['aoe', 'dot'], aimable: false, weight: 0.9,
+    lore: 'Pulled from the Big Top ruins at dawn. It still knows the last song.',
+  }),
+
   // ---------------- Evolutions (06 §5 + D-07) ----------------
   royal_flush: EVO({
     id: 'royal_flush', name: 'Royal Flush', kind: 'cards', evolvedFrom: 'throwing_cards',
@@ -314,6 +324,12 @@ export const WEAPONS: Record<string, WeaponDef> = {
     desc: 'Giant slams strike foes across the screen — some ring the bell for a jackpot crit.',
     damage: 34, cooldown: 1.3, area: 1.5, amount: 4, speed: 0, pierce: 0, duration: 0.5, knockback: 2,
     archetypes: ['aoe', 'crit'], aimable: false, lore: 'DING DING DING! We have a winner!',
+  }),
+  grand_requiem: EVO({
+    id: 'grand_requiem', name: 'Grand Requiem', kind: 'calliope', evolvedFrom: 'steam_calliope',
+    desc: 'An endless spiral of homing notes, punctuated by thunderous chords that shake the midway.',
+    damage: 16, cooldown: 0.3, area: 1.4, amount: 3, speed: 260, pierce: 3, duration: 2.2, knockback: 0.6,
+    archetypes: ['aoe', 'dot'], aimable: false, lore: 'Every soul in the carnival, singing at once.',
   }),
   hall_of_mirrors: EVO({
     id: 'hall_of_mirrors', name: 'Hall of Mirrors', kind: 'mirror', evolvedFrom: 'mirror', isSummon: true,

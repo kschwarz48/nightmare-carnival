@@ -5,6 +5,7 @@ import { FerrisBoss } from './ferris';
 import { PuppetBoss } from './puppet';
 import { RingmasterBoss } from './ringmaster';
 import { TentBoss } from './tent';
+import { CalliopeBoss } from './calliope';
 
 export function createBoss(g: Game, def: BossDef, opts?: BossOpts): BossBase {
   switch (def.id) {
@@ -12,5 +13,6 @@ export function createBoss(g: Game, def: BossDef, opts?: BossOpts): BossBase {
     case 'ferris_wheel': return new FerrisBoss(g, def, opts);
     case 'puppet_king': return new PuppetBoss(g, def, opts);
     case 'ringmaster': return new RingmasterBoss(g, def, opts);
+    case 'calliope': return new CalliopeBoss(g, def, opts);
   }
 }

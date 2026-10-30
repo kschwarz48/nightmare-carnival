@@ -23,6 +23,8 @@ export class Input {
   moveY = 0;
   aimX = 1;
   aimY = 0;
+  /** Screen→ground correction for mouse aim under the angled camera (set by the renderer). */
+  aimScaleY = 1;
   aimActive = false;
 
   constructor(private target: HTMLElement) {
@@ -100,7 +102,7 @@ export class Input {
     const dx = this.mouseX - centerX, dy = this.mouseY - centerY;
     if (this.mouseActive && Math.hypot(dx, dy) > 8) {
       this.aimX = dx;
-      this.aimY = dy;
+      this.aimY = dy * this.aimScaleY;
     }
     this.aimActive = this.mouseActive && performance.now() - this.mouseMovedAt < 1500;
     // gamepad

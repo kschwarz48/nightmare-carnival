@@ -1,12 +1,12 @@
 // Versioned persistent save (Godot SaveManager port, doc 08 §18 + 09 M8 "migration safety").
 // localStorage JSON with a migration chain, a backup slot, and corruption recovery.
 
-import { ACHIEVEMENTS, PERKS, UNLOCKS } from '../data/meta';
+import { ACHIEVEMENTS, PERKS, SECRET_UNLOCKS, UNLOCKS } from '../data/meta';
 import { CHARACTERS } from '../data/characters';
 import { CURSE, DIFFICULTIES } from '../data/difficulty';
-import { EVOLUTION_IDS } from '../data/weapons';
+import { EVOLUTION_IDS, WEAPONS } from '../data/weapons';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 const KEY = 'nightmare_carnival_save';
 const BACKUP = 'nightmare_carnival_save_backup';
 
@@ -56,6 +56,8 @@ export interface SaveData {
   daily: Record<string, { score: number; won: boolean; character: string }>;
   last: { character: string; difficulty: string; curse: boolean };
   settings: Settings;
+  /** Easter-egg memory per quest chain (D-32): completions and furthest stage ever reached. */
+  quests: Record<string, { completions: number; bestStage: number }>;
 }
 
 export const DEFAULT_BINDINGS: Record<string, string[]> = {
@@ -82,7 +84,7 @@ export function freshSave(): SaveData {
   return {
     version: SAVE_VERSION, lostTickets: 0, totalEarned: 0, perks: {}, unlocks: [], achievements: [], pedia: [],
     stats: { runs: 0, wins: 0, kills: 0, bestTime: 0, bossKills: {}, playSeconds: 0 },
-    history: [], daily: {}, last: { character: 'carny', difficulty: 'midway', curse: false }, settings: defaultSettings(),
+    history: [], daily: {}, last: { character: 'carny', difficulty: 'midway', curse: false }, settings: defaultSettings(), quests: {},
   };
 }
 
@@ -111,6 +113,12 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
     d.version = 3;
     return d;
   },
+  // v3 → v4: quest memory for the Last Song (and future maps' chains)
+  3: (d) => {
+    d.quests ??= {};
+    d.version = 4;
+    return d;
+  },
 };
 
 export function migrate(raw: any): SaveData {
@@ -126,7 +134,7 @@ export function migrate(raw: any): SaveData {
   }
   // fill any missing fields with defaults (forward compatibility)
   const base = freshSave();
-  const out: SaveData = { ...base, ...d, settings: { ...base.settings, ...(d.settings ?? {}) }, stats: { ...base.stats, ...(d.stats ?? {}) }, last: { ...base.last, ...(d.last ?? {}) } };
+  const out: SaveData = { ...base, ...d, settings: { ...base.settings, ...(d.settings ?? {}) }, stats: { ...base.stats, ...(d.stats ?? {}) }, last: { ...base.last, ...(d.last ?? {}) }, quests: { ...(d.quests ?? {}) } };
   out.settings.bindings = { ...DEFAULT_BINDINGS, ...(out.settings.bindings ?? {}) };
   out.version = SAVE_VERSION;
   if (typeof out.lostTickets !== 'number' || !isFinite(out.lostTickets) || out.lostTickets < 0) out.lostTickets = 0;
@@ -317,7 +325,8 @@ export class SaveManager {
     // derived achievements
     const allChars = CHARACTERS.every((c) => this.characterAvailable(c.id));
     if (allChars && !this.hasAchievement('all_characters')) out.push(...this.grantAchievements(['all_characters']));
-    const allEvos = EVOLUTION_IDS.every((e) => this.data.pedia.includes(e));
+    // secret evolutions (the Easter egg's reward) don't count toward Full House
+    const allEvos = EVOLUTION_IDS.filter((e) => !SECRET_UNLOCKS.includes(WEAPONS[WEAPONS[e].evolvedFrom!]?.unlock ?? '')).every((e) => this.data.pedia.includes(e));
     if (allEvos && !this.hasAchievement('full_house')) out.push(...this.grantAchievements(['full_house']));
     return out;
   }

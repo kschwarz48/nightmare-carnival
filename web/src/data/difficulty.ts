@@ -1,5 +1,7 @@
 // Difficulty tiers + Curse (doc 01 §10, doc 03 §7.3, D-02).
 
+import { TICKETS } from './progression';
+
 export interface DifficultyDef {
   id: 'midway' | 'carnival' | 'nightmare';
   name: string;
@@ -15,9 +17,9 @@ export interface DifficultyDef {
 }
 
 export const DIFFICULTIES: DifficultyDef[] = [
-  { id: 'midway', name: 'Midway', desc: 'The intended first night. Readable crowds, honest bosses.', hpMult: 1.0, dmgMult: 1.0, cap: 180, greed: 0, minibossInterval: 75, eliteAffixes: 0, eliteChanceMult: 1, unlock: null },
-  { id: 'carnival', name: 'Carnival', desc: 'Denser, tougher, +30% Lost Tickets.', hpMult: 1.5, dmgMult: 1.25, cap: 280, greed: 0.3, minibossInterval: 65, eliteAffixes: 1, eliteChanceMult: 1.25, unlock: { req: 'beat_ferris_wheel', reqText: 'Defeat the Ferris Wheel' } },
-  { id: 'nightmare', name: 'Nightmare', desc: 'The carnival at full appetite. Elites carry two affixes. +60% Lost Tickets.', hpMult: 2.2, dmgMult: 1.6, cap: 400, greed: 0.6, minibossInterval: 55, eliteAffixes: 2, eliteChanceMult: 1.5, unlock: { req: 'win_carnival', reqText: 'Win on Carnival' } },
+  { id: 'midway', name: 'Midway', desc: 'The intended first night. Readable crowds, honest bosses.', hpMult: 1.0, dmgMult: 1.0, cap: 180, greed: 0, minibossInterval: 110, eliteAffixes: 0, eliteChanceMult: 1, unlock: null },
+  { id: 'carnival', name: 'Carnival', desc: 'Denser, tougher, +30% Lost Tickets.', hpMult: 1.5, dmgMult: 1.25, cap: 280, greed: 0.3, minibossInterval: 95, eliteAffixes: 1, eliteChanceMult: 1.25, unlock: { req: 'beat_ferris_wheel', reqText: 'Defeat the Ferris Wheel' } },
+  { id: 'nightmare', name: 'Nightmare', desc: 'The carnival at full appetite. Elites carry two affixes. +60% Lost Tickets.', hpMult: 2.2, dmgMult: 1.6, cap: 400, greed: 0.6, minibossInterval: 85, eliteAffixes: 2, eliteChanceMult: 1.5, unlock: { req: 'win_carnival', reqText: 'Win on Carnival' } },
 ];
 
 export const DIFFICULTY_MAP = Object.fromEntries(DIFFICULTIES.map((d) => [d.id, d])) as Record<DifficultyDef['id'], DifficultyDef>;
@@ -38,6 +40,6 @@ export function timeScaling(minutes: number, endlessExtraMinutes = 0) {
     hp: (1 + 0.06 * minutes) * (1 + 0.12 * endlessExtraMinutes),
     dmg: (1 + 0.04 * minutes) * (1 + 0.06 * endlessExtraMinutes),
     speed: Math.min(1 + 0.01 * minutes, 1.6),
-    tickets: 1 + 0.03 * minutes,
+    tickets: 1 + TICKETS.perMinute * minutes,
   };
 }

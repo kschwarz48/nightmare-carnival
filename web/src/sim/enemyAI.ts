@@ -314,14 +314,56 @@ function bumper(g: Game, e: Enemy, dt: number): void {
 }
 
 // --- Balloon Swarm: straight across the screen, never tracks, despawns past the far edge.
+// big attractions balloons drift around (fences and rails they simply float over)
+const DRIFT_OBSTACLES = PROPS.filter((p) => p.kind !== 'fence_h' && p.kind !== 'fence_v' && p.kind !== 'rail'
+  && ((p.r ?? 0) >= 60 || (p.hw ?? 0) >= 80));
+const SNAGS = PROPS.filter((p) => p.kind === 'lamp' || p.kind === 'pennant_pole' || p.kind === 'balloon_post' || p.kind === 'ghost_lamp');
+
 function flyby(g: Game, e: Enemy, dt: number): void {
   e.noSep = true;
+  if (e.t === 0) e.n1 = g.rng.angle(); // wobble phase
   e.t += dt;
-  move(g, e, e.dirX * e.speed, e.dirY * e.speed, dt);
+  // drift: heading + a lazy side-to-side bob + the wind's slow pull
+  const wob = Math.sin(e.t * 2.1 + e.n1) * 46;
+  const wx = Math.cos(g.director.wind) * 28, wy = Math.sin(g.director.wind) * 28;
+  let vx = e.dirX * e.speed - e.dirY * wob + wx;
+  let vy = e.dirY * e.speed + e.dirX * wob + wy;
+  // balloons slide around big attractions instead of passing through them
+  for (const o of DRIFT_OBSTACLES) {
+    // distance to the footprint: circle, or the closest point on the box
+    let cx = o.x, cy = o.y;
+    const rad = o.r ?? 0;
+    if (!o.r) {
+      cx = clamp(e.x, o.x - (o.hw ?? 0), o.x + (o.hw ?? 0));
+      cy = clamp(e.y, o.y - (o.hh ?? 0), o.y + (o.hh ?? 0));
+    }
+    const reach = rad + 60;
+    const dx = e.x - cx, dy = e.y - cy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < reach * reach && d2 > 1) {
+      const d = Math.sqrt(d2);
+      const push = (1 - d / reach) * e.speed * 1.6;
+      vx += (dx / d) * push;
+      vy += (dy / d) * push;
+    }
+  }
+  move(g, e, vx, vy, dt);
+  // now and then one snags on a lamp or pennant pole and pops — a free ticket
+  if (e.n2 === 0) {
+    for (const s of SNAGS) {
+      if (Math.abs(e.x - s.x) < 20 && Math.abs(e.y - s.y) < 20) {
+        e.n2 = 1;
+        if (g.rng.chance(0.35)) {
+          g.killEnemy(e);
+          return;
+        }
+      }
+    }
+  }
   const p = g.player;
   const pastX = e.dirX > 0.1 ? e.x > p.x + VIEW_HALF_X + 140 : e.dirX < -0.1 ? e.x < p.x - VIEW_HALF_X - 140 : false;
   const pastY = e.dirY > 0.1 ? e.y > p.y + VIEW_HALF_Y + 140 : e.dirY < -0.1 ? e.y < p.y - VIEW_HALF_Y - 140 : false;
-  if (e.t > 9 || ((pastX || pastY) && e.t > 1)) g.despawnEnemy(e);
+  if (e.t > 14 || ((pastX || pastY) && e.t > 1.5)) g.despawnEnemy(e);
 }
 
 function fireAt(g: Game, e: Enemy, spread = 0): void {

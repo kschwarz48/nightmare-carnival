@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { makeGame } from './helpers';
 import { WEAPONS, PASSIVES, BASE_WEAPON_IDS, EVOLUTION_IDS } from '../src/data/weapons';
 import { ENEMIES } from '../src/data/enemies';
-import { UNLOCKS } from '../src/data/meta';
+import { SECRET_UNLOCKS, UNLOCKS } from '../src/data/meta';
 import { CHARACTERS } from '../src/data/characters';
 import { WAVES } from '../src/data/waves';
 import { PROPS } from '../src/data/map';
 import { ENEMY_ART } from '../src/render/art/enemies';
-import { PROP_ART } from '../src/render/art/props';
 import { BULLETS } from '../src/render/assets';
+import { PROP_SPECS } from '../src/render3d/world/props';
+import { ENEMY_MODELS } from '../src/render3d/models';
 import { generateDraft, readyEvolutions, grantChest } from '../src/sim/draft';
 import { RECIPES } from '../src/audio/synth';
 import type { Game } from '../src/sim/game';
@@ -31,13 +32,13 @@ describe('content integrity', () => {
       expect(WEAPONS[w.evolvesTo!], id).toBeTruthy();
       expect(WEAPONS[w.evolvesTo!].evolvedFrom).toBe(id);
       expect(PASSIVES[w.evoPassive!], `${id} passive`).toBeTruthy();
-      if (w.unlock) expect(unlockIds.has(w.unlock), `${id} unlock`).toBe(true);
+      if (w.unlock) expect(unlockIds.has(w.unlock) || SECRET_UNLOCKS.includes(w.unlock), `${id} unlock`).toBe(true);
       const p = PASSIVES[w.evoPassive!];
       if (p.unlock) expect(unlockIds.has(p.unlock)).toBe(true);
       expect(w.lv.dmg.length).toBe(8);
       expect(w.levelText.length).toBeGreaterThanOrEqual(9);
     }
-    expect(EVOLUTION_IDS.length).toBe(18);
+    expect(EVOLUTION_IDS.length).toBe(19); // 18 + the Easter egg's Grand Requiem
     expect(WEAPONS.grand_menagerie.evolvedFrom).toBe('tophat'); // D-07
   });
 
@@ -48,7 +49,8 @@ describe('content integrity', () => {
   it('every wave references real enemies; every enemy & prop has art; every bullet kind has a sprite', () => {
     for (const w of WAVES) for (const [id] of w.enemies) expect(ENEMIES[id], `${w.id}:${id}`).toBeTruthy();
     for (const id of Object.keys(ENEMIES)) expect(ENEMY_ART[id], id).toBeTruthy();
-    for (const p of PROPS) expect(PROP_ART[p.kind], p.kind).toBeTruthy();
+    for (const id of Object.keys(ENEMIES)) expect(ENEMY_MODELS[id], `3D model: ${id}`).toBeTruthy();
+    for (const p of PROPS) expect(PROP_SPECS[p.kind] || p.kind === 'fence_h' || p.kind === 'fence_v' || p.kind === 'rail', `3D prop: ${p.kind}`).toBeTruthy();
     const kinds = ['pie', 'musket', 'ticket', 'popcorn', 'spiral', 'spark', 'ring', 'hellfire', 'star', 'crown', 'spoke'];
     for (const k of kinds) expect(BULLETS).toContain(k);
   });

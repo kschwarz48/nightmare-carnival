@@ -1,7 +1,7 @@
 // Boss metadata (doc 05). Attack logic lives in src/sim/bosses/*.
 
 export interface BossDef {
-  id: 'carnival_tent' | 'ferris_wheel' | 'puppet_king' | 'ringmaster';
+  id: 'carnival_tent' | 'ferris_wheel' | 'puppet_king' | 'ringmaster' | 'calliope';
   name: string;
   title: string;
   gate: number;
@@ -48,4 +48,14 @@ export const BOSSES: BossDef[] = [
   },
 ];
 
-export const BOSS_MAP = Object.fromEntries(BOSSES.map((b) => [b.id, b])) as Record<BossDef['id'], BossDef>;
+/** Secret boss — only reachable through the Last Song Easter egg. Not part of the gate timeline. */
+export const CALLIOPE_DEF: BossDef = {
+  id: 'calliope', name: 'The Calliope', title: 'The Last Song', gate: 99999, hp: 62000, contact: 24, radius: 120, enrage: 130,
+  phases: [{ at: 1, name: 'Overture' }, { at: 0.66, name: 'Fugue' }, { at: 0.33, name: 'Requiem' }],
+  intro: 'The Big Top ruins split. Brass pipes rise out of the dark, wheezing a song no one finished.',
+  defeat: 'The last note rings out. Somewhere, a carousel finally stops.', unlocks: 'True Dawn',
+  lore: 'The steam organ was the carnival’s heart long before the Ringmaster bought it. It only wanted to be heard.', barColor: '#7dffb0',
+};
+
+export const ALL_BOSSES: BossDef[] = [...BOSSES, CALLIOPE_DEF];
+export const BOSS_MAP = Object.fromEntries(ALL_BOSSES.map((b) => [b.id, b])) as Record<BossDef['id'], BossDef>;

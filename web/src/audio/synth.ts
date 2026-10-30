@@ -204,4 +204,22 @@ export const RECIPES: Record<string, () => Float32Array> = {
   carhorn: () => render([V('square', 350, 340, 0.25, { vol: 0.2, lp: 1500, duty: 0.3 }), V('square', 350, 340, 0.4, { vol: 0.2, lp: 1500, duty: 0.3, delay: 0.32 })]),
   stampede: () => render(Array.from({ length: 14 }, (_, i) => V('sine', 120, 50, 0.12, { vol: 0.5, decay: 25, delay: i * 0.08 + (i % 2) * 0.03 }))),
   calliope: () => render([392, 494, 587, 494, 392, 330, 392].map((f, i) => V('square', f * 2, f * 2, 0.22, { vol: 0.1, lp: 2500, vib: 0.02, vibRate: 6, decay: 4, delay: i * 0.22 }))),
+  // ---- the Last Song (quest) — base pitch C5 (523.25 Hz); played with pitch = note / 523.25
+  bellnote: () => render([V('sine', 523.25, 523.25, 1.4, { vol: 0.3, decay: 2.6 }), V('sine', 1046.5, 1046.5, 0.9, { vol: 0.1, decay: 4 }), V('sine', 1570.5, 1570.5, 0.6, { vol: 0.06, decay: 6 }), V('tri', 523.25 * 0.997, 523.25 * 0.997, 1.2, { vol: 0.08, decay: 3, vib: 0.006, vibRate: 5 })]),
+  soul: () => render([V('sine', 900, 1800, 0.45, { vol: 0.12, decay: 5, vib: 0.06, vibRate: 11 }), V('noise', 1, 1, 0.4, { vol: 0.08, attack: 0.1, decay: 6, hp: 3000 })]),
+  hum: () => render([V('sine', 220, 220, 1.1, { vol: 0.18, attack: 0.15, decay: 2, vib: 0.01, vibRate: 3 }), V('sine', 330, 331, 1.1, { vol: 0.1, attack: 0.2, decay: 2 })]),
+  sour: () => render([V('saw', 466, 440, 0.6, { vol: 0.14, lp: 1600, vib: 0.04, vibRate: 7, decay: 4 }), V('saw', 493, 470, 0.6, { vol: 0.12, lp: 1600, decay: 4 })]),
+  clunk: () => render([V('sine', 140, 70, 0.25, { vol: 0.6, decay: 14 }), V('noise', 1, 1, 0.12, { vol: 0.35, decay: 25, lp: 900 })]),
+  lamp_lit: () => render([392, 494, 587, 784].map((f, i) => V('sine', f, f, 1.6, { vol: 0.1, attack: 0.05, decay: 1.6, delay: i * 0.09, vib: 0.008, vibRate: 4 })).concat([V('noise', 1, 1, 0.8, { vol: 0.08, attack: 0.2, decay: 2.5, hp: 4000 })])),
+  carousel_wake: () => render([196, 262, 330, 392, 523].map((f, i) => V('square', f, f * 1.002, 1.4, { vol: 0.07, lp: 1800, vib: 0.03, vibRate: 5, attack: 0.08, decay: 1.2, delay: i * 0.12 })).concat([V('saw', 98, 98, 1.6, { vol: 0.1, lp: 500, decay: 1 })])),
+  fortune: () => render([V('sine', 1318, 1318, 0.5, { vol: 0.1, decay: 5 }), V('sine', 1760, 1760, 0.5, { vol: 0.08, decay: 5, delay: 0.12 }), V('sine', 2637, 2637, 0.8, { vol: 0.06, decay: 4, delay: 0.24 }), V('saw', 80, 60, 0.5, { vol: 0.1, lp: 300, decay: 6 })]),
+  ghost_ticket: () => render([523, 659, 784, 1047, 1319, 1568].map((f, i) => V('sine', f, f, 0.5, { vol: 0.1, decay: 6, delay: i * 0.06 })).concat([V('noise', 1, 1, 1.0, { vol: 0.1, attack: 0.3, decay: 2, hp: 5000 })])),
+  toll: () => render([V('sine', 110, 110, 3, { vol: 0.5, decay: 1.2 }), V('sine', 277, 276, 2.4, { vol: 0.2, decay: 1.5 }), V('sine', 412, 411, 2, { vol: 0.12, decay: 1.8 }), V('noise', 1, 1, 0.1, { vol: 0.3, decay: 30, lp: 1500 })]),
+  // ---- the prize wheel
+  wheel_tick: () => render([V('square', 2200, 1800, 0.018, { vol: 0.14, decay: 120, lp: 5000 }), V('noise', 1, 1, 0.012, { vol: 0.2, decay: 200, hp: 3000 })]),
+  wheel_crank: () => render([V('saw', 70, 130, 0.5, { vol: 0.25, lp: 700, vib: 0.2, vibRate: 22, decay: 3 }), V('noise', 1, 1, 0.08, { vol: 0.4, decay: 30, lp: 2000, delay: 0.42 }), V('sine', 180, 90, 0.12, { vol: 0.5, decay: 20, delay: 0.42 })]),
+  wheel_rise: () => render([V('saw', 55, 90, 0.9, { vol: 0.2, lp: 400, vib: 0.1, vibRate: 9, attack: 0.1, decay: 1.5 }), V('noise', 1, 1, 0.9, { vol: 0.12, attack: 0.3, decay: 2, lp: 800 })]),
+  fanfare: () => render([523, 659, 784, 1047].map((f, i) => V('square', f, f, i === 3 ? 0.7 : 0.14, { vol: 0.11, lp: 3800, decay: i === 3 ? 3 : 12, delay: i * 0.1, vib: 0.012, vibRate: 6 })).concat([V('noise', 1, 1, 0.4, { vol: 0.12, decay: 6, hp: 5000, delay: 0.3 })])),
+  thunder: () => render([V('noise', 1, 1, 1.6, { vol: 0.7, decay: 2.2, lp: 700 }), V('sine', 60, 30, 1.4, { vol: 0.6, decay: 2.5 }), V('noise', 1, 1, 0.12, { vol: 0.5, decay: 30, hp: 1500 })]),
+  coins: () => render(Array.from({ length: 8 }, (_, i) => V('sine', 2400 + (i % 3) * 300, 2300, 0.12, { vol: 0.08, decay: 25, delay: i * 0.05 }))),
 };

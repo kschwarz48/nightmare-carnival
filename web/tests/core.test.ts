@@ -125,12 +125,15 @@ describe('damage, i-frames, shields, revives', () => {
 });
 
 describe('XP & leveling', () => {
-  it('XP curve is increasing and levels open a draft', () => {
+  it('XP curve rises (with one-level plateaus at 20 and 40) and levels open a draft', () => {
     const g = makeGame();
     let prev = 0;
     for (let l = 1; l < 80; l++) {
-      expect(g.xpCurve(l)).toBeGreaterThan(prev);
-      prev = g.xpCurve(l);
+      const c = g.xpCurve(l);
+      if (l === 21 || l === 41) expect(c).toBeLessThan(g.xpCurve(l - 1)); // just after a plateau
+      else expect(c).toBeGreaterThan(prev);
+      if (l === 20 || l === 40) expect(c).toBeGreaterThan(g.xpCurve(l + 1)); // the plateau itself
+      prev = c;
     }
     g.addXp(g.xpToNext * 3); // several levels at once
     expect(g.level).toBeGreaterThan(2);

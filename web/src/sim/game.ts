@@ -21,6 +21,9 @@ import {
   type BulletKind, type HazardShape, type PickupKind, type Target, type ZoneKind,
 } from './entities';
 import { CarnivalEvents } from './carnivalEvents';
+import { QuestSystem, type QuestCue } from './quest';
+import { MAP_ID } from '../data/quests';
+import { CHESTS, HEALING, TICKETS, voucherValue, xpToNext } from '../data/progression';
 import { FxQueue } from './fx';
 import { Player } from './player';
 import { Weapons } from './weapons';
@@ -46,6 +49,8 @@ export interface RunConfig {
   unlocked?: Set<string>;
   /** Test hooks */
   godMode?: boolean;
+  /** Persistent quest memory from the save (e.g. how often the Last Song was completed). */
+  questMemory?: Record<string, number>;
 }
 
 export interface InputState {
@@ -79,6 +84,9 @@ export interface RunStats {
   maxLevelReached: number;
   enemiesSeen: string[];
   achievementsHit: string[];
+  trueEnding: boolean;
+  voucherTickets: number;
+  questStage: number;
 }
 
 export type GameEvents = {
@@ -95,7 +103,7 @@ export type GameEvents = {
   dawn: {};
   act: { act: number };
   carnival_event: { id: string; banner: string };
-  chest: { items: string[]; evolution?: string };
+  chest: { items: string[]; evolution?: string; entries?: import('./draft').ChestEntry[]; rolls?: number; src?: string };
   evolved: { from: string; to: string };
   sfx: { id: string; x?: number; y?: number; vol?: number; pitch?: number };
   banner: { text: string; sub?: string; style?: string };
@@ -103,6 +111,9 @@ export type GameEvents = {
   pickup: { kind: PickupKind; value: number };
   stall: {};
   music: { cue: string };
+  quest: QuestCue;
+  meta_currency: { amount: number; source: string };
+  balloon_drift: { x: number; y: number; dirX: number; dirY: number; size: number };
 };
 
 type Phase = 'play' | 'draft' | 'dawn' | 'ended';
@@ -168,6 +179,13 @@ export class Game {
   endless = false;
   endlessStart = 0;
   ringmasterDefeated = false;
+  /** The Ringmaster has fallen this run (a win, even if the Easter-egg finale follows). */
+  ringmasterSlain = false;
+  finaleActive = false;
+  trueEnding = false;
+  vouchersTaken = 0;
+  voucherPaid = 0;
+  quests!: QuestSystem;
   wonPayoutBanked = 0;
   endStats: RunStats | null = null;
   tiltAngle = 0;
@@ -212,9 +230,10 @@ export class Game {
     this.weapons = new Weapons(this);
     this.events = new CarnivalEvents(this);
     this.weapons.add(this.player.char.startWeapon);
-    this.foodTimer = this.rng.range(30, 50);
+    this.foodTimer = this.rng.range(HEALING.foodFirst[0], HEALING.foodFirst[1]);
     this.goldenTimer = this.rng.range(150, 330);
     this.director.init();
+    this.quests = new QuestSystem(this, MAP_ID);
   }
 
   // ------------------------------------------------------------------ tick
@@ -241,7 +260,8 @@ export class Game {
         if (!this.stalled) {
           this.stalled = true;
           this.bus.emit('stall', {});
-          this.bus.emit('banner', { text: 'THE RINGMASTER HOLDS BACK THE DAWN!', sub: 'Defeat him to end the night', style: 'danger' });
+          if (this.finaleActive) this.bus.emit('banner', { text: 'THE CALLIOPE PLAYS ON…', sub: 'The dawn will not come until the song ends', style: 'danger' });
+          else this.bus.emit('banner', { text: 'THE RINGMASTER HOLDS BACK THE DAWN!', sub: 'Defeat him to end the night', style: 'danger' });
         }
         this.time = DAWN_TIME - 1;
       } else this.time += dt;
@@ -254,6 +274,7 @@ export class Game {
     this.rebuildGrid();
     this.director.update(dt);
     this.events.update(dt);
+    this.quests.update(dt);
     for (let i = 0; i < this.active.length; i++) {
       const e = this.active[i];
       e.px = e.x;
@@ -585,9 +606,13 @@ export class Game {
     this.fx.push('death', e.x, e.y, e.scale * (d.drawScale * d.radius) / 34, e.elite ? 1 : 0, 0, d.deathFx);
     this.bus.emit('sfx', { id: d.deathSfx, x: e.x, y: e.y, vol: e.elite ? 1 : 0.55 });
     if (d.dropsChest) {
-      this.spawnPickup('chest', e.x, e.y, 0).rolls = this.rng.int(d.chestMin ?? 1, d.chestMax ?? 3);
-    } else if (e.elite && this.rng.chance(0.08)) {
-      this.spawnPickup('chest', e.x, e.y, 0).rolls = 1;
+      const ch = this.spawnPickup('chest', e.x, e.y, 0);
+      ch.rolls = this.rng.int(CHESTS.bruteRolls[0], CHESTS.bruteRolls[1]);
+      ch.src = 'brute';
+    } else if (e.elite && this.rng.chance(CHESTS.eliteChance)) {
+      const ch = this.spawnPickup('chest', e.x, e.y, 0);
+      ch.rolls = 1;
+      ch.src = 'elite';
     }
     // Elite specials & affixes.
     if (e.elite) {
@@ -606,6 +631,7 @@ export class Game {
       this.forEachTargetInCircle(e.x, e.y, 70, (t) => this.damageTarget(t, dmg, false, 0.5, e.x, e.y, w.def.id));
     }
     this.events.onKill(e);
+    this.quests.onKill(e);
     this.director.onKill(e);
   }
 
@@ -1081,6 +1107,10 @@ export class Game {
     h.followPlayer = o.followPlayer ?? 0;
     h.safe = o.safe ?? false;
     h.gapHalf = o.gapHalf ?? 0;
+    h.holeX = o.holeX ?? 0;
+    h.holeY = o.holeY ?? 0;
+    h.holeR = o.holeR ?? 0;
+    h.tag = o.tag ?? -1;
     return h;
   }
 
@@ -1148,6 +1178,7 @@ export class Game {
   }
 
   hazardTouches(h: Hazard, x: number, y: number, r: number): boolean {
+    if (h.holeR > 0 && dist2(h.holeX, h.holeY, x, y) < (h.holeR - r) * (h.holeR - r)) return false;
     switch (h.shape) {
       case 'circle': {
         const rr = h.r + r;
@@ -1343,7 +1374,7 @@ export class Game {
         break;
       case 'food':
       case 'funnel': {
-        const heal = pk.kind === 'food' ? Math.max(20, p.stats.maxHp() * 0.2) : Math.max(12, p.stats.maxHp() * 0.12);
+        const heal = pk.kind === 'food' ? Math.max(HEALING.foodHealMin, p.stats.maxHp() * HEALING.foodHealFrac) : Math.max(12, p.stats.maxHp() * HEALING.funnelHealFrac);
         this.healPlayer(heal);
         this.bus.emit('pickup', { kind: pk.kind, value: heal });
         break;
@@ -1356,14 +1387,14 @@ export class Game {
       case 'chest': {
         const res = grantChest(this, pk.rolls || 1);
         this.fx.push('chest', pk.x, pk.y, res.items.length);
-        this.bus.emit('chest', res);
+        this.bus.emit('chest', { ...res, rolls: pk.rolls || 1, src: pk.src || 'event' });
         break;
       }
     }
   }
 
   xpCurve(lvl: number): number {
-    return 5 + lvl * 3 + Math.pow(lvl, 1.6); // Godot LevelSystem curve
+    return xpToNext(lvl); // data/progression.ts
   }
 
   addXp(value: number): void {
@@ -1383,12 +1414,6 @@ export class Game {
   openDraft(): void {
     if (this.pendingLevels <= 0) return;
     this.draftOptions = generateDraft(this);
-    if (this.draftOptions.length === 0) {
-      // Nothing legal (fully built): convert to a heal.
-      this.pendingLevels--;
-      this.healPlayer(25);
-      return;
-    }
     this.phase = 'draft';
     this.bus.emit('draft', { options: this.draftOptions });
   }
@@ -1396,6 +1421,7 @@ export class Game {
   chooseDraft(index: number): void {
     if (this.phase !== 'draft') return;
     const opt = this.draftOptions[index];
+    if (opt?.disabled) return;
     if (opt) applyDraftChoice(this, opt);
     this.closeDraft();
   }
@@ -1417,7 +1443,7 @@ export class Game {
   banishDraft(index: number): boolean {
     if (this.phase !== 'draft' || this.player.banishes <= 0) return false;
     const opt = this.draftOptions[index];
-    if (!opt || opt.kind === 'evolution' || opt.kind === 'heal') return false;
+    if (!opt || opt.kind === 'evolution' || opt.kind === 'heal' || opt.kind === 'voucher') return false;
     this.player.banishes--;
     this.banished.add(opt.refId);
     this.draftOptions = generateDraft(this);
@@ -1437,7 +1463,8 @@ export class Game {
     if (this.director.bossActive) return;
     this.foodTimer -= dt;
     if (this.foodTimer <= 0) {
-      this.foodTimer = this.rng.range(70, 110);
+      const fi = HEALING.foodInterval[Math.min(3, this.act - 1)];
+      this.foodTimer = this.rng.range(fi[0], fi[1]);
       const pos = this.nearbyOpenSpot(200, 470);
       this.spawnPickup('food', pos.x, pos.y, 0);
     }
@@ -1495,6 +1522,21 @@ export class Game {
     a.length = w;
   }
 
+  /**
+   * Lost & Found Voucher (D-31): pays permanent currency right away through the meta system
+   * (the app credits the save on 'meta_currency'). Returns the amount paid.
+   */
+  grantVoucher(): number {
+    const greed = this.player.stats.greed + this.diff.greed;
+    const v = voucherValue(this.minutes, this.vouchersTaken, this.voucherPaid, greed);
+    if (v <= 0) return 0;
+    this.vouchersTaken++;
+    this.voucherPaid += v;
+    this.bus.emit('meta_currency', { amount: v, source: 'voucher' });
+    this.fx.push('text', this.player.x, this.player.y - 60, 0, 0, 0, 'gold', `+${v} LT`);
+    return v;
+  }
+
   // ------------------------------------------------------------------ bosses
   registerBossDefeat(id: string, noHit: boolean): void {
     this.bossKills++;
@@ -1502,12 +1544,14 @@ export class Game {
     this.bus.emit('boss_defeated', { id, noHit });
     if (noHit) this.achievementsHit.add('no_hit_boss');
     this.achievementsHit.add(id === 'carnival_tent' ? 'beat_tent' : `beat_${id}`);
+    if (id === 'ringmaster') this.ringmasterSlain = true;
+    if (this.quests.onBossDefeated(id)) return;
     if (id === 'ringmaster') {
       this.ringmasterDefeated = true;
       if (this.endless) return;
       if (this.time < DAWN_TIME - 1) {
         this.victoryLap = true;
-        this.ticketMult = 3;
+        this.ticketMult = TICKETS.victoryLapMult;
         this.bus.emit('banner', { text: 'VICTORY LAP!', sub: 'Mow them down until dawn', style: 'gold' });
       } else {
         this.time = DAWN_TIME;
@@ -1556,7 +1600,7 @@ export class Game {
     this.endStats = null;
     this.phase = 'play';
     this.player.iframes = 2;
-    this.ticketMult = 1.5;
+    this.ticketMult = TICKETS.endlessMult;
     this.victoryLap = false;
     this.director.enterEndless();
     this.bus.emit('banner', { text: 'LOCKED IN!', sub: 'The carnival never closes', style: 'danger' });
@@ -1570,6 +1614,7 @@ export class Game {
   endRun(won: boolean): void {
     if (this.phase === 'ended') return;
     this.phase = 'ended';
+    won = won || this.ringmasterSlain;
     const p = this.player;
     const greed = p.stats.greed + this.diff.greed + (this.cfg.curse ? CURSE.payoutMult - 1 : 0);
     const endlessExtra = this.endless ? this.time - this.endlessStart : 0;
@@ -1592,7 +1637,7 @@ export class Game {
     if (this.cfg.daily) this.achievementsHit.add('daily_run');
     const score = this.kills + 10 * this.level + 500 * this.bossKills + Math.floor(this.time) + (won ? 2000 : 0);
     const stats: RunStats = {
-      won: won || (this.endless && this.ringmasterDefeated),
+      won,
       time: this.time,
       kills: this.kills,
       bosses: this.bossKills,
@@ -1614,6 +1659,9 @@ export class Game {
       maxLevelReached: this.level,
       enemiesSeen: [...this.enemiesSeen],
       achievementsHit: [...this.achievementsHit],
+      trueEnding: this.trueEnding,
+      voucherTickets: this.voucherPaid,
+      questStage: this.quests.get('last_song')?.stage ?? 0,
     };
     this.endStats = stats;
     this.bus.emit('run_end', { stats });

@@ -194,6 +194,7 @@ export class Weapons {
         case 'orbs': this.orbs(w, dt); break;
         case 'bell': this.bell(w, dt); break;
         case 'mirror': this.mirror(w, dt); break;
+        case 'calliope': this.calliope(w, dt); break;
       }
     }
   }
@@ -883,6 +884,41 @@ export class Weapons {
   }
 
   // ---- Funhouse Mirror / Hall of Mirrors: clones that replay discrete attacks (see cast())
+  // ---- Steam Calliope / Grand Requiem (Easter-egg reward): spiralling notes
+  private calliope(w: WeaponInst, dt: number): void {
+    const evo = w.def.id === 'grand_requiem';
+    if (evo) {
+      // a thunderous chord every 3 s on top of the endless spiral
+      w.tickAcc -= dt;
+      if (w.tickAcc <= 0) {
+        w.tickAcc = 3;
+        const p = this.g.player;
+        const R = 200 * this.area(w) / w.def.area;
+        this.g.forEachTargetInCircle(p.x, p.y, R, (t) => this.hit(w, t, this.damage(w) * 2, p.x, p.y, 1.5));
+        this.g.fx.push('ring', p.x, p.y, R, 0, 0, 'gravity');
+        this.sfx('calliope', 0.35, 1.2);
+      }
+    }
+    if (!this.ready(w, dt)) return;
+    const n = this.amount(w);
+    w.n++;
+    this.cast(w, (ox, oy, mult) => {
+      for (let i = 0; i < n; i++) {
+        const a = w.n * 0.42 + (i * Math.PI * 2) / n;
+        const p = this.proj(w, 'note', ox, oy, a, this.speed(w), { r: 9 * this.area(w) / w.def.area, mult });
+        if (!p) continue;
+        p.spin = evo ? 0.6 : 1.15;
+        p.rehit = -1;
+        if (evo) {
+          const t = this.g.randomTarget(ox, oy, 520);
+          p.homing = 1.6;
+          p.target = t ? t.uid : -1;
+        }
+      }
+    });
+    if (!evo || w.n % 3 === 0) this.sfx('bellnote', 0.18, 0.75 + (w.n % 4) * 0.12);
+  }
+
   private mirror(w: WeaponInst, dt: number): void {
     const p = this.g.player;
     if (w.def.id === 'hall_of_mirrors') {
@@ -981,6 +1017,31 @@ export class Weapons {
           if (Math.abs(p.x - pl.x) > VIEW_HALF_X * 0.92) p.vx = -Math.abs(p.vx) * Math.sign(p.x - pl.x);
           if (Math.abs(p.y - pl.y) > VIEW_HALF_Y * 0.92) p.vy = -Math.abs(p.vy) * Math.sign(p.y - pl.y);
           p.rot = Math.atan2(p.vy, p.vx);
+          break;
+        }
+        case 'note': {
+          if (p.homing > 0) {
+            const t = g.findTargetByUid(p.target);
+            if (t) {
+              const want = Math.atan2(t.y - p.y, t.x - p.x);
+              let cur = Math.atan2(p.vy, p.vx);
+              let d = want - cur;
+              while (d > Math.PI) d -= TAU;
+              while (d < -Math.PI) d += TAU;
+              cur += clamp(d, -p.homing * dt, p.homing * dt);
+              const sp = Math.hypot(p.vx, p.vy);
+              p.vx = Math.cos(cur) * sp;
+              p.vy = Math.sin(cur) * sp;
+            }
+          } else if (p.spin !== 0) {
+            const c = Math.cos(p.spin * dt), s = Math.sin(p.spin * dt);
+            const nvx = p.vx * c - p.vy * s;
+            p.vy = p.vx * s + p.vy * c;
+            p.vx = nvx;
+          }
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.rot += dt * 4;
           break;
         }
         case 'bumper_ghost': {

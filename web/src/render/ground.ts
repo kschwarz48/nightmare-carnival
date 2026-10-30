@@ -7,7 +7,7 @@ import { MAP_HALF, PATHS, PLAZA, PROMENADE, SEA_Y, TILT_A_WHIRL, GREASE_SLICKS }
 import { artRng } from './art/kit';
 import { LIGHT_GLSL, type LightRig } from './lights';
 
-const EXTENT = 3200; // half-size of the ground plane (world units)
+export const EXTENT = 3200; // half-size of the ground plane (world units)
 const PAINT = 2048;
 
 function worldToPaint(v: number): number {
@@ -15,7 +15,7 @@ function worldToPaint(v: number): number {
 }
 
 /** R,G,B = albedo; A = surface type (1 grass/dirt, ~0.67 cobble, ~0.33 planks). Never 0: canvas is premultiplied. */
-function paintGround(): HTMLCanvasElement {
+export function paintGround(): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = PAINT;
   const ctx = c.getContext('2d')!;

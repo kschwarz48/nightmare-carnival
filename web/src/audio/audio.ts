@@ -409,6 +409,32 @@ export class AudioEngine {
           d[st + i] += Math.sin((2 * Math.PI * f * i) / SR) * env * 0.035 * (ch ? 0.8 : 1);
         }
       }
+      // a warped calliope phrase, far off and slipping out of tune (wow & flutter)
+      const cal = [67, 71, 74, 71, 67, 66, 67];
+      for (let k = 0; k < cal.length; k++) {
+        const st = Math.floor((5.2 + k * 0.42) * SR);
+        const f0 = 440 * Math.pow(2, (cal[k] - 69) / 12);
+        for (let i = 0; i < SR * 0.38 && st + i < len; i++) {
+          const wow = 1 + 0.012 * Math.sin((i / SR) * 2 * Math.PI * 0.9 + k) - k * 0.004;
+          const ph = (f0 * wow * i) / SR;
+          const sq = (ph % 1) < 0.5 ? 1 : -1;
+          const env = Math.min(1, i / (SR * 0.02)) * Math.exp(-i / (SR * 0.3));
+          d[st + i] += sq * env * 0.012 * (ch ? 0.7 : 1);
+        }
+      }
+      // groaning metal (the old rides settling) and a chain rattle
+      for (const at of [0.8, 9.6]) {
+        const st = Math.floor(at * SR);
+        for (let i = 0; i < SR * 1.4 && st + i < len; i++) {
+          const f = 48 + 10 * Math.sin(i / 2600) + 4 * Math.sin(i / 310);
+          const env = Math.sin((Math.PI * i) / (SR * 1.4));
+          d[st + i] += ((((f * i) / SR) % 1) * 2 - 1) * env * 0.035;
+        }
+      }
+      for (let k = 0; k < 7; k++) {
+        const st = Math.floor((3.6 + k * 0.07 + (k % 2) * 0.02) * SR);
+        for (let i = 0; i < SR * 0.05 && st + i < len; i++) d[st + i] += (Math.random() * 2 - 1) * Math.exp(-i / (SR * 0.01)) * 0.06 * (ch ? 0.6 : 1);
+      }
       // creaks
       for (const at of [2.3, 7.9]) {
         const st = Math.floor(at * SR);

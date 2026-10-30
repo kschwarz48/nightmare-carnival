@@ -1,0 +1,367 @@
+// The midway in 3D: every map prop instanced from data/map.ts, the animated attractions (carousel,
+// Tilt-a-Whirl arms, High Striker), flickering lamps, sagging string lights, painted signage, and
+// the Last Song's quest props reacting to the chain's state — soul lamps that brighten as they are
+// fed, carousel plaques that spell the melody, Zoltana's eyes, the striker's racing puck.
+
+import * as THREE from 'three';
+import { PROPS, STRING_LIGHTS, TILT_A_WHIRL, type Prop } from '../../data/map';
+import { LAST_SONG } from '../../data/quests';
+import type { Game } from '../../sim/game';
+import { LS, type LastSongChain } from '../../sim/quest';
+import { ActorBatch, StaticBatch } from '../core/batch';
+import { ModelBuilder, SURF, cyl, sphere, tube, sagPoints, type V3 } from '../core/geo';
+import { actorMaterial, pool } from '../core/materials';
+import { ENEMY_MODELS, geometryFor } from '../models';
+import * as P from '../models/props';
+import type { GameRenderer3D } from '../renderer3d';
+
+interface KindSpec {
+  build: (p: Prop) => THREE.BufferGeometry;
+  key?: (p: Prop) => string;
+  dither?: boolean;
+  anim?: boolean;
+  yaw?: (p: Prop) => number;
+}
+
+export const PROP_SPECS: Partial<Record<string, KindSpec>> = {
+  carousel: { build: () => P.carouselBase() },
+  ticket_booth: { build: () => P.ticketBooth(), dither: true },
+  prize_stand: { build: () => P.prizeStand(), dither: true },
+  stall_ringtoss: { build: (p) => P.stallKind('stall_ringtoss', p.variant ?? 0), key: (p) => `stall_ringtoss_${p.variant ?? 0}`, dither: true },
+  stall_bottles: { build: () => P.stallKind('stall_bottles'), dither: true },
+  stall_darts: { build: () => P.stallKind('stall_darts'), dither: true },
+  stall_shooting: { build: () => P.stallKind('stall_shooting'), dither: true },
+  popcorn_cart: { build: () => P.popcornCart(), dither: true },
+  cotton_stand: { build: () => P.cottonStand(), dither: true },
+  hotdog_stand: { build: () => P.hotdogStand(), dither: true },
+  gate_arch: { build: () => P.gateArch(), dither: true },
+  ferris_base: { build: () => P.ferrisDeck() },
+  funhouse: { build: () => P.funhouse(), dither: true },
+  coaster_ruin: { build: (p) => P.coasterRuin(p.w ?? 900), dither: true },
+  tilt_a_whirl: { build: () => P.tiltBase() },
+  lamp: { build: () => P.lampPost(false), dither: true },
+  ghost_lamp: { build: () => P.lampPost(true), dither: true },
+  barrel: { build: () => P.barrel() },
+  crate: { build: () => P.crate() },
+  hay: { build: () => P.hay() },
+  tree_dead: { build: (p) => P.deadTree(Math.abs(Math.round(p.x / 7)) % 3), key: (p) => `tree_${Math.abs(Math.round(p.x / 7)) % 3}`, dither: true },
+  trash: { build: (p) => P.trash((p.variant ?? Math.abs(Math.round(p.x))) % 3), key: (p) => `trash_${(p.variant ?? Math.abs(Math.round(p.x))) % 3}` },
+  balloon_post: { build: () => P.balloonPost(), anim: true, dither: true },
+  bench: { build: () => P.bench() },
+  pennant_pole: { build: () => P.pennantPole(), anim: true, dither: true },
+  sign_midway: { build: () => P.signMidway(), dither: true },
+  tombstone_prize: { build: () => P.tombstonePrize() },
+  clown_statue: { build: () => P.clownStatue(), dither: true },
+  bleachers: { build: () => P.bleachers(), dither: true },
+  tent_small: { build: (p) => P.tentSmall(p.variant ?? 0), key: (p) => `tent_${p.variant ?? 0}`, anim: true, dither: true },
+  caravan: { build: () => P.caravan(), dither: true, yaw: (p) => (p.flip ? Math.PI : 0) },
+  dunk_tank: { build: () => P.dunkTank(), dither: true },
+  strongman_tower: { build: () => P.strongmanTower(), dither: true },
+  fortune_machine: { build: () => P.fortuneMachine(), dither: true },
+  striker_pad: { build: () => P.strikerPad() },
+};
+
+/** Text painted onto a sign: Rye lettering in cream with a warm glow. */
+export function signMesh(text: string, w: number, h: number, o: { color?: string; glow?: number; bg?: string } = {}): THREE.Mesh {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = Math.round((512 * h) / w);
+  const ctx = c.getContext('2d')!;
+  if (o.bg) {
+    ctx.fillStyle = o.bg;
+    ctx.fillRect(0, 0, c.width, c.height);
+  }
+  let size = c.height * 0.72;
+  ctx.font = `${size}px Rye, serif`;
+  while (ctx.measureText(text).width > c.width * 0.92 && size > 8) {
+    size -= 2;
+    ctx.font = `${size}px Rye, serif`;
+  }
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#1a0f0a';
+  ctx.fillText(text, c.width / 2 + 3, c.height / 2 + 4);
+  ctx.fillStyle = o.color ?? '#e8d8b0';
+  ctx.fillText(text, c.width / 2, c.height / 2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex, transparent: !o.bg, alphaTest: o.bg ? 0 : 0.3, roughness: 0.7, metalness: 0,
+    emissive: new THREE.Color(0xffffff), emissiveMap: tex, emissiveIntensity: o.glow ?? 0.6,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+export class PropSet {
+  private statics: StaticBatch[] = [];
+  private animated: { batch: StaticBatch; props: Prop[] }[] = [];
+  private lamps: StaticBatch | null = null;
+  private lampProps: Prop[] = [];
+  private ghost: StaticBatch | null = null;
+  private ghostProps: Prop[] = [];
+  private zoltana: StaticBatch | null = null;
+  private pad: StaticBatch | null = null;
+  private carouselTop: ActorBatch;
+  private horses: ActorBatch;
+  private plaques: ActorBatch[] = [];
+  private tiltArms: ActorBatch;
+  private puck: ActorBatch;
+  private bell: ActorBatch;
+  private bulbs: StaticBatch;
+  private bulbInfo: { x: number; y: number; run: number; k: number }[] = [];
+  private carouselAngle = 0;
+  private carouselSpeed = 0.04;
+  private carousel = PROPS.find((p) => p.kind === 'carousel')!;
+  private tower = PROPS.find((p) => p.kind === 'strongman_tower')!;
+  private bellFlash = 0;
+
+  constructor(private scene: THREE.Scene) {
+    // ---- group static props by model key
+    const groups = new Map<string, { spec: KindSpec; props: Prop[] }>();
+    for (const p of PROPS) {
+      const spec = PROP_SPECS[p.kind];
+      if (!spec) continue;
+      const key = spec.key ? spec.key(p) : p.kind;
+      let gr = groups.get(key);
+      if (!gr) groups.set(key, (gr = { spec, props: [] }));
+      gr.props.push(p);
+    }
+    for (const [key, gr] of groups) {
+      const geo = gr.spec.build(gr.props[0]);
+      const mat = actorMaterial({ dither: gr.spec.dither, emitBoost: 2.6, envIntensity: 0.5 });
+      const b = new StaticBatch(geo, mat, gr.props.length, { shadow: true });
+      b.rim = [0, 0, 0, 0];
+      for (const p of gr.props) b.add(p.x, p.y, 0, gr.spec.yaw ? gr.spec.yaw(p) : 0, 1);
+      b.freeze();
+      scene.add(b.mesh);
+      if (key === 'lamp') { this.lamps = b; this.lampProps = gr.props; }
+      else if (key === 'ghost_lamp') { this.ghost = b; this.ghostProps = gr.props; }
+      else if (key === 'fortune_machine') this.zoltana = b;
+      else if (key === 'striker_pad') this.pad = b;
+      else if (gr.spec.anim) this.animated.push({ batch: b, props: gr.props });
+      this.statics.push(b);
+    }
+    // ---- fences and rails: tiled sections along their length
+    const section = (kind: 'fence' | 'rail', len: number) => (kind === 'fence' ? P.fenceSection(len) : P.railSection(len));
+    for (const kind of ['fence', 'rail'] as const) {
+      const list = PROPS.filter((p) => (kind === 'fence' ? p.kind === 'fence_h' || p.kind === 'fence_v' : p.kind === 'rail'));
+      if (!list.length) continue;
+      const SEG = 120;
+      let count = 0;
+      for (const p of list) count += Math.ceil((p.w ?? SEG) / SEG);
+      const b = new StaticBatch(section(kind, SEG), actorMaterial({ dither: kind === 'fence' }), count, { shadow: true });
+      b.rim = [0, 0, 0, 0];
+      for (const p of list) {
+        const len = p.w ?? SEG;
+        const n = Math.ceil(len / SEG);
+        const vertical = p.kind === 'fence_v';
+        for (let i = 0; i < n; i++) {
+          const o = -len / 2 + SEG * (i + 0.5);
+          b.add(vertical ? p.x : p.x + o, vertical ? p.y + o : p.y, 0, vertical ? Math.PI / 2 : 0, 1, (len / n) / SEG, 1, 1);
+        }
+      }
+      b.freeze();
+      scene.add(b.mesh);
+      this.statics.push(b);
+    }
+    // ---- dynamic attractions
+    const dyn = (geo: THREE.BufferGeometry, cap: number, shadow = true, emit = 2.6) => {
+      const b = new ActorBatch(geo, actorMaterial({ emitBoost: emit, dither: true }), cap, { shadow });
+      b.rim = [0, 0, 0, 0];
+      scene.add(b.mesh);
+      return b;
+    };
+    this.carouselTop = dyn(P.carouselTop(), 1);
+    this.horses = dyn(geometryFor('carousel_horse', ENEMY_MODELS.carousel_horse), 12);
+    for (let k = 0; k < 6; k++) this.plaques.push(dyn(P.plaque(k), k === 5 ? 7 : 1, false, 3));
+    this.tiltArms = dyn(P.tiltArm(), 2);
+    this.puck = dyn(P.strikerPuck(), 1, false, 3);
+    this.bell = dyn(P.strikerBell(), 1, false, 3);
+    // ---- string lights: wires (one static mesh) + bulbs (instanced, chase/flicker per bulb)
+    const wire = new ModelBuilder();
+    let nb = 0;
+    for (let r = 0; r < STRING_LIGHTS.length; r++) {
+      const [x1, y1, x2, y2] = STRING_LIGHTS[r];
+      const pts = sagPoints([x1, 140, y1], [x2, 140, y2], 34, 10);
+      wire.add(tube(pts, 0.7, 4, 20), { col: 0x0c0a0a, surf: SURF.rubber });
+      for (let k = 1; k < 10; k++) {
+        this.bulbInfo.push({ x: pts[k][0], y: pts[k][2], run: r, k });
+        nb++;
+      }
+    }
+    const wm = new THREE.Mesh(wire.build({ ao: 0 }), actorMaterial({}));
+    wm.frustumCulled = false;
+    scene.add(wm);
+    const bulbGeo = new ModelBuilder().add(sphere(2.6, 6, 4), { col: 0xffffff, emit: 1, surf: SURF.bulb }).add(cyl(1.2, 1.2, 2.4, 5), { col: 0x6a5428, pos: [0, 2.8, 0], surf: SURF.brass }).build({ ao: 0 });
+    this.bulbs = new StaticBatch(bulbGeo, actorMaterial({ emitBoost: 3.2 }), nb, { shadow: false });
+    this.bulbs.rim = [0, 0, 0, 0];
+    for (let i = 0; i < this.bulbInfo.length; i++) {
+      const b = this.bulbInfo[i];
+      const pts = sagPoints([STRING_LIGHTS[b.run][0], 140, STRING_LIGHTS[b.run][1]], [STRING_LIGHTS[b.run][2], 140, STRING_LIGHTS[b.run][3]], 34, 10);
+      this.bulbs.add(b.x, b.y, pts[b.k][1] - 4, 0, 1);
+    }
+    this.bulbs.freeze();
+    scene.add(this.bulbs.mesh);
+    // ---- painted signs
+    const signs: [string, number, number, number, number, number, number, number?][] = [];
+    for (const p of PROPS) {
+      if (p.kind === 'gate_arch') signs.push([p.label ?? 'MIDWAY', p.x, p.y, 230, 30, 238, 6]);
+      if (p.kind === 'ticket_booth') signs.push(['TICKETS', p.x, p.y, 140, 26, 190, 70, -0.2]);
+      if (p.kind === 'prize_stand') signs.push(['PRIZES', p.x, p.y, 160, 20, 136, -62]);
+      if (p.kind === 'stall_ringtoss') signs.push(['RING TOSS', p.x, p.y, 120, 18, 136, -52]);
+      if (p.kind === 'stall_bottles') signs.push(['KNOCK EM DOWN', p.x, p.y, 120, 18, 136, -52]);
+      if (p.kind === 'stall_darts') signs.push(['POP-A-BALLOON', p.x, p.y, 120, 18, 136, -52]);
+      if (p.kind === 'stall_shooting') signs.push(['SHOOTING GALLERY', p.x, p.y, 140, 18, 136, -57]);
+      if (p.kind === 'sign_midway') signs.push(['THE MIDWAY', p.x, p.y, 150, 34, 110, 3]);
+      if (p.kind === 'funhouse') signs.push(['FUN HOUSE', p.x, p.y, 260, 44, 236, 60]);
+      if (p.kind === 'fortune_machine') signs.push(['ZOLTANA', p.x, p.y, 60, 12, 168, 16]);
+      if (p.kind === 'strongman_tower') signs.push(['HIGH STRIKER', p.x, p.y, 70, 12, 300, 9]);
+      if (p.kind === 'hotdog_stand') signs.push(['RED HOTS', p.x, p.y, 120, 20, 112, 56]);
+      if (p.kind === 'cotton_stand') signs.push(['CANDY FLOSS', p.x, p.y, 120, 18, 118, 50]);
+    }
+    for (const [text, x, y, w, h, hy, dz, tilt] of signs) {
+      const m = signMesh(text, w, h, { glow: 0.55 });
+      m.position.set(x, hy, y + dz);
+      m.rotation.x = tilt ?? 0;
+      scene.add(m);
+    }
+  }
+
+  private quest(g: Game): LastSongChain | undefined {
+    return g.quests?.get<LastSongChain>('last_song');
+  }
+
+  update(g: Game, r: GameRenderer3D, inView: (x: number, y: number) => boolean, dt: number): void {
+    const t = r.time;
+    const ls = this.quest(g);
+    const stage = ls?.stage ?? 0;
+    // swaying canvas, balloons and pennants
+    for (const a of this.animated) {
+      for (let i = 0; i < a.props.length; i++) a.batch.anim(i, t * 1.6 + a.props[i].x * 0.01, 0, 0, 1);
+      a.batch.refresh();
+    }
+    // lamps: each sputters on its own schedule; Lights Out kills them
+    const lightsOn = 1 - g.darkness * 0.92;
+    if (this.lamps) {
+      for (let i = 0; i < this.lampProps.length; i++) {
+        const p = this.lampProps[i];
+        const fl = Math.sin(t * 9 + p.x) > 0.93 ? 0.35 : 1;
+        this.lamps.tint(i, 1, 1, 1, fl * lightsOn);
+      }
+      this.lamps.refresh();
+    }
+    // soul lamps: dark glass that fills with ghost-light as souls are fed; lit lamps burn green
+    if (this.ghost) {
+      for (let i = 0; i < this.ghostProps.length; i++) {
+        const li = LAST_SONG.lamps.findIndex((l) => l.x === this.ghostProps[i].x && l.y === this.ghostProps[i].y);
+        const lit = ls?.lit[li] ?? false;
+        const fill = ls ? ls.souls[li] / LAST_SONG.soulsPerLamp : 0;
+        const e = lit ? 0.85 + 0.15 * Math.sin(t * 3 + i) : stage >= LS.Souls ? 0.05 + fill * 0.55 * (0.8 + 0.2 * Math.sin(t * 6 + i)) : 0.04;
+        this.ghost.tint(i, 1, 1, 1, e);
+      }
+      this.ghost.refresh();
+    }
+    // Zoltana's eyes: half-asleep until spoken to; bright whenever she has something new to say
+    if (this.zoltana) {
+      const m = LAST_SONG.machine;
+      const near = Math.hypot(g.player.x - m.x, g.player.y - m.y) < m.r * 2.5;
+      this.zoltana.tint(0, 1, 1, 1, (near ? 1 : 0.35) * (0.8 + 0.2 * Math.sin(t * 2.3)));
+      this.zoltana.refresh();
+    }
+    if (this.pad) {
+      this.pad.tint(0, 1, 1, 1, stage === LS.Striker ? 0.6 + 0.4 * Math.sin(t * 8) : 0.15);
+      this.pad.refresh();
+    }
+    // the carousel creaks round; once the lamps are lit it wakes and turns properly
+    const want = stage >= LS.Melody && stage < LS.Complete ? 0.32 : 0.035;
+    this.carouselSpeed += (want - this.carouselSpeed) * (1 - Math.exp(-dt * 0.6));
+    this.carouselAngle += this.carouselSpeed * dt;
+    const c = this.carousel;
+    const yaw = this.carouselAngle;
+    for (const b of [this.carouselTop, this.horses, this.tiltArms, this.puck, this.bell, ...this.plaques]) b.begin();
+    if (inView(c.x, c.y)) {
+      this.carouselTop.add(c.x, c.y, 0, yaw, 1);
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2 + 0.26 - yaw;
+        const hx = c.x + Math.cos(a) * 128, hy = c.y + Math.sin(a) * 128;
+        const bob = 26 + Math.sin(this.carouselAngle * 6 + i * 1.7) * 10;
+        // horses face along the direction of travel (tangent)
+        const k = this.horses.add(hx, hy, bob - 30, Math.atan2(-Math.sin(a), Math.cos(a)) + Math.PI, 0.8);
+        this.horses.anim(k, this.carouselAngle * 20 + i, 0, 0, 0.3);
+      }
+      // plaques: the brass skull, then the four emblems in the night's order, then stars
+      const order = ls?.order ?? [0, 1, 2, 3];
+      const glow = stage >= LS.Melody ? 1 : 0.25;
+      let star = 0;
+      for (let slot = 0; slot < 12; slot++) {
+        const kind = slot === 0 ? 0 : slot <= 4 ? 1 + order[slot - 1] : 5;
+        const a = (slot / 12) * Math.PI * 2 - yaw;
+        const px = c.x + Math.cos(a) * 201, py = c.y + Math.sin(a) * 201;
+        const b = this.plaques[kind];
+        const k = b.add(px, py, 150, Math.atan2(Math.cos(a), Math.sin(a)), 1.25);
+        b.tint(k, 1, 1, 1, kind === 5 ? 0.4 : glow * (0.85 + 0.15 * Math.sin(t * 4 + slot)));
+        if (kind === 5) star++;
+      }
+      void star;
+    }
+    // Tilt-a-Whirl arms follow the sim's hazard angle exactly
+    if (inView(TILT_A_WHIRL.x, TILT_A_WHIRL.y)) {
+      for (let k = 0; k < 2; k++) {
+        const a = g.tiltAngle + k * Math.PI;
+        this.tiltArms.add(TILT_A_WHIRL.x, TILT_A_WHIRL.y, 0, -a, TILT_A_WHIRL.armLen / 260);
+      }
+    }
+    // High Striker: the puck races on the rail during the timing trial, else it twitches at rest
+    const tw = this.tower;
+    if (inView(tw.x, tw.y)) {
+      const hgt = stage === LS.Striker && ls ? ls.strikerHeight() : 0.04 + Math.max(0, Math.sin(t * 0.7)) * 0.03;
+      this.puck.add(tw.x, tw.y + 8, 30 + hgt * 262, 0, 1);
+      if (stage === LS.Striker && ls?.strikerInWindow()) this.bellFlash = 1;
+      this.bellFlash = Math.max(0, this.bellFlash - dt * 2.5);
+      const bi = this.bell.add(tw.x, tw.y - 4, 296, 0, 1);
+      this.bell.tint(bi, 1, 1, 1, 0.3 + this.bellFlash * 2);
+    }
+    for (const b of [this.carouselTop, this.horses, this.tiltArms, this.puck, this.bell, ...this.plaques]) b.end();
+    // string-light chase: a slow travelling wave, a few dead bulbs, Lights Out kills them
+    for (let i = 0; i < this.bulbInfo.length; i++) {
+      const b = this.bulbInfo[i];
+      const on = Math.sin(t * 3 + b.run * 7 + b.k * 1.7) > -0.85 ? 1 : 0.15;
+      const dead = ((b.run * 31 + b.k * 17) % 23) === 0 ? 0.05 : 1;
+      const col = BULB_COLS[(b.k + b.run) % 3];
+      this.bulbs.tint(i, col[0], col[1], col[2], on * dead * lightsOn);
+    }
+    this.bulbs.refresh();
+  }
+
+  addLights(g: Game, time: number): void {
+    const lightsOn = 1 - g.darkness * 0.92;
+    for (const p of this.lampProps) {
+      const fl = (Math.sin(time * 9 + p.x) > 0.93 ? 0.4 : 1) * lightsOn;
+      pool.add(p.x + 20, p.y, 300, 1.7 * fl, 1, 0.7, 0.4, 126);
+    }
+    const ls = this.quest(g);
+    for (let i = 0; i < this.ghostProps.length; i++) {
+      const p = this.ghostProps[i];
+      const li = LAST_SONG.lamps.findIndex((l) => l.x === p.x && l.y === p.y);
+      if (ls?.lit[li]) pool.add(p.x + 20, p.y, 300, 1.0 + 0.2 * Math.sin(time * 3 + i), 0.45, 1, 0.7, 126, 2);
+      else if (ls && ls.stage >= LS.Souls && ls.souls[li] > 0) pool.add(p.x + 20, p.y, 160, 0.25 + 0.5 * (ls.souls[li] / LAST_SONG.soulsPerLamp), 0.45, 1, 0.7, 126);
+    }
+    // a few soft pools along each string-light run
+    for (let r = 0; r < STRING_LIGHTS.length; r++) {
+      const [x1, y1, x2, y2] = STRING_LIGHTS[r];
+      const col = BULB_COLS[r % 3];
+      pool.add((x1 + x2) / 2, (y1 + y2) / 2, 220, 0.45 * lightsOn, col[0], col[1], col[2], 110);
+    }
+    const m = LAST_SONG.machine;
+    pool.add(m.x, m.y + 30, 180, 0.5, 0.7, 0.5, 1, 120);
+    if (this.bellFlash > 0) pool.add(this.tower.x, this.tower.y, 320, this.bellFlash * 1.6, 1, 0.85, 0.4, 290, 3);
+  }
+}
+
+const BULB_COLS: [number, number, number][] = [[1, 0.55, 0.32], [1, 0.82, 0.45], [0.85, 0.35, 0.3]];
+
+export const _unused = { cyl } as Record<string, unknown> & { v?: V3 };

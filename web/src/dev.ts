@@ -4,11 +4,44 @@ import type { App } from './app';
 import { CHARACTERS } from './data/characters';
 import { WEAPONS, PASSIVES } from './data/weapons';
 import { h } from './ui/dom';
+import { createBoss } from './sim/bosses';
+import { BOSS_MAP } from './data/bosses';
 
 export function installDevTools(app: App): void {
     
     const api = {
       app,
+      /** Freeze a run for visual inspection: optional restart, teleport, zoom and camera offset. */
+      shot(o: { restart?: boolean; char?: string; t?: number; zoom?: number; x?: number; y?: number; dx?: number; dy?: number; hud?: boolean } = {}) {
+        if (!app.game || o.restart) {
+          app.startRun({ character: o.char ?? 'carny', difficulty: 'midway', curse: false });
+          api.advance(o.t ?? 30);
+        }
+        const g = app.game!;
+        if (g.phase === 'draft') app.pickDraft(0);
+        app.draft.hide();
+        app.overlayPause = true;
+        app.hud.root.style.display = o.hud ? '' : 'none';
+        app.renderer.zoom = o.zoom ?? 1;
+        app.renderer.resize(innerWidth, innerHeight, Math.min(2, devicePixelRatio || 1));
+        if (o.x !== undefined && o.y !== undefined) {
+          g.player.x = g.player.px = o.x;
+          g.player.y = g.player.py = o.y;
+        }
+        app.renderer.snapCamera(g.player.x + (o.dx ?? 0), g.player.y + (o.dy ?? 0));
+        return { enemies: g.active.length, t: Math.round(g.time) };
+      },
+      /** Spawn a boss awake right next to the player (visual testing). */
+      spawnBoss(id: string, dx = 0, dy = -420) {
+        const g = app.game;
+        const def = BOSS_MAP[id as keyof typeof BOSS_MAP];
+        if (!g || !def) return 'no game / unknown boss';
+        const b = createBoss(g, def, { immediate: true, noChest: true });
+        b.x = b.px = g.player.x + dx;
+        b.y = b.py = g.player.y + dy;
+        g.bosses.push(b);
+        return b.def.id;
+      },
       jump(sec: number) {
         const g = app.game;
         if (!g) return;
@@ -29,7 +62,7 @@ export function installDevTools(app: App): void {
           app.demoAutopilot(g);
           if (g.phase === 'draft') app.pickDraft(0);
           if (app.overlayPause) {
-            app.chest.hide();
+            app.prize.finishNow();
             app.overlayPause = false;
           }
           g.tick();
@@ -57,7 +90,7 @@ export function installDevTools(app: App): void {
         }
         gl.finish();
         const total = (performance.now() - t0) / frames;
-        return { msPerFrame: +total.toFixed(2), simMs: +(simMs / frames).toFixed(2), renderMs: +(total - simMs / frames).toFixed(2), enemies: g.active.length, projs: g.projs.filter((p) => p.alive).length, bullets: g.bullets.filter((b) => b.alive).length, sprites: app.renderer.world.count + app.renderer.proj.count + app.renderer.fxAdd.count + app.renderer.fxNormal.count + app.renderer.bullets.count };
+        return { msPerFrame: +total.toFixed(2), simMs: +(simMs / frames).toFixed(2), renderMs: +(total - simMs / frames).toFixed(2), enemies: g.active.length, projs: g.projs.filter((p) => p.alive).length, bullets: g.bullets.filter((b) => b.alive).length, billboards: app.renderer.fxAdd.count + app.renderer.fxNormal.count + app.renderer.glow.count, drawCalls: app.renderer.renderer.info.render.calls, triangles: app.renderer.renderer.info.render.triangles };
       },
       god(on = true) {
         if (app.game) app.game.cfg.godMode = on;

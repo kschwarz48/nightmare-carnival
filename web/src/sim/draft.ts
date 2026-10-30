@@ -4,18 +4,22 @@
 import { Rng } from '../core/rng';
 import { PASSIVES, WEAPONS, BASE_WEAPON_IDS, PASSIVE_IDS } from '../data/weapons';
 import type { Game } from './game';
+import { HEALING, voucherValue } from '../data/progression';
+import { SECRET_UNLOCKS } from '../data/meta';
 import { MAX_PASSIVES, MAX_WEAPONS } from './weapons';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'evolution';
 
 export interface DraftOption {
-  kind: 'new_weapon' | 'level_weapon' | 'passive' | 'evolution' | 'heal';
+  kind: 'new_weapon' | 'level_weapon' | 'passive' | 'evolution' | 'heal' | 'voucher';
   refId: string;
   title: string;
   desc: string;
   level: number; // level after taking it
   rarity: Rarity;
   isNew: boolean;
+  /** Shown but not selectable (the voucher once the run cap is reached). */
+  disabled?: boolean;
 }
 
 const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare', 'evolution'];
@@ -33,7 +37,7 @@ export function readyEvolutions(g: Game): string[] {
 
 function isUnlocked(g: Game, unlock?: string): boolean {
   if (!unlock) return true;
-  if (g.cfg.daily) return true; // Daily Run: full pool (D-18)
+  if (g.cfg.daily) return !SECRET_UNLOCKS.includes(unlock); // Daily Run: full pool (D-18), secrets stay secret
   return !!g.cfg.unlocked?.has(unlock);
 }
 
@@ -128,7 +132,13 @@ export function generateDraft(g: Game, rngIn?: Rng): DraftOption[] {
     if (replace >= 0) picks[replace] = branches[i].opt;
   }
   if (picks.length === 0) {
-    picks.push({ kind: 'heal', refId: 'heal', title: 'Funnel Cake Break', desc: 'Restore 30% HP.', level: 1, rarity: 'common', isNew: false });
+    // Upgrade pool exhausted (D-31): a deliberate choice between a small heal and banked meta currency.
+    const heal = Math.max(1, Math.round(g.player.stats.maxHp() * HEALING.fallbackHealFrac));
+    const v = voucherValue(g.minutes, g.vouchersTaken, g.voucherPaid, g.player.stats.greed + g.diff.greed);
+    picks.push({ kind: 'heal', refId: 'heal', title: 'Funnel Cake Crumbs', desc: `Restore 5% of your max HP (+${heal} HP).`, level: 1, rarity: 'common', isNew: false });
+    picks.push(v > 0
+      ? { kind: 'voucher', refId: 'voucher', title: 'Lost & Found Voucher', desc: `Bank +${v} Lost Tickets now, for permanent upgrades between nights.`, level: 1, rarity: 'uncommon', isNew: false }
+      : { kind: 'voucher', refId: 'voucher', title: 'Lost & Found Voucher', desc: 'The Lost & Found window is shut for tonight — no more vouchers this run.', level: 1, rarity: 'uncommon', isNew: false, disabled: true });
   }
   // Pre-roll the Fortune Teller's preview of the next draft (D-10).
   if (g.player.char.quirk === 'fortune' && !rngIn) {
@@ -169,15 +179,25 @@ export function applyDraftChoice(g: Game, opt: DraftOption): void {
       g.weapons.evolve(opt.refId);
       break;
     case 'heal':
-      g.healPlayer(g.player.stats.maxHp() * 0.3);
+      g.healPlayer(g.player.stats.maxHp() * HEALING.fallbackHealFrac);
+      break;
+    case 'voucher':
+      g.grantVoucher();
       break;
   }
   g.bus.emit('sfx', { id: opt.kind === 'evolution' ? 'evolve' : 'select', vol: 0.6 });
 }
 
 /** VS-style chest (doc 03 §6, D-06): N random upgrades to equipped items; evolution first if ready. */
-export function grantChest(g: Game, rolls: number): { items: string[]; evolution?: string } {
+export interface ChestEntry {
+  type: 'evolution' | 'level' | 'passive' | 'new' | 'voucher' | 'heal';
+  id: string;
+  label: string;
+}
+
+export function grantChest(g: Game, rolls: number): { items: string[]; evolution?: string; entries: ChestEntry[] } {
   const items: string[] = [];
+  const entries: ChestEntry[] = [];
   let evolution: string | undefined;
   const ready = readyEvolutions(g);
   if (ready.length) {
@@ -185,6 +205,7 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
     if (evo) {
       evolution = evo;
       items.push(`EVOLUTION: ${WEAPONS[evo].name}`);
+      entries.push({ type: 'evolution', id: evo, label: WEAPONS[evo].name });
       rolls--;
     }
   }
@@ -194,6 +215,7 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
       if (!w.def.isEvolution && w.level < w.def.maxLevel) {
         options.push(() => {
           g.weapons.levelUp(w.def.id);
+          entries.push({ type: 'level', id: w.def.id, label: `${w.def.name} Lv ${w.level}` });
           return `${w.def.name} Lv ${w.level}`;
         });
       }
@@ -202,6 +224,7 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
       if (lvl < PASSIVES[id].maxLevel) {
         options.push(() => {
           g.player.addPassive(id);
+          entries.push({ type: 'passive', id, label: `${PASSIVES[id].name} Lv ${g.player.passiveLevel(id)}` });
           return `${PASSIVES[id].name} Lv ${g.player.passiveLevel(id)}`;
         });
       }
@@ -218,12 +241,22 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
         g.weapons.add(id);
         g.bus.emit('discover', { id });
         items.push(`New: ${WEAPONS[id].name}`);
+        entries.push({ type: 'new', id, label: `New: ${WEAPONS[id].name}` });
         continue;
       }
     }
-    g.healPlayer(25);
-    items.push('Funnel Cake (+25 HP)');
+    const v = g.grantVoucher();
+    if (v > 0) {
+      items.push(`Lost & Found Voucher (+${v} LT)`);
+      entries.push({ type: 'voucher', id: 'voucher', label: `Lost & Found Voucher (+${v} LT)` });
+    } else {
+      // the voucher window is shut for the night: a crumb of funnel cake instead
+      const hp = Math.max(1, Math.round(g.player.stats.maxHp() * HEALING.fallbackHealFrac));
+      g.healPlayer(hp);
+      items.push(`Funnel Cake Crumbs (+${hp} HP)`);
+      entries.push({ type: 'heal', id: 'funnel_cake', label: `Funnel Cake Crumbs (+${hp} HP)` });
+    }
   }
   // An evolution that became ready from these rolls is granted at the next chest/draft.
-  return { items, evolution };
+  return { items, evolution, entries };
 }

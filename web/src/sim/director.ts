@@ -1,11 +1,12 @@
 // The Spawn Director (doc 03 §7, Godot EnemyDirector): wave timeline, VS-style spawn band,
-// despawn leash, flyby swarms (now with a fair lane telegraph), elites, minibosses, formations,
+// despawn leash, organic balloon drifts, elites, minibosses, formations,
 // boss gates, the victory lap and Endless.
 
 import { clamp, dist2 } from '../core/math';
 import { BOSS_MAP, BOSSES } from '../data/bosses';
 import { CURSE } from '../data/difficulty';
 import { ENEMIES } from '../data/enemies';
+import { PACING } from '../data/progression';
 import { MAP_HALF, PLAYER_BOUNDS } from '../data/map';
 import { ENDLESS_WAVE, VICTORY_LAP_WAVE, WAVES, type WaveDef } from '../data/waves';
 import { createBoss } from './bosses';
@@ -29,13 +30,19 @@ export class Director {
   formations = new Map<number, Formation>();
   private nextFormation = 1;
   private intervalAcc = 0;
-  private swarmAcc = 0;
   private minibossAcc = 0;
   private currentWave = '';
   private warned = new Set<string>();
   private spawned = new Set<string>();
   private encoreAcc = 0;
-  private pendingSwarms: { t: number; wave: WaveDef; ang: number }[] = [];
+  private pendingBalloons: { t: number; x: number; y: number; dx: number; dy: number; speed: number; enemy: string }[] = [];
+  private balloonT = 18;
+  /** Wind direction (radians) — wanders slowly; balloon drifts ride it. */
+  wind = 0;
+  /** Seconds of post-boss breathing room remaining. */
+  recoveryT = 0;
+  private seenBossKills = 0;
+  private scratch = { minAlive: 0, maxAlive: 0, interval: 1, batch: 1 };
   bossActive = false;
   private bruteAnnounced = false;
 
@@ -89,16 +96,24 @@ export class Director {
 
     if (g.tickCount % 10 === 0) this.cullLeash();
     this.updateFormations(dt);
-    this.updatePendingSwarms(dt);
+    this.updatePendingBalloons(dt);
+    // the night wind wanders (seeded): balloon drifts follow it
+    this.wind += (g.rng.next() - 0.5) * dt * 0.5;
+    if (g.bossKills !== this.seenBossKills) {
+      this.seenBossKills = g.bossKills;
+      this.recoveryT = PACING.recoverySeconds;
+      this.balloonT = Math.max(this.balloonT, 14);
+    }
+    if (this.recoveryT > 0) this.recoveryT -= dt;
 
     if (this.bossActive || preBoss) return; // ambient spawns pause for the set-piece
     const wave = this.activeWave();
     const minutes = g.minutes;
-    const cap = Math.min(wave.maxAlive * (g.endless ? 1.4 : 1), this.cap);
+    const B = this.blended(wave);
+    const cap = Math.min(B.maxAlive * (g.endless ? 1.4 : 1), this.cap);
 
     if (wave.id !== this.currentWave) {
       this.currentWave = wave.id;
-      this.swarmAcc = 0;
       for (let i = 0; i < (wave.eliteBurst ?? 0); i++) {
         if (g.active.length >= this.cap) break;
         this.spawnOne(wave, true);
@@ -120,27 +135,28 @@ export class Director {
 
     // 1) baseline top-up
     let guard = 0;
-    const minAlive = Math.min(wave.minAlive, cap);
+    const minAlive = Math.min(B.minAlive, cap);
     while (g.active.length < minAlive && guard++ < 40) {
       if (!this.spawnOne(wave)) break;
     }
     // 2) steady pressure
     const mult = g.events.spawnRateMult * (g.cfg.curse ? 1 / CURSE.intervalMult : 1);
     this.intervalAcc += dt * mult;
-    const interval = Math.max(0.05, wave.interval);
+    const interval = Math.max(0.05, B.interval);
     while (this.intervalAcc >= interval) {
       this.intervalAcc -= interval;
-      for (let i = 0; i < wave.batch; i++) {
+      for (let i = 0; i < B.batch; i++) {
         if (g.active.length >= cap) break;
         if (!this.spawnOne(wave)) break;
       }
     }
-    // 3) flyby swarm overlay — telegraphed lane first
-    if (wave.swarm) {
-      this.swarmAcc += dt;
-      if (this.swarmAcc >= wave.swarm.interval) {
-        this.swarmAcc -= wave.swarm.interval;
-        this.queueSwarm(wave);
+    // 3) organic balloon drifts on the night wind (D-33) — irregular, never during recovery
+    if (wave.swarm && this.recoveryT <= 8) {
+      this.balloonT -= dt;
+      if (this.balloonT <= 0) {
+        this.spawnBalloonDrift(wave);
+        const a = Math.min(3, g.act - 1);
+        this.balloonT = PACING.balloonMinGap[a] - Math.log(1 - g.rng.next() * 0.999) * PACING.balloonMeanExtra[a];
       }
     }
     // Endless: Encore Ringmaster every 5 minutes (D-17).
@@ -264,44 +280,93 @@ export class Director {
     }
   }
 
-  private queueSwarm(wave: WaveDef): void {
+  // ------------------------------------------------------------------ organic balloon drifts (D-33)
+  /**
+   * A loose bouquet of runaway balloons drifts in on the night wind. Timing, entry edge, heading,
+   * speed, group size and spacing are all drawn from the seeded RNG; the wind direction wanders
+   * slowly across the run, so drifts come from varied but coherent directions.
+   */
+  private spawnBalloonDrift(wave: WaveDef): void {
     const g = this.g;
-    const ang = g.rng.angle();
+    const sw = wave.swarm!;
     const p = g.player;
-    const dir = { x: -Math.cos(ang), y: -Math.sin(ang) };
-    const ring = Math.hypot(VIEW_HALF_X, VIEW_HALF_Y) + 90;
-    const sx = p.x + Math.cos(ang) * ring, sy = p.y + Math.sin(ang) * ring;
-    const spread = clamp((wave.swarm?.size ?? 30) * 2.6, 50, 190);
-    // Lane telegraph: a translucent band across the screen along the swarm's path (fairness).
-    g.spawnHazard('line', 'swarm_lane', sx, sy, { x2: sx + dir.x * ring * 2, y2: sy + dir.y * ring * 2, r2: spread, tele: 0.9, active: 0.01, dmg: 0, safe: true });
-    g.bus.emit('sfx', { id: 'swarmwarn', vol: 0.5 });
-    this.pendingSwarms.push({ t: 0.9, wave, ang });
+    const r = g.rng;
+    const size = Math.max(4, Math.round(sw.size * (0.22 + 0.78 * Math.pow(r.next(), 1.6))));
+    // enter roughly from upwind, never from exactly the same place twice
+    const ang = this.wind + Math.PI + r.range(-1.2, 1.2);
+    const ring = Math.hypot(VIEW_HALF_X, VIEW_HALF_Y) + 120;
+    const tan = r.range(-320, 320);
+    const ex = p.x + Math.cos(ang) * ring - Math.sin(ang) * tan;
+    const ey = p.y + Math.sin(ang) * ring + Math.cos(ang) * tan;
+    // aim near (not at) the player, then let the wind bend the heading
+    const tx = p.x + r.range(-340, 340), ty = p.y + r.range(-260, 260);
+    let dx = tx - ex, dy = ty - ey;
+    let l = Math.hypot(dx, dy) || 1;
+    dx = dx / l + Math.cos(this.wind) * 0.35;
+    dy = dy / l + Math.sin(this.wind) * 0.35;
+    l = Math.hypot(dx, dy) || 1;
+    dx /= l;
+    dy /= l;
+    const speed = r.range(PACING.balloonSpeed[0], PACING.balloonSpeed[1]);
+    const spread = 40 + size * 6;
+    for (let k = 0; k < size; k++) {
+      // a ragged stream: lateral scatter plus staggered arrival
+      const lat = (r.next() + r.next() - 1) * spread;
+      this.pendingBalloons.push({
+        t: r.next() * (0.4 + size * 0.06),
+        x: ex - dy * lat,
+        y: ey + dx * lat,
+        dx, dy,
+        speed: speed * r.range(0.85, 1.15),
+        enemy: sw.enemy,
+      });
+    }
+    g.bus.emit('balloon_drift', { x: ex, y: ey, dirX: dx, dirY: dy, size });
   }
 
-  private updatePendingSwarms(dt: number): void {
+  private updatePendingBalloons(dt: number): void {
     const g = this.g;
-    for (let i = this.pendingSwarms.length - 1; i >= 0; i--) {
-      const s = this.pendingSwarms[i];
-      s.t -= dt;
-      if (s.t > 0) continue;
-      this.pendingSwarms.splice(i, 1);
-      const sw = s.wave.swarm!;
-      const p = g.player;
-      const ring = Math.hypot(VIEW_HALF_X, VIEW_HALF_Y) + 90;
-      const cx = p.x + Math.cos(s.ang) * ring, cy = p.y + Math.sin(s.ang) * ring;
-      const dx = -Math.cos(s.ang), dy = -Math.sin(s.ang);
-      const spread = clamp(sw.size * 2.6, 50, 190);
-      for (let k = 0; k < sw.size; k++) {
-        if (g.active.length >= this.cap + 40) break;
-        const a = g.rng.angle();
-        const r = Math.sqrt(g.rng.next()) * spread;
-        const e = g.spawnEnemy(sw.enemy, cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-        if (!e) break;
-        e.dirX = dx;
-        e.dirY = dy;
-        e.leashExempt = true;
-      }
+    for (let i = this.pendingBalloons.length - 1; i >= 0; i--) {
+      const b = this.pendingBalloons[i];
+      b.t -= dt;
+      if (b.t > 0) continue;
+      this.pendingBalloons.splice(i, 1);
+      if (g.active.length >= this.cap + 40) continue;
+      const e = g.spawnEnemy(b.enemy, b.x, b.y);
+      if (!e) continue;
+      e.dirX = b.dx;
+      e.dirY = b.dy;
+      e.speed = b.speed;
+      e.leashExempt = true;
     }
+  }
+
+  /** Density blended toward the next wave over the back half of each window (no step jumps). */
+  private blended(wave: WaveDef): { minAlive: number; maxAlive: number; interval: number; batch: number } {
+    const out = this.scratch;
+    out.minAlive = wave.minAlive;
+    out.maxAlive = wave.maxAlive;
+    out.interval = wave.interval;
+    out.batch = wave.batch;
+    if (this.g.victoryLap || this.g.endless) return out;
+    const i = WAVES.indexOf(wave);
+    const next = WAVES[i + 1];
+    if (next) {
+      const span = next.start - wave.start;
+      const t = (this.g.time - wave.start) / span;
+      const k = clamp((t - PACING.waveBlendStart) / (1 - PACING.waveBlendStart), 0, 1);
+      out.minAlive = wave.minAlive + (next.minAlive - wave.minAlive) * k;
+      out.maxAlive = wave.maxAlive + (next.maxAlive - wave.maxAlive) * k;
+      out.interval = wave.interval + (next.interval - wave.interval) * k;
+      out.batch = Math.round(wave.batch + (next.batch - wave.batch) * k);
+    }
+    // recovery period after a boss: the crowd thins, then swells back
+    if (this.recoveryT > 0) {
+      const k = this.recoveryT / PACING.recoverySeconds;
+      out.minAlive *= 1 + (PACING.recoveryMinAliveScale - 1) * k;
+      out.interval *= 1 + (PACING.recoveryIntervalScale - 1) * k;
+    }
+    return out;
   }
 
   /** Rectangular band outside the screen out to 1.5× (VS spawn area), clamped, never stacked. */

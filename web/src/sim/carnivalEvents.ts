@@ -7,6 +7,7 @@ import { EVENTS, SCHEDULED_EVENTS, type EventId } from '../data/events';
 import { PROPS } from '../data/map';
 import type { Enemy } from './entities';
 import type { Game } from './game';
+import { TICKETS } from '../data/progression';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
 interface Running {
@@ -48,7 +49,7 @@ export class CarnivalEvents {
       if (r.id === 'calliope') {
         this.spawnRateMult *= 1.5;
         this.capMult *= 1.25;
-        ticketBoost = 1.5;
+        ticketBoost = TICKETS.calliopeCrescendoMult;
       }
       if (r.id === 'carousel_spins') this.carouselBonus = true;
       if (r.t >= r.dur && !r.done) {
@@ -58,7 +59,7 @@ export class CarnivalEvents {
     }
     this.running = this.running.filter((r) => !r.done || (r.id === 'clown_car' && r.members.size > 0));
     g.darkness += (darknessTarget - g.darkness) * Math.min(1, dt * 1.5);
-    if (!g.victoryLap) g.ticketMult = (g.endless ? 1.5 : 1) * ticketBoost;
+    if (!g.victoryLap) g.ticketMult = (g.endless ? TICKETS.endlessMult : 1) * ticketBoost * (g.director.recoveryT > 0 ? TICKETS.recoveryBonus : 1);
 
     if (g.director.bossActive || g.phase !== 'play') return;
     for (const s of SCHEDULED_EVENTS) {

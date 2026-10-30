@@ -47,6 +47,9 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'f_skip', name: 'Skip Ticket', desc: 'Lets you skip a draft (heals 10 HP).', cost: 50, kind: 'feature' },
 ];
 
+/** Unlocks that are never sold — earned only through discovery (the Last Song Easter egg). */
+export const SECRET_UNLOCKS = ['w_calliope'];
+
 export interface AchievementDef {
   id: string;
   name: string;
@@ -73,6 +76,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'endless_30', name: 'Lock-In', desc: 'Survive to 30:00 in Endless.', reward: 120 },
   { id: 'daily_run', name: 'Daily Special', desc: 'Complete a Daily Run.', reward: 30 },
   { id: 'no_hit_boss', name: 'Untouchable', desc: 'Defeat a boss without taking damage during the fight.', reward: 80 },
+  { id: 'last_song', name: 'The Last Song', desc: 'Hear the whole song.', reward: 400 },
 ];
 
 /** End-of-run payout (doc 01 §8). */

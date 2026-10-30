@@ -294,3 +294,44 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 
 .hud.boss-on .act { display: none; }
 .hud.under { opacity: 0; transition: opacity 0.3s; }
+
+/* ---------------------------------------------------------------- prize wheel (D-34) */
+.prize-ui { position: absolute; inset: 0; pointer-events: auto; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 3vh 0 4vh; cursor: pointer; }
+.prize-ui.hidden { display: none; }
+.prize-title { font-family: var(--head); font-size: 3.2em; letter-spacing: 0.06em; color: #f0dca8; text-shadow: 0 0 18px rgba(255, 160, 60, 0.55), 0 4px 0 #1a0f0a; animation: prizeTitle 0.5s cubic-bezier(.2, 1.5, .4, 1); }
+.prize-title.bonus { color: #ffd38a; }
+.prize-title.evolution { color: #ff6a3a; text-shadow: 0 0 24px rgba(255, 60, 30, 0.8), 0 4px 0 #1a0505; animation: prizeTitle 0.5s cubic-bezier(.2, 1.5, .4, 1), evoPulse 0.6s ease-in-out infinite alternate; }
+.prize-cap { display: flex; align-items: center; gap: 0.8em; min-height: 4.6em; opacity: 0; transform: translateY(12px) scale(0.96); transition: opacity 0.25s, transform 0.25s; background: linear-gradient(180deg, rgba(36, 20, 26, 0.92), rgba(16, 9, 12, 0.94)); border: 2px solid #9a7a3c; border-radius: 6px; padding: 0.5em 1.4em; box-shadow: 0 0 30px rgba(0, 0, 0, 0.7); margin-top: auto; margin-bottom: 1.2em; }
+.prize-cap.on { opacity: 1; transform: none; }
+.prize-cap img { width: 56px; height: 56px; image-rendering: auto; filter: sepia(0.25) saturate(0.85); }
+.prize-cap small { display: block; font-family: var(--head); color: #b8933e; letter-spacing: 0.12em; font-size: 0.8em; }
+.prize-cap b { font-family: var(--head); color: #f0e2c0; font-size: 1.55em; font-weight: normal; }
+.prize-cap.evolution { border-color: #ff6a3a; box-shadow: 0 0 40px rgba(255, 70, 30, 0.5); }
+.prize-cap.evolution small { color: #ff8a5a; }
+.prize-cap.voucher small { color: #d8e04a; }
+.prize-sum { display: none; flex-direction: column; gap: 0.45em; align-items: center; margin-top: auto; margin-bottom: auto; background: rgba(10, 6, 8, 0.82); border: 2px solid #9a7a3c; border-radius: 8px; padding: 1em 1.8em; box-shadow: 0 0 60px rgba(0, 0, 0, 0.8); }
+.prize-sum.on { display: flex; }
+.prize-sum .item { display: flex; align-items: center; gap: 0.6em; font-family: var(--head); font-size: 1.25em; color: #efe0bc; animation: slotIn 0.35s cubic-bezier(.2, 1.6, .4, 1) backwards; }
+.prize-sum .item img { width: 40px; height: 40px; filter: sepia(0.25) saturate(0.85); }
+.prize-sum .item.evolution span { color: #ff7a4a; }
+.prize-sum .item.voucher span { color: #d8e04a; }
+.prize-sum .cont { margin-top: 0.6em; font-size: 0.9em; }
+.prize-hint { font-size: 0.8em; color: rgba(230, 210, 170, 0.55); letter-spacing: 0.05em; }
+.prize-hint.hidden { visibility: hidden; }
+@keyframes prizeTitle { from { transform: scale(0.6) translateY(-20px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes evoPulse { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+
+/* ---------------------------------------------------------------- Zoltana's fortune card (D-32) */
+.fortune { position: absolute; left: 50%; bottom: 13vh; transform: translateX(-50%); width: min(560px, 86vw); pointer-events: none; text-align: center;
+  background: radial-gradient(ellipse at 50% 0%, rgba(80, 50, 110, 0.35), transparent 60%), linear-gradient(180deg, #2a1d2e, #160f18); border: 2px solid #8a6d35; border-radius: 4px;
+  box-shadow: 0 0 0 4px #160f18, 0 0 0 5px #5a4628, 0 10px 40px rgba(0, 0, 0, 0.8); padding: 0.9em 1.6em 0.8em; animation: fortuneIn 0.7s cubic-bezier(.2, 1, .3, 1); }
+.fortune.hidden { display: none; }
+.fortune-head { font-family: var(--head); color: #b48cff; letter-spacing: 0.16em; font-size: 0.85em; text-shadow: 0 0 10px rgba(180, 140, 255, 0.6); }
+.fortune-text { font-family: Georgia, 'Times New Roman', serif; font-style: italic; color: #eadbbd; font-size: 1.12em; line-height: 1.45; margin: 0.45em 0; }
+.fortune-foot { color: rgba(200, 180, 140, 0.55); font-size: 0.75em; letter-spacing: 0.2em; }
+@keyframes fortuneIn { from { transform: translate(-50%, 30px) rotate(-1.5deg); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
+
+/* ---------------------------------------------------------------- draft fallback cards (D-31) */
+.card.voucher { background: linear-gradient(180deg, #2c2a14, #1a180c); border-color: #d8e04a; }
+.card.voucher .nm { color: #e8ec9a; }
+.card.disabled { filter: grayscale(0.9) brightness(0.6); cursor: not-allowed; }

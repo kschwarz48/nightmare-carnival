@@ -6,7 +6,7 @@ import { AudioEngine } from './audio/audio';
 import { Input, type NavEvent } from './input/input';
 import { SaveManager } from './meta/save';
 import { Assets } from './render/assets';
-import { GameRenderer, VIEW_H } from './render/renderer';
+import { GameRenderer3D } from './render3d/renderer3d';
 import { Game, TICK, type RunConfig, type RunStats } from './sim/game';
 import { hashSeed } from './core/rng';
 import { CHARACTERS, CHARACTER_MAP } from './data/characters';
@@ -15,7 +15,12 @@ import { PERKS } from './data/meta';
 import { WEAPONS, PASSIVES } from './data/weapons';
 import { ENEMIES } from './data/enemies';
 import { DIFFICULTIES } from './data/difficulty';
-import { ChestView, DraftView, Hud } from './ui/hud';
+import { DraftView, Hud } from './ui/hud';
+import { FortuneCard, PrizeOverlay } from './ui/prize';
+import { PrizeWheel } from './render3d/prizeWheel';
+import { LAST_SONG } from './data/quests';
+import { SECRET_UNLOCKS } from './data/meta';
+import type { QuestCue } from './sim/quest';
 import { FocusNav, h } from './ui/dom';
 import * as S from './ui/screens';
 import { dailyInfo } from './ui/screens';
@@ -29,10 +34,12 @@ export class App {
   audio = new AudioEngine();
   input: Input;
   assets = new Assets();
-  renderer!: GameRenderer;
+  renderer!: GameRenderer3D;
   hud!: Hud;
   draft!: DraftView;
-  chest!: ChestView;
+  prize!: PrizeWheel;
+  prizeUi!: PrizeOverlay;
+  fortune = new FortuneCard();
   state: State = 'loading';
   game: Game | null = null;
   demo: Game | null = null;
@@ -68,12 +75,18 @@ export class App {
       /* fonts optional */
     }
     await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const t0 = performance.now();
     this.assets.build((p) => ld.set(p, tips[Math.min(tips.length - 1, Math.floor(p * tips.length))]));
+    const t1 = performance.now();
     ld.set(1, 'Opening the gates…');
-    this.renderer = new GameRenderer(this.canvas, this.assets);
+    this.renderer = new GameRenderer3D(this.canvas, this.assets);
+    const t2 = performance.now();
+    if (import.meta.env.DEV) console.info(`[boot] assets ${(t1 - t0).toFixed(0)} ms, renderer ${(t2 - t1).toFixed(0)} ms`);
+    this.input.aimScaleY = this.renderer.aimScaleY;
     this.hud = new Hud(this.assets);
     this.draft = new DraftView(this.assets, (i) => this.pickDraft(i), () => this.game?.rerollDraft(), (i) => this.game?.banishDraft(i), () => this.game?.skipDraft());
-    this.chest = new ChestView(this.assets, () => this.closeChest());
+    this.prizeUi = new PrizeOverlay(() => this.prize.skip(false));
+    this.prize = new PrizeWheel(this.renderer.camera, this.assets, this.prizeUi, this.audio);
     this.ctx = {
       save: this.save, assets: this.assets, audio: this.audio, input: this.input,
       click: () => this.audio.play('ui_click', { vol: 0.5 }),
@@ -208,6 +221,7 @@ export class App {
       canSkip: o.daily || this.save.isUnlocked('f_skip'),
       unlocked: this.save.unlockedSet(),
       aimMode: this.save.data.settings.aimMode,
+      questMemory: Object.fromEntries(Object.entries(this.save.data.quests).map(([k, v]) => [k, v.completions])),
     };
     this.game?.bus.clear();
     this.game = new Game(cfg);
@@ -220,9 +234,10 @@ export class App {
     this.hud.root.classList.remove('under');
     this.hud.setPortrait(o.character);
     if (!this.hud.root.isConnected) this.ui.append(this.hud.root);
-    this.ui.append(this.draft.root, this.chest.root);
+    this.ui.append(this.draft.root, this.prizeUi.root, this.fortune.root);
     this.draft.hide();
-    this.chest.hide();
+    this.prizeUi.hide();
+    this.fortune.hide();
     this.overlayPause = false;
     this.acc = 0;
     this.runStart = performance.now();
@@ -285,9 +300,27 @@ export class App {
     });
     g.bus.on('banner', (e) => this.hud.banner(e.text, e.sub, e.style ?? '', 2.8));
     g.bus.on('chest', (e) => {
-      a.play('chest', { vol: 0.8 });
+      // the prize wheel PRESENTS what the sim already granted (entries) — it never rolls again (D-34)
+      a.play('chest', { vol: 0.6 });
       this.overlayPause = true;
-      this.chest.show(e.items, e.evolution);
+      const fillers = [...g.weapons.list.map((w) => this.assets.weaponIcon(w.def.id)), ...[...g.player.passives.keys()].map((id) => this.assets.passiveIcon(id))];
+      const entries = e.entries ?? e.items.map((label) => ({ type: 'level' as const, id: g.weapons.list[0]?.def.id ?? 'throwing_cards', label }));
+      this.prize.start(entries, fillers, () => {
+        this.overlayPause = false;
+      });
+    });
+    g.bus.on('meta_currency', (e) => {
+      // Lost & Found vouchers are banked immediately so they survive a lost or abandoned run (D-31)
+      this.save.data.lostTickets += e.amount;
+      this.save.data.totalEarned += e.amount;
+      this.save.save();
+      this.hud.toastMsg(`+${e.amount} Lost Tickets banked at the Lost & Found`);
+      a.play('coins', { vol: 0.5 });
+    });
+    g.bus.on('quest', (q) => this.onQuest(g, q));
+    g.bus.on('balloon_drift', (e) => {
+      // a distant rubbery squeak from the direction the bouquet drifts in
+      a.play('squeak', { vol: 0.12 + Math.min(0.2, e.size * 0.004), pitch: 0.55, pan: camPan(e.x) });
     });
     g.bus.on('evolved', (e) => {
       a.play('evolve', { vol: 0.9 });
@@ -320,11 +353,95 @@ export class App {
     if (g.phase !== 'draft') this.draft.hide();
   }
 
-  private closeChest(): void {
-    if (!this.chest.canClose()) return;
-    this.chest.hide();
-    this.overlayPause = false;
-    this.audio.play('ui_click', { vol: 0.4 });
+  /** The Last Song's cues: every step answers with sound and light, never with UI checklists (D-32). */
+  private onQuest(g: Game, q: QuestCue): void {
+    const a = this.audio;
+    const pan = (x?: number) => (x === undefined ? 0 : Math.max(-1, Math.min(1, (x - this.renderer.camX) / (this.renderer.viewWidth * 0.6))));
+    const bell = (note: number, vol = 0.45, x?: number) => a.play('bellnote', { vol, pitch: note / 523.25, pan: pan(x) });
+    const fx = (type: string, x: number, y: number, style: string, aa = 1) => this.renderer.fx.handle([{ type: type as never, x, y, a: aa, b: 0, c: 0, style }]);
+    if (q.text) {
+      this.fortune.show(q.text, q.event === 'idle' ? 6 : 10);
+      a.play('fortune', { vol: 0.6 });
+    }
+    switch (q.event) {
+      case 'soul':
+        a.play('soul', { vol: 0.35, pan: pan(q.x) });
+        if (q.x !== undefined && q.y !== undefined) fx('spark', q.x, q.y, 'gravity');
+        if (q.a !== undefined) {
+          const L = LAST_SONG.lamps[q.a];
+          fx('ring', L.x + 20, L.y, 'gravity', 60);
+        }
+        break;
+      case 'lamp_lit':
+        a.play('lamp_lit', { vol: 0.7, pan: pan(q.x) });
+        if (q.b) bell(q.b, 0.5, q.x);
+        if (q.x !== undefined && q.y !== undefined) {
+          fx('ring', q.x, q.y, 'gravity', 220);
+          fx('explode', q.x, q.y, 'frost', 120);
+        }
+        this.input.rumble(0.3, 160);
+        break;
+      case 'carousel_wakes':
+        a.play('carousel_wake', { vol: 0.8 });
+        a.play('rumble', { vol: 0.5 });
+        this.renderer.fx.shake = Math.max(this.renderer.fx.shake, 0.5);
+        break;
+      case 'musicbox': {
+        // the melody, in this night's order, drifting from the carousel
+        const ls = g.quests.get<{ order: number[] } & import('./sim/quest').QuestChain>('last_song');
+        const d = q.x !== undefined ? Math.hypot(g.player.x - q.x, g.player.y - (q.y ?? 0)) : 0;
+        const vol = Math.max(0.08, 0.42 * (1 - d / LAST_SONG.carousel.hearRange));
+        (ls?.order ?? [0, 1, 2, 3]).forEach((li, k) => setTimeout(() => bell(LAST_SONG.lamps[li].note * 2, vol, q.x), k * 420));
+        break;
+      }
+      case 'hum':
+        a.play('hum', { vol: 0.4, pan: pan(q.x) });
+        if (q.b) bell(q.b, 0.18, q.x);
+        break;
+      case 'note':
+        if (q.b) bell(q.b, 0.6, q.x);
+        if (q.x !== undefined && q.y !== undefined) fx('ring', q.x, q.y, 'gravity', 90);
+        break;
+      case 'sour':
+        a.play('sour', { vol: 0.5, pan: pan(q.x) });
+        break;
+      case 'melody_solved':
+        LAST_SONG.lamps.forEach((l, k) => setTimeout(() => bell(l.note, 0.5), k * 160));
+        setTimeout(() => a.play('toll', { vol: 0.6 }), 900);
+        break;
+      case 'ding':
+        a.play('ding', { vol: q.b ? 0.8 : 0.4, pan: pan(q.x) });
+        if (q.b && q.x !== undefined && q.y !== undefined) fx('ring', q.x, q.y - 40, 'bell', 120);
+        break;
+      case 'clunk':
+        a.play('clunk', { vol: 0.55, pan: pan(q.x) });
+        break;
+      case 'ticket':
+        a.play('ghost_ticket', { vol: 0.8 });
+        this.renderer.fx.screenFlash = Math.max(this.renderer.fx.screenFlash, 0.25);
+        this.renderer.fx.screenFlashCol = [0.5, 1, 0.75];
+        break;
+      case 'finale':
+        a.play('toll', { vol: 0.8 });
+        setTimeout(() => a.play('toll', { vol: 0.7 }), 1400);
+        this.hud.banner('THE MUSIC DOES NOT STOP', 'The Ghost Ticket burns cold in your hand…', 'danger', 3.5);
+        break;
+      case 'calliope_rises':
+        a.play('rumble', { vol: 0.9 });
+        a.play('carousel_wake', { vol: 0.9, pitch: 0.7 });
+        break;
+      case 'complete': {
+        // the reward is permanent: the Steam Calliope joins the draft pool for good
+        const s = this.save;
+        for (const id of SECRET_UNLOCKS) if (!s.data.unlocks.includes(id)) s.data.unlocks.push(id);
+        const rec = (s.data.quests[q.chain] ??= { completions: 0, bestStage: 0 });
+        rec.completions++;
+        rec.bestStage = Math.max(rec.bestStage, 7);
+        s.save();
+        this.hud.banner('THE LAST SONG', 'The music has ended. The Steam Calliope will remember you.', 'gold', 5);
+        break;
+      }
+    }
   }
 
   private resume(): void {
@@ -352,6 +469,9 @@ export class App {
     s.data.stats.kills += st.kills;
     s.data.stats.bestTime = Math.max(s.data.stats.bestTime, st.time);
     s.data.stats.playSeconds += (performance.now() - this.runStart) / 1000;
+    // the furthest the Last Song got (persisted progress memory, not run state)
+    const qrec = (s.data.quests.last_song ??= { completions: 0, bestStage: 0 });
+    qrec.bestStage = Math.max(qrec.bestStage, st.questStage);
     s.data.history.unshift({ date: new Date().toISOString(), character: st.character, difficulty: st.difficulty, won: st.won, time: st.time, kills: st.kills, level: st.level, lostTickets: st.lostTickets, curse: st.curse, endless: st.endless, daily: st.daily });
     s.data.history = s.data.history.slice(0, 30);
     let dailyBest = false;
@@ -377,12 +497,14 @@ export class App {
     this.audio.play(st.won ? 'victory' : 'defeat', { vol: 0.8 });
     this.audio.setCue('results');
     this.draft.hide();
-    this.chest.hide();
+    this.prizeUi.hide();
+    this.fortune.hide();
     const canEndless = st.won && !st.endless && s.endlessAvailable();
     setTimeout(() => {
       this.screenEl?.remove();
       this.state = 'results';
       this.hud.root.classList.add('under');
+      if (st.trueEnding) notes.unshift('The Steam Calliope now plays in the draft pool.');
       const el = S.resultsScreen(this.ctx, st, { achievements: earned.map((a) => `${a.name} — ${a.desc} (+${a.reward} LT)`), newUnlocks: notes, dailyBest }, {
         again: () => this.lastRun && this.startRun(this.lastRun),
         menu: () => this.toMenu(),
@@ -414,7 +536,8 @@ export class App {
   private toMenu(next: State = 'title'): void {
     this.hud.root.remove();
     this.draft.hide();
-    this.chest.hide();
+    this.prizeUi.hide();
+    this.fortune.hide();
     this.game?.bus.clear();
     this.game = null;
     this.renderer.fx.clear();
@@ -438,8 +561,9 @@ export class App {
       return;
     }
     if (this.state === 'playing' && this.game) {
-      if (this.chest.visible) {
-        if (e === 'confirm' || e === 'back' || e === 'pause') this.closeChest();
+      if (this.prize.active) {
+        if (e === 'confirm') this.prize.skip(false);
+        else if (e === 'back' || e === 'pause') this.prize.skip(true);
         return;
       }
       if (this.draft.visible) {
@@ -494,7 +618,7 @@ export class App {
     // player screen position for mouse aim
     const cssW = window.innerWidth, cssH = window.innerHeight;
     const target = playing ? g!.player : this.demo!.player;
-    const sp = this.renderer.worldToScreen(target.x, target.y - 20, cssW, cssH);
+    const sp = this.renderer.worldToScreen(target.x, target.y, cssW, cssH, 30);
     this.input.poll(sp.x, sp.y);
     if (playing) {
       g!.input.moveX = this.input.moveX;
@@ -506,7 +630,11 @@ export class App {
       g!.input.aimX = this.input.aimX;
       g!.input.aimY = this.input.aimY;
       g!.input.aimActive = this.input.aimActive;
-      this.chest.update(dt);
+      this.prize.update(dt, (k) => {
+        this.renderer.fx.screenFlash = Math.max(this.renderer.fx.screenFlash, k);
+        this.renderer.fx.screenFlashCol = [1, 0.85, 0.7];
+      });
+      this.fortune.update(dt);
       if (!this.overlayPause && g!.phase !== 'draft') {
         this.acc += dt * this.simSpeed;
         let n = 0;
@@ -567,4 +695,4 @@ export class App {
 
 }
 
-export const _unused = { VIEW_H, PERKS, CHARACTER_MAP };
+export const _unused = { PERKS, CHARACTER_MAP };

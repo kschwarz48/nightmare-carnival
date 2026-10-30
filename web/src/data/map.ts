@@ -3,6 +3,8 @@
 // north fence with three gates). Solids block the PLAYER only; enemies walk through (VS model, doc 03 §3).
 // Coordinates: x right, y DOWN (north = negative y), matching the Godot project.
 
+import { LAST_SONG } from './quests';
+
 export const MAP_HALF = 2200;
 export const MAP_MIN = -MAP_HALF;
 export const MAP_MAX = MAP_HALF;
@@ -15,7 +17,9 @@ export type PropKind =
   | 'popcorn_cart' | 'cotton_stand' | 'hotdog_stand' | 'fence_h' | 'fence_v' | 'gate_arch' | 'ferris_base'
   | 'funhouse' | 'coaster_ruin' | 'tilt_a_whirl' | 'lamp' | 'light_pole' | 'barrel' | 'crate' | 'hay' | 'tree_dead'
   | 'trash' | 'balloon_post' | 'bench' | 'strongman_tower' | 'dunk_tank' | 'caravan' | 'pennant_pole' | 'sign_midway'
-  | 'bleachers' | 'tent_small' | 'tombstone_prize' | 'clown_statue' | 'rail' ;
+  | 'bleachers' | 'tent_small' | 'tombstone_prize' | 'clown_statue' | 'rail'
+  // The Last Song (D-32): four soul lamps, Zoltana's fortune automaton, the High Striker's mallet pad
+  | 'ghost_lamp' | 'fortune_machine' | 'striker_pad';
 
 export interface Prop {
   kind: PropKind;
@@ -86,7 +90,10 @@ const lampSpots: [number, number][] = [
   [-1000, -1350], [1000, -1350], [0, -1400], [-1800, 1650], [-900, 1650], [900, 1650], [1800, 1650],
   [-1650, -1000], [1650, -1000], [1700, 300], [-1650, 900], [-700, -1900], [700, -1950],
 ];
-for (const [x, y] of lampSpots) add({ kind: 'lamp', x, y, r: 10 });
+const isSoulLamp = (x: number, y: number) => LAST_SONG.lamps.some((l) => l.x === x && l.y === y);
+for (const [x, y] of lampSpots) add({ kind: isSoulLamp(x, y) ? 'ghost_lamp' : 'lamp', x, y, r: 10 });
+add({ kind: 'fortune_machine', x: LAST_SONG.machine.x, y: LAST_SONG.machine.y, r: 34 });
+add({ kind: 'striker_pad', x: LAST_SONG.striker.padX, y: LAST_SONG.striker.padY });
 
 const decor: [PropKind, number, number, number?][] = [
   ['barrel', -620, -620], ['barrel', -660, -600], ['crate', -600, -560], ['hay', 640, -640], ['hay', 690, -610],

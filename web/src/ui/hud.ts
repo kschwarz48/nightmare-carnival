@@ -267,8 +267,8 @@ export class DraftView {
     this.root.classList.remove('hidden');
     const p = g.player;
     const cards = options.map((o, i) => {
-      const icon = o.kind === 'passive' ? this.assets.passiveIcon(o.refId) : o.kind === 'heal' ? this.assets.passiveIcon('funnel_cake') : this.assets.weaponIcon(o.kind === 'evolution' ? WEAPONS[o.refId].evolvesTo! : o.refId);
-      const lvlTxt = o.kind === 'evolution' ? 'EVOLUTION!' : o.kind === 'new_weapon' ? 'New weapon' : o.kind === 'passive' ? (o.isNew ? 'New passive' : `Level ${o.level}`) : o.kind === 'heal' ? '' : `Level ${o.level}${o.level === 8 ? ' — MAX' : ''}`;
+      const icon = o.kind === 'passive' ? this.assets.passiveIcon(o.refId) : o.kind === 'heal' ? this.assets.passiveIcon('funnel_cake') : o.kind === 'voucher' ? this.assets.passiveIcon('coin_purse') : this.assets.weaponIcon(o.kind === 'evolution' ? WEAPONS[o.refId].evolvesTo! : o.refId);
+      const lvlTxt = o.kind === 'evolution' ? 'EVOLUTION!' : o.kind === 'new_weapon' ? 'New weapon' : o.kind === 'passive' ? (o.isNew ? 'New passive' : `Level ${o.level}`) : o.kind === 'heal' ? 'A small mercy' : o.kind === 'voucher' ? 'Permanent currency' : `Level ${o.level}${o.level === 8 ? ' — MAX' : ''}`;
       let hint = '';
       if (o.kind === 'new_weapon' || o.kind === 'level_weapon') {
         const d = WEAPONS[o.refId];
@@ -278,7 +278,7 @@ export class DraftView {
         if (evos.length) hint = `Evolves: ${evos.map((w) => WEAPONS[w.evolvesTo!].name).join(', ')}`;
       } else if (o.kind === 'evolution') hint = `Replaces ${WEAPONS[o.refId].name}`;
       const rarityName = o.rarity === 'evolution' ? '✦ EVOLUTION ✦' : o.rarity.toUpperCase();
-      return h('div', { class: `card ${o.rarity}`, 'data-nav': '', 'data-default': i === 0 ? '' : undefined, onclick: () => (this.banishMode ? this.doBanish(i) : this.onPick(i)) },
+      return h('div', { class: `card ${o.rarity}${o.kind === 'voucher' ? ' voucher' : ''}${o.disabled ? ' disabled' : ''}`, 'data-nav': o.disabled ? undefined : '', 'data-default': i === 0 ? '' : undefined, onclick: () => (o.disabled ? undefined : this.banishMode ? this.doBanish(i) : this.onPick(i)) },
         h('div', { class: 'rib' }, rarityName),
         o.isNew && o.kind !== 'evolution' ? h('div', { class: 'new' }, 'NEW!') : null,
         h('img', { src: icon, alt: '' }),

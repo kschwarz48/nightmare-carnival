@@ -4,9 +4,19 @@
 import type { FxEvent } from '../sim/fx';
 import type { Assets } from './assets';
 import type { Frame } from './atlas';
-import type { LightRig } from './lights';
 import type { ShapeBatch } from './shapes';
-import type { SpriteLayer } from './sprites';
+
+/** Anything frames can be drawn into: (frame, x, y, height-or-depth, sx, sy, rot, rgba, flash rgba). */
+export interface SpriteSink {
+  draw(f: Frame, x: number, y: number, z: number, sx?: number, sy?: number, rot?: number, r?: number, g?: number, b?: number, a?: number, fr?: number, fg?: number, fb?: number, fa?: number): boolean;
+}
+export interface LightSink {
+  add(x: number, y: number, r: number, intensity: number, cr: number, cg: number, cb: number): void;
+}
+
+/** Billboard heights in the 2.5D view: particles float a little above the ground, numbers higher. */
+const PART_LIFT = 16;
+const NUM_LIFT = 70;
 
 interface Particle {
   alive: boolean;
@@ -434,20 +444,20 @@ export class FxSystem {
     this.screenFlash = Math.max(0, this.screenFlash - dt * 2.2);
   }
 
-  addLights(lights: LightRig): void {
+  addLights(lights: LightSink): void {
     for (const f of this.flashes) {
       const t = f.life / f.max;
       lights.add(f.x, f.y, f.r, f.i * t, f.cr, f.cg, f.cb);
     }
   }
 
-  draw(normal: SpriteLayer, add: SpriteLayer, shapesAdd: ShapeBatch, numbers: SpriteLayer): void {
+  draw(normal: SpriteSink, add: SpriteSink, shapesAdd: ShapeBatch, numbers: SpriteSink): void {
     for (const p of this.parts) {
       if (!p.alive) continue;
       const t = 1 - p.life / p.max;
       const sc = p.s0 + (p.s1 - p.s0) * t;
       const a = p.fade ? Math.min(1, (p.life / p.max) * 3) : 1 - t * t;
-      (p.add ? add : normal).draw(p.f, p.x, p.y - p.z, 0.97, sc, sc, p.rot, p.r, p.g, p.b, a);
+      (p.add ? add : normal).draw(p.f, p.x, p.y, p.z + PART_LIFT, sc, sc, p.rot, p.r, p.g, p.b, a);
     }
     for (const e of this.eph) {
       if (!e.alive) continue;
@@ -482,8 +492,7 @@ export class FxSystem {
       let x = n.x - (n.text.length - 1) * w * 0.5;
       for (const ch of n.text) {
         const f = set[ch];
-        if (f) numbers.draw(f, x, n.y, 0.99, n.scale * pop * 0.8, n.scale * pop * 0.8, 0, 1, 1, 1, a);
-        else if (ch === '+') numbers.draw(set['1'], x, n.y, 0.99, 0.01, 0.01, 0, 1, 1, 1, 0);
+        if (f) numbers.draw(f, x, n.y, NUM_LIFT, n.scale * pop * 0.8, n.scale * pop * 0.8, 0, 1, 1, 1, a);
         x += w;
       }
     }

@@ -118,7 +118,7 @@ export class Enemy implements Target {
 
 export type ProjKind =
   | 'card' | 'gold_card' | 'tarot' | 'death_card' | 'dart' | 'shrapnel' | 'ring' | 'rocket' | 'shell' | 'kernel'
-  | 'cannonball' | 'derby_car' | 'bumper_ghost' | 'mirror_shot';
+  | 'cannonball' | 'derby_car' | 'bumper_ghost' | 'mirror_shot' | 'note';
 
 export class PlayerProjectile {
   alive = false;
@@ -229,6 +229,12 @@ export class Hazard {
   followPlayer = 0; // spotlight tracking speed
   safe = false; // visual-only marker (e.g. safe pocket)
   gapHalf = 0; // ring hazards: half-angle of the safe gap centred on `angle`
+  /** Optional safe hole (e.g. the Calliope's Lamp Crescendo): no damage inside it. */
+  holeX = 0;
+  holeY = 0;
+  holeR = 0;
+  /** Free-form tag for renderers (lamp symbol index, etc.). */
+  tag = -1;
 }
 
 export type PickupKind = 'ticket' | 'bank' | 'food' | 'golden' | 'chest' | 'funnel';
@@ -246,6 +252,8 @@ export class Pickup {
   life = 0;
   t = 0;
   rolls = 0;
+  /** Where a chest came from (boss / brute / elite / event) — drives the prize-wheel presentation. */
+  src = '';
   vx = 0;
   vy = 0;
 }
