@@ -161,3 +161,25 @@ The Godot XP formula is replaced by a centralised piecewise curve (`data/progres
 
 ### D-44 · Inked, hand-painted figures
 To move the cast and enemies away from a soft clay look toward crisp, layered, illustrated forms: every sculpted figure gets an ink silhouette (an inverted hull that shares the skinning and animation, held at ~1.6 px on screen), curvature baked from the field paints lighter wear on convex edges and darker creases, costume parts meet in hard seams (a global blend scale on the sculptor) and the cast is meshed finer (≈50–70k triangles for the player, who is drawn alone).
+
+---
+
+## High-fidelity graphics pass (D-45 … D-50)
+
+### D-45 · The ground is authored, not painted
+The floor fills most of every frame, so it carries the most detail per pixel. The layout is analytic (avenues as distance fields with ragged grass-bitten edges, the plaza and its curb, promenade, steel deck, slicks), the static fields are baked once on the GPU at startup, and every surface outputs a relief height that becomes a per-pixel normal — so the moon and every practical rake across domed cobbles, wheel ruts that follow each avenue, pebbles and planks. Rain water pools in ruts and hollows and mirrors the lamps; props sit in baked contact occlusion. The low-resolution painted canvas it replaces is gone.
+
+### D-46 · Light with sources, darkness between
+Pools use a windowed inverse-square falloff normalised to keep the ground under each source at its brightness while tightening the pool, so light visibly comes from lamps, bulbs and windows and the spaces between stay dark. A light can be a theatre spot (a crisp disc from high above); two searchlights wander the plaza and midway. The moon sits low (≈34°) for long raking shadows. Mist became rolling banks that scatter light (a luminous veil) instead of dark smudges. Fog and darkness are mood, never a substitute for geometry.
+
+### D-47 · An architecture kit for what the camera sees
+At 50° the camera mostly sees roofs and fronts, so booths, the ticket booth, the grandstand, the funhouse and the canopies were rebuilt from a reusable kit (`models/arch.ts`): parametric canvas patches, peaked striped roofs and round canopies built one stripe per panel (crisp seams) sagging between rafters, scalloped valances, arched marquee headers, shingled pagoda roofs, turned posts, bunting. Props and boss rigs also receive procedural surface detail keyed off their surface presets (grain, weathered canvas, chipped paint, rust and verdigris).
+
+### D-48 · Ground cover and small stories
+Seeded, chunked, frustum-culled ground cover (wind-swept grass, stones, litter, straw) follows the ground layout; a few pieces of dressing tell stories (a roped queue at the ticket window, a generator with cables to the lamps, a signpost). None of it is solid: the simulation and its collision are unchanged. Grass is dropped on Low quality.
+
+### D-49 · Telegraphs as markings on the ground
+Danger fills became crawling caution-stripe hatching with scorched grain and lit edges — authored warnings painted on the midway floor rather than flat UI tints. Readability and colour roles (danger orange-red, caution amber, safe green) are unchanged.
+
+### D-50 · Death scenes and less goofy balloons
+Enemies no longer just vanish: the renderer keeps the last pose of each on-screen enemy and plays a short death beat when the sim removes it (balloons swell and burst; others topple, squash and sink under a fading flash) — no sim change. Balloons wear grimy, sun-faded latex darkening toward the knot, slanted deep sockets, a wide stitched grin and a mended tape patch, in a darker palette.

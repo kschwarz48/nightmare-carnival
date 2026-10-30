@@ -191,6 +191,40 @@ export function pagodaRoof(m: M, o: { hw: number; dz: number; y: number; h: numb
   m.add(lathe([[0, 0], [5, 0], [6.5, 4], [2.4, 9], [3.2, 14], [0, 26]], 10), { col: PAL.gold, pos: [0, o.y + o.h - 1, 0], surf: SURF.gold });
 }
 
+/**
+ * A round striped canopy (carousel, tents): one canvas panel per stripe for crisp seams, sagging
+ * between the radial ribs, with a rope over each rib. `prof` is the roof profile as [radius, y] from
+ * the eave to the peak; an optional straight `wall` hangs below the eave.
+ */
+export function stripedCanopy(m: M, o: { prof: [number, number][]; n: number; a: number; b: number; sag?: number; wall?: { rTop: number; rBot: number; y0: number; y1: number }; rope?: number; wear?: number }): void {
+  const prof = o.prof, sag = o.sag ?? 4;
+  const at = (v: number): [number, number] => {
+    const f = v * (prof.length - 1), i = Math.min(prof.length - 2, Math.floor(f)), t = f - i;
+    return [prof[i][0] + (prof[i + 1][0] - prof[i][0]) * t, prof[i][1] + (prof[i + 1][1] - prof[i][1]) * t];
+  };
+  for (let k = 0; k < o.n; k++) {
+    const a0 = (k / o.n) * Math.PI * 2, a1 = ((k + 1) / o.n) * Math.PI * 2;
+    const col = weather(k % 2 ? o.a : o.b, o.wear ?? 0.5, 0.05);
+    m.add(patch((u, v) => {
+      const ang = a1 - (a1 - a0) * u;
+      const [r0, y0] = at(v);
+      const d = sag * Math.sin(Math.PI * u) * Math.sin(Math.PI * Math.min(1, v * 1.3));
+      return [Math.cos(ang) * (r0 - d * 0.4), y0 - d, Math.sin(ang) * (r0 - d * 0.4)];
+    }, 3, 6), { col, surf: SURF.canvas });
+    if (o.wall) {
+      const W = o.wall;
+      m.add(patch((u, v) => {
+        const ang = a1 - (a1 - a0) * u;
+        const r = W.rBot + (W.rTop - W.rBot) * v - sag * 0.5 * Math.sin(Math.PI * u);
+        return [Math.cos(ang) * r, W.y0 + (W.y1 - W.y0) * v, Math.sin(ang) * r];
+      }, 3, 3), { col, surf: SURF.canvas });
+    }
+    const pts: V3[] = [];
+    for (let i = 0; i <= 6; i++) { const [r0, y0] = at(i / 6); pts.push([Math.cos(a0) * (r0 + 0.7), y0 + 0.7, Math.sin(a0) * (r0 + 0.7)]); }
+    m.add(tube(pts, 0.7, 4, 12), { col: weather(o.rope ?? PAL.straw, 0.5), surf: SURF.cloth });
+  }
+}
+
 /** Painted diamond motif across a flat panel facing +Z (counter skirts, wagon sides). */
 export function diamonds(m: M, x0: number, x1: number, y: number, z: number, size: number, col: number): void {
   const n = Math.max(1, Math.floor((x1 - x0) / (size * 1.8)));

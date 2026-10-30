@@ -112,3 +112,30 @@ understate that character.
   large margin.
 - Balance tuned with bots; needs human playtests (see §5).
 - No localisation framework (English only).
+
+---
+
+## Graphics pass QA — 2026-10-30 (D-45 … D-50)
+
+**Verified (actually done):**
+- `npx vitest run`: 126/126 pass (includes the new street-lamp flicker test and the model/prop library checks
+  that build every prop, so the rebuilt booths, roofs and canopies are exercised).
+- `npx tsc --noEmit`: clean. `npm run build`: succeeds; the capture endpoint is dev-server-only and the dev
+  tools stay behind `import.meta.env.DEV`.
+- Screenshots of the real game in the in-app browser at 1600×900 (High, DPR 1), inspected image by image:
+  seeded states `active-play-desktop`, `late-combat`, `boss-ringmaster`, plus midway stalls, carousel,
+  funhouse/north gate, east concessions, close-ups of booths/ticket booth/grandstand. Runs `before`,
+  `iter1`–`iter8`, `after` in `artifacts/visual/` (git-ignored).
+- Motion: a stepped frame sequence of a mass kill (`artifacts/visual/motion/death-*.png`) shows corpses
+  toppling and sinking; grass sway is shader-driven (checked visually only as stills plus code review).
+- Performance with `__nc.bench`: late combat 3.46 ms/frame before → ≈4.65 ms steady after; cost
+  attribution by toggling (ground ≈1.26 ms after the GPU field bake, clutter ≈0.7 ms, outlines ≈0.4 ms,
+  shadow maps ≈0.2 ms). Draw calls 256 → 291; triangles 2.51 M → 2.90 M (all passes).
+- Pixel metrics (in-page port of the canvas inspector) recorded per capture; see `docs/VISUAL_QA.md`.
+
+**Not verified:**
+- No human playtest of readability or feel after the pass.
+- No measurements on other GPUs, higher resolutions, DPR 2, or Low/Medium quality frame times.
+- The packaged Playwright canvas inspector was not run (dependencies not installed); its metrics were
+  reproduced in-page instead.
+- Mobile/touch and physical gamepads remain untested (unchanged scope).

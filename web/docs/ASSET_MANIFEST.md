@@ -145,3 +145,19 @@ snowflakes, music notes; themed death bursts per enemy family; damage-number gly
 | Boss themes ×6 (Tent, Wheel, Puppet King, Ringmaster ×3 phases) | live step-sequencer: tuba oompah, chord stabs, drums, detuned calliope melody | boss fights | ◐ synthesized big band (not live-recorded) |
 | Ambience loop (wind, creaks, distant music box) | synthesized at boot | always | ✅ |
 | ~100 SFX (deaths per family, tells, every weapon, UI, level-up, evolution, chest, boss attacks, warning siren, victory/defeat stingers) | `src/audio/synth.ts` | everywhere | ✅ |
+
+---
+
+## Current state (3D renderer, 2026-10-30)
+
+The tables above describe the earlier 2D sprite pass. Since the 2.5D overhaul (D-35 onward):
+
+- **World, characters, enemies, bosses, props, pickups and projectiles are procedural 3D** built at boot in
+  `src/render3d/` — SDF sculpts on skeletons for the cast and creatures, geometry helpers and the
+  architecture kit (`models/arch.ts`) for buildings, and shaders for the ground, mist, light and water.
+  **No external models, textures or generated assets** are used; there are no image files for the world.
+- The 2D canvas atlas (`src/render/art`, `assets.ts`) remains only for particles, damage digits and the
+  DOM UI (icons, portraits, Pedia) — the portraits are still in the older cartoon style (see the handoff).
+- Audio: the two original Bradley Schwarz music tracks are preserved unchanged in `public/audio/`; all
+  sound effects are synthesised (`src/audio/synth.ts`).
+- Fonts: Rye and Oswald via `@fontsource` (OFL).

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { C, box, cone, cyl, ellipsoid, extrude, lathe, rbox, smoothShape, sphere, starShape, torus, tube, vnoise, weather, stripes, bands, sagPoints, type ColorFn, type V3 } from '../core/geo';
 import { ModelBuilder, PAL, PART, SURF, body, bulb, coneHat, eyes, ruff, stitches } from './kit';
-import { bunting, canvasRoof, diamonds, headerBoard, pagodaRoof, patch, turnedPost, valance } from './arch';
+import { bunting, canvasRoof, diamonds, headerBoard, pagodaRoof, patch, stripedCanopy, turnedPost, valance } from './arch';
 
 type M = ModelBuilder;
 
@@ -111,7 +111,7 @@ export function carouselTop(): THREE.BufferGeometry {
     m.add(cyl(1.8, 1.8, 150, 8), { col: stripes(8, PAL.brass, 0x6a5428, 0, 0.1), pos: [Math.cos(a) * 128, 95, Math.sin(a) * 128], surf: SURF.brass });
   }
   // canopy: striped cone roof with a valance ring
-  m.add(lathe([[196, 170], [200, 172], [120, 210], [30, 236], [0, 240]], 24), { col: stripes(24, PAL.red, PAL.cream, 0, 0.5), surf: SURF.canvas });
+  stripedCanopy(m, { prof: [[200, 171], [120, 210], [30, 236], [0, 240]], n: 24, a: PAL.red, b: PAL.cream, sag: 4.5 });
   m.add(cyl(198, 198, 26, 24, true), { col: weather(PAL.mustard, 0.5, 0.04), pos: [0, 157, 0], surf: SURF.paint });
   m.add(lathe([[198, 0], [201, 0], [201, 2], [198, 2]], 24), { col: PAL.brass, pos: [0, 143, 0], surf: SURF.brass });
   // scalloped valance fringe
@@ -387,6 +387,8 @@ export function funhouse(): THREE.BufferGeometry {
     m.add(rbox(70, h, 70, 3, 2), { col: weather(PAL.teal, 0.55, 0.03, PAL.woodPale), pos: [x, h / 2, -40], rot: [0, 0.2, tilt], surf: SURF.paint });
     m.add(cone(56, 80, 4), { col: weather(PAL.redDeep, 0.5), pos: [x + Math.sin(tilt) * -h, h + 38, -40], rot: [0, Math.PI / 4 + 0.2, tilt * 1.5], surf: SURF.paint });
   }
+  // a steep, sagging slate roof over the crooked block (the towers punch up through it)
+  pagodaRoof(m, { hw: 240, dz: 0.46, y: 198, h: 96, courses: 8, col: 0x3c4a52, trim: PAL.mustard, lift: 16 });
   // the giant clown face entrance: you walk in through its mouth
   m.add(ellipsoid(110, 100, 30, 20, 16), { col: weather(PAL.clown, 0.5, 0.05, PAL.dirty), pos: [0, 140, 96], surf: SURF.paint });
   m.add(ellipsoid(72, 52, 10, 18, 12), { col: PAL.ink, pos: [0, 92, 118], surf: SURF.paint });
@@ -667,8 +669,7 @@ export function bleachers(): THREE.BufferGeometry {
 export function tentSmall(variant: number): THREE.BufferGeometry {
   const m = new ModelBuilder();
   const [a, b] = variant ? [PAL.navy, PAL.cream] : [PAL.redDeep, PAL.mustard];
-  m.add(cyl(102, 106, 70, 16, true), { col: stripes(16, a, b, 0, 0.5), pos: [0, 35, 0], surf: SURF.canvas });
-  m.add(lathe([[108, 68], [112, 70], [40, 140], [6, 166], [0, 168]], 16), { col: stripes(16, a, b, 0.03, 0.5), surf: SURF.canvas });
+  stripedCanopy(m, { prof: [[111, 69], [40, 140], [6, 166], [0, 168]], n: 16, a, b, sag: 3.5, wall: { rTop: 102, rBot: 106, y0: 0, y1: 70 } });
   for (let i = 0; i < 16; i++) {
     const ang = (i / 16) * Math.PI * 2;
     m.add(sphere(8, 6, 4), { col: weather(i % 2 ? a : b, 0.4), pos: [Math.cos(ang) * 110, 66, Math.sin(ang) * 110], scale: [1.1, 1.3, 0.4], rot: [0, -ang + Math.PI / 2, 0], surf: SURF.canvas });

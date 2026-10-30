@@ -122,6 +122,10 @@ Press <kbd>`</kbd> during a run for the dev panel, or use `window.__nc` in the c
 - [`docs/ASSET_MANIFEST.md`](docs/ASSET_MANIFEST.md) — every visual/audio asset, its source and status
 - [`docs/QA_REPORT.md`](docs/QA_REPORT.md) — tests, performance measurements, playtest notes, known limitations
 - [`docs/PROGRESS.md`](docs/PROGRESS.md) — status and next steps
+- [`docs/RENDERING.md`](docs/RENDERING.md) — the 2.5D renderer, reusable graphics techniques, performance
+- [`docs/VISUAL_QA.md`](docs/VISUAL_QA.md) — visual iteration workflow (seeded states, captures, metrics) and the latest scorecard
+- [`docs/PROGRESSION.md`](docs/PROGRESSION.md) — XP, economy and pacing maths with measurements
+- [`docs/EASTER_EGG_SOLUTION.md`](docs/EASTER_EGG_SOLUTION.md) — **developer-only spoilers**: the full Last Song solution
 
 ## Credits
 
