@@ -211,6 +211,57 @@ export function installDevTools(app: App): void {
         app.save.data.stats.runs = Math.max(1, app.save.data.stats.runs);
         app.save.save();
       },
+      /**
+       * Two-tab co-op harness (D-52): `await __nc.coop.host()` in one tab prints the code; in another
+       * tab `await __nc.coop.join('CODE')`; then `__nc.coop.start()` in the host tab. Real PeerJS.
+       */
+      coop: {
+        async host(name = 'Host') {
+          const a = app as any;
+          if (a.state === 'press') app.go('title');
+          app.go('mp' as never);
+          await a.hostGame(name);
+          return a.net?.host?.lobby?.code ?? a.mpStatus;
+        },
+        async join(code: string, name = 'Guest', character = 'strongman') {
+          const a = app as any;
+          if (a.state === 'press') app.go('title');
+          try {
+            localStorage.setItem('nc-player-name', name);
+          } catch {
+            /* ignore */
+          }
+          app.go('mp_join' as never);
+          await a.joinGame(code);
+          for (let i = 0; i < 50 && !a.net?.guest?.lobby; i++) await new Promise((r) => setTimeout(r, 100));
+          a.net?.guest?.pick(character);
+          await new Promise((r) => setTimeout(r, 300));
+          a.net?.guest?.setReady(true);
+          return a.net?.guest?.lobby ?? a.mpStatus;
+        },
+        start(character = 'carny') {
+          const a = app as any;
+          const hs = a.net?.host;
+          if (!hs) return 'not hosting';
+          if (hs.hostCharacter !== character) hs.setCharacter(character);
+          hs.setReady(true);
+          a.startHostRun();
+          return a.state;
+        },
+        /** Pick the first card / skip prize wheels automatically on this tab (testing only). */
+        autopick(on = true) {
+          const a = app as any;
+          clearInterval(a.__autopick);
+          if (on) a.__autopick = setInterval(() => {
+            if (app.draft.visible) app.pickDraft(0);
+            if (app.prize.active) app.prize.skip(false);
+          }, 150);
+        },
+        diag() {
+          const a = app as any;
+          return a.net ? (a.net.role === 'host' ? a.net.host.diag : a.net.guest.diag) : null;
+        },
+      },
     };
     (window as any).__nc = api;
 

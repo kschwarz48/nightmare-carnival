@@ -120,8 +120,13 @@ export class App {
         e.preventDefault();
       }
     });
-    // leaving the page mid-session: tell the other side right away instead of letting it time out
-    window.addEventListener('pagehide', () => this.leaveNet(true));
+    // Leaving the page: say goodbye so nobody waits on a closed tab — except a guest in the middle of
+    // a night, who may only be refreshing: their link just drops, the host holds the seat and the
+    // night (up to 20 s, or until the host carries on), and they rejoin with the same code.
+    window.addEventListener('pagehide', () => {
+      if (this.net?.role === 'guest' && this.game) return;
+      this.leaveNet(true);
+    });
   }
 
   async boot(): Promise<void> {
