@@ -140,6 +140,20 @@ Bot parties trail a solo bot well behind by minute 24, so a gentler party XP can
 The duo rows also show the noise: the cheaper XP table finished at a lower level than the dearer one
 (each run's builds diverge). Three seeds can't resolve a 15% change; the playtest's "a little too harsh" decided it.
 
+### Party XP gain (D-66)
+A party's tickets are worth 1.5× (`COOP.xpGain`, two to six players). The density and the XP per level
+are unchanged. D-62 set the density so a party's haul matched a solo night's, so this makes a party's XP
+per hour 150% of a solo player's, which is the target Kevin set after co-op playtests still felt rough.
+
+**Bots can't confirm the exact ratio.** `scripts/xprate.ts` compares the XP a party earns (every ticket
+its kills drop) and collects (what reaches the bar) against solo, with every seat playing the same
+character. One character's 24-minute haul still swings 5–10× between seeds:
+- seed 33 Carny: 2,691 kills, 8.0k XP earned;
+- seed 22 Carny: 14,299 kills, 91.9k XP earned.
+
+Build and kill speed feed each other, so a handful of seeds resolves nothing near 1.5×. A unit test pins
+the gain itself: the same ticket banks exactly 1.5× in a party of two, three or six.
+
 ### Party crowds (D-62)
 
 `scripts/party.ts` with a density override (2 seeds, god mode, 24 minutes; XP is raw XP collected):

@@ -2,7 +2,7 @@
 // isolated from survival) with the smart pilot and draft policy, and report how much of each player's
 // build is finished by given minutes and when the whole party is maxed out. The tables in COOP can be
 // overridden to compare variants on the same seeds.
-// Usage: npx vite-node scripts/party.ts [sizes=1,2,3,4,6] [seeds=2] [minutes=26] [xp=1,1,7,13,20,25,30|current] [passives=weapons|current] [density=1,1,1.25,...|current]
+// Usage: npx vite-node scripts/party.ts [sizes=1,2,3,4,6] [seeds=2] [minutes=26] [xp=1,1,7,13,20,25,30|current] [passives=weapons|current] [density=1,1,1.25,...|current] [xpgain=1,1,1.5,...|current]
 
 import { makeGame, smartPilot } from '../tests/helpers';
 import { COOP } from '../src/data/progression';
@@ -20,6 +20,8 @@ if (xpArg !== 'current') COOP.xp = xpArg.split(',').map(Number);
 if (passArg === 'weapons') COOP.passiveSlots = [...COOP.slots];
 const densArg = process.argv[7] ?? 'current';
 if (densArg !== 'current') COOP.density = densArg.split(',').map(Number);
+const gainArg = process.argv[8] ?? 'current';
+if (gainArg !== 'current') COOP.xpGain = gainArg.split(',').map(Number);
 const chars = ['carny', 'strongman', 'fortune_teller', 'ride_operator', 'lost_child', 'ringleader'];
 const marks = [12, 16, 20, 24];
 
@@ -69,7 +71,7 @@ function draftFor(g: Game, i: number): void {
 }
 
 const mmss = (s: number) => (s < 0 ? '—' : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
-console.log(`xp=${COOP.xp.join(',')} passives=${COOP.passiveSlots.join(',')} weapons=${COOP.slots.join(',')} density=${COOP.density.join(',')} seeds=${seeds.length}`);
+console.log(`xp=${COOP.xp.join(',')} passives=${COOP.passiveSlots.join(',')} weapons=${COOP.slots.join(',')} density=${COOP.density.join(',')} xpGain=${COOP.xpGain.join(',')} seeds=${seeds.length}`);
 console.log(`| party | ${marks.map((m) => `build @${m}m`).join(' | ')} | level @24m | XP collected @24m | peak alive | all maxed |`);
 console.log(`|---|${marks.map(() => '---').join('|')}|---|---|---|---|`);
 /** raw XP collected so far (what the levels cost on this party's curve, plus the bar) */

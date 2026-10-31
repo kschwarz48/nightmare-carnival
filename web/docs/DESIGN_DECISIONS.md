@@ -547,3 +547,14 @@ and teleports, and the prize wheel dull and see-through.
 - **Chest arrows.** Up to three small gold arrows circle your character, pointing at the nearest
   chests, and disappear once you're nearly on top of one. The screen-edge markers for off-screen
   chests stay.
+
+### D-66 · A party earns 150% of a solo player's XP per hour
+- **The report.** Co-op scaling still felt rough. The ask: keep the denser crowd, but raise XP gains so a
+  party's XP per hour is 150% of what a solo player earns.
+- **The change.** Every ticket a party picks up is worth 1.5× (`COOP.xpGain`, the same for two to six
+  players). D-62 set the density so a party's haul matched a solo night's, so the 1.5× is the whole step
+  from parity to 150%. The crowd stays as dense and the XP per level stays where D-61 left it, so the
+  extra XP becomes about 1.5× the level-ups. Solo is untouched.
+- **Why not tuned with bots.** Measuring the ratio directly (`scripts/xprate.ts`) failed. A single
+  character's haul swings 5–10× between seeds, and mixed parties also hinge on whether bots ever pick up
+  the Ticket Bank. A unit test holds the multiplier exactly; Kevin's playtests decide the next nudge.

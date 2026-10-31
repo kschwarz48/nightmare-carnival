@@ -53,6 +53,20 @@ describe('playtest tuning (D-62)', () => {
     expect(duo.director.cap).toBe(Math.round(midway.cap * 2));
   });
 
+  it("a party's tickets are worth 1.5x, with the crowd kept as dense (D-66)", () => {
+    expect(COOP.xpGain[1]).toBe(1);
+    for (let n = 2; n <= 6; n++) expect(COOP.xpGain[n]).toBe(1.5);
+    // the same character, the same ticket: solo banks 1x, a party (two to six) 1.5x
+    const solo = makeGame({ character: 'carny', seed: 5 });
+    solo.addXp(3);
+    for (const n of [2, 3, 6]) {
+      const party = makeGame({ seed: 5, players: Array.from({ length: n }, () => ({ character: 'carny' })) });
+      party.addXp(3);
+      expect(party.level).toBe(1);
+      expect(party.xp / solo.xp).toBeCloseTo(1.5, 6);
+    }
+  });
+
   it('every evolution levels from Evo Lv 1 to 8, mostly in damage', () => {
     for (const id of EVOLUTION_IDS) {
       const d = WEAPONS[id];

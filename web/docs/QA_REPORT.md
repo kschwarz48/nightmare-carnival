@@ -115,6 +115,24 @@ understate that character.
 
 ---
 
+## Party XP 150% of solo — 2026-10-30 (D-66)
+
+**Changed:** a party's tickets are worth 1.5×. The crowd density and the XP per level are unchanged.
+
+**Automated:** 237 tests pass. A new tuning test checks two things:
+- The same ticket banks exactly 1.5× for a party of two, three and six.
+- Solo is unchanged.
+
+**Measured:** bot nights were tried (`scripts/party.ts`, the new `scripts/xprate.ts`). They can't resolve
+the ratio.
+- The haul swings 5–10× between seeds, even with one character in every seat.
+- Mixed-character parties also hinge on whether the bots walk over the Ticket Bank.
+- Not used to tune; see `PROGRESSION.md`.
+
+**Not verified:** a human party night at the new gain.
+
+---
+
 ## Chat box, overhead health bars, hit numbers, chest arrows — 2026-10-30 (D-65)
 
 **Automated:** 236 tests pass. Two are new in `tests/net.test.ts`.

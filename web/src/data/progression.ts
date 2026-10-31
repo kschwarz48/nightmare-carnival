@@ -152,6 +152,13 @@ export const COOP = {
    * first calibration (was 7 / 13 / 20 / 25 / 30), i.e. 17–20% more level-ups from the same haul.
    */
   xp: [1, 1, 6, 11, 17, 21, 25] as number[],
+  /**
+   * XP gained, by party size (D-66): every ticket a party picks up is worth this much more. With the
+   * density above already bringing a party's haul up to a solo night's, 1.5 makes a party's XP per hour
+   * 150% of a solo player's (Kevin's call after co-op playtests still felt rough), with the crowd kept as
+   * dense and the XP per level (`xp`) unchanged.
+   */
+  xpGain: [1, 1, 1.5, 1.5, 1.5, 1.5, 1.5] as number[],
   /** a boss re-picks the nearest living player at most this often (seconds) */
   bossRetarget: 2.5,
 };

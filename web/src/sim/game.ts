@@ -341,9 +341,9 @@ export class Game {
     return this.players.length > 1;
   }
   /** Party-size scaling (D-51): crowd density and enemy/boss toughness. Both 1 in solo. */
-  get partyScale(): { density: number; hp: number; xp: number } {
+  get partyScale(): { density: number; hp: number; xp: number; xpGain: number } {
     const i = Math.min(COOP.density.length - 1, this.players.length);
-    return { density: COOP.density[i], hp: COOP.hp[i], xp: COOP.xp[i] };
+    return { density: COOP.density[i], hp: COOP.hp[i], xp: COOP.xp[i], xpGain: COOP.xpGain[i] ?? 1 };
   }
   /** Is this player up and fighting? */
   isUp(p: Player): boolean {
@@ -1644,7 +1644,8 @@ export class Game {
   }
 
   addXp(value: number): void {
-    const mult = this.player.stats.xp * (this.cfg.curse ? CURSE.xpMult : 1);
+    // a party's tickets are worth more (D-66: its XP per hour is 150% of a solo night's)
+    const mult = this.player.stats.xp * (this.cfg.curse ? CURSE.xpMult : 1) * this.partyScale.xpGain;
     this.xp += value * mult;
     while (this.xp >= this.xpToNext) {
       this.xp -= this.xpToNext;
