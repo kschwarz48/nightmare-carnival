@@ -39,10 +39,10 @@ export class UpdateChecker {
 
   constructor(private url: string, private build: typeof __NC_BUILD__ = BUILD) {}
 
-  /** Poll from now on (the first look a few seconds after boot). The dev server never polls. */
+  /** Poll from now on (the first look just after boot). The dev server never polls. */
   start(): void {
     if (this.build.id === 'dev' || this.timer) return;
-    setTimeout(() => void this.check(true), 6000);
+    setTimeout(() => void this.check(true), 1500);
     this.timer = setInterval(() => void this.check(), POLL_MS);
   }
 

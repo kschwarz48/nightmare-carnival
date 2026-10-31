@@ -28,6 +28,8 @@ export class HubHud {
   private prompt = h('div', { class: 'hub-prompt hidden' });
   private dialogue = h('div', { class: 'hub-dialogue hidden' });
   private code = h('div', { class: 'hub-code hidden' });
+  /** the Windows app's download (browsers only), under the hint */
+  private download = h('div', { class: 'hub-download hidden' });
   private keys = { prompt: '', dialogue: '', code: '' };
 
   constructor(onCopy: (code: string) => void) {
@@ -37,7 +39,16 @@ export class HubHud {
       const c = this.code.dataset.code;
       if (c) onCopy(c);
     };
-    this.root.append(this.labels, title, hint, this.code, this.prompt, this.dialogue);
+    this.root.append(this.labels, title, hint, this.download, this.code, this.prompt, this.dialogue);
+  }
+
+  /** Show (or clear) the Windows app's download in the Midway's corner. */
+  setDownload(d?: { version: string; url: string }): void {
+    this.download.classList.toggle('hidden', !d);
+    if (!d) return this.download.replaceChildren();
+    this.download.replaceChildren(
+      h('a', { class: 'btn small purple', href: d.url, target: '_blank', rel: 'noopener' }, 'Download for Windows'),
+      h('small', {}, `Beta ${d.version} · same game, same parties`));
   }
 
   /** Replay the title card (each time the hub is entered). */

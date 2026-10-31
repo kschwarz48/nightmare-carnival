@@ -594,6 +594,10 @@ body:has(#nl-badge-frame) .title .corner { bottom: calc(1.2em + 64px); }
 .update-prompt .up-buttons { display: flex; gap: 0.8em; justify-content: center; margin-top: 0.5em; }
 .update-prompt.note .up-buttons { display: none; }
 @keyframes upIn { from { opacity: 0; transform: translate(-50%, 18px); } to { opacity: 1; transform: translate(-50%, 0); } }
-/* the title screen's Windows download (shown once a release is published) */
-.screen.title .download { position: absolute; right: 22px; top: 22px; text-align: right; }
+/* the Windows download (shown once a release is published): top-left on the press screen and the title
+   menu, clear of the ticket wallet; on the Midway, under the controls hint */
+.screen.title .download { position: absolute; left: 22px; top: 22px; text-align: left; }
 .screen.title .download .dl-note { margin-top: 0.45em; font-size: 0.78em; color: var(--cream); opacity: 0.75; text-shadow: 1px 1px 0 var(--ink); }
+.hub-download { position: absolute; left: 18px; top: 40px; pointer-events: auto; }
+.hub-download.hidden { display: none; }
+.hub-download small { display: block; margin-top: 0.4em; font-size: 0.72em; color: var(--cream); opacity: 0.75; text-shadow: 1px 1px 0 var(--ink); }

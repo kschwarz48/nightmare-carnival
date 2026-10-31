@@ -1387,14 +1387,22 @@ export class App {
     location.replace(u.toString());
   }
 
-  /** The title screen's Windows download: browsers only, and only once a release is published. */
+  /**
+   * The Windows app's download: browsers only, and only once a release is published. It shows on the
+   * press screen and the title menu, and on the Midway, which takes the menu's place once a save has
+   * it (D-60): most returning players never see the title menu.
+   */
   private showDownload(): void {
     const w = this.updates.latest?.desktop?.windows;
     const url = w && typeof w.url === 'string' && w.url.startsWith('https://') ? w.url : null;
     const dl = !desktop && url ? { version: String(w!.version ?? ''), url } : undefined;
-    if (this.ctx && this.ctx.desktopDownload?.url !== dl?.url) {
-      this.ctx.desktopDownload = dl;
-      if (this.state === 'title' && !this.screenEl?.querySelector('.download')) this.go('title');
+    if (!this.ctx || this.ctx.desktopDownload?.url === dl?.url) return;
+    this.ctx.desktopDownload = dl;
+    this.hubHud?.setDownload(dl);
+    // the screen already showing gets it at once (no re-render: the press screen starts on any click)
+    if ((this.state === 'press' || this.state === 'title') && this.screenEl && !this.screenEl.querySelector('.download')) {
+      const badge = S.downloadBadge(this.ctx);
+      if (badge) this.screenEl.append(badge);
     }
   }
 

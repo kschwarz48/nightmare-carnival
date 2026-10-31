@@ -34,6 +34,18 @@ export interface UICtx {
 
 const btn = (label: string | Node, onclick: () => void, cls = '', extra: Record<string, any> = {}) => h('button', { class: `btn ${cls}`, 'data-nav': '', onclick, ...extra }, label);
 
+/**
+ * The Windows app's download (browsers only, once a release is published): top-left on the press screen
+ * and the title menu. A click opens the installer and nothing else (the press screen starts on any click).
+ */
+export function downloadBadge(c: UICtx): HTMLElement | null {
+  const d = c.desktopDownload;
+  if (!d) return null;
+  return h('div', { class: 'download' },
+    h('a', { class: 'btn small purple', href: d.url, target: '_blank', rel: 'noopener', 'data-nav': '', onclick: (e: Event) => e.stopPropagation() }, 'Download for Windows'),
+    h('div', { class: 'dl-note' }, `Beta ${d.version} · same game, same parties, updates itself`));
+}
+
 // ===================================================================== loading
 export function loadingScreen(): { el: HTMLElement; set: (p: number, tip?: string) => void } {
   const fill = h('div', { class: 'fill' });
@@ -60,11 +72,7 @@ export function titleScreen(c: UICtx): HTMLElement {
     h('div', { class: 'wallet' }, h('span', { class: 'ticket-count' }, fmtNum(s.data.lostTickets))),
     h('div', { class: 'corner-left' }, s.recovered ? 'Your save was restored from its backup slot.' : 'WASD / arrows / left stick to move · weapons fire automatically · Esc to pause'),
     h('div', { class: 'corner' }, `Runs ${s.data.stats.runs} · Wins ${s.data.stats.wins}`, h('br'), 'Music: "Freaky Funk Circus" — Bradley Schwarz'),
-    c.desktopDownload
-      ? h('div', { class: 'download' },
-          h('a', { class: 'btn small purple', href: c.desktopDownload.url, target: '_blank', rel: 'noopener', 'data-nav': '' }, 'Download for Windows'),
-          h('div', { class: 'dl-note' }, `Beta ${c.desktopDownload.version} · same game, same parties, updates itself`))
-      : null,
+    downloadBadge(c),
   );
 }
 
@@ -73,6 +81,7 @@ export function pressStart(c: UICtx, onStart: () => void): HTMLElement {
     h('img', { class: 'logo', src: c.assets.logo(), alt: 'Nightmare Carnival' }),
     h('div', { class: 'tagline' }, 'A 1930s cartoon-horror survivors-like'),
     h('div', { class: 'press-start' }, 'Click or press any button'),
+    downloadBadge(c),
   );
   return el;
 }
