@@ -455,6 +455,7 @@ export class App {
     this.runStart = performance.now();
     this.go('playing');
     this.prewarmPrize();
+    this.audio.endBossSong();
     this.audio.setCue(this.game?.mapId === 'fun_house' ? 'fh_act1' : this.game?.mapId === 'boardwalk' ? 'bw_act1' : 'act1');
     this.hud.banner(title, sub, 'gold', 3);
     this.tutorial('move', 'Move with <b>WASD</b>, the <b>arrow keys</b> or the <b>left stick</b>. Your weapons fire on their own.');

@@ -68,7 +68,7 @@ const NIGHT: Record<string, NightTheme> = {
 };
 /** Bradley's song (one file since his 2026-10-30 mix): menus play it from the top, then loop from the groove. */
 const SONG = 'freaky_funky_circus.mp3';
-/** where the song's main groove starts (s): boss fights begin here, and the loop returns here */
+/** where the song's main groove starts (s): the menus' loop returns here */
 const SONG_GROOVE = 11.98;
 /** the new mix is mastered ~2.2 dB louder (-9.7 LUFS) than the old files (-12 LUFS): sit it at their level */
 const SONG_GAIN = 0.78;
@@ -89,6 +89,8 @@ export class AudioEngine {
   private trackSrc: AudioBufferSourceNode | null = null;
   private trackGain: GainNode | null = null;
   private currentTrack = '';
+  /** a boss fight's play-through of Bradley's song is under way: it runs to its end before anything else plays */
+  private bossSong = false;
   private lastPlay = new Map<string, number>();
   private active = new Map<string, number>();
   private scoreTimer = 0;
@@ -248,23 +250,75 @@ export class AudioEngine {
     if (c === this.cue) return;
     this.cue = c;
     if (!this.unlocked) return;
-    const ctx = this.ctx!;
-    const t = ctx.currentTime;
+    this.applyCue(c);
+  }
+
+  /**
+   * Bradley Schwarz's "Freaky Funk Circus" scores the title menus and the boss fights; the night between
+   * bosses gets the quieter waltz, which darkens with each Act; the Midway its own hush.
+   *
+   * A boss fight (D-70) starts the song from the top and lets it play all the way through, even if the boss
+   * falls first: cues that arrive meanwhile (the next Act, a boss warning, dawn, the results) wait for its
+   * end, and only then does their music come in. A fight that outlasts the song hears it again from the top;
+   * a boss that arrives while it is still playing out keeps it going rather than cutting it off.
+   */
+  private applyCue(c: Cue): void {
     const boss = c.startsWith('boss_');
-    // Bradley Schwarz's "Freaky Funk Circus" scores the title menus and the boss fights; the night
-    // between bosses gets the quieter waltz, which darkens with each Act; the Midway its own hush
+    if (this.bossSong && this.trackSrc) {
+      // mid play-through: a boss's phase may quicken it; everything else waits for the song's end
+      if (boss) this.trackSrc.playbackRate.setTargetAtTime(BOSS_RATE[c] ?? 1, this.ctx!.currentTime, 0.5);
+      return;
+    }
     const night = NIGHT[c];
     if (night) this.startScore(night);
     else this.stopScore();
     if (c === 'menu' || c === 'results' || c === 'dawn') this.playTrack('intro', 1, 20000);
-    else if (boss) this.playTrack('loop', BOSS_RATE[c] ?? 1, 20000);
+    else if (boss) this.playBossSong(BOSS_RATE[c] ?? 1);
     else if (night) this.fadeOutTrack(2);
     else if (c === 'silence') this.duckTrack(0);
     // dread drone grows with the Act (doc 02 §9: motifs bent darker as the night deepens)
     const act = c.replace('fh_', '').replace('bw_', '');
     const dread = act === 'act2' ? 0.15 : act === 'act3' ? 0.28 : act === 'act4' ? 0.38 : act === 'endless' ? 0.4 : 0;
     this.setDrone(dread);
-    void t;
+  }
+
+  /** The song from its first note, once through; at its end, whatever the night has moved on to plays. */
+  private playBossSong(rate: number): void {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    this.musicFilter.frequency.setTargetAtTime(20000, t, 0.8);
+    const buf = this.tracks.intro;
+    if (!buf) return;
+    this.fadeOutTrack(0.6);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    g.gain.setTargetAtTime(SONG_GAIN, t, 0.05);
+    src.connect(g).connect(this.music);
+    src.onended = () => {
+      if (this.trackSrc !== src) return;
+      this.trackSrc = null;
+      this.trackGain = null;
+      this.currentTrack = '';
+      this.bossSong = false;
+      // still fighting: from the top again; otherwise the music the night has moved on to
+      this.applyCue(this.cue);
+    };
+    src.start(t, 0);
+    this.trackSrc = src;
+    this.trackGain = g;
+    this.currentTrack = 'boss';
+    this.bossSong = true;
+  }
+
+  /** A new night starts on its own music: cut a boss song still playing out from the last one. */
+  endBossSong(): void {
+    if (!this.bossSong) return;
+    this.fadeOutTrack(1.5);
+    // whatever is cued next is applied fresh, even if it matches the last cue
+    this.cue = 'silence';
   }
 
   private playTrack(which: 'intro' | 'loop', rate: number, cutoff: number): void {
@@ -323,6 +377,7 @@ export class AudioEngine {
     this.trackSrc = null;
     this.trackGain = null;
     this.currentTrack = '';
+    this.bossSong = false;
   }
 
   // ---------------------------------------------------------------- procedural night score

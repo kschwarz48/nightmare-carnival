@@ -765,3 +765,23 @@ and teleports, and the prize wheel dull and see-through.
     33 s to 53 / 44 / 58 s. Across the maps, bosses 3–4 now last 44–74 s with that build, and the
     secret bosses 58–140 s.
   - The early bosses are unchanged.
+
+### D-70 · Bradley's song plays a boss fight through from the top
+- **The ask.** Keep it simple on boss fights: start Bradley's song from the beginning when a fight starts,
+  and let it play all the way through before going back to the other music, even if the boss dies first.
+- **Before** (D-61): a fight joined the song at its groove (11.98 s) and looped it; the boss's fall faded it
+  out within 2 s and the waltz came straight back.
+- **Now** (`AudioEngine.applyCue` / `playBossSong`):
+  - A boss cue starts the song (1:42) from its first note, once through, no loop.
+  - Cues that arrive while it plays wait for its end: the next Act's waltz and drone, a boss warning's
+    hush, dawn, the results, the Midway. When it ends, whatever the night has moved on to plays.
+  - A fight that outlasts the song hears it again from the top.
+  - A boss arriving while the song is still playing out (Summer's End's Commodore rising 4 s after the
+    Leviathan, or a gate that was held) keeps it going rather than cutting it off; a Ringmaster or
+    Calliope phase can still quicken it.
+  - A new run cuts a song left playing out from the last one (`endBossSong`), so a night starts on its own
+    music.
+  - Every screen in a party gets the same cues, so the rule holds for guests too.
+- **Tests:** `tests/audio.test.ts` drives the engine through a stand-in AudioContext. In the browser, the
+  Barker's fight started the song from the top; after his defeat the night's cue waited until the song's
+  end, then the waltz came in.
