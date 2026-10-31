@@ -243,6 +243,25 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### Chat and miniboss health (D-65, PROTO 8)
+
+- **Chat.**
+  - **Keys.** T opens a line in a night, on the Midway or in the lobby. Enter sends it; Esc closes it.
+  - **Relay.** A guest's line goes to the host (`{ t: 'chat', text }`). The host relays it, with the
+    speaker's slot and name, to everyone, the speaker included (`{ t: 'chat', from, name, text }`), so
+    every screen shows the same lines in the same order. The host's own lines take the same path.
+  - **Validation.** Both directions are validated. Control characters are stripped, whitespace is
+    collapsed, lines are capped at 140 characters, and names are cleaned. Lines are drawn as text,
+    never markup.
+  - **Flood guard.** Each guest gets a burst of four lines, refilling one every 0.7 s. Faster lines are
+    dropped, not punished.
+  - **Quest log.** Every whisper and fortune of a hidden quest is written into each player's log
+    locally (quest cues already reach every machine).
+- **Miniboss health.** The Carnival Brute and the Grand Display wear a health bar overhead. Ordinary
+  enemies don't send their health to guests, so minibosses get a few bytes of their own (pool index
+  and 0–255 health).
+- **PROTO 8.** Old builds can't join new lobbies; everyone reloads.
+
 ### Map choice and the Fun House (D-63, PROTO 7)
 
 - **The host chooses.** The night's map is the host's choice. The lobby carries `map`; `setMap` is

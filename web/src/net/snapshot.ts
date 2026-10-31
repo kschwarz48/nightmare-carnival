@@ -89,6 +89,8 @@ export interface Snapshot {
   quest: QuestSnap | null;
   /** other maps' quest chains (D-63): id and their `netState` bytes */
   questExtra: { id: string; v: number[] }[];
+  /** minibosses' health for their overhead bars (D-65): pool index and 0..1 */
+  bars: { idx: number; frac: number }[];
   fx: FxEvent[]; sfx: SfxEvt[];
 }
 
@@ -400,6 +402,13 @@ export class SnapshotEncoder {
       w.u16(d.id(q.id));
       w.u8(v.length);
       for (const x of v) w.u8(Math.max(0, Math.min(255, Math.round(x))));
+    }
+    // minibosses' health: ordinary enemies don't carry theirs, but these wear a bar overhead (D-65)
+    const mb = g.active.filter((e) => e.alive && e.def.id === g.map.miniboss).slice(0, 8);
+    w.u8(mb.length);
+    for (const e of mb) {
+      w.u16(e.idx);
+      w.u8(Math.round(Math.max(0, Math.min(1, e.hp / Math.max(1e-6, e.maxHp))) * 255));
     }
     // cosmetic events near the view (capped; a lost snapshot just loses a few sparks)
     mark = w.o;
@@ -759,6 +768,8 @@ export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
     for (let n = r.u8(); n > 0; n--) e.v.push(r.u8());
     questExtra.push(e);
   }
+  const bars: Snapshot['bars'] = [];
+  for (let k = r.u8(); k > 0; k--) bars.push({ idx: r.u16(), frac: r.u8() / 255 });
   const fx: FxEvent[] = [];
   for (let k = r.u16(); k > 0; k--) {
     const e = { type: '' as FxType, x: 0, y: 0, a: 0, b: 0, c: 0, style: '' } as FxEvent;
@@ -797,6 +808,6 @@ export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
     hazards: pools.hazards as Snapshot['hazards'],
     zones: pools.zones as Snapshot['zones'],
     summons: pools.summons as Snapshot['summons'],
-    bosses, bossDelta, remains, quest, questExtra, fx, sfx,
+    bosses, bossDelta, remains, quest, questExtra, bars, fx, sfx,
   };
 }

@@ -13,11 +13,15 @@ import { randomToken } from './codes';
 import type { NetLink } from './link';
 import {
   BIN_INPUT, BIN_SNAPSHOT, FORWARDED_EVENTS, INPUT_REDUNDANCY, MAX_PLAYERS, PROTO, REJECT_TEXT, RateLimiter, SNAPSHOT_HZ,
-  binType, decodeInputPacket, encodeInputPacket, parseGuestMsg, parseHostMsg,
+  binType, cleanChat, decodeInputPacket, encodeInputPacket, parseGuestMsg, parseHostMsg,
   type GuestMsg, type GuestProfile, type HoldWhy, type HostMsg, type LobbyState, type NetInput, type RejectReason, type StartCfg,
 } from './protocol';
 import { Replica } from './replica';
 import { SnapshotEncoder, decodeSnapshot, type SfxEvt } from './snapshot';
+
+/** Chat flood guard (D-65): a burst of lines, then one per this many ms. */
+const CHAT_BURST = 4;
+const CHAT_REFILL = 700;
 
 export const HELLO_TIMEOUT = 8000;
 export const LINK_TIMEOUT = 10000;
@@ -78,6 +82,9 @@ interface Seat {
   fx: FxEvent[];
   sfx: SfxEvt[];
   stats: { bytes: number; snaps: number; winStart: number; bps: number; rate: number; last: number; skipped: number; starved: number; dropped: number };
+  /** chat flood guard (D-65): a small bucket that refills one line per CHAT_REFILL ms */
+  chatTokens: number;
+  chatAt: number;
 }
 
 export interface NetDiag {
@@ -163,6 +170,8 @@ export class HostSession {
   // UI hooks
   onLobby: (l: LobbyState) => void = () => {};
   onNotice: (text: string, tone?: 'info' | 'warn') => void = () => {};
+  /** a chat line from anyone in the party, the host's own included (D-65) */
+  onChat: (from: number, name: string, text: string) => void = () => {};
   onGuestPause: (paused: boolean, name: string) => void = () => {};
   onClosed: (reason: string) => void = () => {};
 
@@ -353,6 +362,8 @@ export class HostSession {
       limiter: new RateLimiter(40, 80, this.now), binLimiter: new RateLimiter(180, 240, this.now), paused: false, goneAt: 0, deepTicks: 0, lastInputAt: 0, repeats: 0,
       waitUntil: 0, prize: 0, enc: new SnapshotEncoder(), snapSeq: 0, snapAcc: 0, fx: [], sfx: [],
       stats: { bytes: 0, snaps: 0, winStart: this.now, bps: 0, rate: 0, last: 0, skipped: 0, starved: 0, dropped: 0 },
+      chatTokens: CHAT_BURST,
+      chatAt: this.now,
     };
     this.seats[index] = seat;
     this.bind(seat, link);
@@ -524,9 +535,32 @@ export class HostSession {
         if (rtt >= 0 && rtt < 30000) s.rtt = s.rtt ? s.rtt + (rtt - s.rtt) * 0.3 : rtt;
         return;
       }
+      case 'chat':
+        return this.guestChat(s, m.text);
       case 'leave':
         return this.lost(s, 'left');
     }
+  }
+
+  // ------------------------------------------------------------------ chat (D-65)
+  /** A guest's line: a few in a burst, then about one every CHAT_REFILL ms; anything faster is dropped. */
+  private guestChat(s: Seat, text: string): void {
+    s.chatTokens = Math.min(CHAT_BURST, s.chatTokens + (this.now - s.chatAt) / CHAT_REFILL);
+    s.chatAt = this.now;
+    if (s.chatTokens < 1) return;
+    s.chatTokens -= 1;
+    this.relayChat(s.index, s.profile.name, text);
+  }
+
+  /** The host says something to the whole party. */
+  say(text: string): void {
+    const t = cleanChat(text);
+    if (t) this.relayChat(0, this.self.name, t);
+  }
+
+  private relayChat(from: number, name: string, text: string): void {
+    this.broadcast({ t: 'chat', from, name, text });
+    this.onChat(from, name, text);
   }
 
   /** Malformed or flooding traffic: tolerated a little (bugs happen), then the guest is dropped. */
@@ -885,6 +919,8 @@ export class GuestSession {
   onPause: (by: string | null) => void = () => {};
   onToLobby: () => void = () => {};
   onClosed: (reason: string) => void = () => {};
+  /** a chat line from anyone in the party, this guest's own included once the host relays it (D-65) */
+  onChat: (from: number, name: string, text: string) => void = () => {};
 
   constructor(readonly link: NetLink, readonly profile: GuestProfile, token?: string | null, now = 0) {
     this.token = token ?? null;
@@ -918,6 +954,11 @@ export class GuestSession {
   }
   pause(on: boolean): void {
     this.send({ t: 'pause', on });
+  }
+  /** Say something to the party (the host relays it to everyone, this guest included). */
+  say(text: string): void {
+    const t = cleanChat(text);
+    if (t) this.send({ t: 'chat', text: t });
   }
   leave(): void {
     if (this.state === 'closed') return;
@@ -1004,6 +1045,9 @@ export class GuestSession {
         this.game = null;
         this.replica = null;
         this.onToLobby();
+        return;
+      case 'chat':
+        this.onChat(m.from, m.name, m.text);
         return;
       case 'ping':
         this.link.sendMsg({ t: 'pong', at: m.at } satisfies GuestMsg);

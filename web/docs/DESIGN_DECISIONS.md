@@ -512,3 +512,38 @@ and teleports, and the prize wheel dull and see-through.
   - The Proprietor's cabinet brings one thief.
 - **Not tuned to bots.** The mortal bots die sooner in a house of walls than on open ground. Kevin
   judged that natural, so his playtests decide the next step.
+
+### D-65 · A chat box that keeps the quest's words, health bars overhead, hit numbers, chest arrows
+- **One box for talk and clues.**
+  - **Where.** Bottom-left, above the health bar and the party cards (it moves up as cards appear).
+    It shows in a night, on the Midway and in a co-op lobby.
+  - **What it holds.** Co-op players talk in it: T opens a line, Enter sends, Esc closes. Every
+    whisper and fortune of a hidden quest is written into it as well, the Last Song's and the
+    Unreflected's both. A clue that faded off the screen can be read back.
+  - **Solo.** A solo night shows the box only once a quest has written in it.
+  - **Fading.** New lines linger for 14 s, then fade; the last seven stay readable. Opening the line
+    shows the scrollback (80 lines).
+  - **Look.** Velvet-and-gold, in the HUD's fonts, with player names in their colours, quest whispers
+    in the whispers' ghost green and Zoltana in gold.
+- **Typing never plays the game.** The chat key is a rebindable action (default T). It is never typed
+  into the line, and it never sticks. The line swallows every key until closed, and opening it drops
+  held keys so nobody keeps walking. In co-op the night keeps going while you type.
+- **Chat over the wire (PROTO 8).**
+  - **Path.** Guest lines go through the host, which relays them to everyone, the speaker included,
+    so every screen agrees on the order.
+  - **Validation.** Every line is cleaned and capped at 140 characters on both ends, and drawn as
+    text, never markup.
+  - **Flood guard.** A per-guest bucket (4 lines, then one per 0.7 s) drops floods quietly rather
+    than kicking anyone.
+- **Health bars over bosses and minibosses.**
+  - **Bosses.** Every awake boss gets a bar over its head, coloured like its boss bar and marked at
+    its phase thresholds. Each floats at a per-boss height (the Ringmaster's rises with the demon).
+  - **Minibosses.** The Carnival Brute and the Grand Display get a smaller bar with their name.
+  - **Guests.** Guests didn't receive enemy health, so minibosses now send theirs in a few bytes
+    (pool index, 0–255).
+- **Hit numbers.** The damage you take pops off your character in red. Hits within 0.16 s add up into
+  one number, and a hit of 15% of your health or more pops bigger. They follow the damage-numbers
+  setting.
+- **Chest arrows.** Up to three small gold arrows circle your character, pointing at the nearest
+  chests, and disappear once you're nearly on top of one. The screen-edge markers for off-screen
+  chests stay.

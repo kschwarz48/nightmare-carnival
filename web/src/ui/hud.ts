@@ -15,6 +15,21 @@ import { FocusNav, fmtTime, h } from './dom';
 /** Player colours for UI (Player 1 lamp-gold, 2 ghost-teal, 3 rose, 4 lime, 5 violet, 6 tangerine); match PLAYER_COLS and `.p1`…`.p6` in style.css. */
 export const PLAYER_CSS = ['#ffd27a', '#8af4ff', '#ff8fb0', '#a8ff7a', '#c7a2ff', '#ffb066'];
 
+/** The screen the HUD draws over: its size and a world → screen projection (`h`: height above the floor). */
+export interface HudScreen {
+  w: number;
+  h: number;
+  toScreen: (x: number, y: number, h?: number) => { x: number; y: number };
+}
+
+/** How high each boss's overhead bar floats (world units above its feet; D-65). */
+const BAR_H: Record<string, number> = {
+  carnival_tent: 330, ferris_wheel: 300, puppet_king: 320, ringmaster: 250, calliope: 330,
+  crooked_twins: 360, looking_glass: 330, stringmistress: 300, proprietor: 300, unreflected: 330,
+};
+/** A chest arrow (points along +x; rotated toward its chest). */
+const ARROW_SVG = '<svg viewBox="0 0 24 24"><path d="M3 4 L21 12 L3 20 L8 12 Z" fill="#f2c14e" stroke="#17110e" stroke-width="2.4" stroke-linejoin="round"/></svg>';
+
 /** What the co-op layer of the HUD shows (set by the app every frame during an online run). */
 export interface CoopHud {
   /** this machine's player slot */
@@ -66,6 +81,18 @@ export class Hud {
   private partnerKey = '';
   coopInfo: CoopHud | null = null;
   showFps = false;
+  /** numbers for the damage you take (follows the damage-numbers setting; D-65) */
+  showHurt = true;
+  /** every whisper is also written into the chat log (D-65) */
+  onWhisper: ((text: string, sub?: string) => void) | null = null;
+  private splats: HTMLDivElement;
+  private hurtAcc = 0;
+  private hurtT = 0;
+  private barLayer: HTMLDivElement;
+  private bars = new Map<number, { el: HTMLDivElement; fill: HTMLElement; key: string }>();
+  private arrowLayer: HTMLDivElement;
+  private arrows: HTMLDivElement[] = [];
+  private partyH = 0;
 
   constructor(private assets: Assets) {
     this.root = h('div', { class: 'hud' });
@@ -93,6 +120,10 @@ export class Hud {
     this.statusEl = h('div', { class: 'coop-status hidden' });
     this.pingEl = h('div', { class: 'net-ping hidden' });
     this.diagEl = h('div', { class: 'net-diag hidden' });
+    this.splats = h('div', { class: 'passthrough' });
+    this.barLayer = h('div', { class: 'passthrough' });
+    this.arrowLayer = h('div', { class: 'passthrough' });
+    this.root.append(this.barLayer, this.arrowLayer, this.splats);
     this.root.append(xp, this.lvl, this.preview, clock, this.act, this.hpWrap, this.tray, this.statsR, this.boss, this.toast, this.fpsEl, this.indicators, this.partner, this.tags, this.statusEl, this.pingEl, this.diagEl);
   }
 
@@ -102,7 +133,7 @@ export class Hud {
     this.bossKey = '';
   }
 
-  update(g: Game, fps: number, dt: number, screen: { w: number; h: number; toScreen: (x: number, y: number) => { x: number; y: number } }): void {
+  update(g: Game, fps: number, dt: number, screen: HudScreen): void {
     const p = g.player;
     this.xpFill.style.width = `${Math.min(100, (g.xp / g.xpToNext) * 100)}%`;
     this.lvl.textContent = String(g.level);
@@ -121,8 +152,16 @@ export class Hud {
       this.hpWrap.classList.remove('flash');
       void this.hpWrap.offsetWidth;
       this.hpWrap.classList.add('flash');
+      this.hurtAcc += this.lastHp - p.hp;
     }
     this.lastHp = p.hp;
+    // the damage you take pops off your character as a number; hits within a moment add up (D-65)
+    this.hurtT -= dt;
+    if (this.hurtAcc >= 0.5 && this.hurtT <= 0) {
+      if (this.showHurt) this.popHurt(screen, p.x, p.y, this.hurtAcc, this.hurtAcc >= maxHp * 0.15);
+      this.hurtAcc = 0;
+      this.hurtT = 0.16;
+    }
     const ex: string[] = [];
     if (p.stats.revives > 0) ex.push(`🎈×${p.stats.revives}`);
     if (p.char.quirk === 'balloon_shield') ex.push(p.shieldReady ? 'Shield ✦' : `Shield ${Math.ceil(p.shieldT)}s`);
@@ -207,10 +246,94 @@ export class Hud {
     if (this.showFps) this.fpsEl.textContent = `${fps.toFixed(0)} fps · ${g.active.length} enemies · ${g.projs.reduce((n, q) => n + (q.alive ? 1 : 0), 0)} proj`;
     this.updateIndicators(g, screen);
     this.updateCoop(g, screen);
+    this.updateBars(g, screen);
+    this.updateChestArrows(g, screen);
+  }
+
+  /** How far up from the bottom the chat box sits: above the health bar, its portrait and any party cards. */
+  chatBottom(): number {
+    return 118 + (this.partner.classList.contains('hidden') ? 0 : this.partyH + 8);
+  }
+
+  private popHurt(screen: HudScreen, x: number, y: number, amount: number, big: boolean): void {
+    const s = screen.toScreen(x, y, 95);
+    const el = h('div', { class: `hurt-num${big ? ' big' : ''}`, style: { left: `${s.x + (Math.random() - 0.5) * 28}px`, top: `${s.y}px` } }, `-${Math.max(1, Math.round(amount))}`);
+    this.splats.append(el);
+    while (this.splats.childElementCount > 10) this.splats.firstElementChild!.remove();
+    setTimeout(() => el.remove(), 1000);
+  }
+
+  /** Health bars floating over the awake bosses and the minibosses (D-65). */
+  private updateBars(g: Game, screen: HudScreen): void {
+    const seen = new Set<number>();
+    const put = (uid: number, x: number, y: number, height: number, frac: number, color: string, name: string | null, segs: number[]) => {
+      const s = screen.toScreen(x, y, height);
+      seen.add(uid);
+      const key = `${name ?? ''}|${color}|${segs.join(',')}`;
+      let b = this.bars.get(uid);
+      if (!b || b.key !== key) {
+        b?.el.remove();
+        const fill = h('i', { style: { background: `linear-gradient(180deg, ${color}, #7a0a14)` } });
+        const bar = h('div', { class: 'b' }, fill, ...segs.map((at) => h('span', { class: 'seg', style: { left: `${at * 100}%` } })));
+        const el = h('div', { class: `ohbar ${name ? 'mini' : 'boss'}` }, name ? h('span', { class: 'nm' }, name) : null, bar);
+        this.barLayer.append(el);
+        b = { el, fill, key };
+        this.bars.set(uid, b);
+      }
+      const on = s.x > -100 && s.x < screen.w + 100 && s.y > 20 && s.y < screen.h + 60;
+      b.el.style.display = on ? '' : 'none';
+      if (!on) return;
+      b.el.style.left = `${s.x}px`;
+      b.el.style.top = `${s.y}px`;
+      b.fill.style.width = `${Math.max(0, Math.min(1, frac)) * 100}%`;
+    };
+    for (const b of g.bosses) {
+      if (!b.awake || !b.introDone || b.dead || b.removed) continue;
+      const tall = b.def.id === 'ringmaster' && (b as unknown as { demon: number }).demon > 0.5 ? 340 : BAR_H[b.def.id] ?? 280;
+      put(b.uid, b.x, b.y, tall, b.hp / Math.max(1e-6, b.maxHp), b.def.barColor, null, b.def.phases.slice(1).map((ph) => ph.at));
+    }
+    for (const e of g.active) {
+      if (!e.alive || e.def.id !== g.map.miniboss) continue;
+      put(e.uid, e.x, e.y, 200 * e.scale, e.hp / Math.max(1e-6, e.maxHp), '#ff5a3a', e.def.name, []);
+    }
+    for (const [uid, b] of this.bars) {
+      if (seen.has(uid)) continue;
+      b.el.remove();
+      this.bars.delete(uid);
+    }
+  }
+
+  /** Small arrows circling your character toward the nearest chests (D-65); gone once you're on top of one. */
+  private updateChestArrows(g: Game, screen: HudScreen): void {
+    const p = g.player;
+    const list = g.pickups
+      .filter((pk) => pk.alive && pk.kind === 'chest')
+      .map((pk) => ({ pk, d: Math.hypot(pk.x - p.x, pk.y - p.y) }))
+      .filter((c) => c.d > 170)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 3);
+    while (this.arrows.length < list.length) {
+      const el = h('div', { class: 'chest-arrow', html: ARROW_SVG });
+      this.arrowLayer.append(el);
+      this.arrows.push(el);
+    }
+    const ps = screen.toScreen(p.x, p.y, 40);
+    this.arrows.forEach((el, i) => {
+      const c = list[i];
+      el.style.display = c ? '' : 'none';
+      if (!c) return;
+      const s = screen.toScreen(c.pk.x, c.pk.y, 20);
+      const a = Math.atan2(s.y - ps.y, s.x - ps.x);
+      const R = 78 + i * 10;
+      el.style.left = `${ps.x + Math.cos(a) * R}px`;
+      el.style.top = `${ps.y + Math.sin(a) * R}px`;
+      el.style.transform = `translate(-50%, -50%) rotate(${a}rad)`;
+      el.style.opacity = String(i === 0 ? 1 : 0.7);
+    });
   }
 
   /** Online co-op: the partner's card, name tags (or edge arrows), waiting notes, latency. */
-  private updateCoop(g: Game, screen: { w: number; h: number; toScreen: (x: number, y: number) => { x: number; y: number } }): void {
+  private updateCoop(g: Game, screen: HudScreen): void {
     const info = this.coopInfo;
     const on = !!info && g.players.length > 1;
     this.partner.classList.toggle('hidden', !on);
@@ -239,6 +362,7 @@ export class Hud {
           h('img', { src: this.assets.portrait(q.char.id), alt: '' }),
           h('div', {}, h('div', {}, q.name), h('div', { class: 'bar' }, h('i', { style: { width: `${pct}%` } })), st ? h('div', { class: 'st' }, st) : null),
         )));
+      this.partyH = this.partner.offsetHeight;
     }
     // name tags over the other players, or an arrow at the screen edge when they are off-screen
     const kids: HTMLElement[] = [];
@@ -271,7 +395,7 @@ export class Hud {
   }
 
   /** Edge arrows pointing at off-screen chests, food and bosses. */
-  private updateIndicators(g: Game, screen: { w: number; h: number; toScreen: (x: number, y: number) => { x: number; y: number } }): void {
+  private updateIndicators(g: Game, screen: HudScreen): void {
     const marks: { x: number; y: number; col: string; txt: string }[] = [];
     for (const pk of g.pickups) {
       if (!pk.alive) continue;
@@ -308,6 +432,7 @@ export class Hud {
     if (!this.whispers.isConnected) this.root.append(this.whispers);
     const key = `${text}|${sub ?? ''}`;
     if ([...this.whispers.children].some((c) => (c as HTMLElement).dataset.key === key)) return;
+    this.onWhisper?.(text, sub);
     while (this.whispers.childElementCount >= 3) this.whispers.firstElementChild!.remove();
     const el = h('div', { class: 'whisper', 'data-key': key }, h('div', { class: 't' }, text), sub ? h('div', { class: 's' }, sub) : null);
     el.style.animationDuration = `${dur}s`;

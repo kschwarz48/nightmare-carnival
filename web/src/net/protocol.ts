@@ -11,7 +11,7 @@ import { Reader, Writer } from './codec';
 import { isMapId, type MapId } from '../data/maps';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 7;
+export const PROTO = 8;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
@@ -82,6 +82,7 @@ export type GuestMsg =
   | { t: 'pause'; on: boolean }
   | { t: 'ping'; at: number }
   | { t: 'pong'; at: number }
+  | { t: 'chat'; text: string }
   | { t: 'leave' };
 
 export type HostMsg =
@@ -97,6 +98,7 @@ export type HostMsg =
   | { t: 'to_lobby' }
   | { t: 'ping'; at: number }
   | { t: 'pong'; at: number }
+  | { t: 'chat'; from: number; name: string; text: string }
   | { t: 'bye'; reason: string };
 
 export type RejectReason = 'full' | 'version' | 'in_run' | 'bad_hello' | 'kicked' | 'closed';
@@ -126,6 +128,16 @@ export function cleanName(v: unknown, fallback: string): string {
   // strip control characters and markup-ish brackets; collapse whitespace
   const s = v.replace(/[\u0000-\u001f\u007f<>&"'`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
   return s || fallback;
+}
+
+/** The longest chat line (D-65). */
+export const CHAT_MAX = 140;
+
+/** A chat line as it may travel: control characters stripped, whitespace collapsed, capped; null if empty. */
+export function cleanChat(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const s = v.replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX);
+  return s || null;
 }
 
 /** The largest value each meta axis can legitimately reach (every perk bought to its cap). */
@@ -191,6 +203,10 @@ export function parseGuestMsg(raw: unknown): GuestMsg | null {
     case 'ping':
     case 'pong':
       return isNum(m.at) ? { t: m.t, at: m.at } : null;
+    case 'chat': {
+      const text = cleanChat(m.text);
+      return text ? { t: 'chat', text } : null;
+    }
     case 'leave':
       return { t: 'leave' };
   }
@@ -245,6 +261,10 @@ export function parseHostMsg(raw: unknown): HostMsg | null {
     case 'ping':
     case 'pong':
       return isNum(m.at) ? { t: m.t, at: m.at } : null;
+    case 'chat': {
+      const text = cleanChat(m.text);
+      return text && isInt(m.from, 0, MAX_PLAYERS - 1) ? { t: 'chat', from: m.from, name: cleanName(m.name, 'Player'), text } : null;
+    }
     case 'bye':
       return { t: 'bye', reason: isStr(m.reason, 200) ? m.reason : '' };
   }

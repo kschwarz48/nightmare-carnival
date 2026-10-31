@@ -12,7 +12,7 @@ import { Replica } from '../src/net/replica';
 import { LoopbackNet, type LoopbackLink } from '../src/net/link';
 import { generateCode, isValidCode, normalizeCode, CODE_ALPHABET } from '../src/net/codes';
 import {
-  PROTO, cleanProfile, decodeInputPacket, encodeInputPacket, parseGuestMsg, parseHostMsg,
+  CHAT_MAX, PROTO, cleanChat, cleanProfile, decodeInputPacket, encodeInputPacket, parseGuestMsg, parseHostMsg,
   type GuestProfile,
 } from '../src/net/protocol';
 import { GuestSession, HostSession, LINK_TIMEOUT, RECONNECT_WAIT, runConfigFromStart, type HostProfile } from '../src/net/session';
@@ -501,6 +501,54 @@ class Harness {
 }
 
 describe('lobby and session flow', () => {
+  it('chat (D-65): lines are cleaned, validated, relayed to the whole party in order, and floods are dropped', () => {
+    expect(cleanChat('  hello\u0000   there\n')).toBe('hello there');
+    expect(cleanChat('x'.repeat(500))!.length).toBe(CHAT_MAX);
+    expect(cleanChat('   ')).toBeNull();
+    expect(cleanChat(42)).toBeNull();
+    expect(parseGuestMsg(JSON.stringify({ t: 'chat', text: '<b>hi</b>' }))).toEqual({ t: 'chat', text: '<b>hi</b>' });
+    expect(parseGuestMsg(JSON.stringify({ t: 'chat', text: '' }))).toBeNull();
+    expect(parseHostMsg(JSON.stringify({ t: 'chat', from: 9, name: 'A', text: 'hi' }))).toBeNull();
+    expect(parseHostMsg(JSON.stringify({ t: 'chat', from: 1, name: '<x>Bo', text: 'hi' }))).toEqual({ t: 'chat', from: 1, name: 'xBo', text: 'hi' });
+    const h = new Harness({ latency: 30 });
+    h.run(300);
+    const atHost: string[] = [], atGuest: string[] = [];
+    h.host.onChat = (from, name, text) => atHost.push(`${from}:${name}:${text}`);
+    h.guest.onChat = (from, name, text) => atGuest.push(`${from}:${name}:${text}`);
+    h.guest.say('hello from the guest');
+    h.run(200);
+    h.host.say('and from the host');
+    h.run(200);
+    expect(atHost).toEqual(['1:Brother:hello from the guest', '0:Kevin:and from the host']);
+    expect(atGuest).toEqual(atHost);
+    // a burst of ten lines once the bucket is full: the first four go through, the flood is dropped (no disconnect)
+    h.run(3000);
+    for (let i = 0; i < 10; i++) h.guest.say(`spam ${i}`);
+    h.run(300);
+    expect(atHost.filter((l) => l.includes('spam')).length).toBe(4);
+    expect(h.guest.state).not.toBe('closed');
+    // the bucket refills: a line a little later goes through again
+    h.run(1500);
+    h.guest.say('later');
+    h.run(200);
+    expect(atGuest.at(-1)).toBe('1:Brother:later');
+  });
+
+  it('a miniboss carries its health to guests for its overhead bar (D-65)', () => {
+    const host = duo(31, { godMode: true });
+    const mirror = mirrorOf(host);
+    const rep = new Replica(mirror, 1);
+    const e = host.spawnEnemy(host.map.miniboss, host.players[1].x + 200, host.players[1].y)!;
+    e.hp = e.maxHp * 0.4;
+    const enc = new SnapshotEncoder();
+    const buf = enc.encode(host, { seq: 1, ackInput: 0, ackSnap: 0, dict: new StringDict(), dictFrom: 0, view: wide(host), fx: [], sfx: [] });
+    rep.apply(decodeSnapshot(buf, rep.dict), 0);
+    const m = mirror.enemies[e.idx];
+    expect(m.alive).toBe(true);
+    expect(m.def.id).toBe(host.map.miniboss);
+    expect(m.hp / m.maxHp).toBeCloseTo(0.4, 2);
+  });
+
   it('the host picks the night\'s map (D-63): every guest sees it in the lobby and builds the same house', () => {
     const h = new Harness({ latency: 30 });
     h.run(300);

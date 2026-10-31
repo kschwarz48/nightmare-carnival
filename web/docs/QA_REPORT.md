@@ -115,6 +115,38 @@ understate that character.
 
 ---
 
+## Chat box, overhead health bars, hit numbers, chest arrows — 2026-10-30 (D-65)
+
+**Automated:** 236 tests pass. Two are new in `tests/net.test.ts`.
+- **Chat.** Lines are cleaned and capped. Malformed or out-of-range messages are refused both ways. A
+  guest's line and the host's line reach both sides in the same order. A burst of ten lines is cut to
+  four without a disconnect, and the bucket refills.
+- **Minibosses.** A miniboss's health reaches a guest's mirror through a real snapshot.
+
+**Live (dev server, one machine; two tabs over real PeerJS for chat):**
+- **Chat.** The guest pressed T and typed a line. The open field rendered bottom-left, and the T
+  wasn't typed into it. Enter sent the line, and it showed on both tabs. The host replied by keyboard
+  and both tabs logged both lines, in player colours.
+- **Open panel.** It showed the scrollback with a quest whisper (green ❖ line with its subtitle) and a
+  Zoltana fortune (gold).
+- **Esc.** It closed the line without opening the pause menu.
+- **Solo night.**
+  - A whisper wrote itself into the log above the health bar and portrait.
+  - The Crooked Twins and the Proprietor showed segmented bars overhead.
+  - The Grand Display showed a labelled bar.
+  - Two hits popped "-9" and "-26" (the bigger one in the large style).
+  - Gold arrows circled the player toward the chests.
+
+**Found and fixed while checking:** Zoltana's chat line picked up the fortune card's panel styling (a
+class-name clash). Chat line classes are prefixed now.
+
+**Not verified:**
+- Chat across two machines on different networks.
+- How the bars sit over every boss rig (checked over the Twins, the Proprietor and the Grand Display).
+- A real night by a person.
+
+---
+
 ## Fun House crowd health, from Kevin's playtest — 2026-10-30 (D-64)
 
 **Report.** A fresh level-1 character found the house's opening mobs took far too many hits. The ask

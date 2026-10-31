@@ -232,6 +232,13 @@ export class Replica {
       }
     }
     for (const e of s.questExtra) g.quests.chains.find((q) => q.id === e.id)?.applyNet?.(e.v);
+    for (const b of s.bars) {
+      const e = g.enemies[b.idx];
+      if (e?.alive) {
+        e.maxHp = 1;
+        e.hp = b.frac;
+      }
+    }
     for (const e of s.fx) g.fx.push(e.type, e.x, e.y, e.a, e.b, e.c, e.style, e.text);
     for (const e of s.sfx) g.bus.emit('sfx', { id: e.id, x: e.x, y: e.y, vol: e.vol, pitch: e.pitch });
     // only a fully applied snapshot counts (it is what the guest acknowledges as its baseline)

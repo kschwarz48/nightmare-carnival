@@ -126,7 +126,7 @@ export function installDevTools(app: App): void {
         }
         for (let k = 0; k < 3; k++) app.renderer.render(g, 1, 1 / 60);
         const cssW = window.innerWidth, cssH = window.innerHeight;
-        app.hud.update(g, app.fps, sec, { w: cssW, h: cssH, toScreen: (x, y) => app.renderer.worldToScreen(x, y, cssW, cssH) });
+        app.hud.update(g, app.fps, sec, { w: cssW, h: cssH, toScreen: (x, y, hh) => app.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
         return { t: g.time, lvl: g.level, kills: g.kills, alive: g.active.length, hp: Math.round(g.player.hp), phase: g.phase };
       },
       /** Render `frames` frames synchronously (sim ticking) and report average ms per frame. */

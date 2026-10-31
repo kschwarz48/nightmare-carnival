@@ -3,7 +3,7 @@
 
 import { DEFAULT_BINDINGS } from '../meta/save';
 
-export type NavEvent = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'reroll' | 'banish' | 'skip' | 'interact';
+export type NavEvent = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'reroll' | 'banish' | 'skip' | 'interact' | 'chat';
 
 export class Input {
   private keys = new Set<string>();
@@ -64,6 +64,13 @@ export class Input {
     }
     const tag = (e.target as HTMLElement)?.tagName;
     if (tag === 'INPUT' || tag === 'SELECT') return;
+    // the chat key opens the chat line (D-65): never typed into it, and never left held (its key-up lands in
+    // the line, which keeps it from the game)
+    if (down && (this.bindings.chat ?? []).includes(e.code)) {
+      e.preventDefault();
+      this.emit('chat');
+      return;
+    }
     if (down) {
       if (!this.keys.has(e.code)) {
         for (const [action, codes] of Object.entries(this.bindings)) {
@@ -85,6 +92,12 @@ export class Input {
       this.usingGamepad = false;
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
     } else this.keys.delete(e.code);
+  }
+
+  /** Forget every held key (the chat line took the keyboard: nobody keeps walking while typing). */
+  releaseAll(): void {
+    this.keys.clear();
+    this.moveX = this.moveY = 0;
   }
 
   private held(action: string): boolean {

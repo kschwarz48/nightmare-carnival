@@ -78,6 +78,8 @@ export const DEFAULT_BINDINGS: Record<string, string[]> = {
   reroll: ['KeyR'],
   banish: ['KeyB'],
   skip: ['KeyX'],
+  /** open the co-op chat line (D-65) */
+  chat: ['KeyT'],
 };
 
 export function defaultSettings(): Settings {

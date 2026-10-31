@@ -17,7 +17,8 @@ import { PERKS } from './data/meta';
 import { WEAPONS, PASSIVES } from './data/weapons';
 import { ENEMIES } from './data/enemies';
 import { DIFFICULTIES } from './data/difficulty';
-import { DraftView, Hud } from './ui/hud';
+import { DraftView, Hud, PLAYER_CSS } from './ui/hud';
+import { ChatBox } from './ui/chat';
 import { FortuneCard, PrizeOverlay } from './ui/prize';
 import { PrizeWheel } from './render3d/prizeWheel';
 import { LAST_SONG } from './data/quests';
@@ -101,6 +102,8 @@ export class App {
   prize!: PrizeWheel;
   prizeUi!: PrizeOverlay;
   fortune = new FortuneCard();
+  /** the chat box (D-65): co-op talk, plus every quest whisper and fortune, bottom-left */
+  chat = new ChatBox();
   state: State = 'loading';
   game: Game | null = null;
   demo: Game | null = null;
@@ -192,6 +195,16 @@ export class App {
     if (import.meta.env.DEV) console.info(`[boot] assets ${(t1 - t0).toFixed(0)} ms, renderer ${(t2 - t1).toFixed(0)} ms`);
     this.input.aimScaleY = this.renderer.aimScaleY;
     this.hud = new Hud(this.assets);
+    // the chat box (D-65): above the HUD, under the menus; whispers of the hidden quests are written in it
+    this.ui.append(this.chat.root);
+    this.hud.onWhisper = (text, sub) => this.chat.add({ kind: 'quest', text, sub });
+    this.chat.onSend = (text) => {
+      if (this.net?.role === 'host') this.net.host.say(text);
+      else if (this.net?.role === 'guest') this.net.guest.say(text);
+    };
+    this.chat.onOpenChange = (open) => {
+      if (open) this.input.releaseAll();
+    };
     this.hubHud = new HubHud((code) => void navigator.clipboard?.writeText(code));
     // alpha testing aid: ?unlock=funhouse opens the Fun House on this save (D-63)
     if (new URLSearchParams(location.search).get('unlock') === 'funhouse') {
@@ -245,7 +258,10 @@ export class App {
       this.renderer.settings = { highContrast: s.highContrast, reducedFlash: s.reducedFlash, shake: s.shake, damageNumbers: s.damageNumbers, quality: s.quality, abilityOpacity: s.abilityOpacity };
       this.resize();
     }
-    if (this.hud) this.hud.showFps = s.showFps;
+    if (this.hud) {
+      this.hud.showFps = s.showFps;
+      this.hud.showHurt = s.damageNumbers;
+    }
   }
 
   // =================================================================== screens
@@ -624,6 +640,7 @@ export class App {
     if (duck) a.duckMusic(duck);
     if (q.text) {
       this.fortune.show(q.text, q.event === 'idle' ? 6 : 10);
+      this.chat.add({ kind: 'fortune', who: 'Zoltana', text: q.text });
       a.play('fortune', { vol: 0.6 });
     }
     switch (q.event) {
@@ -980,7 +997,33 @@ export class App {
   }
 
   // =================================================================== input
+  /** A chat line from the party, in its speaker's colour (D-65). */
+  private chatLine(from: number, name: string, text: string): void {
+    this.chat.add({ kind: 'player', who: name, color: PLAYER_CSS[from % PLAYER_CSS.length], text });
+    if (!this.chat.isOpen) this.audio.play('ui_hover', { vol: 0.5, pitch: 1.4 });
+  }
+
+  /**
+   * The chat box (D-65): in a night, on the Midway and in a co-op lobby (a solo night shows it once a quest
+   * has written in it). It sits above whatever the bottom-left corner holds.
+   */
+  private updateChat(dt: number): void {
+    const c = this.chat;
+    c.canSend = !!this.net;
+    const g = this.game;
+    const run = this.state === 'playing' && !this.screenEl && !!g && !g.hub;
+    const hub = this.state === 'hub' && !this.screenEl;
+    const lobby = this.state === 'lobby' && !!this.net;
+    const show = (run && (c.canSend || c.lineCount > 0)) || ((hub || lobby) && c.canSend);
+    c.place(show, run ? this.hud.chatBottom() : 18);
+    c.update(dt);
+  }
+
   private onNav(e: NavEvent): void {
+    if (e === 'chat') {
+      this.chat.open();
+      return;
+    }
     if (this.state === 'press') {
       this.pressed();
       return;
@@ -1059,6 +1102,7 @@ export class App {
     const net = this.net;
     if (net?.role === 'host') net.host.update(t, dt * 1000);
     else if (net?.role === 'guest') net.guest.update(t);
+    this.updateChat(dt);
     const playing = this.state === 'playing' && g;
     // player screen position for mouse aim
     const cssW = window.innerWidth, cssH = window.innerHeight;
@@ -1116,7 +1160,7 @@ export class App {
       this.renderer.render(g!, alpha, dt);
       this.stageTug(g!);
       this.updateCoopHud();
-      this.hud.update(g!, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y) => this.renderer.worldToScreen(x, y, cssW, cssH) });
+      this.hud.update(g!, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
     } else if (this.state === 'paused' || this.state === 'results') {
       if (g) {
         hs?.captureFx(g.fx.events);
@@ -1456,6 +1500,7 @@ export class App {
       this.localIndex = 0;
       session.onLobby = () => this.refreshLobby();
       session.onNotice = (t, tone) => this.netToast(t, tone);
+      session.onChat = (from, name, text) => this.chatLine(from, name, text);
       const s = this.save;
       session.setCharacter(s.characterAvailable(s.data.last.character) ? s.data.last.character : 'carny');
       session.setDifficulty(s.difficultyAvailable(s.data.last.difficulty) ? s.data.last.difficulty : 'midway', false);
@@ -1512,6 +1557,7 @@ export class App {
         if (!lobby.inRun) this.go('lobby');
       };
       gs.onLobby = () => this.refreshLobby();
+      gs.onChat = (from, name, text) => this.chatLine(from, name, text);
       gs.onStart = (c, resume) => this.startGuestRun(c, resume);
       gs.onEvent = (type, e) => this.guestEvent(type, e);
       gs.onToLobby = () => this.guestToLobby();
@@ -1683,7 +1729,7 @@ export class App {
     this.stageTug(g);
     if (this.state === 'playing') {
       this.updateCoopHud();
-      this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y) => this.renderer.worldToScreen(x, y, cssW, cssH) });
+      this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
     } else if (g.hub) this.updateHubHud(cssW, cssH);
   }
 

@@ -80,6 +80,7 @@ runs the night. Same-machine testing is done, on the dev server and on the deplo
 | Confirm / pick a card | Enter / Space / click, or 1–4 | A |
 | Back | Backspace | B |
 | Reroll / Banish / Skip (when owned) | R / B / X | X / Y / LB |
+| Chat (online co-op) | T, then Enter to send / Esc to close | — |
 
 All keyboard actions are rebindable in **Settings → Controls**. Every menu is navigable with the
 D-pad / arrow keys.
