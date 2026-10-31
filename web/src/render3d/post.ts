@@ -140,6 +140,17 @@ export class Post3D {
     if (this.overlay) this.overlay.enabled = on;
   }
 
+  /** Every material the post chain draws with, and whether it draws to the screen (boot shader warm-up). */
+  materials(): { m: THREE.Material; screen: boolean }[] {
+    const out: { m: THREE.Material; screen: boolean }[] = [];
+    for (const pass of [this.bloom, this.output, this.grade] as unknown as Record<string, unknown>[]) {
+      for (const v of Object.values(pass)) {
+        for (const m of Array.isArray(v) ? v : [v]) if (m && (m as THREE.Material).isMaterial) out.push({ m: m as THREE.Material, screen: pass === (this.grade as unknown) });
+      }
+    }
+    return out;
+  }
+
   setQuality(q: 'low' | 'medium' | 'high'): void {
     this.quality = q;
     this.bloom.enabled = q !== 'low';

@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { buildInfo } from './build-info';
 
 /**
  * Dev-server-only visual QA endpoint: the in-page dev tools POST a PNG data URL here and it is saved
@@ -42,8 +43,10 @@ function visualCaptures(): Plugin {
 
 export default defineConfig({
   base: './',
-  plugins: [visualCaptures()],
+  plugins: [visualCaptures(), buildInfo(__dirname)],
   server: { port: 5173, host: '127.0.0.1' },
+  // the sculpt workers (src/render3d/models/sculptWorker.ts) are ES-module workers
+  worker: { format: 'es' },
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1500,

@@ -407,4 +407,13 @@ export function characterModel(id: string): SculptModel {
 
 export const CHARACTER_IDS = Object.keys(BUILDERS);
 
+/** A character sculpted elsewhere (a worker); ignored if this page already built its own. */
+export function installCharacterModel(id: string, m: SculptModel): void {
+  if (!cache.has(id)) cache.set(id, m);
+}
+
+export function hasCharacterModel(id: string): boolean {
+  return cache.has(id);
+}
+
 export const _unused = { bareHand, V3: null as unknown as V3 };

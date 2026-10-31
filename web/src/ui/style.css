@@ -578,3 +578,22 @@ body:has(#nl-badge-frame) .title .corner { bottom: calc(1.2em + 64px); }
 @keyframes markBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
 .hud .chest-arrow svg { display: block; width: 100%; height: 100%; animation: chestNudge 0.9s ease-in-out infinite; }
 @keyframes chestNudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
+
+/* the developer performance overlay (F2) */
+.perf-hud { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 60; pointer-events: none; background: rgba(8, 4, 14, 0.82); border: 1px solid rgba(242, 193, 78, 0.45); border-radius: 6px; padding: 6px 10px; max-width: min(1100px, 96vw); }
+.perf-hud.hidden { display: none; }
+.perf-hud .ph-text { margin: 0; font: 12px/1.35 ui-monospace, Consolas, monospace; color: #e8f0d8; white-space: pre-wrap; text-shadow: 1px 1px 0 #000; }
+
+/* the Restart & Update card (engineering optimization pass): a small marquee at the bottom, never blocking */
+.update-prompt { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 40; width: min(460px, 92vw); padding: 0.9em 1.2em 1em; text-align: center; animation: upIn 0.35s ease-out; }
+.update-prompt.hidden { display: none; }
+.update-prompt .up-bulbs { height: 8px; margin: -0.2em auto 0.55em; width: 70%; background: radial-gradient(circle, #ffd36a 0 3px, transparent 4px) 0 0 / 22px 8px repeat-x; filter: drop-shadow(0 0 4px rgba(255, 211, 106, 0.8)); }
+.update-prompt .up-title { font-family: var(--head); color: var(--gold); font-size: 1.15em; letter-spacing: 0.04em; text-shadow: 2px 2px 0 var(--ink); }
+.update-prompt .up-text { margin: 0.35em 0 0.2em; color: var(--cream); font-size: 0.95em; line-height: 1.35; }
+.update-prompt .up-status { min-height: 1.1em; color: #ffd8a0; font-size: 0.85em; font-style: italic; }
+.update-prompt .up-buttons { display: flex; gap: 0.8em; justify-content: center; margin-top: 0.5em; }
+.update-prompt.note .up-buttons { display: none; }
+@keyframes upIn { from { opacity: 0; transform: translate(-50%, 18px); } to { opacity: 1; transform: translate(-50%, 0); } }
+/* the title screen's Windows download (shown once a release is published) */
+.screen.title .download { position: absolute; right: 22px; top: 22px; text-align: right; }
+.screen.title .download .dl-note { margin-top: 0.45em; font-size: 0.78em; color: var(--cream); opacity: 0.75; text-shadow: 1px 1px 0 var(--ink); }

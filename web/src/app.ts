@@ -19,6 +19,18 @@ import { ENEMIES } from './data/enemies';
 import { DIFFICULTIES } from './data/difficulty';
 import { DraftView, Hud, PLAYER_CSS } from './ui/hud';
 import { ChatBox } from './ui/chat';
+import { perf, SEC } from './core/perf';
+
+/** The in-page developer tools (window.__nc): dev builds, or a production build made with VITE_DEVTOOLS=1
+ *  for benchmarking the shipped bundle. Never set for a deploy. */
+const DEVTOOLS = import.meta.env.DEV || import.meta.env.VITE_DEVTOOLS === '1';
+import { PerfHud, perfHudAllowed } from './ui/perfHud';
+import { BUILD, UpdateChecker, noteUpdateExpected, takeUpdateResult } from './platform/updates';
+import { desktop, type SessionState, type ShellUpdate } from './platform/desktop';
+import { UpdatePrompt, type UpdateOffer } from './ui/updatePrompt';
+
+/** "Later" puts an update offer away for this long (it comes back at the next safe moment after). */
+const UPDATE_LATER_MS = 30 * 60 * 1000;
 import { FortuneCard, PrizeOverlay } from './ui/prize';
 import { PrizeWheel } from './render3d/prizeWheel';
 import { LAST_SONG } from './data/quests';
@@ -105,6 +117,15 @@ export class App {
   fortune = new FortuneCard();
   /** the chat box (D-65): co-op talk, plus every quest whisper and fortune, bottom-left */
   chat = new ChatBox();
+  /** the developer performance overlay (F2; dev builds, or ?devhud), created on first use */
+  perfHud: PerfHud | null = null;
+  /** live updates (engineering optimization pass): the deploy's version.json, polled; offered at safe moments */
+  updates = new UpdateChecker(new URL('version.json', document.baseURI).toString());
+  private updatePrompt: UpdatePrompt | null = null;
+  private updateDismissed = { id: '', at: 0 };
+  private shellUpdate: ShellUpdate | null = null;
+  private shellDismissedAt = 0;
+  private sessionKey = '';
   state: State = 'loading';
   game: Game | null = null;
   demo: Game | null = null;
@@ -118,6 +139,8 @@ export class App {
   private dawnT = -1;
   simSpeed = 1;
   autopilot = false;
+  /** boot phases (ms): building the 2D art, sculpting and creating the renderer, and page time when ready */
+  bootTimes = { assets: 0, renderer: 0, ready: 0, firstFrame: 0, firstFramePrograms: 0 };
   private lastPediaToast = 0;
   overlayPause = false;
   private ctx!: S.UICtx;
@@ -165,6 +188,11 @@ export class App {
         this.showNetDiag = !this.showNetDiag;
         e.preventDefault();
       }
+      // the developer performance overlay (dev builds, or a shipped build opened with ?devhud)
+      if (e.key === 'F2' && perfHudAllowed()) {
+        e.preventDefault();
+        void this.togglePerfHud();
+      }
     });
     // Leaving the page: say goodbye so nobody waits on a closed tab — except a guest in the middle of
     // a night, who may only be refreshing: their link just drops, the host holds the seat and the
@@ -187,6 +215,8 @@ export class App {
       /* fonts optional */
     }
     await new Promise((r) => requestAnimationFrame(() => r(null)));
+    // the sound effects render in a worker while the art is built (they used to freeze the first key press)
+    this.audio.prewarm();
     const t0 = performance.now();
     this.assets.build((p) => ld.set(p * 0.7, tips[Math.min(tips.length - 1, Math.floor(p * tips.length))]));
     const t1 = performance.now();
@@ -195,6 +225,7 @@ export class App {
     ld.set(1, 'Opening the gates…');
     this.renderer = new GameRenderer3D(this.canvas, this.assets);
     const t2 = performance.now();
+    this.bootTimes = { assets: t1 - t0, renderer: t2 - t1, ready: 0, firstFrame: 0, firstFramePrograms: 0 };
     if (import.meta.env.DEV) console.info(`[boot] assets ${(t1 - t0).toFixed(0)} ms, renderer ${(t2 - t1).toFixed(0)} ms`);
     this.input.aimScaleY = this.renderer.aimScaleY;
     this.hud = new Hud(this.assets);
@@ -241,10 +272,15 @@ export class App {
     });
     this.resize();
     this.makeDemo();
+    // compile the scene's shaders while the loading screen still shows (the first frame used to, frozen)
+    ld.set(1, 'Lighting the lamps…');
+    await this.renderer.warmUp(this.demo!);
     ld.el.remove();
     this.go('press');
     this.prewarmPrize();
-    if (import.meta.env.DEV) import('./dev').then((m) => m.installDevTools(this));
+    this.bootTimes.ready = performance.now();
+    if (DEVTOOLS) import('./dev').then((m) => m.installDevTools(this));
+    this.setupUpdates();
     requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -1197,7 +1233,7 @@ export class App {
     this.go('playing');
   }
 
-  private toMenu(next: State = 'title'): void {
+  toMenu(next: State = 'title'): void {
     this.leaveNet(true);
     this.endRunView();
     this.makeDemo();
@@ -1230,6 +1266,147 @@ export class App {
   }
 
   // =================================================================== input
+  // =================================================================== live updates (engineering optimization pass)
+  /** What the game is doing, for the update system and the Windows app: would a restart now interrupt anything? */
+  session(): { state: SessionState; safe: boolean } {
+    const s = this.state;
+    if (s === 'loading') return { state: 'boot', safe: true };
+    if (s === 'playing' || s === 'paused') return { state: 'match', safe: false };
+    // a finished night: the offer may show, and taking it leaves any party behind (the player's choice)
+    if (s === 'results') return { state: 'results', safe: true };
+    if (this.net) return { state: s === 'hub' || s === 'midway' ? 'hub' : 'lobby', safe: false };
+    if (s === 'mp_join' && this.mpBusy) return { state: 'connecting', safe: false };
+    if (s === 'hub' || s === 'midway') return { state: 'hub', safe: true };
+    return { state: 'menu', safe: true };
+  }
+
+  /** Tell the shell when the session changes; reaching a safe moment checks for (and offers) an update. */
+  private trackSession(): void {
+    const s = this.session();
+    const key = `${s.state}:${s.safe}`;
+    if (key === this.sessionKey) return;
+    const wasSafe = this.sessionKey.endsWith(':true');
+    this.sessionKey = key;
+    desktop?.setSession(s.state, s.safe);
+    if (!s.safe) this.updatePrompt?.hide();
+    else if (!wasSafe) {
+      void this.updates.check().then(() => this.offerUpdate());
+      this.offerUpdate();
+    }
+  }
+
+  private setupUpdates(): void {
+    const p = new UpdatePrompt(
+      (o) => void this.restartToUpdate(o),
+      (o) => {
+        if (o.kind === 'shell') this.shellDismissedAt = Date.now();
+        else this.updateDismissed = { id: this.updates.latest?.id ?? '', at: Date.now() };
+      },
+    );
+    this.updatePrompt = p;
+    this.ui.append(p.root);
+    this.updates.onChange = () => {
+      this.offerUpdate();
+      this.showDownload();
+    };
+    this.updates.start();
+    desktop?.onShellUpdate((u) => {
+      this.shellUpdate = u;
+      this.offerUpdate();
+    });
+    void desktop?.info().then((i) => {
+      if (i?.shellUpdate?.ready) {
+        this.shellUpdate = i.shellUpdate;
+        this.offerUpdate();
+      }
+    });
+    // a lazily loaded file that's gone (an old build's chunk after a deploy) means it's time to update
+    window.addEventListener('vite:preloadError', (e) => {
+      e.preventDefault();
+      void this.updates.check(true).then(() => this.offerUpdate());
+    });
+    const r = takeUpdateResult();
+    if (r === 'updated') p.note(`Updated to version ${BUILD.version} (${BUILD.commit}).`);
+    else if (r === 'stale') p.note('The update hasn’t reached you yet. It will be offered again shortly.');
+  }
+
+  /** Show the update card if there's something to offer and nothing would be interrupted. */
+  private offerUpdate(): void {
+    const p = this.updatePrompt;
+    if (!p || p.visible || !this.session().safe) return;
+    if (this.shellUpdate?.ready && Date.now() - this.shellDismissedAt > UPDATE_LATER_MS) {
+      p.show({ kind: 'shell', version: this.shellUpdate.version });
+      return;
+    }
+    const latest = this.updates.latest;
+    if (!this.updates.available || !latest) return;
+    if (latest.id === this.updateDismissed.id && Date.now() - this.updateDismissed.at < UPDATE_LATER_MS) return;
+    p.show({ kind: 'game', version: latest.version });
+  }
+
+  /**
+   * Restart & Update: only at a safe moment; the save is written and any party left politely first.
+   * A game update reloads the latest hosted build (the Windows app bypasses its cache; a browser adds a
+   * cache-busting ?v=), and the new page confirms it got the build it expected (takeUpdateResult).
+   */
+  private async restartToUpdate(o: UpdateOffer): Promise<void> {
+    const p = this.updatePrompt!;
+    if (!this.session().safe) {
+      p.setStatus('Finish the night first. The update will wait.');
+      return;
+    }
+    if (o.kind === 'shell') {
+      if (!desktop) return;
+      p.setStatus('Installing…', true);
+      this.save.save();
+      if (this.net) this.leaveNet(true);
+      const r = await desktop.installShellUpdate();
+      if (!r.ok) p.setStatus(r.reason === 'busy' ? 'Finish the night first.' : 'The update couldn’t be installed. Try again later.');
+      return;
+    }
+    p.setStatus('Checking the carnival…', true);
+    const m = await this.updates.check(true);
+    if (!m) {
+      p.setStatus('Can’t reach the carnival right now. Check your connection and try again.');
+      return;
+    }
+    if (!this.updates.available) {
+      p.hide();
+      return;
+    }
+    this.save.save();
+    if (this.net) this.leaveNet(true);
+    noteUpdateExpected(m.id);
+    p.setStatus('Restarting…', true);
+    if (desktop) {
+      if (!(await desktop.reloadLatest())) p.setStatus('The restart didn’t work. Close and reopen the game to update.');
+      return;
+    }
+    const u = new URL(location.href);
+    u.searchParams.set('v', m.id);
+    location.replace(u.toString());
+  }
+
+  /** The title screen's Windows download: browsers only, and only once a release is published. */
+  private showDownload(): void {
+    const w = this.updates.latest?.desktop?.windows;
+    const url = w && typeof w.url === 'string' && w.url.startsWith('https://') ? w.url : null;
+    const dl = !desktop && url ? { version: String(w!.version ?? ''), url } : undefined;
+    if (this.ctx && this.ctx.desktopDownload?.url !== dl?.url) {
+      this.ctx.desktopDownload = dl;
+      if (this.state === 'title' && !this.screenEl?.querySelector('.download')) this.go('title');
+    }
+  }
+
+  /** Open or close the developer performance overlay (F2), creating it on first use. */
+  togglePerfHud(): void {
+    if (!this.perfHud) {
+      this.perfHud = new PerfHud();
+      this.ui.append(this.perfHud.root);
+    }
+    this.perfHud.toggle();
+  }
+
   /** A chat line from the party, in its speaker's colour (D-65). */
   private chatLine(from: number, name: string, text: string): void {
     this.chat.add({ kind: 'player', who: name, color: PLAYER_CSS[from % PLAYER_CSS.length], text });
@@ -1329,15 +1506,31 @@ export class App {
   // =================================================================== main loop
   private frame(t: number): void {
     requestAnimationFrame((tt) => this.frame(tt));
+    // the frame's CPU sections (net, sim, render, HUD) for the developer overlay and the benchmarks
+    perf.beginFrame(t);
+    if (!this.bootTimes.firstFrame) {
+      // the first frame after boot draws the attract demo for the first time (boot diagnostics)
+      const p0 = this.renderer.renderer.info.programs?.length ?? 0, f0 = performance.now();
+      this.frameBody(t);
+      this.bootTimes.firstFrame = performance.now() - f0;
+      this.bootTimes.firstFramePrograms = (this.renderer.renderer.info.programs?.length ?? 0) - p0;
+    } else this.frameBody(t);
+    perf.endFrame();
+  }
+
+  private frameBody(t: number): void {
     this.lastFrameAt = performance.now();
+    this.trackSession();
     let dt = (t - this.last) / 1000;
     this.last = t;
     if (dt > 0.25) dt = 0.25;
     this.fps += (1 / Math.max(0.001, dt) - this.fps) * 0.05;
     const g = this.game;
     const net = this.net;
+    const n0 = perf.now();
     if (net?.role === 'host') net.host.update(t, dt * 1000);
     else if (net?.role === 'guest') net.guest.update(t);
+    perf.mark(SEC.net, n0);
     this.updateChat(dt);
     const playing = this.state === 'playing' && g;
     // player screen position for mouse aim
@@ -1357,7 +1550,7 @@ export class App {
     if (playing) {
       g!.input.moveX = this.input.moveX;
       g!.input.moveY = this.input.moveY;
-      if (import.meta.env.DEV && this.autopilot) {
+      if (DEVTOOLS && this.autopilot) {
         this.demoAutopilot(g!);
         if (g!.phase === 'draft') this.pickDraft(0);
       }
@@ -1376,16 +1569,19 @@ export class App {
       // solo, it waits while the chat log is open for reading back (D-72)
       const held = (!!hs && (hs.paused || !hs.prizeReady)) || (!net && this.chat.isOpen);
       if (!this.overlayPause && g!.phase !== 'draft' && !held) {
+        const s0 = perf.now();
         this.acc += dt * this.simSpeed;
         let n = 0;
         const maxTicks = Math.max(5, Math.ceil(this.simSpeed * 5));
         while (this.acc >= TICK && n < maxTicks) {
           hs?.beforeTick(g!);
           g!.tick();
+          perf.tick();
           this.acc -= TICK;
           n++;
         }
         if (n >= maxTicks) this.acc = 0;
+        perf.mark(SEC.sim, s0);
       }
       hs?.captureFx(g!.fx.events); // the guest's copy of this frame's sparks, before the renderer drains them
       if (g!.phase === 'draft' && this.draft.visible && !g!.draftPending(this.localIndex)) this.draft.hide();
@@ -1394,31 +1590,41 @@ export class App {
         this.renderer.dawn = Math.min(1, this.dawnT / 4);
       }
       const alpha = this.overlayPause || g!.phase === 'draft' || held ? 1 : Math.min(1, this.acc / TICK);
+      const r0 = perf.now();
       this.renderer.render(g!, alpha, dt);
+      const h0 = perf.mark(SEC.render, r0);
       this.stageTug(g!);
       this.updateCoopHud();
       this.hud.padKeys = this.input.usingGamepad;
       this.hud.update(g!, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
       this.boardwalkFrame(g!);
+      perf.mark(SEC.hud, h0);
     } else if (this.state === 'paused' || this.state === 'results') {
       if (g) {
         hs?.captureFx(g.fx.events);
+        const r0 = perf.now();
         this.renderer.render(g, 1, dt);
+        perf.mark(SEC.render, r0);
       }
     } else if (this.demo) {
       // attract mode behind the menus
+      const s0 = perf.now();
       this.demoAutopilot(this.demo);
       this.acc += dt;
       let n = 0;
       while (this.acc >= TICK && n < 4) {
         if (this.demo.phase === 'draft') this.demo.chooseDraft(0);
         this.demo.tick();
+        perf.tick();
         this.acc -= TICK;
         n++;
       }
       if (this.demo.time > 400 || this.demo.phase === 'ended') this.makeDemo();
+      const r0 = perf.mark(SEC.sim, s0);
       this.renderer.render(this.demo, Math.min(1, this.acc / TICK), dt, { menu: true });
+      perf.mark(SEC.render, r0);
     }
+    this.perfHud?.update(this.game ?? this.demo, net ? (net.role === 'host' ? net.host.diag : net.guest.diag) : null);
   }
 
   // =================================================================== online co-op (D-52)
@@ -1511,18 +1717,24 @@ export class App {
     const walking = this.state === 'hub' && !this.hubTalk;
     g.inputs[this.localIndex].moveX = walking ? this.input.moveX : 0;
     g.inputs[this.localIndex].moveY = walking ? this.input.moveY : 0;
+    const s0 = perf.now();
     this.acc += dt;
     let n = 0;
     while (this.acc >= TICK && n < 5) {
       hs?.beforeTick(g);
       g.tick();
+      perf.tick();
       this.acc -= TICK;
       n++;
     }
     if (n >= 5) this.acc = 0;
     g.setCtx(g.players[this.localIndex] ?? g.players[0]);
+    const r0 = perf.mark(SEC.sim, s0);
     this.renderer.render(g, Math.min(1, this.acc / TICK), dt);
+    const h0 = perf.mark(SEC.render, r0);
     this.updateHubHud(cssW, cssH);
+    perf.mark(SEC.hud, h0);
+    this.perfHud?.update(g, hs ? hs.diag : null);
   }
 
   /** Labels over the cast and landmarks, the nearest thing to use, the conversation, the lobby code. */
@@ -1817,6 +2029,8 @@ export class App {
       gs.onEvent = (type, e) => this.guestEvent(type, e);
       gs.onToLobby = () => this.guestToLobby();
       gs.onClosed = (reason) => this.netClosed(reason);
+      // refused for a version mismatch: look for an update now, so the player can take it straight away
+      gs.onVersionRefused = () => void this.updates.check(true).then(() => this.offerUpdate());
       this.startBgClock();
     } catch (e) {
       this.mpBusy = false;
@@ -1973,17 +2187,20 @@ export class App {
     const rep = gs.replica;
     // only walk while the host's night is actually running (otherwise the host discards the steps)
     const live = (this.state === 'playing' || (this.state === 'hub' && g.hub)) && g.phase === 'play' && !gs.pausedBy && !this.prize.active && !!rep && !rep.frozen;
+    const s0 = perf.now();
     if (live) {
       this.acc += dt;
       let n = 0;
       while (this.acc >= TICK && n < 5) {
         gs.step(this.input.moveX, this.input.moveY, this.input.aimX, this.input.aimY, this.input.aimActive);
+        perf.tick();
         this.acc -= TICK;
         n++;
       }
       if (n >= 5) this.acc = 0;
     } else this.acc = 0;
     rep?.frame(dt);
+    perf.mark(SEC.sim, s0);
     if (this.state === 'playing') {
       const pb = this.renderer.post;
       pb.bloomScale += ((this.prize.active ? 0.35 : 1) - pb.bloomScale) * Math.min(1, dt * 6);
@@ -1999,7 +2216,9 @@ export class App {
       this.renderer.dawn = Math.min(1, this.dawnT / 4);
     }
     const local = rep ? rep.localDrawPos(live ? Math.min(1, this.acc / TICK) : 1) : undefined;
-    this.renderer.render(g, rep ? rep.alpha(now) : 1, dt, { local });
+    const r0 = perf.now();
+    this.renderer.render(g, rep ? rep.alpha(now) : 1, dt, { local, shotOffset: rep && local ? rep.shotOffset(local) : undefined });
+    const h0 = perf.mark(SEC.render, r0);
     this.stageTug(g);
     if (this.state === 'playing') {
       this.updateCoopHud();
@@ -2007,6 +2226,8 @@ export class App {
       this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
       this.boardwalkFrame(g);
     } else if (g.hub) this.updateHubHud(cssW, cssH);
+    perf.mark(SEC.hud, h0);
+    this.perfHud?.update(g, gs.diag);
   }
 
   /** The co-op layer of the HUD: partner card, waiting notes, latency, diagnostics (F3). */

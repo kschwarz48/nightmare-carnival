@@ -59,6 +59,11 @@ export class Replica {
   private prevX = 0;
   private prevY = 0;
   predErr = 0;
+  /** prediction corrections bigger than a few units (developer overlay) */
+  corrections = 0;
+  /** the host's position for this player in the latest snapshot (prediction runs ahead of it) */
+  private authX = 0;
+  private authY = 0;
   private slowF = 1;
 
   constructor(readonly g: Game, readonly local: number) {
@@ -470,6 +475,8 @@ export class Replica {
     p.y = y;
     p.vx = vx;
     p.vy = vy;
+    this.authX = x;
+    this.authY = y;
     if (!authoritative) for (const h of this.hist) this.step(h.mx, h.my);
     else this.hist.length = 0;
     // keep the picture continuous: shift the in-between point with the body and fold the jump into
@@ -480,7 +487,20 @@ export class Replica {
     this.corrX -= dx;
     this.corrY -= dy;
     this.predErr = Math.hypot(dx, dy);
+    if (this.predErr > 6) this.corrections++;
     if (Math.hypot(this.corrX, this.corrY) > 160) this.corrX = this.corrY = 0; // teleports and big misses: snap
+  }
+
+  /**
+   * How far this player's drawn (predicted) self is ahead of where the host had them in the latest
+   * snapshot. The host fires this player's weapons from that older position, so the renderer starts
+   * this player's own new projectiles this much further on and eases them onto their true path
+   * (engineering optimization pass): shots leave the character on screen, not a spot behind it.
+   */
+  shotOffset(drawn: { x: number; y: number }): { x: number; y: number } {
+    const dx = drawn.x - this.authX, dy = drawn.y - this.authY;
+    // a teleport or a dash the guest can't predict: no offset rather than a wild one
+    return Math.hypot(dx, dy) > 220 ? { x: 0, y: 0 } : { x: dx, y: dy };
   }
 
   /** Where to draw the local character: between predicted steps (t = 0..1), plus the eased correction. */

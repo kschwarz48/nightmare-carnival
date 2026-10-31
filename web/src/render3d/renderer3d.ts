@@ -34,6 +34,9 @@ import { Post3D } from './post';
 import type { LastSongChain } from '../sim/quest';
 
 import { ELEVATION } from './core/view';
+import { GpuTimer } from './core/gpuTimer';
+import { LEGACY } from '../core/flags';
+import { perf } from '../core/perf';
 
 export { ELEVATION };
 const SIN_EL = Math.sin(ELEVATION);
@@ -167,6 +170,8 @@ export class GameRenderer3D {
   private corpses: Corpse[] = [];
   private corpsePool: Corpse[] = [];
   private frameNo = 0;
+  /** GPU frame time for the developer overlay and benchmarks (timer queries, while `perf.on`) */
+  private gpuTimer: GpuTimer | null = null;
   private corpseGame: Game | null = null;
   private tmpM4 = new THREE.Matrix4();
   /** Dev-only inspection zoom (1 = gameplay framing) and camera lock. */
@@ -182,6 +187,9 @@ export class GameRenderer3D {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.info.autoReset = false;
+    // reading every program's info log forces each compile to finish on the spot; dev builds keep the
+    // error messages, shipped builds skip the check (as three.js recommends for production)
+    this.renderer.debug.checkShaderErrors = import.meta.env.DEV || LEGACY.shaderChecks;
     this.camera = new THREE.OrthographicCamera(-800, 800, 500, -500, 10, 9000);
     this.scene.fog = new THREE.FogExp2(0x0b1324, 0.00022);
     this.scene.background = new THREE.Color(0x030306);
@@ -390,9 +398,82 @@ export class GameRenderer3D {
       this.batchList.push(b);
       this.scene.add(b.mesh);
       if (b.outline) this.scene.add(b.outline);
+      this.compileInBackground(b);
     }
     if (b.xray) b.xray.visible = this.settings.quality !== 'low';
     return b;
+  }
+
+  /** Batches whose shaders are still compiling (see compileInBackground). */
+  private compiling = new Set<Promise<unknown>>();
+
+  /**
+   * A model's first appearance used to compile its shaders on the spot, stalling that frame by up to a
+   * few hundred milliseconds (engineering optimization pass). Now a new batch compiles in the
+   * background (KHR_parallel_shader_compile) and stays hidden until it's ready, a few frames later.
+   * Without the extension the old path stands: it draws at once and compiles on first use.
+   */
+  private compileInBackground(b: ActorBatch): void {
+    const gl = this.renderer.getContext();
+    if (LEGACY.compile || !gl.getExtension('KHR_parallel_shader_compile')) return;
+    b.ready = false;
+    const parts = [b.mesh, b.outline, b.xray].filter((m): m is THREE.InstancedMesh => !!m);
+    const p = Promise.all(this.intoPostTarget(() => parts.map((m) => this.renderer.compileAsync(m, this.camera, this.scene))))
+      .catch(() => undefined)
+      .then(() => {
+        b.ready = true;
+        this.compiling.delete(p);
+      });
+    this.compiling.add(p);
+  }
+
+  /**
+   * Run `f` with the post chain's buffer bound: the scene draws into it, and a program depends on its
+   * target's colour space and tone mapping, so compiling against the screen would build the wrong one.
+   */
+  private intoPostTarget<T>(f: () => T, target: THREE.WebGLRenderTarget | null = this.post.composer.readBuffer): T {
+    const prev = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(target);
+    try {
+      return f();
+    } finally {
+      this.renderer.setRenderTarget(prev);
+    }
+  }
+
+  /**
+   * Compile the scene's shaders in the background while the loading screen is still up (engineering
+   * optimization pass): the first frame after boot used to compile ~30 programs on the spot (6.5 s on
+   * ANGLE/D3D11, with the page frozen). Hidden objects (the boss rigs) are included, so a boss's first
+   * appearance doesn't compile either. The scene draws into the post chain's target, so it is compiled
+   * against that target (a program depends on its target's colour space and tone mapping). Without the
+   * parallel-compile extension this does nothing and the first frame compiles, as before.
+   */
+  async warmUp(g: Game): Promise<void> {
+    const gl = this.renderer.getContext();
+    if (LEGACY.compile || !gl.getExtension('KHR_parallel_shader_compile')) return;
+    // the whole scene, hidden boss rigs included, and every post pass, each against its own target
+    const quad = new THREE.PlaneGeometry(2, 2);
+    const jobs = [
+      this.intoPostTarget(() => this.renderer.compileAsync(this.scene, this.camera)),
+      ...this.post.materials().map(({ m, screen }) => this.intoPostTarget(() => this.renderer.compileAsync(new THREE.Mesh(quad, m), this.camera, this.scene), screen ? null : undefined)),
+    ];
+    await Promise.all(jobs).catch(() => undefined);
+    // then a frame of the attract demo creates every batch it draws (each compiles in the background)
+    this.render(g, 1, 0, { menu: true });
+    await this.whenCompiled();
+    // one more frame, still behind the loading screen, builds what only a real frame reveals (shadow depth variants)
+    this.render(g, 1, 0, { menu: true });
+    quad.dispose();
+    this.warmedPrograms = this.renderer.info.programs?.length ?? 0;
+  }
+
+  /** how many shader programs the boot warm-up compiled (diagnostics) */
+  warmedPrograms = 0;
+
+  /** Resolves once every batch created so far has its shaders (captures and benchmarks wait on it). */
+  async whenCompiled(): Promise<void> {
+    while (this.compiling.size) await Promise.all([...this.compiling]);
   }
 
   private smoothYaw(uid: number, target: number, dt: number, rate = 10): number {
@@ -407,9 +488,17 @@ export class GameRenderer3D {
   }
 
   // =================================================================== frame
-  render(g: Game, alpha: number, dt: number, opts: { menu?: boolean; local?: { x: number; y: number } } = {}): void {
+  render(g: Game, alpha: number, dt: number, opts: { menu?: boolean; local?: { x: number; y: number }; shotOffset?: { x: number; y: number } } = {}): void {
     this.renderer.info.reset();
     this.frameNo++;
+    const timing = perf.on;
+    if (timing) {
+      this.gpuTimer ??= new GpuTimer(this.renderer.getContext() as WebGL2RenderingContext);
+      perf.gpuTimer = this.gpuTimer.available ? 'yes' : 'no';
+      const now = this.frameNo;
+      this.gpuTimer.poll((frame, ms) => perf.setGpu(now - frame, ms));
+      this.gpuTimer.begin(this.frameNo);
+    }
     this.time += dt;
     shared.uTime.value = this.time;
     if (this.settings.quality !== this.shadowQuality) this.applyQuality();
@@ -522,7 +611,7 @@ export class GameRenderer3D {
     g.setCtx(p);
     this.drawSummons(g, alpha, dt);
     if (g.hub) this.drawHub(g, dt);
-    this.drawProjectiles(g, alpha);
+    this.drawProjectiles(g, alpha, opts.shotOffset);
     this.addShapes.alphaScale = this.fxAdd.alphaScale = 1;
     for (const b of this.abilityBatches) fadeBatch(b, op);
     this.drawBullets(g, alpha);
@@ -565,6 +654,19 @@ export class GameRenderer3D {
     this.overlayCam.projectionMatrixInverse.copy(this.camera.projectionMatrixInverse);
     this.post.setOverlay(this.overlay.children.some((o) => o.visible));
     this.post.renderFrame();
+    if (timing) {
+      this.gpuTimer?.end();
+      const info = this.renderer.info.render, c = perf.counts;
+      c.drawCalls = info.calls;
+      c.triangles = info.triangles;
+      c.particles = this.fxAdd.count + this.fxNormal.count + this.glow.count;
+      c.enemies = g.active.length;
+      let pr = 0, bu = 0;
+      for (const q of g.projs) if (q.alive) pr++;
+      for (const b of g.bullets) if (b.alive) bu++;
+      c.projectiles = pr;
+      c.bullets = bu;
+    }
   }
 
   // =================================================================== lighting
@@ -1465,11 +1567,31 @@ export class GameRenderer3D {
   }
 
   // =================================================================== projectiles & bullets
-  private drawProjectiles(g: Game, alpha: number): void {
+  /** co-op guest: per projectile slot, the spawn generation last drawn and when it was first drawn */
+  private shotGen = new Int16Array(1024).fill(-1);
+  private shotSeen = new Float64Array(1024);
+
+  private drawProjectiles(g: Game, alpha: number, shotOffset?: { x: number; y: number }): void {
     const glowF = this.f('fx_glow_0');
-    for (const pr of g.projs) {
+    const me = g.player.index;
+    for (let pi = 0; pi < g.projs.length; pi++) {
+      const pr = g.projs[pi];
       if (!pr.alive) continue;
-      const x = lerp(pr.px, pr.x, alpha), y = lerp(pr.py, pr.y, alpha);
+      let x = lerp(pr.px, pr.x, alpha), y = lerp(pr.py, pr.y, alpha);
+      // a guest's own shots start where its character is drawn and ease onto their true path within
+      // 0.3 s (see Replica.shotOffset); hits still happen where the host says
+      if (shotOffset && pr.owner === me && pi < this.shotGen.length) {
+        if (this.shotGen[pi] !== pr.gen) {
+          this.shotGen[pi] = pr.gen;
+          this.shotSeen[pi] = this.time;
+        }
+        const k = 1 - (this.time - this.shotSeen[pi]) / 0.3;
+        if (k > 0) {
+          const e = k * k;
+          x += shotOffset.x * e;
+          y += shotOffset.y * e;
+        }
+      }
       const def = ITEM_MODELS[pr.kind] ?? ITEM_MODELS.card;
       const b = this.batch(`p_${pr.kind}`, def, 600, XRAY_SHOT);
       this.abilityBatches.add(b);

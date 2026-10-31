@@ -11,13 +11,15 @@ import { Reader, Writer } from './codec';
 import { isMapId, type MapId } from '../data/maps';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 10;
+export const PROTO = 11;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
 export const MAX_INPUT_BYTES = 256;
 /** Snapshot rate (Hz) and the inputs repeated in every input packet (loss cover). */
 export const SNAPSHOT_HZ = 20;
+/** the rate for small snapshots with one or two guests (engineering optimization pass) */
+export const SNAPSHOT_HZ_FAST = 30;
 export const INPUT_REDUNDANCY = 6;
 export const BIN_SNAPSHOT = 1; // must equal snapshot.ts SNAP
 export const BIN_INPUT = 2;
@@ -73,7 +75,7 @@ export interface StartCfg {
 
 // ------------------------------------------------------------------ messages
 export type GuestMsg =
-  | { t: 'hello'; v: number; profile: GuestProfile; token?: string }
+  | { t: 'hello'; v: number; profile: GuestProfile; token?: string; sim?: string; time?: string }
   | { t: 'pick'; character: string | null }
   | { t: 'ready'; ready: boolean }
   | { t: 'view'; hx: number; hy: number }
@@ -108,7 +110,7 @@ const HOLD_WHY: readonly HoldWhy[] = ['', 'draft', 'prize', 'reconnect', 'pause'
 
 export const REJECT_TEXT: Record<RejectReason, string> = {
   full: 'That lobby is already full (six players).',
-  version: 'Your game version does not match the host’s. Both players should reload the page.',
+  version: 'Your game version does not match the host’s. Both players should restart and update the game.',
   in_run: 'That lobby has already started a run.',
   bad_hello: 'The host could not understand this client.',
   kicked: 'You were disconnected by the host.',
@@ -183,7 +185,7 @@ export function parseGuestMsg(raw: unknown): GuestMsg | null {
     case 'hello': {
       const profile = cleanProfile(m.profile);
       if (!isInt(m.v, 0, 1e6) || !profile) return null;
-      return { t: 'hello', v: m.v, profile, token: isStr(m.token, 64) ? m.token : undefined };
+      return { t: 'hello', v: m.v, profile, token: isStr(m.token, 64) ? m.token : undefined, sim: isStr(m.sim, 40) ? m.sim : undefined, time: isStr(m.time, 40) ? m.time : undefined };
     }
     case 'pick':
       if (m.character === null) return { t: 'pick', character: null };

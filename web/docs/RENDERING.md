@@ -131,3 +131,44 @@ Measured contributions after the pass: ground ≈1.26 ms (halved by the GPU fiel
 starting budget because shadow passes and ink hulls re-draw the sculpted crowds; frame time is the
 binding metric and stays far inside 16.7 ms here. Levers if a target machine struggles: Low quality
 (no bloom/grain/shadows, no grass), lower DPR, fewer clutter chunks, coarser crowd sculpts.
+
+## Engineering optimization pass (D-73)
+
+Measured on an RTX 2070 / i9-9900K in Electron 44 (Chromium 152) with GPU timer queries; method, scenarios
+and before/after tables in `docs/ENGINEERING_OPTIMIZATION_REPORT.md`.
+
+- **Tiled light culling** (`core/pool.ts`). Every world shader looped over all 24 pooled lights at every
+  pixel; a light only reaches its radius, so the CPU now marks, on a 32×32 grid over the lit area, which
+  lights touch each tile (24 bits in a tiny RGBA texture) and `poolLight`/`poolLightFlat` evaluate only
+  those. Fragments outside the grid evaluate every light, so the result is exact (pixel-compared: Carnival
+  max difference 1/255, Fun House 0; the Boardwalk's differences equal its own frame-to-frame animation).
+  Heavy late-game scenes: −9 to −11 ms GPU at 3440×1440.
+- **Background shader compilation** (`renderer3d.compileInBackground`). A model's first appearance
+  compiled its shaders on the spot (~200 ms stalls); a new batch now compiles through
+  `KHR_parallel_shader_compile` and stays hidden for the few frames until ready. Shipped builds also skip
+  reading every program's info log (`renderer.debug.checkShaderErrors` only in dev), which forced each
+  compile to finish synchronously. Captures wait on `renderer.whenCompiled()`. A background compile binds
+  the post chain's buffer first: the scene draws into it, and a program depends on its target's colour
+  space and tone mapping (compiled against the screen, it would build the wrong variant).
+- **Boot shader warm-up** (`renderer3d.warmUp`). The first frame after the loading screen compiled ~30
+  programs on the spot: 6.4 s frozen on ANGLE/D3D11. Boot now compiles the whole scene (hidden boss rigs
+  included) and every post pass in the background behind the loading screen, draws one attract-demo frame
+  there (its batches compile in the background), then one more for shadow-depth variants. Measured: the
+  first visible frame 6.4 s → 62 ms; an interactive title screen at ~6.5 s instead of ~9.8 s.
+- **Sculpting in workers** (`models/sculptPool.ts`, `sculptWorker.ts`, `sculptPack.ts`). Characters took
+  0.6–0.8 s each on the main thread and only one was built at boot, so a co-op partner or the Midway's cast
+  froze a frame on first draw. Up to four workers now sculpt every creature and character in parallel; boot
+  waits for the creatures and the last character, the rest arrive in the background. Worker output is
+  checksum-identical to a main-thread sculpt.
+- **Sound synthesis in a worker** (`audio/synthWorker.ts`). All 152 effect recipes rendered on the first key
+  press (~1.6 s); they now render during boot in the same order (the shared noise generator keeps every
+  sound identical) and are wrapped into buffers on first play.
+- **Developer overlay (F2)** (`ui/perfHud.ts`, `core/perf.ts`): FPS, frame time p95/p99/max, spikes, the
+  frame's CPU split (net, sim, render, HUD), the sim's systems, GPU time (timer queries), draw calls,
+  triangles, particles, crowd counts, heap, long tasks and the co-op link. Dev builds always; a shipped build
+  with `?devhud`. The per-system timers run only while it's open.
+- **A/B switches**: `?legacy` (or `?legacy=tiles,compile,workers,shaderchecks`) turns these changes off for
+  benchmarking one build both ways (`core/flags.ts`).
+- **Benchmarks**: `npm run bench:sim` (headless sim), `npm run bench:models` (sculpt costs), and
+  `cd desktop && npx electron bench.js --url=<dev or VITE_DEVTOOLS=1 preview>` (real-time scenarios on the
+  GPU; `--size=1920x1080`, `--qualities`, `--uncapped`, `--gc`, `--eval=file.js --cpuprofile=out`).

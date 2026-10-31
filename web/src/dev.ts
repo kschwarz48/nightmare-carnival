@@ -12,6 +12,8 @@ import { SEARCHLIGHTS } from './render3d/renderer3d';
 import { isLowTide, shoreY } from './data/boardwalk';
 import type { SummersEndChain } from './sim/quest/summersEnd';
 import { refreshSea } from './sim/boardwalk';
+import { gpuProbe, runBenchScenario, type BenchScenario } from './devBench';
+import { BUILD } from './platform/updates';
 
 /**
  * The threejs-qa-release canvas inspector's pixel metrics, ported to run in-page on the live
@@ -150,6 +152,19 @@ export function installDevTools(app: App): void {
         const total = (performance.now() - t0) / frames;
         return { msPerFrame: +total.toFixed(2), simMs: +(simMs / frames).toFixed(2), renderMs: +(total - simMs / frames).toFixed(2), enemies: g.active.length, projs: g.projs.filter((p) => p.alive).length, bullets: g.bullets.filter((b) => b.alive).length, billboards: app.renderer.fxAdd.count + app.renderer.fxNormal.count + app.renderer.glow.count, drawCalls: app.renderer.renderer.info.render.calls, triangles: app.renderer.renderer.info.render.triangles };
       },
+      /** Real-time benchmark of one scenario (the window must be visible); see devBench.ts. */
+      benchRun(sc: BenchScenario) {
+        return runBenchScenario(app, (sec) => api.advance(sec), (id) => api.spawnBoss(id), sc);
+      },
+      /** Mean GPU/CPU ms over the next frames (A/B experiments). */
+      gpuProbe,
+      /** This page's build (id, version, protocol, simulation fingerprint): the update tests compare it. */
+      build: BUILD,
+      /** Boot phase timings and the page's navigation timing (ms). */
+      bootInfo() {
+        const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+        return { ...app.bootTimes, domContentLoaded: nav ? Math.round(nav.domContentLoadedEventEnd) : null, load: nav ? Math.round(nav.loadEventEnd) : null, gpuTimer: app.renderer.renderer.getContext().getExtension('EXT_disjoint_timer_query_webgl2') ? 'yes' : 'no', gpu: (() => { const gl = app.renderer.renderer.getContext(); const dbg = gl.getExtension('WEBGL_debug_renderer_info'); return dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : 'unknown'; })() };
+      },
       /** Render one frame and measure it: pixel metrics plus this frame's renderer totals (all passes). */
       metrics() {
         const r = app.renderer;
@@ -164,6 +179,7 @@ export function installDevTools(app: App): void {
       },
       /** Render a frame, measure it and save it (dev server) as artifacts/visual/<run>/<name>.png + .json. */
       async capture(run: string, name: string) {
+        await app.renderer.whenCompiled();
         const m = api.metrics();
         const r = app.renderer;
         r.render(app.game ?? app.demo!, 1, 0);

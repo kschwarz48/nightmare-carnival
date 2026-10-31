@@ -661,6 +661,17 @@ describe('lobby and session flow', () => {
     h.net.pump(h.now + 100);
     expect(rej).toMatch(/version/);
 
+    // the same protocol but different simulation code: refused too, saying the host is the newer one
+    // (engineering optimization pass: mixed builds never share a night)
+    const [e2, f2] = h.net.pair();
+    h.host.accept(e2);
+    let rej3 = '';
+    f2.onMsg = (raw) => (rej3 = String(raw));
+    f2.sendMsg({ t: 'hello', v: PROTO, profile: guestProfile('Stale'), sim: 'another-sim', time: '2000-01-01T00:00:00.000Z' });
+    h.net.pump(h.now + 300);
+    expect(rej3).toMatch(/"reason":"version"/);
+    expect(rej3).toMatch(/host-newer/);
+
     // garbage instead of hello
     const [c, d] = h.net.pair();
     h.host.accept(c);

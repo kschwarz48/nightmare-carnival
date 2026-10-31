@@ -252,6 +252,41 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### Latency, versions and diagnostics (engineering optimization pass, D-73, PROTO 11)
+
+Measured with `npx vite-node scripts/bench/net.ts` (a two-player night over the real sessions on the
+loopback network, 250 monsters, 45 s per condition; numbers in `docs/ENGINEERING_OPTIMIZATION_REPORT.md`).
+
+- **What a guest feels, broken down.** The guest's own movement is predicted (immediate). Everything else
+  arrives about one-way latency + one snapshot interval late: at 100 ms RTT the guest sees the world
+  ~105 ms behind the host's present, and the host plays the guest's inputs another 0–3 queued ticks late.
+- **Host input queue (no wire change).** A late or lost input packet made the host repeat the guest's last
+  input for a tick; the late inputs then queued behind and, with both machines ticking at 60 Hz, that extra
+  depth never drained (only a backlog over 4 was trimmed), so every loss episode left the guest up to a tick
+  laggier for the rest of the night. Now each repeated tick is owed: when the late inputs arrive, the input
+  the repeat stood in for is skipped. Two inputs stay as a cushion against jitter, and a persistent backlog
+  over 3 is trimmed. Measured at 100 ms RTT: mean queue 1.14 → 0.8 ticks; with 3% loss 2.08 → 0.85; with
+  loss bursts 3.21 → 1.61; prediction corrections under 1% loss p95 32 → 0.03 units.
+- **Snapshots at 30 Hz when small.** Snapshots up to ~2 KB (with hysteresis) go out at 30 Hz to parties of
+  one or two guests (`SNAPSHOT_HZ_FAST`); busy nights keep 20/15/12 Hz. The guest draws the world ~17 ms
+  closer to the present (RTT 100: 105 → 88 ms), for at most the bandwidth a busy night already used
+  (~60 KB/s per guest).
+- **The guest's own shots start at its character.** The host fires a guest's weapons from where it has the
+  guest, which is behind the guest's predicted self by the prediction lead (12–25 units at 100–200 ms RTT).
+  The renderer now draws the guest's new projectiles offset by that lead and eases them onto their true path
+  within 0.3 s (`Replica.shotOffset`); hits still happen where the host says. Render-only, guest-only.
+- **Mixed versions never share a night.** PROTO is 11. The guest's `hello` also carries a fingerprint of the
+  simulation code (`src/sim`, `src/data`, `src/net`, computed at build time) and its build time; the host
+  refuses a different protocol or fingerprint with `version` and says which side is newer
+  (`host-newer` / `host-older`), and the guest offers Restart & Update at once if a newer build is live.
+- **Diagnostics.** The developer overlay (F2; see `docs/RENDERING.md`) adds a network section: role, RTT and
+  its jitter, route, snapshot rate/size/loss, bytes queued in the datagram channel, the host's input queue
+  (starved, dropped), the guest's prediction error, corrections and interpolation delay. F3 still shows the
+  original co-op panel.
+- **Not changed (next steps):** enemy bullets are re-sent every snapshot while they fly (a ballistic
+  spawn-only encoding would shrink bullet-hell snapshots most); guests' projectiles are still simulated by
+  the host (client-owned shots would make them fully immediate); enemies are interpolated, not extrapolated.
+
 ### The Boardwalk (D-68, PROTO 10)
 
 - **The map.** `boardwalk` is a third map id the host can pick in the lobby; guests load the same

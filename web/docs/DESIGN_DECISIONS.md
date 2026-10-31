@@ -883,3 +883,21 @@ and teleports, and the prize wheel dull and see-through.
   - The players are drawn before their summons, so a player always has a place even if that ever
     overflows again.
 
+### D-73 · Engineering optimization pass: measured rendering and loading fixes, lower co-op latency, the Windows app and live updates
+- **The brief** (the owner): profile and optimize (stutter, inconsistent performance), make co-op feel
+  responsive at 80–115 ms RTT, ship a Windows desktop client that updates itself, and keep the browser game.
+- **Measured first** (`scripts/bench/sim.ts`, `scripts/bench/models.ts`, the Electron runner `desktop/bench.js`
+  with GPU timer queries, `scripts/bench/net.ts`): the sim costs 0.05–0.6 ms a tick; the frame is GPU-bound;
+  the light pool alone cost up to 16 ms of GPU in heavy scenes; characters took 0.6–0.8 s to sculpt on first
+  use; audio unlocking froze the first key press for ~1.9 s; new shaders compiled on the spot (~200 ms).
+- **Rendering and loading:** tiled light culling (`core/pool.ts`), background shader compilation for new
+  batches (`renderer3d.compileInBackground`), sculpting in Web Workers (`models/sculptPool.ts`), sound
+  synthesis in a worker (`audio/synthWorker.ts`), no shader info-log reads in shipped builds. Every change
+  keeps the picture identical (pixel-compared) and every sound identical (checksummed).
+- **Co-op:** the host's input queue no longer accumulates latency after loss; small snapshots at 30 Hz; the
+  guest's own shots start at its character; PROTO 11 with a simulation fingerprint refuses mixed builds.
+- **Tools:** a developer performance overlay (F2), `?legacy` A/B switches, `version.json` per build.
+- **Desktop and updates:** `web/desktop/` (Electron 44, NSIS, electron-updater via GitHub Releases), the
+  in-game Restart & Update card at safe moments only, asset carry-forward on deploy (`scripts/deploy.mjs`),
+  CI workflows. Details and numbers: `docs/ENGINEERING_OPTIMIZATION_REPORT.md`, `docs/DESKTOP.md`.
+

@@ -115,6 +115,43 @@ understate that character.
 
 ---
 
+## Engineering optimization pass — 2026-10-31 (D-73)
+
+**Changed:**
+- Rendering and loading: tiled light culling, background shader compilation, sculpting and sound
+  synthesis in workers, no shader info-log reads in shipped builds.
+- Co-op: the host input queue fix, 30 Hz small snapshots, guests' own shots start at their character,
+  protocol 11 with a simulation fingerprint.
+- Tools and platform: the F2 developer overlay, `?legacy` switches, `version.json` and the in-game
+  Restart & Update, the Windows desktop shell (`web/desktop/`), the deploy script, CI workflows.
+
+Decision: D-73. Full method and numbers: `docs/ENGINEERING_OPTIMIZATION_REPORT.md`.
+
+**Automated:** 306 tests pass in 21 files; typecheck clean; the production build passes. New tests:
+- `optimization.test.ts`: the tile masks (every reachable tile marked and no others, a full pool, the
+  A/B switch), the worker pack/unpack round trip (attributes, index, baked rig), the update checker
+  (newer, incompatible, older, offline, once a minute, never under the dev server), the perf rings.
+- `net.test.ts`: a hello with the same protocol but another simulation fingerprint is refused, naming the
+  host as the newer side.
+
+**Measured (Electron 44 / Chromium 152, RTX 2070, GPU timer queries):** see the report for the tables:
+- the production build both ways (`?legacy`) at 1920×1080 and 3440×1440;
+- the light-culling A/B on frozen scenes;
+- pixel comparisons;
+- the run-start profile;
+- the worker checksums;
+- the network stress matrix (RTT 0–200 ms, jitter, 1%/3% loss, bursts, reordering).
+
+**Not verified:**
+- a person playing any of it;
+- co-op across real networks after these changes;
+- a clean Windows machine;
+- a physical controller in the desktop app;
+- a real shell update from a published release;
+- mobile.
+
+---
+
 ## The solo chat log, and Hall of Mirrors' invisible player — 2026-10-31 (D-72)
 
 **Changed:**

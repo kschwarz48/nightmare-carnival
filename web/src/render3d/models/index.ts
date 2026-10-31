@@ -43,8 +43,17 @@ export const CHARACTERS: Record<string, ModelDef> = Object.fromEntries(
 
 export { ENEMY_MODELS, ITEM_MODELS };
 
-/** Build the sculpted crowd ahead of time (yielding so the loading screen stays alive). */
+/**
+ * Build the sculpted crowd ahead of time. Sculpting runs in a few Web Workers when the browser has
+ * them (engineering optimization pass): boot waits only for every creature and the given characters,
+ * and the rest of the cast keeps sculpting off the main thread afterwards, so a co-op partner's
+ * character or the Midway's cast never freeze a frame (each took 0.6–0.8 s on the main thread).
+ * Without workers it falls back to sculpting here, yielding so the loading screen stays alive.
+ */
 export async function warmModels(onProgress: (p: number) => void, characters: string[] = []): Promise<void> {
+  const { sculptInWorkers } = await import('./sculptPool');
+  const { LEGACY } = await import('../../core/flags');
+  if (!LEGACY.workers && (await sculptInWorkers(onProgress, characters))) return;
   const { CREATURE_IDS, creatureModel } = await import('./creatures');
   const jobs: (() => unknown)[] = [...CREATURE_IDS.map((id) => () => creatureModel(id)), ...characters.map((id) => () => characterModel(id))];
   for (let i = 0; i < jobs.length; i++) {

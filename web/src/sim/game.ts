@@ -3,6 +3,7 @@
 // Port of the Godot GameState/EnemyDirector/Player/Health/Hitbox stack (docs 07–08).
 
 import { EventBus } from '../core/events';
+import { perf, SYS } from '../core/perf';
 import { SpatialGrid } from '../core/grid';
 import { clamp, dist2, segDist2, TAU } from '../core/math';
 import { Rng } from '../core/rng';
@@ -467,11 +468,15 @@ export class Game {
     }
     this.updateAct();
 
+    // per-system timings for the developer overlay (F2) and the benchmarks; one flag check when off
+    const P = perf.on;
+    let pt = P ? perf.now() : 0;
     for (const pl of this.players) {
       this.setCtx(pl);
       if (pl.downed) this.updateDowned(pl, dt);
       else if (!pl.dead) this.updatePlayer(dt);
     }
+    if (P) pt = perf.sysMark(SYS.players, pt);
     const p0 = this.players[0];
     const multi = this.players.length > 1;
     this.setCtx(p0);
@@ -481,6 +486,7 @@ export class Game {
     this.events.update(dt);
     this.setCtx(p0);
     this.quests.update(dt);
+    if (P) pt = perf.sysMark(SYS.director, pt);
     for (let i = 0; i < this.active.length; i++) {
       const e = this.active[i];
       e.px = e.x;
@@ -490,13 +496,16 @@ export class Game {
       this.updateStatuses(e, dt);
     }
     this.setCtx(p0);
+    if (P) pt = perf.sysMark(SYS.enemies, pt);
     this.separate(dt);
+    if (P) pt = perf.sysMark(SYS.collide, pt);
     for (const b of this.bosses) {
       if (multi) this.setCtx(this.bossTargetFor(b));
       b.update(dt);
     }
     this.setCtx(p0);
     if (this.bosses.length) this.bosses = this.bosses.filter((b) => !b.removed);
+    if (P) pt = perf.sysMark(SYS.bosses, pt);
     for (const pl of this.players) {
       this.setCtx(pl);
       if (this.isUp(pl)) pl.weapons.update(dt);
@@ -504,11 +513,14 @@ export class Game {
       pl.weapons.updateSummons(dt);
     }
     this.setCtx(p0);
+    if (P) pt = perf.sysMark(SYS.weapons, pt);
     this.updateBullets(dt);
     this.updateHazards(dt);
     this.updateZones(dt);
     this.updatePickups(dt);
+    if (P) pt = perf.sysMark(SYS.world, pt);
     this.updateContact();
+    if (P) pt = perf.sysMark(SYS.contact, pt);
     for (const pl of this.players) {
       if (!this.isUp(pl)) continue;
       this.setCtx(pl);
@@ -519,6 +531,7 @@ export class Game {
     if (this.mapId === 'boardwalk') updateBoardwalk(this, dt);
     this.updateTimers(dt);
     this.cleanupDead();
+    if (P) perf.sysMark(SYS.map, pt);
 
     // Dawn trigger (D-01).
     if (!this.endless && this.ringmasterDefeated && this.time >= DAWN_TIME - 1e-6 && this.phase === 'play') this.beginDawn();

@@ -3,3 +3,6 @@ dist
 *.log
 artifacts/
 .netlify
+dist-bench
+dist-e2e
+dist-carry

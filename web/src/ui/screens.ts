@@ -28,6 +28,8 @@ export interface UICtx {
   go: (screen: string, arg?: any) => void;
   startRun: (o: { character: string; difficulty: string; curse: boolean; daily?: boolean; map?: MapId }) => void;
   applySettings: () => void;
+  /** the Windows app's published installer (browsers only; see App.showDownload) */
+  desktopDownload?: { version: string; url: string };
 }
 
 const btn = (label: string | Node, onclick: () => void, cls = '', extra: Record<string, any> = {}) => h('button', { class: `btn ${cls}`, 'data-nav': '', onclick, ...extra }, label);
@@ -58,6 +60,11 @@ export function titleScreen(c: UICtx): HTMLElement {
     h('div', { class: 'wallet' }, h('span', { class: 'ticket-count' }, fmtNum(s.data.lostTickets))),
     h('div', { class: 'corner-left' }, s.recovered ? 'Your save was restored from its backup slot.' : 'WASD / arrows / left stick to move · weapons fire automatically · Esc to pause'),
     h('div', { class: 'corner' }, `Runs ${s.data.stats.runs} · Wins ${s.data.stats.wins}`, h('br'), 'Music: "Freaky Funk Circus" — Bradley Schwarz'),
+    c.desktopDownload
+      ? h('div', { class: 'download' },
+          h('a', { class: 'btn small purple', href: c.desktopDownload.url, target: '_blank', rel: 'noopener', 'data-nav': '' }, 'Download for Windows'),
+          h('div', { class: 'dl-note' }, `Beta ${c.desktopDownload.version} · same game, same parties, updates itself`))
+      : null,
   );
 }
 

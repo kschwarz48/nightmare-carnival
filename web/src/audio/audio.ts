@@ -8,6 +8,7 @@
 // always carry. SFX are synthesized at boot.
 
 import { RECIPES, SR } from './synth';
+import { LEGACY } from '../core/flags';
 
 type Cue = 'menu' | 'midway' | 'act1' | 'act2' | 'act3' | 'act4' | 'boss_carnival_tent' | 'boss_ferris_wheel' | 'boss_puppet_king' | 'boss_ringmaster' | 'boss_ringmaster_2' | 'boss_ringmaster_3' | 'dawn' | 'endless' | 'silence' | 'results';
 
@@ -85,6 +86,10 @@ export class AudioEngine {
   /** dips the whole music bus under quest chimes (separate from the volume setting) */
   private musicDuck!: GainNode;
   private buffers = new Map<string, AudioBuffer>();
+  /** samples the synth worker has rendered before audio unlocked (see prewarm) */
+  private rendered = new Map<string, Float32Array>();
+  private synthWorker: Worker | null = null;
+  private synthDone = false;
   private tracks: { intro?: AudioBuffer; loop?: AudioBuffer; loopStart: number; loopEnd: number } = { loopStart: 0, loopEnd: 0 };
   private trackSrc: AudioBufferSourceNode | null = null;
   private trackGain: GainNode | null = null;
@@ -145,14 +150,56 @@ export class AudioEngine {
     }
   }
 
-  private buildSfx(): void {
-    const ctx = this.ctx!;
-    for (const [id, make] of Object.entries(RECIPES)) {
-      const data = make();
-      const buf = ctx.createBuffer(1, data.length, SR);
-      buf.copyToChannel(data, 0);
-      this.buffers.set(id, buf);
+  /**
+   * Start rendering the sound effects in a worker at boot (engineering optimization pass), so audio
+   * unlocking on the first key press only has to wrap finished samples. Without workers (or if the
+   * worker fails) the effects are synthesized on unlock, as before.
+   */
+  prewarm(): void {
+    if (this.synthWorker || this.unlocked || typeof Worker === 'undefined' || LEGACY.workers) return;
+    try {
+      const w = new Worker(new URL('./synthWorker.ts', import.meta.url), { type: 'module' });
+      this.synthWorker = w;
+      w.onmessage = (e: MessageEvent<{ id?: string; data?: Float32Array; done?: boolean }>) => {
+        const m = e.data;
+        if (m.done) {
+          this.synthDone = true;
+          w.terminate();
+          return;
+        }
+        if (m.id && m.data) this.rendered.set(m.id, m.data);
+      };
+      w.onerror = () => {
+        w.terminate();
+        this.synthWorker = null;
+      };
+      w.postMessage('go');
+    } catch {
+      this.synthWorker = null;
     }
+  }
+
+  private wrap(id: string, data: Float32Array): void {
+    const buf = this.ctx!.createBuffer(1, data.length, SR);
+    buf.copyToChannel(data, 0);
+    this.buffers.set(id, buf);
+  }
+
+  private buildSfx(): void {
+    // the worker's samples are wrapped one by one when first played (see sample)
+    if (this.synthWorker || this.synthDone) return;
+    for (const [id, make] of Object.entries(RECIPES)) this.wrap(id, make());
+  }
+
+  /** A sound's buffer, wrapping the worker's samples on first use. */
+  private sample(id: string): AudioBuffer | undefined {
+    const b = this.buffers.get(id);
+    if (b || !this.ctx) return b;
+    const d = this.rendered.get(id);
+    if (!d) return undefined;
+    this.rendered.delete(id);
+    this.wrap(id, d);
+    return this.buffers.get(id);
   }
 
   private async loadTracks(): Promise<void> {
@@ -193,7 +240,7 @@ export class AudioEngine {
   // ---------------------------------------------------------------- SFX
   play(id: string, o: { vol?: number; pitch?: number; pan?: number } = {}): void {
     if (!this.unlocked || this.volumes.muted) return;
-    const buf = this.buffers.get(id) ?? this.buffers.get(ALIASES[id] ?? 'pop');
+    const buf = this.sample(id) ?? this.sample(ALIASES[id] ?? 'pop');
     if (!buf) return;
     const ctx = this.ctx!;
     const now = ctx.currentTime;

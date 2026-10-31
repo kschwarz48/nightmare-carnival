@@ -619,4 +619,13 @@ export function creatureModel(id: string): SculptModel {
 
 export const CREATURE_IDS = Object.keys(BUILDERS);
 
+/** A creature sculpted elsewhere (a worker); ignored if this page already built its own. */
+export function installCreatureModel(id: string, m: SculptModel): void {
+  if (!cache.has(id)) cache.set(id, m);
+}
+
+export function hasCreatureModel(id: string): boolean {
+  return cache.has(id);
+}
+
 export const _unused = { rbox, Pose: null as unknown as Pose, ADULT };

@@ -6,13 +6,14 @@
 // in tests over the loopback network.
 
 import type { MapId } from '../data/maps';
+import { BUILD } from '../platform/updates';
 import type { Game, GameEvents, RunConfig } from '../sim/game';
 import type { FxEvent } from '../sim/fx';
 import { StringDict, Writer } from './codec';
 import { randomToken } from './codes';
 import type { NetLink } from './link';
 import {
-  BIN_INPUT, BIN_SNAPSHOT, FORWARDED_EVENTS, INPUT_REDUNDANCY, MAX_PLAYERS, PROTO, REJECT_TEXT, RateLimiter, SNAPSHOT_HZ,
+  BIN_INPUT, BIN_SNAPSHOT, FORWARDED_EVENTS, INPUT_REDUNDANCY, MAX_PLAYERS, PROTO, REJECT_TEXT, RateLimiter, SNAPSHOT_HZ, SNAPSHOT_HZ_FAST,
   binType, cleanChat, decodeInputPacket, encodeInputPacket, parseGuestMsg, parseHostMsg,
   type GuestMsg, type GuestProfile, type HoldWhy, type HostMsg, type LobbyState, type NetInput, type RejectReason, type StartCfg,
 } from './protocol';
@@ -53,6 +54,12 @@ interface Seat {
   /** something arrived since the last update (stamped there, so a stalled tab never fakes a timeout) */
   heard: boolean;
   rtt: number;
+  /** round-trip variation (ms, smoothed) */
+  jitter: number;
+  /** ticks played by repeating a late input, still to be skipped when the late inputs arrive */
+  owed: number;
+  /** snapshots small enough for the fast rate */
+  fast: boolean;
   view: { hx: number; hy: number };
   queue: NetInput[];
   lastQueued: number;
@@ -111,6 +118,12 @@ export interface NetDiag {
   invalid: number;
   /** host: one line per connected guest */
   peers?: { name: string; rtt: number; kbps: number; route: string; queue: number }[];
+  /** round-trip variation (ms), bytes waiting in the datagram channel, prediction corrections, the
+   *  guest's interpolation delay (ms): filled where the session measures them (developer overlay) */
+  jitter?: number;
+  buffered?: number;
+  corrections?: number;
+  interpDelay?: number;
 }
 
 const blankDiag = (role: 'host' | 'guest'): NetDiag => ({ role, rtt: 0, connected: false, unreliable: false, route: '', inputQueue: 0, starved: 0, dropped: 0, snapBytes: 0, skipped: 0, bytesPerSec: 0, snapRate: 0, snapLost: 0, predErr: 0, interval: 0, invalid: 0 });
@@ -341,25 +354,30 @@ export class HostSession {
     };
   }
 
-  private refuse(link: NetLink, reason: RejectReason): void {
+  private refuse(link: NetLink, reason: RejectReason, detail?: string): void {
     this.pending = this.pending.filter((x) => x.link !== link);
     link.onMsg = null;
     link.onBin = null;
     link.onClose = null;
     // the reject travels ahead of the close on the ordered channel (the transport flushes first)
-    link.sendMsg({ t: 'reject', reason } satisfies HostMsg);
+    link.sendMsg({ t: 'reject', reason, detail } satisfies HostMsg);
     link.close(reason);
   }
 
   private hello(link: NetLink, m: Extract<GuestMsg, { t: 'hello' }>): void {
-    if (m.v !== PROTO) return this.refuse(link, 'version');
+    // mixed versions never share a night (engineering optimization pass): the wire protocol and the
+    // simulation code must match; the refusal says which side is newer, so the right player updates
+    if (m.v !== PROTO || (m.sim !== undefined && m.sim !== BUILD.sim)) {
+      const hostNewer = Date.parse(BUILD.time) > Date.parse(m.time ?? '1970-01-01');
+      return this.refuse(link, 'version', hostNewer ? 'host-newer' : 'host-older');
+    }
     const back = m.token ? this.guests.find((s) => s.token === m.token) : undefined;
     if (back) return this.rejoin(back, link, m);
     if (this.lobby.inRun) return this.refuse(link, 'in_run');
     const index = this.seats.findIndex((s, i) => i > 0 && !s);
     if (index < 0) return this.refuse(link, 'full');
     const seat: Seat = {
-      index, link: null, profile: { ...m.profile, name: this.uniqueName(m.profile.name) }, token: randomToken(), character: null, ready: false, connected: false, lastHeard: this.now, heard: false, rtt: 0,
+      index, link: null, profile: { ...m.profile, name: this.uniqueName(m.profile.name) }, token: randomToken(), character: null, ready: false, connected: false, lastHeard: this.now, heard: false, rtt: 0, jitter: 0, owed: 0, fast: false,
       view: { hx: 900, hy: 700 }, queue: [], lastQueued: 0, lastApplied: 0, lastInput: null, lastIa: -1, ackSnap: 0, dictAck: 0, invalid: 0,
       limiter: new RateLimiter(40, 80, this.now), binLimiter: new RateLimiter(180, 240, this.now), paused: false, goneAt: 0, deepTicks: 0, lastInputAt: 0, repeats: 0,
       waitUntil: 0, prize: 0, enc: new SnapshotEncoder(), snapSeq: 0, snapAcc: 0, fx: [], sfx: [],
@@ -535,7 +553,10 @@ export class HostSession {
         return;
       case 'pong': {
         const rtt = this.now - m.at;
-        if (rtt >= 0 && rtt < 30000) s.rtt = s.rtt ? s.rtt + (rtt - s.rtt) * 0.3 : rtt;
+        if (rtt >= 0 && rtt < 30000) {
+          if (s.rtt) s.jitter += (Math.abs(rtt - s.rtt) - s.jitter) * 0.2;
+          s.rtt = s.rtt ? s.rtt + (rtt - s.rtt) * 0.3 : rtt;
+        }
         return;
       }
       case 'chat':
@@ -711,12 +732,23 @@ export class HostSession {
       // ticks), so the buffer breathes; only a backlog that persists — latency the guest would feel —
       // is shaved, one input at a time, and only a huge one (a stall) is cut at once.
       if (s.queue.length > 30) this.dropInputs(s, s.queue.length - 4);
-      if (s.queue.length > 4) {
+      // (engineering optimization pass) a backlog deeper than 3 that persists is latency the guest
+      // feels on every action (each queued input is 17 ms): shave it from 4, not 5
+      if (s.queue.length > 3) {
         if (++s.deepTicks > 30) {
           this.dropInputs(s, 1);
           s.deepTicks = 20;
         }
       } else s.deepTicks = 0;
+      // ticks covered by repeating a late input are owed back: once the late inputs arrive, the one each
+      // repeat stood in for is skipped, so a lost or late packet doesn't leave the queue a tick deeper
+      // (and the guest a tick laggier) for the rest of the night. Two inputs stay as a cushion against
+      // jitter: emptier than that, ordinary arrival jitter starves the queue and costs corrections.
+      while (s.owed > 0 && s.queue.length > 2) {
+        this.dropInputs(s, 1);
+        s.stats.dropped--; // not a trim: the repeat already played that tick
+        s.owed--;
+      }
       let next = s.queue.shift();
       if (next) {
         s.lastApplied = next.seq;
@@ -725,6 +757,7 @@ export class HostSession {
       } else if (s.lastInput && s.repeats < 2 && this.now - s.lastInputAt < 250) {
         // a packet a tick or two late: keep doing what they were doing (prediction absorbs it)
         s.repeats++;
+        s.owed++;
         s.stats.starved++;
         next = s.lastInput;
       } else {
@@ -837,6 +870,8 @@ export class HostSession {
     const max = (f: (s: Seat) => number) => live.reduce((t, s) => Math.max(t, f(s)), 0);
     d.connected = live.length > 0;
     d.rtt = max((s) => s.rtt);
+    d.jitter = max((s) => s.jitter);
+    d.buffered = max((s) => s.link?.pressure?.() ?? 0);
     d.inputQueue = max((s) => s.queue.length);
     d.bytesPerSec = sum((s) => s.stats.bps);
     d.snapRate = live.length ? sum((s) => s.stats.rate) / live.length : 0;
@@ -859,7 +894,11 @@ export class HostSession {
     s.snapAcc += dtMs;
     // very busy nights send a little less often (interpolation covers it), and so does a big party
     // sharing the host's upload; prediction keeps each guest's own movement immediate either way
-    const hz = st.last > 12000 ? 12 : st.last > 6000 || (this.live.length >= 3 && st.last > 3000) ? 15 : SNAPSHOT_HZ;
+    // (engineering optimization pass) small snapshots go out at 30 Hz for up to two guests: the guest
+    // then draws the world ~17 ms closer to the host's present, for no more bandwidth than a busy night
+    // at 20 Hz already takes (2 KB × 30); hysteresis keeps the rate from flapping
+    s.fast = s.fast ? st.last <= 2300 : st.last <= 1800;
+    const hz = st.last > 12000 ? 12 : st.last > 6000 || (this.live.length >= 3 && st.last > 3000) ? 15 : s.fast && this.live.length <= 2 ? SNAPSHOT_HZ_FAST : SNAPSHOT_HZ;
     const every = 1000 / hz;
     if (s.snapAcc < every) return;
     s.snapAcc = Math.min(s.snapAcc - every, every);
@@ -919,6 +958,8 @@ export class GuestSession {
   private snapsWin = 0;
   private winStart = 0;
   readonly diag = blankDiag('guest');
+  /** the host refused this build: true if the host is newer, false if older, null if unknown */
+  onVersionRefused: ((hostNewer: boolean | null) => void) | null = null;
 
   // UI hooks
   onWelcome: (lobby: LobbyState) => void = () => {};
@@ -939,7 +980,7 @@ export class GuestSession {
     link.onBin = (buf) => this.onBin(buf);
     // a host that leaves on purpose says why first ('bye' / 'reject'); a bare close is a dropped link
     link.onClose = () => this.closed('Lost connection to the host.');
-    link.sendMsg({ t: 'hello', v: PROTO, profile, token: this.token ?? undefined } satisfies GuestMsg);
+    link.sendMsg({ t: 'hello', v: PROTO, profile, token: this.token ?? undefined, sim: BUILD.sim, time: BUILD.time } satisfies GuestMsg);
   }
 
   private send(m: GuestMsg): void {
@@ -998,7 +1039,12 @@ export class GuestSession {
         this.onWelcome(m.lobby);
         return;
       case 'reject':
-        this.closed(REJECT_TEXT[m.reason] ?? 'The host refused the connection.');
+        if (m.reason === 'version') this.onVersionRefused?.(m.detail === 'host-newer' ? true : m.detail === 'host-older' ? false : null);
+        this.closed(m.reason === 'version' && m.detail === 'host-newer'
+          ? 'The host is playing a newer version of the game. Restart & Update, then join again.'
+          : m.reason === 'version' && m.detail === 'host-older'
+            ? 'The host is playing an older version of the game. Ask them to restart and update, then try again.'
+            : REJECT_TEXT[m.reason] ?? 'The host refused the connection.');
         this.link.onClose = null;
         this.link.close('rejected');
         return;
@@ -1064,7 +1110,10 @@ export class GuestSession {
         return;
       case 'pong': {
         const rtt = this.now - m.at;
-        if (rtt >= 0 && rtt < 30000) this.diag.rtt = this.diag.rtt ? this.diag.rtt + (rtt - this.diag.rtt) * 0.3 : rtt;
+        if (rtt >= 0 && rtt < 30000) {
+          if (this.diag.rtt) this.diag.jitter = (this.diag.jitter ?? 0) + (Math.abs(rtt - this.diag.rtt) - (this.diag.jitter ?? 0)) * 0.2;
+          this.diag.rtt = this.diag.rtt ? this.diag.rtt + (rtt - this.diag.rtt) * 0.3 : rtt;
+        }
         return;
       }
       case 'bye':
@@ -1148,6 +1197,10 @@ export class GuestSession {
       this.diag.predErr = r.predErr;
       this.diag.interval = r.interval;
       this.diag.snapLost = r.dropped;
+      this.diag.corrections = r.corrections;
+      // how far behind the host's present the guest sees the world: the trip over, plus the snapshot interval
+      this.diag.interpDelay = this.diag.rtt / 2 + r.interval;
+      this.diag.buffered = this.link.pressure?.() ?? 0;
     }
     if (now - this.winStart >= 1000) {
       const k = 1000 / Math.max(1, now - this.winStart);

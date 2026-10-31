@@ -45,6 +45,8 @@ export interface LoopbackOpts {
   loss?: number;
   /** probability an unreliable packet is delivered twice */
   dupe?: number;
+  /** loss bursts (network stress tests): each unreliable packet starts a run of `len` drops with probability `p` */
+  burst?: { p: number; len: number };
   /** deterministic randomness for tests */
   seed?: number;
 }
@@ -61,6 +63,8 @@ export class LoopbackNet {
   private q: Pkt[] = [];
   private order = 0;
   private rngState: number;
+  /** unreliable packets still to drop in the current loss burst, per direction */
+  private burstLeft = new Map<LoopbackLink, number>();
   constructor(public opts: LoopbackOpts = {}) {
     this.rngState = (opts.seed ?? 1) >>> 0 || 1;
   }
@@ -87,6 +91,17 @@ export class LoopbackNet {
     const lat = o.latency ?? 0;
     const jit = o.jitter ?? 0;
     if (!reliable && (o.loss ?? 0) > 0 && this.rand() < (o.loss ?? 0)) return;
+    if (!reliable && o.burst) {
+      const left = this.burstLeft.get(to) ?? 0;
+      if (left > 0) {
+        this.burstLeft.set(to, left - 1);
+        return;
+      }
+      if (this.rand() < o.burst.p) {
+        this.burstLeft.set(to, o.burst.len - 1);
+        return;
+      }
+    }
     let at = this.now + lat + (jit ? (this.rand() * 2 - 1) * jit : 0);
     if (reliable) {
       // ordered: never overtake an earlier reliable packet on this direction

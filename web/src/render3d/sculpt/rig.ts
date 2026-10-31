@@ -30,6 +30,9 @@ export interface ClipDef {
 
 export interface ClipRows { start: number; frames: number; loop: boolean }
 
+/** A rig's baked result: what a sculpt worker hands back (see models/sculptPool.ts). */
+export interface RigData { bones: BoneDef[]; rows: Record<string, ClipRows>; data: Float32Array; w: number; h: number }
+
 const _m = new THREE.Matrix4();
 const _t = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -91,6 +94,25 @@ export class Rig {
     this.tex.minFilter = THREE.NearestFilter;
     this.tex.magFilter = THREE.NearestFilter;
     this.tex.needsUpdate = true;
+  }
+
+  /** The baked bones, clip rows and pose texture (a worker posts these back to the page). */
+  pack(): RigData {
+    const img = this.tex.image as unknown as { data: Float32Array; width: number; height: number };
+    return { bones: this.bones, rows: this.rows, data: img.data, w: img.width, h: img.height };
+  }
+
+  /** A rig rebuilt from baked data without re-evaluating its clips. */
+  static restore(d: RigData): Rig {
+    const r = Object.create(Rig.prototype) as Rig;
+    const index: Record<string, number> = {};
+    d.bones.forEach((b, i) => (index[b.name] = i));
+    const tex = new THREE.DataTexture(d.data, d.w, d.h, THREE.RGBAFormat, THREE.FloatType);
+    tex.minFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.NearestFilter;
+    tex.needsUpdate = true;
+    Object.assign(r, { bones: d.bones, index, rows: d.rows, tex });
+    return r;
   }
 
   bone(name: string): number {

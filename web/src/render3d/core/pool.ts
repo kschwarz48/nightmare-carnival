@@ -7,17 +7,34 @@
 // darker, with a soft tail to zero at the radius — so every pool reads as coming from its lamp and
 // the spaces between lamps stay dark. A light may instead be a theatre spot (`hard` > 0): a crisp
 // disc of light cast from high above, used for the searchlights and boss stage lights.
+//
+// Tiled culling (engineering optimization pass): a light only reaches as far as its radius, so each
+// frame the CPU marks, on a 32×32 grid over the lit area round the camera, which lights can touch each
+// tile (24 bits a tile, packed in a tiny texture). A fragment looks its tile up and evaluates only
+// those lights: the picture is the same, but a crowd lit by a full pool no longer pays for all 24
+// lights at every pixel. Anything outside the grid (far scenery, reflections) evaluates them all.
 
 import * as THREE from 'three';
+import { LEGACY } from '../../core/flags';
 
 export const POOL_MAX = 24;
+/** tiles per side of the culling grid */
+const TILES = 32;
 
 export const POOL_GLSL = /* glsl */ `
 uniform vec4 uPoolA[${POOL_MAX}];  // x, height, z, radius
 uniform vec4 uPoolB[${POOL_MAX}];  // rgb × intensity, spot hardness (0 = point falloff)
 uniform int uPoolN;
 uniform vec3 uViewDir;             // world-space direction towards the (orthographic) camera
+uniform sampler2D uPoolTiles;      // per tile: which lights can reach it (24 bits in RGB)
+uniform vec4 uPoolTileRect;        // grid origin x, z and tiles per unit along x, z
 const float POOL_CONC = 6.0;
+uint poolMask(vec3 wp) {
+  vec2 t = (wp.xz - uPoolTileRect.xy) * uPoolTileRect.zw;
+  if (t.x < 0.0 || t.y < 0.0 || t.x >= ${TILES}.0 || t.y >= ${TILES}.0) return 0xFFFFFFu;
+  uvec3 b = uvec3(texelFetch(uPoolTiles, ivec2(t), 0).rgb * 255.0 + 0.5);
+  return b.r | (b.g << 8u) | (b.b << 16u);
+}
 float poolFall(vec4 A, float hard, vec3 wp, float d2) {
   if (hard > 0.0) return 1.0 - smoothstep(1.0 - hard, 1.0, length(A.xz - wp.xz) / A.w);
   float x = d2 / (A.w * A.w);
@@ -29,8 +46,10 @@ float poolFall(vec4 A, float hard, vec3 wp, float d2) {
 }
 vec3 poolLight(vec3 wp, vec3 wn, float shin, inout vec3 spec) {
   vec3 acc = vec3(0.0);
+  uint m = poolMask(wp);
   for (int i = 0; i < ${POOL_MAX}; i++) {
     if (i >= uPoolN) break;
+    if ((m & (1u << uint(i))) == 0u) continue;
     vec4 A = uPoolA[i];
     vec3 L = A.xyz - wp;
     float d2 = dot(L, L);
@@ -47,8 +66,10 @@ vec3 poolLight(vec3 wp, vec3 wn, float shin, inout vec3 spec) {
 }
 vec3 poolLightFlat(vec3 wp) {
   vec3 acc = vec3(0.0);
+  uint m = poolMask(wp);
   for (int i = 0; i < ${POOL_MAX}; i++) {
     if (i >= uPoolN) break;
+    if ((m & (1u << uint(i))) == 0u) continue;
     vec4 A = uPoolA[i];
     vec3 L = A.xyz - wp;
     acc += uPoolB[i].rgb * poolFall(A, uPoolB[i].w, wp, dot(L, L));
@@ -61,7 +82,10 @@ interface Cand { x: number; y: number; h: number; r: number; i: number; cr: numb
 export class PoolLights {
   readonly a: THREE.Vector4[] = [];
   readonly b: THREE.Vector4[] = [];
-  readonly uniforms: { uPoolA: THREE.IUniform; uPoolB: THREE.IUniform; uPoolN: THREE.IUniform; uViewDir: THREE.IUniform };
+  readonly uniforms: { uPoolA: THREE.IUniform; uPoolB: THREE.IUniform; uPoolN: THREE.IUniform; uViewDir: THREE.IUniform; uPoolTiles: THREE.IUniform; uPoolTileRect: THREE.IUniform };
+  /** the culling grid: per tile, the bits of the lights that reach it */
+  private tileData = new Uint8Array(TILES * TILES * 4);
+  private tiles = new THREE.DataTexture(this.tileData, TILES, TILES, THREE.RGBAFormat, THREE.UnsignedByteType);
   private cands: Cand[] = [];
   private order: Cand[] = [];
   private nc = 0;
@@ -70,6 +94,8 @@ export class PoolLights {
   private reach = 2000;
   /** Global multiplier (Lights Out, dawn). */
   scale = 1;
+  /** A/B switch for the benchmarks: evaluate every light everywhere, as before the tiled culling. */
+  cullOff = LEGACY.tiles;
 
   constructor() {
     for (let i = 0; i < POOL_MAX; i++) {
@@ -77,11 +103,17 @@ export class PoolLights {
       this.b.push(new THREE.Vector4());
     }
     for (let i = 0; i < 160; i++) this.cands.push({ x: 0, y: 0, h: 0, r: 0, i: 0, cr: 0, cg: 0, cb: 0, hard: 0, score: 0 });
+    this.tiles.minFilter = this.tiles.magFilter = THREE.NearestFilter;
+    this.tiles.generateMipmaps = false;
+    this.tiles.needsUpdate = true;
     this.uniforms = {
       uPoolA: { value: this.a },
       uPoolB: { value: this.b },
       uPoolN: { value: 0 },
       uViewDir: { value: new THREE.Vector3(0, 0.77, 0.64) },
+      uPoolTiles: { value: this.tiles },
+      // until the first frame the grid lies far away, so every fragment evaluates every light
+      uPoolTileRect: { value: new THREE.Vector4(1e9, 1e9, 1, 1) },
     };
   }
 
@@ -122,5 +154,30 @@ export class PoolLights {
       this.b[k].set(c.cr * i, c.cg * i, c.cb * i, c.hard);
     }
     this.uniforms.uPoolN.value = n;
+    this.cull(n);
+  }
+
+  /** Mark, tile by tile, which of the `n` selected lights can reach it (a light's disc on the ground). */
+  private cull(n: number): void {
+    if (this.cullOff) {
+      (this.uniforms.uPoolTileRect.value as THREE.Vector4).set(1e9, 1e9, 1, 1);
+      return;
+    }
+    const d = this.tileData;
+    d.fill(0);
+    const half = this.reach;
+    const x0 = this.cx - half, z0 = this.cy - half;
+    const per = TILES / (half * 2); // tiles per world unit
+    for (let k = 0; k < n; k++) {
+      const A = this.a[k];
+      const r = A.w;
+      const tx0 = Math.max(0, Math.floor((A.x - r - x0) * per)), tx1 = Math.min(TILES - 1, Math.floor((A.x + r - x0) * per));
+      const tz0 = Math.max(0, Math.floor((A.z - r - z0) * per)), tz1 = Math.min(TILES - 1, Math.floor((A.z + r - z0) * per));
+      if (tx0 > tx1 || tz0 > tz1) continue;
+      const byte = k >> 3, bit = 1 << (k & 7);
+      for (let tz = tz0; tz <= tz1; tz++) for (let tx = tx0; tx <= tx1; tx++) d[(tz * TILES + tx) * 4 + byte] |= bit;
+    }
+    (this.uniforms.uPoolTileRect.value as THREE.Vector4).set(x0, z0, per, per);
+    this.tiles.needsUpdate = true;
   }
 }

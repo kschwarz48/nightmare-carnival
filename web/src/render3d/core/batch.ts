@@ -23,6 +23,8 @@ export class ActorBatch {
   outline: THREE.InstancedMesh | null = null;
   /** Silhouette shown where the batch is hidden behind scenery, sharing geometry and instances (D-58). */
   xray: THREE.InstancedMesh | null = null;
+  /** false while its shaders compile in the background: it draws nothing rather than stalling a frame */
+  ready = true;
 
   constructor(geo: THREE.BufferGeometry, mat: THREE.MeshStandardMaterial, cap: number, o: { shadow?: boolean; receive?: boolean; order?: number; outline?: boolean } = {}) {
     this.cap = cap;
@@ -120,10 +122,11 @@ export class ActorBatch {
   }
 
   end(): void {
-    this.mesh.count = this.count;
-    if (this.outline) this.outline.count = this.count;
-    if (this.xray) this.xray.count = this.count;
-    if (this.count === 0) return;
+    const n = this.ready ? this.count : 0;
+    this.mesh.count = n;
+    if (this.outline) this.outline.count = n;
+    if (this.xray) this.xray.count = n;
+    if (n === 0) return;
     const im = this.mesh.instanceMatrix;
     im.clearUpdateRanges();
     im.addUpdateRange(0, this.count * 16);

@@ -1,5 +1,5 @@
 # Netlify hosting for the static build (docs/MULTIPLAYER.md §4). Deploy from this folder:
-#   npm run build && npx netlify-cli deploy --prod --dir=dist
+#   npm run deploy -- --deploy      (builds, keeps the last builds' assets live, publishes; see scripts/deploy.mjs)
 # A Git-connected Netlify site would set its base directory to `web`.
 
 [build]
@@ -14,6 +14,23 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# The build's identity: running games poll it to learn of a new deploy, so it is never cached.
+[[headers]]
+  for = "/version.json"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# The page itself always revalidates, so "Restart & Update" (and any reload) gets the new deploy.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache"
 
 [[headers]]
   for = "/*"
