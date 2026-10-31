@@ -1,0 +1,85 @@
+{
+  "name": "nightmare-carnival-desktop",
+  "productName": "Nightmare Carnival",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Nightmare Carnival for Windows: a thin, locked-down shell around the hosted game.",
+  "author": "Kevin Schwarz",
+  "main": "main.js",
+  "devDependencies": {
+    "electron": "44.9.3",
+    "electron-builder": "26.17.0"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.10"
+  },
+  "scripts": {
+    "start": "electron .",
+    "start:dev": "electron . --game-url=http://127.0.0.1:5173/ --devtools",
+    "icon": "electron tools/make-icon.js",
+    "dist": "electron-builder --win nsis --x64 --publish never",
+    "release": "electron-builder --win nsis --x64 --publish always",
+    "bench": "electron bench.js"
+  },
+  "homepage": "https://nightmare-carnival.netlify.app/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kschwarz48/nightmare-carnival.git"
+  },
+  "build": {
+    "appId": "com.nightmarecarnival.game",
+    "productName": "Nightmare Carnival",
+    "copyright": "Copyright © 2026 Kevin Schwarz",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "shell/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Nightmare-Carnival-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nightmare Carnival",
+      "uninstallDisplayName": "Nightmare Carnival",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "kschwarz48",
+        "repo": "nightmare-carnival",
+        "releaseType": "draft"
+      }
+    ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false
+    }
+  }
+}

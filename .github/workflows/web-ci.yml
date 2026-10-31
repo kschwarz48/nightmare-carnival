@@ -1,0 +1,35 @@
+# The web game's checks (engineering optimization pass): typecheck, tests and a production build on
+# every push and pull request that touches web/. Deploying stays a deliberate step (npm run deploy --
+# --deploy from web/, after the owner's go-ahead); this workflow never publishes anything.
+name: web CI
+
+on:
+  push:
+    paths: ['web/**', '.github/workflows/web-ci.yml']
+  pull_request:
+    paths: ['web/**', '.github/workflows/web-ci.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: version manifest
+        run: node -e "const m=require('./dist/version.json'); console.log(m.id, m.version, 'proto', m.proto, 'sim', m.sim, m.assets.length + ' assets')"

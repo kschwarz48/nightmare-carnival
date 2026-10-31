@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:" />
+<title>Nightmare Carnival</title>
+<style>
+  :root { --ink: #17110e; --cream: #f7eedb; --gold: #f2c14e; --red: #e8384f; --plum: #2a0f30; }
+  html, body { margin: 0; height: 100%; background: radial-gradient(ellipse at 50% 35%, #2a0f30 0%, #0c0610 70%); color: var(--cream); font-family: Georgia, 'Times New Roman', serif; }
+  body { display: flex; align-items: center; justify-content: center; }
+  .panel { text-align: center; max-width: 34em; padding: 2.4em 2.8em; background: linear-gradient(180deg, rgba(42, 22, 64, 0.95), rgba(26, 13, 40, 0.95)); border: 4px solid var(--ink); border-radius: 18px; box-shadow: 0 0 0 3px var(--gold), 0 14px 40px rgba(0, 0, 0, 0.6); }
+  .bulbs { display: flex; justify-content: center; gap: 0.7em; margin-bottom: 1.2em; }
+  .bulbs i { width: 0.7em; height: 0.7em; border-radius: 50%; background: var(--gold); box-shadow: 0 0 10px var(--gold); animation: blink 1.6s infinite; }
+  .bulbs i:nth-child(even) { background: #ff6aa0; box-shadow: 0 0 10px #ff6aa0; animation-delay: 0.8s; }
+  @keyframes blink { 50% { opacity: 0.35; } }
+  h1 { margin: 0 0 0.4em; font-size: 2em; letter-spacing: 0.06em; color: var(--red); text-shadow: 3px 3px 0 var(--ink); }
+  p { margin: 0.5em 0; line-height: 1.5; }
+  .why { opacity: 0.7; font-size: 0.85em; font-style: italic; }
+  button { margin-top: 1.4em; font: inherit; font-size: 1.1em; padding: 0.55em 1.6em; color: var(--ink); background: var(--gold); border: 3px solid var(--ink); border-radius: 10px; cursor: pointer; box-shadow: 0 4px 0 var(--ink); }
+  button:hover { filter: brightness(1.08); }
+  button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="bulbs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <h1>The gates are closed</h1>
+    <p>Nightmare Carnival couldn't reach the midway. Check your internet connection and try again.</p>
+    <p class="why" id="why"></p>
+    <button id="retry" autofocus>Try Again</button>
+    <p class="why" id="auto">Trying again on its own in <span id="n">15</span> s…</p>
+  </div>
+<script>
+  const why = new URLSearchParams(location.search).get('reason');
+  if (why) document.getElementById('why').textContent = why;
+  const retry = () => window.ncDesktop && window.ncDesktop.retry();
+  document.getElementById('retry').addEventListener('click', retry);
+  let n = 15;
+  setInterval(() => {
+    n -= 1;
+    if (n <= 0) { n = 15; retry(); }
+    document.getElementById('n').textContent = String(n);
+  }, 1000);
+</script>
+</body>
+</html>

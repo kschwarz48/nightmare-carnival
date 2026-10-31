@@ -1,0 +1,66 @@
+# The Windows app's release (engineering optimization pass). Ordinary game updates never come through
+# here: they ship with the web deploy and reach desktop players through the in-game Restart & Update.
+# This builds a new installer only when the desktop shell itself changes:
+#
+#   1. bump "version" in web/desktop/package.json (e.g. 0.1.1) and commit
+#   2. git tag v0.1.1 && git push origin v0.1.1
+#   3. this workflow builds the NSIS installer on Windows and attaches it (with latest.yml and the
+#      blockmap) to a DRAFT GitHub Release v0.1.1
+#   4. check the draft, then publish it: installed apps pick it up within a few hours (electron-updater)
+#
+# It needs no secrets of its own (the workflow's GITHUB_TOKEN can create releases in this repository).
+# Code signing is not configured: Windows SmartScreen will warn on first install until a certificate is
+# added (see web/docs/DESKTOP.md).
+name: desktop release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Attach to a draft release (otherwise just build the installer as an artifact)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: web/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/desktop/package-lock.json
+      - run: npm ci
+      - name: tag matches the shell version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          test "v$v" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} does not match package.json version $v"; exit 1; }
+      - name: syntax check
+        run: node --check main.js && node --check preload.js
+      - name: build the installer
+        if: ${{ !(startsWith(github.ref, 'refs/tags/v') || inputs.publish) }}
+        run: npx electron-builder --win nsis --x64 --publish never
+      - name: build and attach to a draft release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.publish }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win nsis --x64 --publish always
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nightmare-carnival-windows
+          path: |
+            web/desktop/release/*.exe
+            web/desktop/release/*.blockmap
+            web/desktop/release/latest.yml
+          if-no-files-found: error
