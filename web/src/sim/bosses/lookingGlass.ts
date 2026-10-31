@@ -244,6 +244,8 @@ export class LookingGlassBoss extends FunhouseBoss {
     this.windup = 1;
     yield this.tele(0.4);
     this.windup = 0;
+    // the reflections may all have been shattered during the wind-up
+    if (!this.decoys.length) return;
     const d = this.decoys[g.rng.int(0, this.decoys.length - 1)];
     const ox = this.x, oy = this.y;
     this.x = this.px = d.x;

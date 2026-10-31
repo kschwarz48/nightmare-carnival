@@ -484,3 +484,31 @@ and teleports, and the prize wheel dull and see-through.
   `map`, set by the host (`setMap`, refused mid-run). `StartCfg.map` tells every guest which house to
   build, and unknown ids fall back to the Carnival Core on the wire. PROTO 7. The Fun House opens after
   the Ringmaster's first defeat or the Midway unlock; `?unlock=funhouse` opens it for testing.
+
+### D-64 · The Fun House follows the first night's curve, about 15% harder
+- **The report.** Starting the house as a fresh level-1 character, the opening mobs took far too many
+  hits. The house had opened with 120-HP Mannequins and 60-HP Marionettes where the first world has
+  4-HP balloons. Measured on actual spawns, Acts I and II averaged 3× the first world's health per spawn
+  (11.9× in the first minute), while Acts III and IV were about even. The challenge came backwards.
+- **One rule.** Every Fun House enemy takes a first-world enemy's slot at about 1.15× its health and
+  contact damage, keeps the same tickets, and arrives when that enemy does:
+  - Marionette for the Wind-Up Monkey;
+  - Mannequin for the Possessed Stuffie;
+  - Crooked Clown for the Dunk Tank Clown;
+  - a splitter family for the Cotton-Candy Slime;
+  - Glasswalker for the Carousel Horse;
+  - Doppelganger for the Puppet Soldier;
+  - Grand Display for the Carnival Brute.
+
+  The Reflection Thief takes the Ticket Booth's capped slot at 300 HP, because a 600-HP blinker would be
+  a chore. The waves now open on balloons and marionettes, as the first world's open on balloons and
+  monkeys. Acts III and IV lean on Glasswalkers and Doppelgangers, because splitters don't carry an
+  act's weight.
+- **The result.** Measured per act (`scripts/maphp.ts`), the house is now 1.2×, 1.1×, 1.1× and 1.2× the
+  first world. A test holds Acts I and II to 1.0–1.3×, wave by wave.
+- **Readability.**
+  - Marionette landings are telegraphed: the spot is marked for the whole leap, and the radius is 50.
+  - The unwatched Mannequin sprint drops to 140, the evil clown's tier.
+  - The Proprietor's cabinet brings one thief.
+- **Not tuned to bots.** The mortal bots die sooner in a house of walls than on open ground. Kevin
+  judged that natural, so his playtests decide the next step.

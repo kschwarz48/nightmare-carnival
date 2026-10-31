@@ -58,26 +58,27 @@ export const CARNIVAL_ACTS = ['Act I — Warm-Up', 'Act II — The Crowd', 'Act 
 // the night is as long and as dense; the roster is the house's own: seven new enemies arriving act by
 // act, plus clowns, jack-in-the-boxes and balloons.
 export const FUNHOUSE_WAVES: WaveDef[] = [
-  // Act I — Admission
-  { id: 'f_0000', start: 0, enemies: [['living_balloon', 60], ['grinning_mannequin', 25], ['marionette', 15]], minAlive: 22, maxAlive: 60, interval: 0.85, batch: 3 },
-  { id: 'f_0100', start: 60, enemies: [['living_balloon', 45], ['grinning_mannequin', 30], ['marionette', 25]], minAlive: 24, maxAlive: 90, interval: 1.0, batch: 2 },
-  { id: 'f_0200', start: 120, enemies: [['living_balloon', 35], ['marionette', 35], ['grinning_mannequin', 30]], minAlive: 30, maxAlive: 120, interval: 0.95, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 8, size: 26 } },
-  { id: 'f_0300', start: 180, enemies: [['marionette', 40], ['grinning_mannequin', 30], ['evil_clown', 30]], minAlive: 34, maxAlive: 150, interval: 0.9, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 7.5, size: 30 } },
-  { id: 'f_0400', start: 240, enemies: [['marionette', 35], ['evil_clown', 30], ['grinning_mannequin', 20], ['jack_in_the_box', 15]], minAlive: 44, maxAlive: 200, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 36 } },
-  { id: 'f_0500', start: 300, enemies: [['evil_clown', 35], ['marionette', 30], ['grinning_mannequin', 25], ['jack_in_the_box', 10]], minAlive: 54, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 42 }, eliteBurst: 4 },
-  // Act II — The Mirrors
-  { id: 'f_0600', start: 360, enemies: [['crooked_clown', 25], ['splitter', 20], ['marionette', 25], ['evil_clown', 30]], minAlive: 60, maxAlive: 220, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 30 } },
-  { id: 'f_0800', start: 480, enemies: [['crooked_clown', 25], ['splitter', 20], ['grinning_mannequin', 20], ['evil_clown', 20], ['jack_in_the_box', 15]], minAlive: 68, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 5.5, size: 34 } },
-  { id: 'f_1000', start: 600, enemies: [['splitter', 22], ['crooked_clown', 26], ['marionette', 22], ['grinning_mannequin', 18], ['jack_in_the_box', 12]], minAlive: 78, maxAlive: 260, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 38 }, eliteBurst: 3 },
-  // Act III — The Gallery Wakes
-  { id: 'f_1200', start: 720, enemies: [['glasswalker', 22], ['doppelganger', 16], ['splitter', 20], ['crooked_clown', 20], ['evil_clown', 22]], minAlive: 80, maxAlive: 270, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 40 } },
-  { id: 'f_1400', start: 840, enemies: [['glasswalker', 22], ['doppelganger', 18], ['grinning_mannequin', 20], ['marionette', 20], ['splitter', 20]], minAlive: 86, maxAlive: 280, interval: 0.7, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 44 } },
-  { id: 'f_1600', start: 960, enemies: [['doppelganger', 20], ['glasswalker', 20], ['crooked_clown', 20], ['evil_clown', 20], ['splitter', 20]], minAlive: 92, maxAlive: 280, interval: 0.68, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 48 }, eliteBurst: 4 },
+  // Act I — Admission: balloons and marionettes while you find your feet (the first world's balloons and
+  // wind-up monkeys); the mannequins step off their stands at 3:00, where the stuffies arrive (D-64)
+  { id: 'f_0000', start: 0, enemies: [['living_balloon', 92], ['marionette', 8]], minAlive: 22, maxAlive: 60, interval: 0.8, batch: 3 },
+  { id: 'f_0100', start: 60, enemies: [['living_balloon', 70], ['marionette', 30]], minAlive: 22, maxAlive: 85, interval: 1.0, batch: 2 },
+  { id: 'f_0200', start: 120, enemies: [['living_balloon', 65], ['marionette', 35]], minAlive: 28, maxAlive: 120, interval: 0.95, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 8, size: 28 } },
+  { id: 'f_0300', start: 180, enemies: [['grinning_mannequin', 55], ['living_balloon', 15], ['marionette', 30]], minAlive: 30, maxAlive: 150, interval: 0.9, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 7.5, size: 32 } },
+  { id: 'f_0400', start: 240, enemies: [['grinning_mannequin', 50], ['marionette', 22], ['evil_clown', 28]], minAlive: 42, maxAlive: 200, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 40 } },
+  { id: 'f_0500', start: 300, enemies: [['grinning_mannequin', 47], ['evil_clown', 35], ['marionette', 18]], minAlive: 54, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 46 }, eliteBurst: 4 },
+  // Act II — The Mirrors: crooked clowns and splitters join (the dunk-tank clowns' and slimes' slots)
+  { id: 'f_0600', start: 360, enemies: [['grinning_mannequin', 30], ['evil_clown', 25], ['splitter', 18], ['crooked_clown', 15], ['jack_in_the_box', 12]], minAlive: 60, maxAlive: 220, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 30 } },
+  { id: 'f_0800', start: 480, enemies: [['grinning_mannequin', 26], ['evil_clown', 24], ['splitter', 16], ['jack_in_the_box', 14], ['crooked_clown', 20]], minAlive: 68, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 5.5, size: 34 } },
+  { id: 'f_1000', start: 600, enemies: [['evil_clown', 26], ['grinning_mannequin', 22], ['crooked_clown', 20], ['marionette', 16], ['jack_in_the_box', 12], ['splitter', 4]], minAlive: 78, maxAlive: 260, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 38 }, eliteBurst: 3 },
+  // Act III — The Gallery Wakes: glasswalkers and doppelgangers (the carousel horses' and soldiers' tier)
+  { id: 'f_1200', start: 720, enemies: [['doppelganger', 26], ['glasswalker', 24], ['evil_clown', 26], ['splitter', 12], ['reflection_thief', 12]], minAlive: 80, maxAlive: 270, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 40 } },
+  { id: 'f_1400', start: 840, enemies: [['doppelganger', 24], ['glasswalker', 22], ['grinning_mannequin', 22], ['splitter', 12], ['crooked_clown', 20]], minAlive: 86, maxAlive: 280, interval: 0.7, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 44 } },
+  { id: 'f_1600', start: 960, enemies: [['glasswalker', 26], ['doppelganger', 24], ['evil_clown', 26], ['splitter', 12], ['reflection_thief', 12]], minAlive: 92, maxAlive: 280, interval: 0.68, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 48 }, eliteBurst: 4 },
   // Act IV — Closing Time
-  { id: 'f_1800', start: 1080, enemies: [['reflection_thief', 6], ['doppelganger', 22], ['glasswalker', 22], ['grinning_mannequin', 22], ['crooked_clown', 18], ['splitter', 10]], minAlive: 96, maxAlive: 280, interval: 0.66, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 52 } },
-  { id: 'f_2000', start: 1260, enemies: [['reflection_thief', 8], ['doppelganger', 22], ['glasswalker', 20], ['splitter', 18], ['marionette', 18], ['crooked_clown', 14]], minAlive: 100, maxAlive: 280, interval: 0.62, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 3.5, size: 56 }, eliteBurst: 4 },
-  { id: 'f_2200', start: 1380, enemies: [['reflection_thief', 8], ['doppelganger', 22], ['glasswalker', 22], ['grinning_mannequin', 20], ['evil_clown', 18], ['splitter', 10]], minAlive: 108, maxAlive: 280, interval: 0.6, batch: 7, swarm: { enemy: 'swarm_balloon', interval: 3, size: 60 }, eliteBurst: 5 },
-  { id: 'f_2400', start: 1440, enemies: [['living_balloon', 60], ['marionette', 25], ['evil_clown', 15]], minAlive: 140, maxAlive: 280, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 2.5, size: 70 } },
+  { id: 'f_1800', start: 1080, enemies: [['reflection_thief', 14], ['glasswalker', 22], ['doppelganger', 22], ['evil_clown', 26], ['grinning_mannequin', 16]], minAlive: 96, maxAlive: 280, interval: 0.66, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 52 } },
+  { id: 'f_2000', start: 1260, enemies: [['reflection_thief', 18], ['doppelganger', 22], ['glasswalker', 20], ['evil_clown', 24], ['splitter', 10], ['jack_in_the_box', 6]], minAlive: 100, maxAlive: 280, interval: 0.62, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 3.5, size: 56 }, eliteBurst: 4 },
+  { id: 'f_2200', start: 1380, enemies: [['reflection_thief', 20], ['glasswalker', 24], ['doppelganger', 22], ['evil_clown', 24], ['splitter', 10]], minAlive: 108, maxAlive: 280, interval: 0.6, batch: 7, swarm: { enemy: 'swarm_balloon', interval: 3, size: 60 }, eliteBurst: 5 },
+  { id: 'f_2400', start: 1440, enemies: [['living_balloon', 62], ['evil_clown', 20], ['grinning_mannequin', 8], ['marionette', 10]], minAlive: 140, maxAlive: 280, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 2.5, size: 70 } },
 ];
 export const FUNHOUSE_VICTORY: WaveDef = {
   id: 'f_victory_lap', start: 0, enemies: [['living_balloon', 80], ['marionette', 20]], minAlive: 150, maxAlive: 280, interval: 0.3, batch: 10,

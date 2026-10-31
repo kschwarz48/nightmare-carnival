@@ -115,6 +115,48 @@ understate that character.
 
 ---
 
+## Fun House crowd health, from Kevin's playtest — 2026-10-30 (D-64)
+
+**Report.** A fresh level-1 character found the house's opening mobs took far too many hits. The ask
+was a curve like the first world's, about 15% harder.
+
+**Measured** (`scripts/maphp.ts`, 3 god-mode bot nights per map): average health per spawn by act.
+
+| Act | First world | Fun House before | Fun House after |
+|---|---|---|---|
+| I (0–6 min) | 24.9 | 76.9 (3.1×; minute 0 alone 11.9×) | 31.1 (1.2×) |
+| II (6–12) | 54.7 | 166.6 (3.0×) | 62.6 (1.1×) |
+| III (12–18) | 259.6 | 267.6 (1.0×) | 282.3 (1.1×) |
+| IV (18–25) | 285.3 | 307.3 (1.1×) | 342.8 (1.2×) |
+
+**Changed.**
+- Each Fun House enemy got its first-world counterpart's slot at about 1.15× health and contact
+  damage, with matching tickets.
+- The waves arrive at the first world's pace.
+- Marionette landings are telegraphed (the spot is marked during the leap) and smaller (70 → 50).
+- The Mannequin sprint is down from 215 to 140, the evil clown's tier.
+- The Grand Display miniboss went from 2,600 HP and 26 contact to 1,035 HP and 12 contact.
+- The Proprietor's cabinet brings one thief, not two.
+
+**A crash found while measuring.** If the Looking Glass's reflections were all shattered during its
+0.4 s swap wind-up, the swap read a reflection that no longer existed and the night froze at 12:00. It
+is fixed. Two new tests cover it:
+- the exact case, which fails with the old code;
+- every Fun House boss fought by a bot with a real loadout. The old boss tests removed the player's
+  weapons, which is how this slipped through.
+
+**Automated:** 234 tests pass. The new guard keeps the house's Acts I–II at 1.0–1.3× the first world,
+wave by wave.
+
+**Mortal bots** (`scripts/survival.ts midway fun_house`, `scripts/fhdeaths.ts`): they still die sooner
+in the house than in the carnival. They kite for open ground; the house is walls. Per Kevin, not tuned
+to. The telegraphed landings halved the Marionette shockwave's damage and lengthened the bots' runs by
+about half.
+
+**Not verified:** a human night on the new curve.
+
+---
+
 ## The Fun House, a second map — 2026-10-30 (D-63)
 
 **Automated:** 231 tests in 16 files pass. Typecheck and the production build pass. New tests:

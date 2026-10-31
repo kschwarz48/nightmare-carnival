@@ -3,7 +3,7 @@
 // whole accelerated night on the map plays out.
 
 import { describe, expect, it } from 'vitest';
-import { makeGame, runFor } from './helpers';
+import { makeGame, runFor, smartDraft, smartPilot } from './helpers';
 import { FUNHOUSE_BOSSES, UNREFLECTED_DEF } from '../src/data/bosses';
 import { createBoss } from '../src/sim/bosses';
 import type { Game } from '../src/sim/game';
@@ -93,6 +93,44 @@ describe('the Fun House bosses (D-63)', () => {
     g.damageTarget(d, 1e9, false, 0, 0, 0, 'test');
     expect(b.decoys.length).toBe(1);
     expect(b.hp).toBe(hp);
+  });
+
+  it("the Looking Glass's swap survives its reflections all shattering during the wind-up", () => {
+    const g = fh();
+    g.weapons.list.length = 0;
+    const b = createBoss(g, FUNHOUSE_BOSSES[1], { immediate: true, noChest: true }) as LookingGlassBoss;
+    g.bosses.push(b);
+    tickN(g, 60 * 3);
+    hitBoss(g, b, 0, 1);
+    tickN(g, 60 * 2);
+    expect(b.decoys.length).toBe(2);
+    const co = b as unknown as { co: { start(c: unknown): void }; swap(): unknown; busy: boolean };
+    co.busy = true;
+    co.co.start(co.swap());
+    tickN(g, 6);
+    for (const d of b.decoys.slice()) g.damageTarget(d, 1e9, false, 0, 0, 0, 'test');
+    expect(b.decoys.length).toBe(0);
+    expect(() => tickN(g, 60)).not.toThrow();
+  });
+
+  it('every Fun House boss fights a bot with a real loadout without faults', () => {
+    for (const def of [...FUNHOUSE_BOSSES, UNREFLECTED_DEF]) {
+      const g = fh({ seed: 77 });
+      for (const id of ['orbs', 'laser', 'bell', 'mirror']) {
+        g.weapons.add(id);
+        for (let k = 0; k < 7; k++) g.weapons.levelUp(id);
+      }
+      const b = createBoss(g, def, { immediate: true, noChest: true });
+      g.bosses.push(b);
+      const hp0 = b.hp;
+      for (let i = 0; i < 60 * 90 && !b.removed; i++) {
+        smartDraft(g);
+        if (g.phase === 'draft') g.chooseDraft(0);
+        smartPilot(g);
+        g.tick();
+      }
+      expect(b.hp).toBeLessThan(hp0);
+    }
   });
 
   it('the Proprietor holds the dawn; his defeat ends the night in a win', () => {

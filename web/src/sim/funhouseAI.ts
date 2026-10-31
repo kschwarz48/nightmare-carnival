@@ -204,7 +204,10 @@ export function glasswalker(g: Game, e: Enemy, dt: number): void {
 }
 
 // ---------------------------------------------------------------- Marionette
-/** Yanked toward the player in jerky leaps (state 1, airborne) with a thump where it lands. */
+/**
+ * Yanked toward the player in jerky leaps (state 1, airborne) with a thump where it lands. The spot the
+ * strings will drop it is marked on the floor for the whole leap (D-64): the thump is telegraphed.
+ */
 export function marionette(g: Game, e: Enemy, dt: number): void {
   const p = g.player;
   if (e.state === 0) {
@@ -221,6 +224,7 @@ export function marionette(g: Game, e: Enemy, dt: number): void {
       e.n1 = L / e.t;
       e.dirX = Math.cos(a);
       e.dirY = Math.sin(a);
+      if (!e.illusion) g.spawnHazard('circle', 'marionette_land', e.tx, e.ty, { r: P(e, 'land', 50), tele: e.t, active: 0.12, dmg: P(e, 'landDmg', 5) * g.diff.dmgMult, owner: e.uid });
     }
     return;
   }
@@ -231,7 +235,6 @@ export function marionette(g: Game, e: Enemy, dt: number): void {
     e.state = 0;
     e.t = P(e, 'rest', 0.5) + g.rng.range(0, 0.3);
     e.noContact = false;
-    if (!e.illusion) g.spawnHazard('circle', 'marionette_land', e.x, e.y, { r: P(e, 'land', 70), tele: 0.01, active: 0.12, dmg: P(e, 'landDmg', 8) * g.diff.dmgMult, owner: e.uid });
     g.fx.push('dust', e.x, e.y, 0.5);
   }
 }

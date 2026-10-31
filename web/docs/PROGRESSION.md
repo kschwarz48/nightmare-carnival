@@ -161,6 +161,33 @@ XP grows faster than the crowd for duos. In trios and quads the pilot flees the 
 its tickets uncollected, a bot artefact: people wade in. The shipped table holds the large parties at
 2.6 to stay under the enemy pool.
 
+### Fun House crowd health (D-64)
+`scripts/maphp.ts` plays god-mode bot nights (Carny, smart pilot, 3 seeds per map). It measures the health
+of what actually spawns, so the weights, alive caps and time scaling all count:
+- rail snakes are left out (they're dodged, not fought);
+- a splitter family counts once, with all its health.
+
+Average health per spawn by act:
+
+| Act | First world | Fun House before | Fun House after |
+|---|---|---|---|
+| I (0–6 min) | 24.9 | 76.9 (3.1×; minute 0 alone 11.9×) | 31.1 (1.2×) |
+| II (6–12) | 54.7 | 166.6 (3.0×) | 62.6 (1.1×) |
+| III (12–18) | 259.6 | 267.6 (1.0×) | 282.3 (1.1×) |
+| IV (18–25) | 285.3 | 307.3 (1.1×) | 342.8 (1.2×) |
+
+**Why it happened.** At launch the house opened with 120-HP Mannequins and 60-HP Marionettes, where the
+first world has 4-HP balloons.
+
+**The fix.**
+- Every Fun House enemy now takes a first-world enemy's slot at about 1.15× its health, with matching
+  contact damage and the same tickets.
+- The waves bring them in at the first world's pace.
+- Minute by minute, the house now runs 0.9–1.3× the first world.
+
+The mortal bots still die sooner in the house, but they kite for open ground and the house is walls;
+Kevin's call is not to tune to them.
+
 ## Honest uncertainty
 
 * These numbers come from bots, not people. The pilot dodges by potential fields and cannot read

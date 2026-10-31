@@ -121,6 +121,24 @@ solids 40-60 thick. Every doorway is at least 240 wide, and every room has two o
 | Jack-in-the-Box | shared | ambusher | Toy-box surprises fit the house. |
 | Living Balloon / Swarm Balloon | shared | fodder, drifts | The balloon drifts float in through the doors. |
 
+**The crowd follows the first night's curve, about 15% sturdier (D-64).** Each new enemy takes a
+first-world enemy's slot, at about 1.15× its health and contact damage, with the same tickets:
+
+| Fun House enemy | First-world slot | Health | Arrives |
+|---|---|---|---|
+| Marionette | Wind-Up Monkey (12) | 14 | 0:00 (a trickle), 1:00 properly |
+| Grinning Mannequin | Possessed Stuffie (32) | 37 | 3:00 |
+| Crooked Clown | Dunk Tank Clown (30) | 34 | 6:00 |
+| Splitter family | Cotton-Candy Slime (60) | 30 + 2×12 + 4×5 = 74 | 6:00 |
+| Glasswalker | Carousel Horse (150) | 172 | 12:00 |
+| Doppelganger | Puppet Soldier (180) | 207 | 12:00 |
+| Reflection Thief | Walking Ticket Booth (600, a spawner) | 300 (an evasive caster; capped at 3 alive) | 12:00 |
+| The Grand Display (miniboss) | Carnival Brute (900) | 1,035 | every 140 s, like the Brute |
+
+You start the house as a fresh level-1 character. The first minutes are balloons and marionettes, as
+the first world's are balloons and monkeys. A Marionette's landing is marked on the floor for the whole
+leap.
+
 Every new enemy has its own silhouette, model and animation clips (move and attack), a readable
 wind-up, and its own death effect and sounds.
 

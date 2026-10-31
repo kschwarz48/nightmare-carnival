@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { makeGame } from './helpers';
 import { MAPS, activeMapId, useMap } from '../src/data/maps';
 import { CARNIVAL_LAYOUT, PLAYER_BOUNDS, PROPS, DYNAMIC_WALLS } from '../src/data/map';
-import { WAVES, DAWN_TIME, CARNIVAL_WAVES, FUNHOUSE_WAVES } from '../src/data/waves';
+import { WAVES, DAWN_TIME, CARNIVAL_WAVES, FUNHOUSE_WAVES, type WaveDef } from '../src/data/waves';
 import { BOSSES, CARNIVAL_BOSSES, FUNHOUSE_BOSSES } from '../src/data/bosses';
 import { ENEMIES } from '../src/data/enemies';
 import { MAZE, MAZE_H, MAZE_V, PIVOTS, pivotState, PISTONS, CONVEYORS, floorZone, UNREFLECTED } from '../src/data/funhouse';
@@ -48,6 +48,21 @@ describe('the map registry (D-63)', () => {
 });
 
 describe('the Fun House matches the first map\'s night (D-63)', () => {
+  it('ramps its crowd like the first map, about 15% sturdier, from a fresh level-1 start (D-64)', () => {
+    // a splitter counts with its children (one family); a wave's figure is its weighted mean health
+    const family = (id: string): number => {
+      const d = ENEMIES[id];
+      return d.hp + (d.splitInto ? (d.splitCount ?? 2) * family(d.splitInto) : 0);
+    };
+    const mean = (w: WaveDef) => w.enemies.reduce((s, [id, wt]) => s + family(id) * wt, 0) / w.enemies.reduce((s, [, wt]) => s + wt, 0);
+    // Acts I and II, wave by wave (later acts' alive caps make weights alone misleading: see scripts/maphp.ts)
+    for (let i = 0; i < 9; i++) {
+      const r = mean(FUNHOUSE_WAVES[i]) / mean(CARNIVAL_WAVES[i]);
+      expect(r, FUNHOUSE_WAVES[i].id).toBeGreaterThanOrEqual(1.0);
+      expect(r, FUNHOUSE_WAVES[i].id).toBeLessThanOrEqual(1.3);
+    }
+  });
+
   it('has the same run length and the same number of scheduled bosses, at the same gates', () => {
     expect(MAPS.fun_house.bosses.length).toBe(MAPS.carnival_core.bosses.length);
     expect(MAPS.fun_house.bosses.map((b) => b.gate)).toEqual(MAPS.carnival_core.bosses.map((b) => b.gate));

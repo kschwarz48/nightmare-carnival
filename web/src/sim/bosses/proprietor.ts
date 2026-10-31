@@ -165,7 +165,7 @@ export class ProprietorBoss extends FunhouseBoss {
     }
   }
 
-  /** A cabinet of reflection thieves wheeled out beside him. */
+  /** A cabinet wheeled out beside him: one reflection thief and its mannequins. */
   private *cabinet(): Co {
     const g = this.g;
     this.anim = 'cabinet';
@@ -177,7 +177,7 @@ export class ProprietorBoss extends FunhouseBoss {
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU;
       const c = this.inside(this.x + Math.cos(a) * 120, this.y + Math.sin(a) * 120);
-      g.spawnEnemy(i % 2 ? 'grinning_mannequin' : 'reflection_thief', c.x, c.y);
+      g.spawnEnemy(i === 0 ? 'reflection_thief' : 'grinning_mannequin', c.x, c.y);
       g.fx.push('dust', c.x, c.y, 0.8);
     }
     this.sfx('poof', 0.9);
