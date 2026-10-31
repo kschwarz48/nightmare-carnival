@@ -544,7 +544,9 @@ body:has(#nl-badge-frame) .title .corner { bottom: calc(1.2em + 64px); }
 .chatbox .chat-field::placeholder { color: rgba(247, 238, 219, 0.45); }
 .chatbox.open .chat-field { display: block; }
 .chatbox .chat-hint { display: none; align-self: flex-start; font-family: var(--head); font-size: 0.75em; color: var(--cream); opacity: 0.72; text-shadow: 2px 2px 0 var(--ink); }
-.chatbox.can-send:not(.open) .chat-hint { display: block; }
+.chatbox:not(.open) .chat-hint { display: block; }
+/* solo, the log opens read-only (D-72): no caret in a line that takes no typing */
+.chatbox .chat-field[readonly] { caret-color: transparent; box-shadow: 0 0 0 2px var(--gold-dark); }
 .chatbox .chat-hint .key { display: inline-block; background: var(--gold); color: var(--ink); border: 2px solid var(--ink); border-radius: 5px; padding: 0 0.35em; margin-right: 0.2em; text-shadow: none; }
 
 /* ---- health bars over the bosses and minibosses (D-65) ---- */

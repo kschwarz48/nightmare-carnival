@@ -859,3 +859,27 @@ and teleports, and the prize wheel dull and see-through.
   - the first at 4½–7½ minutes, then every 7½–10½ minutes, on a clock bosses don't pause;
   - measured over six bot nights (two maps, three seeds): two or three a night, 2.8 on average;
   - each lasts 90 s and lands 180–400 from a player.
+
+### D-72 · The chat log opens in single player; Hall of Mirrors no longer hides its player
+- **The report** (the owner): in single player the chat couldn't be opened, though it's the place to
+  review a quest's dialogue; and with the Funhouse Mirror's evolution the character turned invisible
+  while its mirrors still showed.
+- **The solo log** (`ui/chat.ts`, `app.ts`):
+  - The box already showed in a solo night once a quest had written in it, but `open()` refused without
+    a co-op session.
+  - Now T opens it whenever it shows. Without a session the line is read-only ("Reading back, the night
+    waits"), and Esc, Enter or the chat key closes it.
+  - The solo night holds while the log is open, as it does for a prize wheel, so a clue can be re-read
+    mid-fight.
+  - The hint under the box reads "T log" solo, "T chat" in co-op.
+- **Hall of Mirrors** (`render3d/renderer3d.ts`):
+  - Mirror clones are drawn in their owner's own character batch, which held only six figures, and they
+    were drawn before the players.
+  - Hall of Mirrors makes 3 clones plus the player's Amount. With Extra Token (+3) that's six clones,
+    which took every place, so the player wasn't drawn. A dash's afterimages could do the same for a
+    moment with fewer clones, and so could two players of the same character with mirrors.
+  - Character batches now hold 128 (`CHAR_CAP`: six players with their afterimages, the whole summon
+    pool of 64, and the Midway's characters).
+  - The players are drawn before their summons, so a player always has a place even if that ever
+    overflows again.
+

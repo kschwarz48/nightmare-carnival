@@ -1238,11 +1238,13 @@ export class App {
 
   /**
    * The chat box (D-65): in a night, on the Midway and in a co-op lobby (a solo night shows it once a quest
-   * has written in it). It sits above whatever the bottom-left corner holds.
+   * has written in it, and T opens it read-only to look back, D-72). It sits above whatever the bottom-left
+   * corner holds.
    */
   private updateChat(dt: number): void {
     const c = this.chat;
     c.canSend = !!this.net;
+    c.toggleCodes = this.input.bindings.chat ?? [];
     const g = this.game;
     const run = this.state === 'playing' && !this.screenEl && !!g && !g.hub;
     const hub = this.state === 'hub' && !this.screenEl;
@@ -1370,8 +1372,9 @@ export class App {
         this.renderer.fx.screenFlashCol = [1, 0.85, 0.7];
       });
       this.fortune.update(dt);
-      // co-op host: the night also holds for a pause, a prize wheel or a dropped partner on either side
-      const held = !!hs && (hs.paused || !hs.prizeReady);
+      // co-op host: the night also holds for a pause, a prize wheel or a dropped partner on either side;
+      // solo, it waits while the chat log is open for reading back (D-72)
+      const held = (!!hs && (hs.paused || !hs.prizeReady)) || (!net && this.chat.isOpen);
       if (!this.overlayPause && g!.phase !== 'draft' && !held) {
         this.acc += dt * this.simSpeed;
         let n = 0;

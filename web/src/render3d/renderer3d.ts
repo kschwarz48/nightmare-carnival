@@ -46,6 +46,12 @@ const FRUSTUM_H = 1000;
  */
 export const ACTOR_SCALE = 1.28;
 export const ACTOR_STRETCH = 1.12;
+/**
+ * Instances one character's batch can hold: six players with their dash afterimages, mirror clones (as
+ * many as the summon pool holds) and the Midway's characters. It was 6, so a Hall of Mirrors with six
+ * clones (an Extra Token's worth) took every place and the player wasn't drawn (D-72).
+ */
+const CHAR_CAP = 128;
 
 const DANGER: [number, number, number] = [1, 0.25, 0.12];
 const CAUTION: [number, number, number] = [1, 0.8, 0.25];
@@ -504,7 +510,7 @@ export class GameRenderer3D {
     // the players' own attacks can be faded (settings) so enemy shots stay readable in a crowd
     const op = this.settings.abilityOpacity ?? 1;
     this.addShapes.alphaScale = this.fxAdd.alphaScale = op;
-    this.drawSummons(g, alpha, dt);
+    // the players before their summons, so a crowd of mirror clones can never take a player's place (D-72)
     for (const q of g.players) {
       const qx = q === p ? px : lerp(q.px, q.x, alpha), qy = q === p ? py : lerp(q.py, q.y, alpha);
       g.setCtx(q);
@@ -514,6 +520,7 @@ export class GameRenderer3D {
       this.addShapes.alphaScale = this.fxAdd.alphaScale = op;
     }
     g.setCtx(p);
+    this.drawSummons(g, alpha, dt);
     if (g.hub) this.drawHub(g, dt);
     this.drawProjectiles(g, alpha);
     this.addShapes.alphaScale = this.fxAdd.alphaScale = 1;
@@ -1210,7 +1217,7 @@ export class GameRenderer3D {
         const owner = g.players[s.owner] ?? g.player;
         const def = CHARACTERS[owner.char.id];
         const rig = def.rig!();
-        const b = this.batch(`char_${owner.char.id}`, def, 6);
+        const b = this.batch(`char_${owner.char.id}`, def, CHAR_CAP);
         const i = b.add(x, y, 0, yaw, (def.scale ?? 1) * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
         const row = moving ? rig.row('move', s.animT * 1.1) : rig.row('idle', this.time / 2.8 + si * 0.3);
         b.anim(i, row, row, 0, 0);
@@ -1396,7 +1403,7 @@ export class GameRenderer3D {
       return;
     }
     const def = CHARACTERS[p.char.id];
-    const b = this.batch(`char_${p.char.id}`, def, 6);
+    const b = this.batch(`char_${p.char.id}`, def, CHAR_CAP);
     const moving = p.moving || p.dashT > 0;
     const yawId = -1 - p.index;
     const target = moving ? Math.atan2(p.vx, p.vy) : this.yaw.get(yawId) ?? 0;

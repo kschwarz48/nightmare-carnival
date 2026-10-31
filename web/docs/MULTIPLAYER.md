@@ -303,6 +303,9 @@ a freshly built copy, node by node (`morph` in `ui/dom.ts`):
 
 - **Chat.**
   - **Keys.** T opens a line in a night, on the Midway or in the lobby. Enter sends it; Esc closes it.
+  - **Solo (D-72).** There's no one to talk to, but once a quest has written in the box, T opens it
+    read-only to look back over the night's whispers and fortunes. The night waits while it's open, and
+    Esc, Enter or T closes it.
   - **Relay.** A guest's line goes to the host (`{ t: 'chat', text }`). The host relays it, with the
     speaker's slot and name, to everyone, the speaker included (`{ t: 'chat', from, name, text }`), so
     every screen shows the same lines in the same order. The host's own lines take the same path.

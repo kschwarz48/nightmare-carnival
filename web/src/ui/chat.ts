@@ -1,6 +1,7 @@
 // The chat box (D-65): co-op players talk here, and every whisper and fortune of a hidden quest is
 // written into it too, so a clue that faded off the screen can still be read back. Bottom-left; new
 // lines linger, then fade; T opens the line (Enter sends, Esc closes) whenever a co-op session is up.
+// Solo, T opens the log to read back (D-72): nothing to type, and Esc, Enter or T closes it.
 // Everything is set as text, never markup.
 
 import { h } from './dom';
@@ -22,18 +23,23 @@ const KEEP = 80;
 const SHOW = 7;
 const LINGER = 14;
 const FADE = 2.5;
+const SEND_HINT = 'Say something…   Enter: send · Esc: close';
+const READ_HINT = 'Reading back, the night waits   Esc or T: close';
 
 export class ChatBox {
   readonly root = h('div', { class: 'chatbox hidden' });
   private log = h('div', { class: 'chat-log' });
-  private field = h('input', { class: 'chat-field', type: 'text', maxlength: '140', spellcheck: 'false', autocomplete: 'off', placeholder: 'Say something…   Enter: send · Esc: close' });
-  private hint = h('div', { class: 'chat-hint' }, h('span', { class: 'key' }, 'T'), ' chat');
+  private field = h('input', { class: 'chat-field', type: 'text', maxlength: '140', spellcheck: 'false', autocomplete: 'off', placeholder: SEND_HINT });
+  private hintWord = h('span', {}, ' chat');
+  private hint = h('div', { class: 'chat-hint' }, h('span', { class: 'key' }, 'T'), this.hintWord);
   private born: number[] = [];
   private clock = 0;
   private lastSent = -9;
   isOpen = false;
-  /** a co-op session is up: the line can be opened and sent */
+  /** a co-op session is up: the line can be typed and sent (without one it opens read-only; D-72) */
   canSend = false;
+  /** the chat key's codes: they close a read-only log, as Esc does */
+  toggleCodes: string[] = [];
   onSend: (text: string) => void = () => {};
   /** called when the line opens or closes (the app drops held keys on open) */
   onOpenChange: (open: boolean) => void = () => {};
@@ -51,7 +57,7 @@ export class ChatBox {
           this.onSend(text);
         }
         this.close();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' || (this.field.readOnly && this.toggleCodes.includes(e.code))) {
         e.preventDefault();
         this.close();
       }
@@ -89,9 +95,11 @@ export class ChatBox {
   }
 
   open(): void {
-    if (!this.canSend || this.isOpen || this.root.classList.contains('hidden')) return;
+    if (this.isOpen || this.root.classList.contains('hidden')) return;
     this.isOpen = true;
     this.root.classList.add('open');
+    this.field.readOnly = !this.canSend;
+    this.field.placeholder = this.canSend ? SEND_HINT : READ_HINT;
     this.field.value = '';
     this.field.focus();
     this.log.scrollTop = this.log.scrollHeight;
@@ -111,6 +119,8 @@ export class ChatBox {
     if (!visible && this.isOpen) this.close();
     this.root.classList.toggle('hidden', !visible);
     this.root.classList.toggle('can-send', this.canSend);
+    const word = this.canSend ? ' chat' : ' log';
+    if (this.hintWord.textContent !== word) this.hintWord.textContent = word;
     this.root.style.bottom = `${Math.round(bottom)}px`;
   }
 

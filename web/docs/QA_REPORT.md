@@ -115,6 +115,43 @@ understate that character.
 
 ---
 
+## The solo chat log, and Hall of Mirrors' invisible player — 2026-10-31 (D-72)
+
+**Changed:**
+- In single player, T opens the chat box read-only to look back over the night's whispers and fortunes,
+  and the night waits while it's open.
+- Character batches hold 128 figures (were 6), and the players are drawn before their summons.
+
+Decision: D-72.
+
+**Reproduced first** (dev build, Carny with Hall of Mirrors on the Carnival map, the sim stepped by hand):
+- With 3 clones (no extra Amount), the Carny batch drew 4 figures, the player among them.
+- With Extra Token at level 5 (+3 Amount), there were 6 clones. The batch was full at 6 of 6, the
+  player wasn't drawn, and the capture showed six blue clones round an empty middle.
+
+**After the fix, the same setup:**
+- The batch draws 7 of 128 figures. The first is at the player's position.
+- The capture shows the Carny in the middle of the six clones.
+
+**The solo log, driven in-page** (key events dispatched; frames stepped by hand, because the pane
+reported itself hidden):
+- The box shows once a quest line is written, with "T log" under it.
+- T opens it: read-only, focused, "Reading back, the night waits", every line shown.
+- The night's clock advanced 0 s over 2 s of frames while open, and 1 s per second before and after.
+- T, Esc and Enter each close it. Esc doesn't open the pause menu on its way out.
+
+**Automated:** 300 tests pass in 20 files; typecheck clean; the production build passes. The tests run
+without a DOM or WebGL, so neither change has a unit test; both were checked in the browser as above.
+
+**Not verified:**
+- A capture of the open log: the pane reported itself hidden at that point, so the screenshot showed a
+  stale frame. Its state was read from the page instead.
+- A person playing either change.
+- Co-op on two machines. There, the chat still sends as before, and the batch fix applies to every
+  screen; neither was exercised over a connection.
+
+---
+
 ## Co-op playtest round: crowd, tide, tooltips, leaderboard, lobby — 2026-10-31 (D-71)
 
 **Changed:** from the owner's co-op night on the Boardwalk, and an interface list:
