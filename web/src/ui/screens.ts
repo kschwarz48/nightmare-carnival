@@ -1,6 +1,7 @@
 // Menu screens: title, character select (+difficulty/curse), daily run, pause, results, Lost &
 // Found, Carnival-pedia, settings. Every interactive element carries data-nav for controller play.
 
+import { MAP_IDS, MAPS, isMapId, type MapId } from '../data/maps';
 import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
 import { DIFFICULTIES, CURSE } from '../data/difficulty';
 import { ACHIEVEMENTS, PERKS, UNLOCKS } from '../data/meta';
@@ -23,7 +24,7 @@ export interface UICtx {
   input: Input;
   click: () => void;
   go: (screen: string, arg?: any) => void;
-  startRun: (o: { character: string; difficulty: string; curse: boolean; daily?: boolean }) => void;
+  startRun: (o: { character: string; difficulty: string; curse: boolean; daily?: boolean; map?: MapId }) => void;
   applySettings: () => void;
 }
 
@@ -73,6 +74,7 @@ export function charSelectScreen(c: UICtx): HTMLElement {
   let selChar = s.characterAvailable(s.data.last.character) ? s.data.last.character : 'carny';
   let selDiff = s.difficultyAvailable(s.data.last.difficulty) ? s.data.last.difficulty : 'midway';
   let curse = s.curseAvailable() && s.data.last.curse;
+  let selMap: MapId = isMapId(s.data.last.map) && s.mapAvailable(s.data.last.map) ? s.data.last.map : 'carnival_core';
   const grid = h('div', { class: 'char-grid panel' });
   const detail = h('div', { class: 'char-detail panel' });
   const render = () => {
@@ -92,6 +94,12 @@ export function charSelectScreen(c: UICtx): HTMLElement {
       h('div', { class: 'quirk' }, h('b', {}, ch.quirkName), ' — ', ch.quirkDesc),
       h('div', { class: 'weapon-line' }, h('img', { src: c.assets.weaponIcon(w.id), alt: '' }), h('div', {}, h('b', {}, w.name), h('div', { class: 'muted' }, w.desc))),
       avail ? '' : h('div', { class: 'unlock-note' }, s.characterRequirementMet(ch.id) ? `Requirement met! Unlock in the Lost & Found for ${ch.unlock!.cost} Lost Tickets.` : `Locked — ${ch.unlock!.reqText}, then ${ch.unlock!.cost} Lost Tickets.`),
+      h('div', { class: 'section-title', style: { margin: '0.4em 0 0' } }, 'Tonight'),
+      h('div', { class: 'diff-row map-row' }, ...MAP_IDS.map((id) => {
+        const ok = s.mapAvailable(id);
+        return h('button', { class: `diff-btn${id === selMap ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? MAPS[id].tagline : 'Locked — survive the first night', onclick: () => { c.click(); selMap = id; render(); } }, ok ? MAPS[id].name : `🔒 ${MAPS[id].name}`);
+      })),
+      h('div', { class: 'muted' }, MAPS[selMap].tagline),
       h('div', { class: 'section-title', style: { margin: '0.4em 0 0' } }, 'Difficulty'),
       h('div', { class: 'diff-row' }, ...DIFFICULTIES.map((d) => {
         const ok = s.difficultyAvailable(d.id);
@@ -102,7 +110,7 @@ export function charSelectScreen(c: UICtx): HTMLElement {
         h('span', { class: 'box' }), s.curseAvailable() ? `Curse — faster, denser, tougher · +35% Lost Tickets` : `Curse (locked — ${CURSE.unlock.reqText})`),
       h('div', { class: 'cs-actions' },
         btn('Back', () => { c.click(); c.go('title'); }, 'small red'),
-        btn('Start the Night!', () => { if (!avail) return; c.click(); c.startRun({ character: selChar, difficulty: selDiff, curse }); }, '', { disabled: !avail || undefined, 'data-default': '' }),
+        btn('Start the Night!', () => { if (!avail) return; c.click(); c.startRun({ character: selChar, difficulty: selDiff, curse, map: selMap }); }, '', { disabled: !avail || undefined, 'data-default': '' }),
       ),
     );
   };
@@ -153,7 +161,8 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
   const total = Math.max(1, st.weapons.reduce((n, w) => n + w.damage, 0));
   const ch = CHARACTER_MAP[st.character];
   const won = st.won;
-  const flavor = st.trueEnding ? 'The last note fades. The Calliope falls silent, and for one night the carnival truly sleeps.' : st.endless ? `Locked in for ${fmtTime(st.endlessTime)} past dawn.` : won ? 'The sun crests the sea. The rides fall silent — until tomorrow night.' : st.time >= 1440 ? 'So close to dawn… the Ringmaster takes a bow over you.' : st.time >= 720 ? 'The carnival claims another fool. Your ticket stubs scatter in the wind.' : 'Lights out. The calliope plays on without you.';
+  const house = st.map === 'fun_house';
+  const flavor = st.trueEnding ? (house ? 'The last mirror breaks. Mira steps out into the first light, and the house finally stops laughing.' : 'The last note fades. The Calliope falls silent, and for one night the carnival truly sleeps.') : st.endless ? `Locked in for ${fmtTime(st.endlessTime)} past dawn.` : won ? 'The sun crests the sea. The rides fall silent — until tomorrow night.' : st.time >= 1440 ? 'So close to dawn… the Ringmaster takes a bow over you.' : st.time >= 720 ? 'The carnival claims another fool. Your ticket stubs scatter in the wind.' : 'Lights out. The calliope plays on without you.';
   const payout = h('div', { class: 'payout' }, '+0');
   let shown = 0;
   const step = () => {
@@ -167,7 +176,7 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
   if (actions.endless && won && !st.endless) buttons.append(btn('Lock In (Endless)', () => { c.click(); actions.endless!(); }, 'red'));
   buttons.append(btn(actions.againLabel ?? (st.daily ? 'Menu' : 'Run Again'), () => { c.click(); (st.daily && !actions.againLabel ? actions.menu : actions.again)(); }, '', { 'data-default': '' }), btn('Lost & Found', () => { c.click(); actions.lostfound(); }, 'purple'), btn(actions.menuLabel ?? 'Main Menu', () => { c.click(); actions.menu(); }, 'small'));
   return h('div', { class: 'screen results dim' }, h('div', { class: 'panel bulbs' },
-    h('h1', { class: `title-text ${won ? 'win' : 'lose'}` }, st.trueEnding ? 'THE LAST SONG' : st.endless ? 'CURTAIN CALL' : won ? 'DAWN!' : 'YOU DIED'),
+    h('h1', { class: `title-text ${won ? 'win' : 'lose'}` }, st.trueEnding ? (house ? 'THE UNREFLECTED' : 'THE LAST SONG') : st.endless ? 'CURTAIN CALL' : won ? 'DAWN!' : 'YOU DIED'),
     h('div', { class: 'flavor' }, flavor),
     h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.8em' } }, h('img', { src: c.assets.portrait(st.character), style: { width: '64px', height: '64px', borderRadius: '50%', border: '3px solid #17110e' } }), h('div', {}, h('b', {}, ch?.name ?? ''), h('div', { class: 'muted' }, `${st.difficulty[0].toUpperCase()}${st.difficulty.slice(1)}${st.curse ? ' · Cursed' : ''}${st.daily ? ' · Daily' : ''}`))),
     h('div', { class: 'stat-grid' },

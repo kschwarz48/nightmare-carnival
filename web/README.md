@@ -47,6 +47,16 @@ and enter the Big Top for another night. Friends who join your online game walk 
 For alpha testing, add `?unlock=midway` to the URL to open it without finishing the quest. Details:
 D-60 in [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md).
 
+### The Fun House (a second map)
+
+Beat the Ringmaster once, or open the Midway, and a second map appears in the character screen's
+**Tonight** row, the co-op lobby, and through the Midway's Fun House gate. Professor Grinwell's Palace
+of Illusions has five rooms: the Grand Entrance, the Hall of Mirrors (a real mirror maze with
+reflections, warped and lagging glass, and panels that pivot), the Crooked Corridor (conveyors and
+pistons), the Puppet Gallery and the Chamber of Illusions. It runs on the same clock as the first
+night, with seven new enemies, four new bosses at the same gates, and a deeper hidden quest. For
+testing, add `?unlock=funhouse` to the URL. Design and status: [`docs/FUN_HOUSE.md`](docs/FUN_HOUSE.md).
+
 ### Online co-op (alpha)
 
 Title screen → **Multiplayer**: one player hosts and shares a six-character code, up to five friends
@@ -96,6 +106,14 @@ D-pad / arrow keys.
 - **Meta-progression:** Lost Tickets, the Lost & Found (perks, performers, new attractions),
   18 achievements, the Carnival-pedia, Midway/Carnival/Nightmare tiers, the Curse, and a seeded
   **Daily Run** with local best scores.
+- **The Fun House** (second map):
+  - a mirror maze with planar reflections;
+  - the Grinning Mannequin, Doppelganger, Glasswalker, Marionette, Splitter, Crooked Clown and
+    Reflection Thief;
+  - the Crooked Twins, the Looking Glass, the Stringmistress and the Proprietor, plus a secret boss;
+  - four new events;
+  - its own backwards waltz and ambience;
+  - a ten-stage hidden quest.
 - **Accessibility:** volume buses (master/music/SFX/ambience), mute, reduced flashing, screen-shake
   slider, high-contrast telegraphs, damage-number toggle, UI scale, dyslexia-friendly font, aim
   modes, key rebinding, first-run tips (replayable), graphics quality presets.
@@ -149,6 +167,8 @@ Press <kbd>`</kbd> during a run for the dev panel, or use `window.__nc` in the c
 - [`docs/VISUAL_QA.md`](docs/VISUAL_QA.md) — visual iteration workflow (seeded states, captures, metrics) and the latest scorecard
 - [`docs/PROGRESSION.md`](docs/PROGRESSION.md) — XP, economy and pacing maths with measurements
 - [`docs/EASTER_EGG_SOLUTION.md`](docs/EASTER_EGG_SOLUTION.md) — **developer-only spoilers**: the full Last Song solution
+- [`docs/FUN_HOUSE.md`](docs/FUN_HOUSE.md) — the second map: layout, mirrors, enemies, bosses, audio, status
+- [`docs/EASTER_EGG_FUN_HOUSE.md`](docs/EASTER_EGG_FUN_HOUSE.md) — **developer-only spoilers**: the full Unreflected solution
 - [`docs/MULTIPLAYER.md`](docs/MULTIPLAYER.md) — online co-op: rules, netcode, signalling/TURN, deployment, testing status
 
 ## Credits

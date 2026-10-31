@@ -233,4 +233,13 @@ export const RECIPES: Record<string, () => Float32Array> = {
     V('sine', 5200 + ((i * 29) % 6) * 280, 5000, 0.06, { vol: 0.022, decay: 40, delay: i * 0.055 }),
   ]).flat()),
   coins: () => render(Array.from({ length: 8 }, (_, i) => V('sine', 2400 + (i % 3) * 300, 2300, 0.12, { vol: 0.08, decay: 25, delay: i * 0.05 }))),
+  // ---- the Fun House (D-63): glass, porcelain, strings, goo, and the house's own voice
+  shatter: () => render([V('noise', 1, 1, 0.5, { vol: 0.55, decay: 7, hp: 2200 }), ...[3100, 4300, 2600, 5200, 3700].map((f, i) => V('sine', f, f * 0.97, 0.35, { vol: 0.1, decay: 9, delay: i * 0.035 })), V('sine', 180, 60, 0.2, { vol: 0.3, decay: 18 })]),
+  glass_hit: () => render([V('sine', 2900, 2850, 0.18, { vol: 0.16, decay: 16 }), V('sine', 4100, 4000, 0.14, { vol: 0.08, decay: 20 }), V('noise', 1, 1, 0.04, { vol: 0.2, decay: 60, hp: 3500 })]),
+  ripple: () => render([V('sine', 900, 1500, 0.9, { vol: 0.16, vib: 0.12, vibRate: 7, attack: 0.1, decay: 2.2 }), V('sine', 1350, 2250, 0.9, { vol: 0.08, vib: 0.14, vibRate: 6, attack: 0.15, decay: 2.2, delay: 0.08 })]),
+  squelch: () => render([V('sine', 240, 90, 0.22, { vol: 0.45, vib: 0.2, vibRate: 26, decay: 10 }), V('noise', 1, 1, 0.16, { vol: 0.25, decay: 16, lp: 700 })]),
+  splat: () => render([V('noise', 1, 1, 0.2, { vol: 0.5, decay: 14, lp: 1100 }), V('sine', 180, 60, 0.15, { vol: 0.4, decay: 18 })]),
+  grind: () => render([V('saw', 70, 64, 0.9, { vol: 0.25, lp: 500, vib: 0.2, vibRate: 22, attack: 0.08, decay: 2 }), V('noise', 1, 1, 0.9, { vol: 0.2, attack: 0.08, decay: 2, lp: 900, hp: 150 })]),
+  wail: () => render([V('saw', 520, 340, 1.1, { vol: 0.22, lp: 1800, vib: 0.06, vibRate: 5, attack: 0.15, decay: 1.6, curve: 0.6 }), V('saw', 780, 500, 1.1, { vol: 0.12, lp: 2000, vib: 0.07, vibRate: 5.5, attack: 0.15, decay: 1.6 })]),
+  thud: () => render([V('sine', 110, 40, 0.3, { vol: 0.8, decay: 10 }), V('noise', 1, 1, 0.12, { vol: 0.35, decay: 25, lp: 900 })]),
 };

@@ -32,6 +32,9 @@ export abstract class QuestChain {
   get complete(): boolean {
     return false;
   }
+  /** Co-op: this chain's shared state as bytes (0..255) for guests (the Last Song has its own block). */
+  netState?(): number[];
+  applyNet?(v: number[]): void;
   protected cue(event: string, data: Omit<QuestCue, 'chain' | 'event'> = {}): void {
     this.g.bus.emit('quest', { chain: this.id, event, ...data });
   }

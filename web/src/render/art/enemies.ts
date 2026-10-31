@@ -5,6 +5,7 @@
 import { DANGER, INK, PAL, circle, ellipse, fillInk, glove, grin, hose, ink, lighten, pieEye, roundRect, shade, shine, shoe, stripes, vstripes, type Ctx } from './kit';
 
 export type EnemyMode = 'walk' | 'windup' | 'alt';
+import { FUNHOUSE_ART, drawFunhouseEnemy } from './funhouseEnemies';
 
 /** Frame box (world units) + anchor for each enemy art key. */
 export const ENEMY_ART: Record<string, { w: number; h: number; ay: number }> = {
@@ -24,11 +25,13 @@ export const ENEMY_ART: Record<string, { w: number; h: number; ay: number }> = {
   walking_ticket_booth: { w: 86, h: 116, ay: 0.94 },
   roller_coaster_snake: { w: 70, h: 58, ay: 0.7 },
   carnival_brute: { w: 116, h: 124, ay: 0.93 },
+  ...FUNHOUSE_ART,
 };
 
 export function drawEnemy(ctx: Ctx, id: string, w: number, h: number, phase: number, mode: EnemyMode): void {
   const s = Math.sin(phase * Math.PI * 2);
   const c = Math.cos(phase * Math.PI * 2);
+  if (drawFunhouseEnemy(ctx, id, w, h, s, c, mode)) return;
   switch (id) {
     case 'living_balloon': return balloon(ctx, w, h, s, mode, '#e8384f', '#ff8a9a');
     case 'swarm_balloon': return balloon(ctx, w, h, s, mode, '#d42a8a', '#ff86c8');

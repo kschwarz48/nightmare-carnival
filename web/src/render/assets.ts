@@ -1,6 +1,7 @@
 // Builds every in-game sprite frame into texture atlases at boot (procedural vector art, see
 // ASSET_MANIFEST.md). Also produces DOM images (portraits, icons) on demand.
 
+import { drawFunhousePortrait } from './art/funhouseBosses';
 import { AtlasBuilder, paintToDataURL } from './atlas';
 import { CHAR_H, CHAR_W, drawCharacter, drawShieldBalloon } from './art/characters';
 import { ENEMY_ART, drawEnemy, drawSnakeSegment } from './art/enemies';
@@ -124,6 +125,10 @@ export class Assets {
 
 function drawBossPortrait(ctx: Ctx, id: string): void {
   ctx.save();
+  if (drawFunhousePortrait(ctx, id)) {
+    ctx.restore();
+    return;
+  }
   switch (id) {
     case 'carnival_tent':
       ctx.translate(100, 190);

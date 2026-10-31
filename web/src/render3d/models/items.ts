@@ -365,6 +365,21 @@ function acrobat(): THREE.BufferGeometry {
   return m.build();
 }
 
+/** A juggling pin bent out of true, its stripe glowing so it reads in a crowd. */
+function bentPin(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  m.add(lathe([[0, 0], [2.2, 0.6], [4.2, 4], [3.6, 8], [1.4, 11], [1.6, 14], [0, 15]], 12), { col: PAL.bone, pos: [0, 0, -7], rot: [Math.PI / 2, 0, 0.25], surf: SURF.paint, emit: 0.35 });
+  m.add(torus(1.9, 0.6, 5, 12), { col: 0xff3b2a, pos: [0, 0, 3.4], surf: SURF.paint, emit: 1.2 });
+  return m.build({ ao: 0 });
+}
+/** A flat sliver of silvered glass. */
+function mirrorShard(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  m.add(cone(3.4, 13, 5), { col: 0xd8f4ff, rot: [Math.PI / 2, 0, 0], scale: [1, 1, 0.3], surf: SURF.glass, emit: 0.9 });
+  m.add(cone(1.8, 7, 4), { col: 0xffffff, pos: [1.6, 0.4, -2], rot: [Math.PI / 2, 0, 0.5], scale: [1, 1, 0.3], surf: SURF.glass, emit: 1.2 });
+  return m.build({ ao: 0 });
+}
+
 export const ITEM_MODELS: Record<string, ModelDef> = {
   // pickups
   ticket0: { build: () => ticket(0x1f8fff, 0.95), rim: NO_RIM, emitBoost: 2.6 },
@@ -408,6 +423,9 @@ export const ITEM_MODELS: Record<string, ModelDef> = {
   b_gondola: { build: gondola, rim: NO_RIM },
   b_kernel_big: { build: () => orb(0xfff0c0, 8, 0xffffff), rim: NO_RIM },
   b_note: { build: () => orb(0x7dffb0, 5.6, 0xe0fff0), rim: NO_RIM },
+  // the Fun House (D-63): a Crooked Clown's bent juggling pin, a shard of mirror
+  b_pin: { build: bentPin, rim: NO_RIM, emitBoost: 1.8 },
+  b_shard: { build: mirrorShard, rim: NO_RIM, emitBoost: 2.2 },
   // summons
   s_plush: { build: plush, anim: { a: [2.4, 0.06, 0.6, 0.6], b: [0.15, 0, 0.2, 0.8] }, rim: [0.9, 0.75, 0.55, 0.5], shadow: true },
   s_rabbit: { build: rabbit, anim: { a: [5, 0.12, 0.8, 0], b: [0.2, 0, 0, 0] }, rim: [0.9, 0.85, 0.75, 0.5], shadow: true },

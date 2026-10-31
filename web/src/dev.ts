@@ -1,5 +1,6 @@
 // Development-only timeline & testing tools. Imported dynamically under import.meta.env.DEV only,
 // so none of this ships in production builds.
+import type { MapId } from './data/maps';
 import type { App } from './app';
 import { CHARACTERS } from './data/characters';
 import { WEAPONS, PASSIVES } from './data/weapons';
@@ -65,9 +66,9 @@ export function installDevTools(app: App): void {
       pool,
       searchlights: SEARCHLIGHTS,
       /** Freeze a run for visual inspection: optional restart, teleport, zoom and camera offset. */
-      shot(o: { restart?: boolean; char?: string; t?: number; zoom?: number; x?: number; y?: number; dx?: number; dy?: number; hud?: boolean } = {}) {
+      shot(o: { restart?: boolean; char?: string; map?: MapId; t?: number; zoom?: number; x?: number; y?: number; dx?: number; dy?: number; hud?: boolean } = {}) {
         if (!app.game || o.restart) {
-          app.startRun({ character: o.char ?? 'carny', difficulty: 'midway', curse: false });
+          app.startRun({ character: o.char ?? 'carny', difficulty: 'midway', curse: false, map: o.map });
           api.advance(o.t ?? 30);
         }
         const g = app.game!;

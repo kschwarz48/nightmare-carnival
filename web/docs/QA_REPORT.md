@@ -115,6 +115,72 @@ understate that character.
 
 ---
 
+## The Fun House, a second map — 2026-10-30 (D-63)
+
+**Automated:** 231 tests in 16 files pass. Typecheck and the production build pass. New tests:
+- **`tests/funhouse.test.ts` (9).**
+  - The map registry swaps every table and games on different maps interleave.
+  - Same gates, length and crowd curve as the first map.
+  - At least 60% of the roster is new.
+  - The maze stays connected in every pivot state.
+  - Pivots collide.
+  - Five minutes of a Fun House night run clean.
+  - Conveyors push and pistons strike on their telegraphs.
+  - The quest's fixtures sit in the right rooms.
+- **`tests/funhouseBosses.test.ts` (8).**
+  - Each of the four bosses warns, wakes inside the house, telegraphs, reaches every phase and pays
+    out.
+  - The Looking Glass's reflections shatter instead of hurting it.
+  - The Proprietor holds the dawn.
+  - The secret Unreflected runs all three phases.
+  - **An accelerated god-mode night on the Fun House meets all four bosses in order and wins at dawn**:
+    the Twins at 6:00 (beaten 7:01), the Glass at 12:00 (13:12), the Stringmistress at 18:00 (19:01),
+    the Proprietor at 24:00 (24:53); level 65, 16,048 kills, peak 195 alive.
+- **`tests/unreflected.test.ts` (7).**
+  - The clock maths.
+  - The beam solution, and edge-on mirrors stopping it.
+  - Fairness over 40 seeds: unsolved pivot starts, one true clock and one trap, varied bow orders.
+  - A solo walk through all ten stages to the True Dawn: a wrong plinth, a wrong clock, the projector
+    cooling, and the door leaving the walls.
+  - The Proprietor without Mira is an ordinary dawn.
+  - Each map has only its own quest.
+  - Co-op: a guest acting alone, Mira passing to a standing player, and the whole chain arriving at a
+    guest's mirror through a real snapshot.
+- **`tests/net.test.ts` (+1).** The host's map choice reaches the guest's lobby. The guest builds the
+  same map with the quest chain. The map can't change mid-run, and unknown map ids are dropped on the
+  wire.
+
+**Live (dev server, one machine, in-app browser at 1600×900; captures under `web/artifacts/visual/`):**
+- All six areas.
+- The mirrors up close, at quality high:
+  - plain, warped and lagging glass;
+  - enemies reflected;
+  - the reflection target dumped and inspected.
+- All five bosses fighting, and their five portraits.
+- Every quest state, set from the dev console.
+- The map row on the character screen.
+- `bench(120)` on high: ~5.4 ms a frame in the maze with reflections live, ~3.4 ms in the Grand
+  Entrance (this machine; not target hardware).
+
+Defects these checks found, now fixed:
+- Reflections showed only floor and shins. The reflection plane now leans 12°.
+- The mirror targets were under-resolved.
+- The floor was visible beyond the outer walls.
+- These sat in wall-hidden strips or edge-on: the quest's footprints, three pivot plates and the
+  corridor clock.
+- Some boss rigs were too bright.
+- The circular import between the rig modules made the page fail to boot.
+- The pivot glass was too bright.
+
+**Not verified:**
+- A Fun House night played by a person start to finish.
+- A real multi-machine co-op night on the Fun House across networks. Co-op on this map is covered by
+  the loopback tests above.
+- Audio by ear. The new score, ambience and eight new SFX are synthesized and pass the "renders finite,
+  audible audio" content check, but nobody has listened to them in the game yet.
+
+---
+
 ## Playtest tuning — firing squads, party crowds, draft actions, evolutions (D-62)
 
 **Automated:** 192 tests pass. New `tests/tuning.test.ts` covers:

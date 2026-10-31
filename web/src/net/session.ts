@@ -5,6 +5,7 @@
 // so the whole flow — lobby, start, drafts, prize wheel, pause, disconnect, reconnect — runs headless
 // in tests over the loopback network.
 
+import type { MapId } from '../data/maps';
 import type { Game, GameEvents, RunConfig } from '../sim/game';
 import type { FxEvent } from '../sim/fx';
 import { StringDict, Writer } from './codec';
@@ -122,6 +123,7 @@ export function runConfigFromStart(c: StartCfg): RunConfig {
     questMemory: c.questMemory,
     players: c.players.map((p) => ({ character: p.character, name: p.name, meta: p.meta, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, aimMode: p.aimMode })),
     hub: c.hub,
+    map: c.map,
   };
 }
 
@@ -165,7 +167,7 @@ export class HostSession {
   onClosed: (reason: string) => void = () => {};
 
   constructor(code: string, readonly self: HostProfile) {
-    this.lobby = { code, players: [this.lobbyHost(), ...Array.from({ length: MAX_PLAYERS - 1 }, () => null)], difficulty: 'midway', curse: false, inRun: false };
+    this.lobby = { code, players: [this.lobbyHost(), ...Array.from({ length: MAX_PLAYERS - 1 }, () => null)], map: 'carnival_core', difficulty: 'midway', curse: false, inRun: false };
   }
 
   /** Every seated guest, connected or not, in player order. */
@@ -229,6 +231,12 @@ export class HostSession {
     this.lobby.curse = curse;
     this.broadcastLobby();
   }
+  /** The host picks the night's map (D-63); everyone builds the same one. */
+  setMap(id: MapId): void {
+    if (this.lobby.inRun) return;
+    this.lobby.map = id;
+    this.broadcastLobby();
+  }
   canStart(): boolean {
     const g = this.live;
     return !this.lobby.inRun && this.hostReady && !!this.hostCharacter && g.length > 0 && g.length === this.guests.length && g.every((s) => s.ready && !!s.character);
@@ -241,6 +249,7 @@ export class HostSession {
     const entry = (character: string, name: string, p: HostProfile | GuestProfile) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip });
     this.startCfg = {
       seed: o.seed >>> 0,
+      map: this.lobby.map,
       difficulty: this.lobby.difficulty,
       curse: this.lobby.curse,
       unlocked: o.unlocked,

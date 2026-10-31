@@ -8,9 +8,10 @@ import { CHARACTER_MAP } from '../data/characters';
 import { DIFFICULTY_MAP } from '../data/difficulty';
 import { PERKS } from '../data/meta';
 import { Reader, Writer } from './codec';
+import { isMapId, type MapId } from '../data/maps';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 6;
+export const PROTO = 7;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
@@ -34,6 +35,8 @@ export interface LobbyPlayer {
 export interface LobbyState {
   code: string;
   players: (LobbyPlayer | null)[];
+  /** which night the host has chosen (D-63) */
+  map: MapId;
   difficulty: string;
   curse: boolean;
   /** true while a run is in progress (late joiners are refused unless reconnecting) */
@@ -64,6 +67,8 @@ export interface StartCfg {
   players: { character: string; name: string; meta: { axis: string; value: number }[]; aimMode: AimMode; rerolls: number; banishes: number; canSkip: boolean }[];
   /** set when this is the Midway hub rather than a night (D-60): the cast to show and where players stand */
   hub?: { npcs: string[]; at?: { x: number; y: number }[] };
+  /** the night's map (D-63); the Carnival Core when absent */
+  map?: MapId;
 }
 
 // ------------------------------------------------------------------ messages
@@ -262,6 +267,7 @@ function cleanLobby(v: unknown): LobbyState | null {
   return {
     code: isStr(v.code, 16) ? v.code : '',
     players,
+    map: isMapId(v.map) ? v.map : 'carnival_core',
     difficulty: isStr(v.difficulty, 24) && DIFFICULTY_MAP[v.difficulty as keyof typeof DIFFICULTY_MAP] ? v.difficulty : 'midway',
     curse: v.curse === true,
     inRun: v.inRun === true,
@@ -288,6 +294,7 @@ function cleanStart(v: unknown): StartCfg | null {
   }
   return {
     hub,
+    map: isMapId(v.map) ? v.map : undefined,
     seed: v.seed,
     difficulty: isStr(v.difficulty, 24) && DIFFICULTY_MAP[v.difficulty as keyof typeof DIFFICULTY_MAP] ? v.difficulty : 'midway',
     curse: v.curse === true,

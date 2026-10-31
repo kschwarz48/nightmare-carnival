@@ -20,6 +20,8 @@ import { actorMaterial, ink, pool, shared, xrayMaterial } from './core/materials
 import { CHARACTERS, ENEMY_MODELS, ITEM_MODELS, geometryFor, type ModelDef } from './models';
 import { Ground3D } from './world/ground';
 import { LightShafts, Motes } from './world/atmosphere';
+import { FunhouseWorld } from './world/funhouse/world';
+import type { MapId } from '../data/maps';
 import { LAST_SONG } from '../data/quests';
 import { HUB_EXITS } from '../data/hub';
 import { signpost } from './models/props';
@@ -65,6 +67,17 @@ export const SEARCHLIGHTS = [
 interface Corpse { key: string; x: number; y: number; h: number; yaw: number; s: number; row: number; rig: boolean; pop: boolean; tr: number; tg: number; tb: number; frame: number; t: number; dur: number; fall: number; uidHash: number }
 const newCorpse = (): Corpse => ({ key: '', x: 0, y: 0, h: 0, yaw: 0, s: 1, row: 0, rig: false, pop: false, tr: 1, tg: 1, tb: 1, frame: -9, t: 0, dur: 0.4, fall: 1, uidHash: 0 });
 
+/** Everything that belongs to one map's world (D-63): built once per map, swapped when the map changes. */
+interface WorldParts {
+  root: THREE.Group;
+  ground: { mesh: THREE.Mesh; update(time: number, dawn: number): void };
+  shafts: { update(time: number, darkness: number, dawn: number, lampLevel: (x: number, y: number) => number, played: (x: number, y: number) => boolean): void };
+  props: { update(g: Game, r: GameRenderer3D, inView: (x: number, y: number) => boolean, dt: number): void; addLights(g: Game, time: number): void; wisp?(lamp: number): void };
+  clutter?: Clutter;
+  indoor: boolean;
+  funhouse?: FunhouseWorld;
+}
+
 export class GameRenderer3D {
   renderer: THREE.WebGLRenderer;
   scene = new THREE.Scene();
@@ -79,11 +92,11 @@ export class GameRenderer3D {
   overlayFocus = 0;
   post: Post3D;
   fx: FxSystem;
-  ground: Ground3D;
-  shafts: LightShafts;
+  ground!: WorldParts['ground'];
+  shafts!: WorldParts['shafts'];
   motes = new Motes();
-  props: PropSet;
-  clutter: Clutter;
+  props!: WorldParts['props'];
+  clutter?: Clutter;
   bosses: BossRigs;
   hemi: THREE.HemisphereLight;
   moon: THREE.DirectionalLight;
@@ -117,7 +130,7 @@ export class GameRenderer3D {
   private cssW = 1600;
   private cssH = 900;
   private pr = 1;
-  private f: (k: string) => Frame;
+  f: (k: string) => Frame;
   private tmpV = new THREE.Vector3();
   private tmpM = new THREE.Matrix4();
   private tmpQ = new THREE.Quaternion();
@@ -173,9 +186,6 @@ export class GameRenderer3D {
     this.scene.add(this.spot, this.spot.target);
     this.buildEnvironment();
 
-    this.ground = new Ground3D(this.renderer);
-    this.scene.add(this.ground.mesh);
-    this.shafts = new LightShafts(this.scene);
 
     const tex = assets.atlas.textures;
     this.f = (k: string) => assets.atlas.get(k);
@@ -191,11 +201,41 @@ export class GameRenderer3D {
     this.numbers = new BillboardLayer(tex, 900, 'alpha', { lit: false, depthTest: false, order: 14 });
     for (const l of [this.fxNormal, this.fxAdd, this.glow, this.numbers]) l.addTo(this.scene);
     this.fx = new FxSystem(assets);
-    this.props = new PropSet(this.scene);
-    this.clutter = new Clutter(this.scene);
+    this.setWorld('carnival_core');
     this.bosses = new BossRigs(this.scene);
     this.post = new Post3D(this.renderer, this.scene, this.camera);
     this.post.addOverlay(this.overlay, this.overlayCam);
+  }
+
+  private worlds = new Map<MapId, WorldParts>();
+  private world!: WorldParts;
+  private worldId: MapId | null = null;
+
+  /** The world for `id` (built the first time), swapped into the scene in place of the current one. */
+  private setWorld(id: MapId): void {
+    if (this.worldId === id) return;
+    if (this.world) this.scene.remove(this.world.root);
+    let w = this.worlds.get(id);
+    if (!w) {
+      if (id === 'fun_house') {
+        const fw = new FunhouseWorld();
+        w = { root: fw.root, ground: fw.ground, shafts: fw.shafts, props: fw, indoor: true, funhouse: fw };
+      } else {
+        const root = new THREE.Group();
+        const ground = new Ground3D(this.renderer);
+        root.add(ground.mesh);
+        w = { root, ground, shafts: new LightShafts(root), props: new PropSet(root), clutter: new Clutter(root), indoor: false };
+        w.clutter!.setQuality(this.settings?.quality ?? 'high');
+      }
+      this.worlds.set(id, w);
+    }
+    this.scene.add(w.root);
+    this.world = w;
+    this.worldId = id;
+    this.ground = w.ground;
+    this.shafts = w.shafts;
+    this.props = w.props;
+    this.clutter = w.clutter;
   }
 
   /** A tiny dark environment (navy sky, warm carnival glows near the horizon) so brass and glass reflect something. */
@@ -250,7 +290,7 @@ export class GameRenderer3D {
   private applyQuality(): void {
     const q = this.settings.quality;
     this.post.setQuality(q);
-    this.clutter?.setQuality(q);
+    for (const w of this.worlds.values()) w.clutter?.setQuality(q);
     if (q === this.shadowQuality) return;
     this.shadowQuality = q;
     const ms = q === 'high' ? 2048 : 1024;
@@ -371,7 +411,8 @@ export class GameRenderer3D {
     camBasis.uCamUp.value.set(0, COS_EL, -SIN_EL);
     (pool.uniforms.uViewDir.value as THREE.Vector3).set(0, SIN_EL, COS_EL);
 
-    // ---- lighting
+    // ---- lighting (the map's own world first: the Fun House swaps in for the Carnival Core, D-63)
+    this.setWorld(g.mapId);
     this.updateLighting(g, px, py, cx, cy, opts.menu ?? false);
     this.ground.update(this.time, this.dawn);
     shared.uMistTime.value = this.time;
@@ -460,6 +501,13 @@ export class GameRenderer3D {
       focusV: 1 - fsp.y,
       highContrast: this.settings.highContrast,
     });
+    // the Fun House's mirrors reflect the finished frame's batches (D-63)
+    const fw = this.world.funhouse;
+    if (fw) {
+      fw.endFrame();
+      const hx = this.viewW / 2;
+      fw.beforeComposite(this, this.scene, this.camera, { x0: this.camX - hx, x1: this.camX + hx, y0: this.camY - this.viewH, y1: this.camY + this.viewH * 0.6 }, this.settings.quality === 'high' ? 2 : this.settings.quality === 'medium' ? 1 : 0);
+    }
     this.overlayCam.projectionMatrix.copy(this.camera.projectionMatrix);
     this.overlayCam.projectionMatrixInverse.copy(this.camera.projectionMatrixInverse);
     this.post.setOverlay(this.overlay.children.some((o) => o.visible));
@@ -472,7 +520,7 @@ export class GameRenderer3D {
     const dawn = this.dawn;
     // moonlight: cold, from the west-north-west, a little brighter through gaps in the cloud
     const cloud = 0.85 + 0.15 * Math.sin(this.time * 0.07) * Math.sin(this.time * 0.031 + 1);
-    this.moon.intensity = lerp(lerp(1.3 * cloud, 0.12, dark), 2.4, dawn);
+    this.moon.intensity = lerp(lerp(1.3 * cloud, 0.12, dark), 2.4, dawn) * (this.world.indoor ? 0.3 : 1); // indoors: a little light through high windows
     const mt = this.moonTint;
     this.moon.color.setRGB(lerp(lerp(0.62, 0.9, mt), 1.0, dawn), lerp(lerp(0.7, 0.25, mt), 0.78, dawn), lerp(lerp(0.86, 0.18, mt), 0.6, dawn));
     (this.scene.fog as THREE.FogExp2).color.setRGB(lerp(0.027, 0.07, mt), lerp(0.03, 0.012, mt), lerp(0.05, 0.01, mt));
@@ -483,7 +531,8 @@ export class GameRenderer3D {
     this.moon.position.set(tx - 1900, 1500, ty - 1100);
     this.moon.target.position.set(tx, 0, ty);
     this.moon.target.updateMatrixWorld();
-    this.hemi.intensity = lerp(lerp(0.42, 0.08, dark), 1.2, dawn);
+    this.hemi.intensity = lerp(lerp(0.42, 0.08, dark), 1.2, dawn) * (this.world.indoor ? 0.75 : 1);
+    if (this.world.indoor) (this.scene.fog as THREE.FogExp2).color.setRGB(0.05, 0.025, 0.045);
     // the lantern: a warm cone from above and slightly behind the player — long radial shadows
     const lanternOn = menu ? 0.5 : 1;
     this.lantern.position.set(px - 40, 640, py + 210);
@@ -509,7 +558,7 @@ export class GameRenderer3D {
       pool.add(l.x, l.y, l.r * 0.92, l.intensity * 1.1 * fl, l.color[0], l.color[1], l.color[2], 150);
     }
     // theatre searchlights from the two gate towers sweep the plaza and the midway: crisp moving discs
-    const sOn = (1 - dark) * (1 - dawn * 0.9);
+    const sOn = this.world.indoor ? 0 : (1 - dark) * (1 - dawn * 0.9);
     for (let k = 0; k < SEARCHLIGHTS.length; k++) {
       const sl = SEARCHLIGHTS[k];
       const t = this.time * sl.speed + sl.phase;
@@ -796,6 +845,19 @@ export class GameRenderer3D {
         this.drawSnake(e, x, y, dt);
         continue;
       }
+      // the Fun House (D-63): a glasswalker behind the glass is unseen; stepping out, the floor ripples first
+      if (e.def.behavior === 'glasswalker') {
+        if (e.state === 0) continue;
+        if (e.state === 1) {
+          const k = Math.max(0, Math.min(1, e.windup));
+          for (let r2 = 0; r2 < 3; r2++) {
+            const rr = ((this.time * 1.6 + r2 / 3) % 1) * 70;
+            this.addShapes.ring(x, y, Math.max(0, rr - 3), rr, 0.7, 0.9, 1, 0.4 * k, 0.05);
+          }
+          this.teleLine.ring(x, y, 34, 37, 1, 0.35, 0.25, 0.5 + 0.4 * k, 0.5 + 0.4 * k);
+          if (k < 0.35) continue;
+        }
+      }
       let key = id;
       if (id === 'whack_a_mole' && e.hidden) key = 'mole_hole';
       if (id === 'jack_in_the_box' && e.state === 2) key = 'jack_open';
@@ -813,6 +875,8 @@ export class GameRenderer3D {
       let h = (def.hover ?? 0) + (flyer ? Math.sin(this.time * 2 + e.idx) * 5 : 0);
       if (id === 'jack_in_the_box' && e.state === 2) h += Math.sin(Math.min(1, 1 - e.t / 0.45) * Math.PI) * 30;
       if (id === 'whack_a_mole' && !e.hidden) h -= (1 - Math.min(1, e.t * 6)) * 20;
+      if (e.def.behavior === 'marionette' && e.state === 1) h += Math.sin(Math.max(0, Math.min(1, 1 - e.t / 0.55)) * Math.PI) * 55;
+      if (e.def.behavior === 'glasswalker' && e.state === 1) s *= 0.4 + 0.6 * Math.max(0, Math.min(1, e.windup));
       const i = b.add(x, y, h, yaw, s * ACTOR_SCALE, 1, ACTOR_STRETCH * (1 - 0.08 * e.windup), 1);
       if (i < 0) continue;
       {
@@ -834,13 +898,17 @@ export class GameRenderer3D {
         // locomotion at a stride rate matched to the enemy's speed, each on its own phase;
         // the wind-up clip is driven directly by the sim's telegraph
         const rate = flyer ? 0.55 : Math.max(0.7, Math.min(2.4, e.speed / 85));
-        const ra = rig.row('move', (moving || flyer ? e.animT * rate : this.time * 0.25) + e.idx * 0.37);
+        // a watched mannequin is a statue: one stride, held (D-63)
+        const statue = e.def.behavior === 'mannequin' && e.state === 1;
+        const ra = rig.row('move', statue ? 0.21 + e.idx * 0.37 : (moving || flyer ? e.animT * rate : this.time * 0.25) + e.idx * 0.37);
         if (telegraph > 0.02 && rig.has('attack')) b.anim(i, ra, rig.row('attack', telegraph), flash, Math.min(1, telegraph * 2.5));
         else b.anim(i, ra, ra, flash, 0);
         if (!def.shadow) this.zoneShapes.circle(x, y, e.r * s * 1.25 + 6, 0, 0, 0, flyer ? 0.18 : 0.42, 0);
       } else b.anim(i, e.animT * 9 + e.idx, telegraph, flash, moving || flyer ? 1 : 0.15);
       // statuses tint the model; elites wear a gold rim and a crown spark
       if (e.frozenT > 0) b.tint(i, 0.55, 0.8, 1.3);
+      // a reflection thief's decoy catches the light now and then: the only tell it isn't flesh (D-63)
+      else if (e.illusion && Math.sin(this.time * 3.1 + e.idx * 1.7) > 0.9) b.tint(i, 1.35, 1.45, 1.7, 1.6);
       else if (e.stickyT > 0) b.tint(i, 1.2, 0.7, 0.95);
       else if (e.burnT > 0 && Math.sin(this.time * 30 + e.idx) > 0.4) b.tint(i, 1.4, 0.7, 0.4);
       if (id === 'living_balloon' || id === 'swarm_balloon') {

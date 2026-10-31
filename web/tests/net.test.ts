@@ -501,6 +501,27 @@ class Harness {
 }
 
 describe('lobby and session flow', () => {
+  it('the host picks the night\'s map (D-63): every guest sees it in the lobby and builds the same house', () => {
+    const h = new Harness({ latency: 30 });
+    h.run(300);
+    expect(h.guest.lobby?.map).toBe('carnival_core');
+    h.host.setMap('fun_house');
+    h.run(200);
+    expect(h.guest.lobby?.map).toBe('fun_house');
+    const g = h.startRun();
+    expect(g.mapId).toBe('fun_house');
+    h.run(300);
+    expect(h.guest.game?.mapId).toBe('fun_house');
+    expect(h.guest.game?.quests.get('unreflected')).toBeTruthy();
+    // the map can't change under a running night, and an unknown map id never survives the wire
+    h.host.setMap('carnival_core');
+    expect(h.host.lobby.map).toBe('fun_house');
+    const start = parseHostMsg(JSON.stringify({ t: 'start', slot: 1, cfg: { seed: 5, map: 'the_moon', players: [{ character: 'carny', name: 'A', meta: [], aimMode: 'auto' }] } }));
+    expect(start && start.t === 'start' ? start.cfg.map : 'x').toBeUndefined();
+    const lob = parseHostMsg(JSON.stringify({ t: 'lobby', lobby: { code: 'ABC234', players: [], map: 'the_moon' } }));
+    expect(lob && lob.t === 'lobby' ? lob.lobby.map : 'x').toBe('carnival_core');
+  });
+
   it('seats a guest, lets characters repeat, requires readiness, then starts both machines', () => {
     const h = new Harness({ latency: 40 });
     h.run(300);

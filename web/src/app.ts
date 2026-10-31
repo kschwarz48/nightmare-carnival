@@ -3,6 +3,7 @@
 // co-op (lobby, host loop, guest mirror loop — D-52), and the development-only timeline tools
 // (stripped from production builds).
 
+import { MAPS, type MapId } from './data/maps';
 import { AudioEngine } from './audio/audio';
 import { Input, type NavEvent } from './input/input';
 import { SaveManager } from './meta/save';
@@ -20,7 +21,9 @@ import { DraftView, Hud } from './ui/hud';
 import { FortuneCard, PrizeOverlay } from './ui/prize';
 import { PrizeWheel } from './render3d/prizeWheel';
 import { LAST_SONG } from './data/quests';
-import { SECRET_UNLOCKS } from './data/meta';
+import { QUEST_UNLOCKS } from './data/meta';
+import { MIRA, PERFORMER_NAMES, PERFORMER_NOTES } from './data/funhouse';
+import type { UnreflectedChain } from './sim/quest/unreflected';
 import type { QuestCue } from './sim/quest';
 import { FocusNav, h } from './ui/dom';
 import * as S from './ui/screens';
@@ -107,7 +110,7 @@ export class App {
   private last = performance.now();
   fps = 60;
   private settingsBack: () => void = () => this.go('title');
-  private lastRun: { character: string; difficulty: string; curse: boolean; daily?: boolean } | null = null;
+  private lastRun: { character: string; difficulty: string; curse: boolean; daily?: boolean; map?: MapId } | null = null;
   private dawnT = -1;
   simSpeed = 1;
   autopilot = false;
@@ -190,6 +193,11 @@ export class App {
     this.input.aimScaleY = this.renderer.aimScaleY;
     this.hud = new Hud(this.assets);
     this.hubHud = new HubHud((code) => void navigator.clipboard?.writeText(code));
+    // alpha testing aid: ?unlock=funhouse opens the Fun House on this save (D-63)
+    if (new URLSearchParams(location.search).get('unlock') === 'funhouse') {
+      this.save.data.funhouseTester = true;
+      this.save.save();
+    }
     // alpha testing aid: ?unlock=midway opens the hub on this save without finishing the Last Song
     if (new URLSearchParams(location.search).get('unlock') === 'midway') {
       this.save.data.midwayTester = true;
@@ -258,6 +266,7 @@ export class App {
       case 'hub':
         this.audio.setPausedFilter(false);
         this.audio.setCue('midway'); // the grounds get a hushed carousel waltz; Bradley's song stays on the title menus
+        this.audio.setAmbience('carnival');
         break;
       case 'midway':
         el = this.midwayMenuEl();
@@ -268,6 +277,7 @@ export class App {
         break;
       case 'title':
         this.audio.setCue('menu');
+        this.audio.setAmbience('carnival');
         el = S.titleScreen(this.ctx);
         break;
       case 'charselect':
@@ -364,11 +374,12 @@ export class App {
   }
 
   // =================================================================== runs
-  startRun(o: { character: string; difficulty: string; curse: boolean; daily?: boolean; seed?: number }): void {
+  startRun(o: { character: string; difficulty: string; curse: boolean; daily?: boolean; seed?: number; map?: MapId }): void {
     this.audio.unlock();
     this.lastRun = o;
+    const map: MapId = o.daily ? 'carnival_core' : o.map && this.save.mapAvailable(o.map) ? o.map : 'carnival_core';
     if (!o.daily) {
-      this.save.data.last = { character: o.character, difficulty: o.difficulty, curse: o.curse };
+      this.save.data.last = { character: o.character, difficulty: o.difficulty, curse: o.curse, map };
       this.save.save();
     }
     const perk = (id: string) => this.save.perkLevel(id);
@@ -387,9 +398,11 @@ export class App {
       unlocked: this.save.unlockedSet(),
       aimMode: this.save.data.settings.aimMode,
       questMemory: Object.fromEntries(Object.entries(this.save.data.quests).map(([k, v]) => [k, v.completions])),
+      map,
     };
     this.localIndex = 0;
-    this.beginRun(new Game(cfg), o.character, o.daily ? 'DAILY RUN' : 'MIDNIGHT', o.daily ? dailyInfo().modName : 'The gates lock behind you…');
+    const intro = MAPS[map].intro;
+    this.beginRun(new Game(cfg), o.character, o.daily ? 'DAILY RUN' : intro.title, o.daily ? dailyInfo().modName : intro.sub);
   }
 
   /** Common run setup for solo, the co-op host's night and the co-op guest's mirror. */
@@ -420,7 +433,7 @@ export class App {
     this.runStart = performance.now();
     this.go('playing');
     this.prewarmPrize();
-    this.audio.setCue('act1');
+    this.audio.setCue(this.game?.mapId === 'fun_house' ? 'fh_act1' : 'act1');
     this.hud.banner(title, sub, 'gold', 3);
     this.tutorial('move', 'Move with <b>WASD</b>, the <b>arrow keys</b> or the <b>left stick</b>. Your weapons fire on their own.');
   }
@@ -496,10 +509,13 @@ export class App {
       this.save.data.stats.bossKills[e.id] = (this.save.data.stats.bossKills[e.id] ?? 0) + 1;
       // first-ever kill unlocks are awarded at run end via achievements
     });
-    g.bus.on('music', (e) => a.setCue(e.cue));
+    // a Fun House night has its own score between bosses (D-63); boss fights keep Bradley's song
+    const houseCue = (c: string) => (g.mapId === 'fun_house' && /^(act[1-4]|endless)$/.test(c) ? `fh_${c}` : c);
+    a.setAmbience(g.mapId === 'fun_house' ? 'funhouse' : 'carnival');
+    g.bus.on('music', (e) => a.setCue(houseCue(e.cue)));
     g.bus.on('act', (e) => {
-      a.setCue(`act${e.act}`);
-      this.hud.banner(['', 'ACT I', 'ACT II', 'ACT III', 'ACT IV'][e.act], ['', 'Warm-Up', 'The Crowd', 'The Parade', 'Last Call'][e.act], 'gold', 2.6);
+      a.setCue(houseCue(`act${e.act}`));
+      this.hud.banner(['', 'ACT I', 'ACT II', 'ACT III', 'ACT IV'][e.act], (MAPS[g.mapId].acts[e.act - 1] ?? '').split('— ')[1] ?? '', 'gold', 2.6);
     });
     g.bus.on('carnival_event', (e) => {
       a.play(e.id === 'calliope' ? 'calliope' : 'banner', { vol: 0.7 });
@@ -595,6 +611,10 @@ export class App {
 
   /** The Last Song's cues: every step answers with sound and light, never with UI checklists (D-32). */
   private onQuest(g: Game, q: QuestCue): void {
+    if (q.chain === 'unreflected') {
+      this.onUnreflected(g, q);
+      return;
+    }
     const a = this.audio;
     const pan = (x?: number) => (x === undefined ? 0 : Math.max(-1, Math.min(1, (x - this.renderer.camX) / (this.renderer.viewWidth * 0.6))));
     const bell = (note: number, vol = 0.45, x?: number) => a.play('bellnote', { vol, pitch: note / 523.25, pan: pan(x) });
@@ -652,7 +672,7 @@ export class App {
         if (q.x !== undefined && q.y !== undefined) fx('ring', q.x, q.y, 'gravity', 90);
         break;
       case 'lamp_wisp':
-        if (q.a !== undefined) this.renderer.props.wisp(q.a);
+        if (q.a !== undefined) this.renderer.props.wisp?.(q.a);
         break;
       case 'note_true':
         this.hud.whisper('The note rings true.', `${['', 'one', 'two', 'three'][q.a ?? 0] ?? ''} of four`, 2.6);
@@ -692,7 +712,7 @@ export class App {
       case 'complete': {
         // the reward is permanent: the Steam Calliope joins the draft pool for good
         const s = this.save;
-        for (const id of SECRET_UNLOCKS) if (!s.data.unlocks.includes(id)) s.data.unlocks.push(id);
+        for (const id of QUEST_UNLOCKS.last_song) if (!s.data.unlocks.includes(id)) s.data.unlocks.push(id);
         const wasLocked = !s.hubUnlocked();
         const rec = (s.data.quests[q.chain] ??= { completions: 0, bestStage: 0 });
         rec.completions++;
@@ -700,6 +720,125 @@ export class App {
         s.save();
         if (wasLocked) this.hubJustUnlocked = true;
         this.hud.banner('THE LAST SONG', 'The music has ended. The Steam Calliope will remember you.', 'gold', 5);
+        break;
+      }
+    }
+  }
+
+  /** The Unreflected's cues (D-63): Mira's whispers, the gallery's music box, glass, the projector, clocks. */
+  private onUnreflected(g: Game, q: QuestCue): void {
+    const a = this.audio;
+    const pan = (x?: number) => (x === undefined ? 0 : Math.max(-1, Math.min(1, (x - this.renderer.camX) / (this.renderer.viewWidth * 0.6))));
+    const bell = (hz: number, vol = 0.45, x?: number) => a.play('bellnote', { vol, pitch: hz / 523.25, pan: pan(x) });
+    const fx = (type: string, style: string, aa = 1) => {
+      if (q.x !== undefined && q.y !== undefined) this.renderer.fx.handle([{ type: type as never, x: q.x, y: q.y, a: aa, b: 0, c: 0, style }]);
+    };
+    const say = (line: string[], dur = 5) => {
+      a.duckMusic(Math.min(3, dur * 0.5));
+      this.hud.whisper(line[0], line[1], dur);
+    };
+    const chain = g.quests.get<UnreflectedChain>('unreflected');
+    const tune = (gap = 420, vol = 0.45) => (chain?.order ?? [0, 1, 2, 3]).forEach((j, k) => setTimeout(() => bell(PERFORMER_NOTES[j], vol, q.x), k * gap));
+    const flash = (r: number, gg: number, b: number, k = 0.3) => {
+      this.renderer.fx.screenFlash = Math.max(this.renderer.fx.screenFlash, k);
+      this.renderer.fx.screenFlashCol = [r, gg, b];
+    };
+    switch (q.event) {
+      case 'u_awaken':
+        say(MIRA.awaken, 7);
+        a.play('glint', { vol: 0.8, pan: pan(q.x) });
+        a.play('mirror', { vol: 0.5, pitch: 0.7 });
+        fx('spark', 'frost', 1.4);
+        break;
+      case 'u_face_seen':
+        say(MIRA.faceSeen, 4);
+        a.play('mirror', { vol: 0.6, pan: pan(q.x) });
+        break;
+      case 'u_face':
+        say(MIRA.faceFreed(PERFORMER_NAMES[q.a ?? 0], q.b ?? 1), 3.5);
+        bell(PERFORMER_NOTES[q.a ?? 0], 0.55, q.x);
+        a.play('ripple', { vol: 0.6, pan: pan(q.x) });
+        fx('ring', 'frost', 120);
+        this.input.rumble(0.25, 140);
+        break;
+      case 'u_faces_done':
+        say(MIRA.facesDone, 8);
+        setTimeout(() => a.play('toll', { vol: 0.5, pitch: 1.3 }), 600);
+        break;
+      case 'u_mural':
+        say(MIRA.mural, 7);
+        tune(460, 0.4);
+        fx('ring', 'gravity', 160);
+        break;
+      case 'u_note':
+        bell(PERFORMER_NOTES[q.a ?? 0], 0.6, q.x);
+        if ((q.b ?? 0) < 4) say(MIRA.plinthTrue(q.b ?? 1), 2.5);
+        fx('ring', 'gravity', 90);
+        break;
+      case 'u_sour':
+        say(MIRA.plinthSour, 3);
+        a.play('sour', { vol: 0.55, pan: pan(q.x) });
+        break;
+      case 'u_overture':
+        say(MIRA.overture, 7);
+        tune(220, 0.5);
+        setTimeout(() => a.play('clunk', { vol: 0.7 }), 1100);
+        break;
+      case 'u_charge':
+        if (q.a === 1) say(MIRA.projector, 4);
+        a.play('clunk', { vol: 0.5, pan: pan(q.x) });
+        a.play('hum', { vol: 0.3 + (q.a ?? 0) * 0.1, pan: pan(q.x) });
+        break;
+      case 'u_beam':
+        say(MIRA.beam, 7);
+        a.play('laser', { vol: 0.6, pan: pan(q.x) });
+        flash(1, 0.95, 0.75, 0.2);
+        break;
+      case 'u_pivot':
+        a.play('clank', { vol: 0.5, pan: pan(q.x) });
+        a.play('glint', { vol: 0.35, pan: pan(q.x), pitch: 0.8 + (q.b ?? 0) * 0.1 });
+        break;
+      case 'u_door':
+        say(MIRA.door, 7);
+        a.play('ripple', { vol: 0.9 });
+        a.play('mirror', { vol: 0.7, pitch: 0.6 });
+        flash(0.5, 1, 0.9, 0.3);
+        break;
+      case 'u_vanity':
+        say(MIRA.vanity, 10);
+        a.play('toll', { vol: 0.45, pitch: 1.6 });
+        break;
+      case 'u_wrong_clock':
+        say(MIRA.wrongClock, 3);
+        a.play('laugh', { vol: 0.6, pan: pan(q.x), pitch: 0.8 });
+        break;
+      case 'u_mira':
+        say(MIRA.mira, 7);
+        a.play('ghost_ticket', { vol: 0.8 });
+        for (let k = 0; k < 3; k++) setTimeout(() => a.play('toll', { vol: 0.55 }), 300 + k * 700);
+        flash(0.6, 1, 0.95, 0.3);
+        break;
+      case 'u_finale':
+        this.hud.banner(MIRA.finale[0], MIRA.finale[1], 'danger', 3.5);
+        a.play('shatter', { vol: 1 });
+        setTimeout(() => a.play('shatter', { vol: 0.8, pitch: 0.7 }), 500);
+        this.renderer.fx.shake = Math.max(this.renderer.fx.shake, 0.8);
+        flash(0.8, 1, 1, 0.6);
+        break;
+      case 'u_rises':
+        a.play('rumble', { vol: 0.9 });
+        a.play('demon', { vol: 0.6 });
+        break;
+      case 'u_complete': {
+        // permanent: Mira's Hand Mirror joins the draft pool for good
+        const s = this.save;
+        for (const id of QUEST_UNLOCKS.unreflected) if (!s.data.unlocks.includes(id)) s.data.unlocks.push(id);
+        const rec = (s.data.quests[q.chain] ??= { completions: 0, bestStage: 0 });
+        rec.completions++;
+        rec.bestStage = Math.max(rec.bestStage, 9);
+        s.save();
+        this.hud.banner(MIRA.complete[0], MIRA.complete[1], 'gold', 5);
+        a.play('fanfare', { vol: 0.8 });
         break;
       }
     }
@@ -738,8 +877,8 @@ export class App {
     s.data.stats.kills += st.kills;
     s.data.stats.bestTime = Math.max(s.data.stats.bestTime, st.time);
     s.data.stats.playSeconds += (performance.now() - this.runStart) / 1000;
-    // the furthest the Last Song got (persisted progress memory, not run state)
-    const qrec = (s.data.quests.last_song ??= { completions: 0, bestStage: 0 });
+    // the furthest the night's hidden quest got (persisted progress memory, not run state)
+    const qrec = (s.data.quests[MAPS[st.map ?? 'carnival_core'].quest.id] ??= { completions: 0, bestStage: 0 });
     qrec.bestStage = Math.max(qrec.bestStage, st.questStage);
     s.data.history.unshift({ date: new Date().toISOString(), character: st.character, difficulty: st.difficulty, won: st.won, time: st.time, kills: st.kills, level: st.level, lostTickets: st.lostTickets, curse: st.curse, endless: st.endless, daily: st.daily });
     s.data.history = s.data.history.slice(0, 30);
@@ -775,7 +914,7 @@ export class App {
       this.screenEl?.remove();
       this.state = 'results';
       this.hud.root.classList.add('under');
-      if (st.trueEnding) notes.unshift('The Steam Calliope now plays in the draft pool.');
+      if (st.trueEnding) notes.unshift(st.map === 'fun_house' ? "Mira's Hand Mirror now appears in the draft pool." : 'The Steam Calliope now plays in the draft pool.');
       if (this.hubJustUnlocked) {
         notes.unshift('THE MIDWAY IS YOURS: from now on the carnival opens as your hub. Walk the grounds, visit the cast, and enter the Big Top for another night.');
         this.hubJustUnlocked = false;
@@ -1157,7 +1296,9 @@ export class App {
       if (t.kind === 'npc') prompt = { key, text: `Talk to ${g.hubNpcs[t.i].char.name}` };
       else if (t.kind === 'booth') prompt = { key, text: 'Ticket Booth', sub: 'spend your Lost Tickets' };
       else if (t.kind === 'bigtop') prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Big Top', sub: 'the host starts the night here' } : { key, text: 'Enter the Big Top', sub: 'begin the First Night' };
-      else prompt = { key: '✕', text: HUB_EXITS[t.i].label, sub: 'coming soon: the gates are chained shut' };
+      else if (HUB_EXITS[t.i].id === 'funhouse' && this.save.mapAvailable('fun_house')) {
+        prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Fun House', sub: 'the host leads the way in' } : { key, text: 'Enter the Fun House', sub: 'a night in the Palace of Illusions' };
+      } else prompt = { key: '✕', text: HUB_EXITS[t.i].label, sub: HUB_EXITS[t.i].id === 'funhouse' ? 'chained shut — survive the first night to open it' : 'coming soon: the gates are chained shut' };
     }
     const hs = this.net?.role === 'host' ? this.net.host : null;
     this.hubHud.root.classList.toggle('under', this.state !== 'hub');
@@ -1193,6 +1334,16 @@ export class App {
         if (this.net?.role === 'host') return this.hubToRunLobby();
         return this.go('charselect');
       case 'exit':
+        // the Fun House's gate opens once the first night has been survived (D-63)
+        if (HUB_EXITS[t.i].id === 'funhouse' && this.save.mapAvailable('fun_house') && this.net?.role !== 'guest') {
+          this.audio.play('select', { vol: 0.6 });
+          if (this.net?.role === 'host') {
+            this.net.host.setMap('fun_house');
+            return this.hubToRunLobby();
+          }
+          this.save.data.last.map = 'fun_house';
+          return this.go('charselect');
+        }
         this.audio.play('clunk', { vol: 0.5 });
         return;
     }
@@ -1396,6 +1547,7 @@ export class App {
         pick: (id) => (n.role === 'host' ? n.host.setCharacter(id) : n.guest.pick(id)),
         ready: (r) => (n.role === 'host' ? n.host.setReady(r) : n.guest.setReady(r)),
         difficulty: (id, curse) => n.role === 'host' && n.host.setDifficulty(id, curse),
+        map: n.role === 'host' ? (id) => n.host.setMap(id) : undefined,
         start: () => this.startHostRun(),
         leave: () => this.leaveNet(false, 'mp'),
         midway: n.role === 'host' && this.save.hubUnlocked() ? () => this.restartHub() : undefined,

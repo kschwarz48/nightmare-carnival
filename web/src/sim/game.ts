@@ -22,7 +22,9 @@ import {
 } from './entities';
 import { CarnivalEvents } from './carnivalEvents';
 import { QuestSystem, type QuestCue } from './quest';
-import { MAP_ID } from '../data/quests';
+import { activeMapId, MAPS, useMap, type MapDef, type MapId } from '../data/maps';
+import { refreshFunhouseWalls, updateFunhouseHazards } from './funhouse';
+import { dispelDecoys } from './funhouseAI';
 import { HUB_NPCS } from '../data/hub';
 import { CHESTS, COOP, HEALING, TICKETS, voucherValue, xpToNext } from '../data/progression';
 import { FxQueue } from './fx';
@@ -61,6 +63,8 @@ export interface RunConfig {
    * stood when the hub is rebuilt for someone joining.
    */
   hub?: { npcs: string[]; at?: { x: number; y: number }[] };
+  /** which map the night is on (D-63); the Carnival Core when absent */
+  map?: MapId;
 }
 
 export interface InputState {
@@ -97,6 +101,8 @@ export interface RunStats {
   trueEnding: boolean;
   voucherTickets: number;
   questStage: number;
+  /** the map the night was on (D-63) */
+  map: MapId;
 }
 
 export type GameEvents = {
@@ -181,6 +187,13 @@ export class Game {
   xpToNext = 0;
   /** The Midway hub (D-60): no night, just the grounds and the cast. */
   readonly hub: boolean;
+  /** the map this night is on (D-63) */
+  readonly mapId: MapId;
+  readonly map: MapDef;
+  /** the Fun House: seconds left of the Mirrors Shuffle (every pivot turns every 3 s) */
+  pivotShuffleT = 0;
+  /** the Fun House: the hidden quest has opened the dressing room's glass door */
+  funhouseDoorOpen = false;
   /** the cast standing at their games in the hub */
   hubNpcs: Player[] = [];
   pendingLevels = 0;
@@ -235,6 +248,10 @@ export class Game {
   constructor(cfg: RunConfig) {
     this.cfg = cfg;
     this.hub = !!cfg.hub;
+    // the map first: everything below reads the active layout, waves and schedule (D-63)
+    this.mapId = cfg.hub ? 'carnival_core' : cfg.map ?? 'carnival_core';
+    this.map = MAPS[this.mapId];
+    useMap(this.mapId);
     this.rng = new Rng(cfg.seed);
     this.diff = DIFFICULTY_MAP[cfg.difficulty] ?? DIFFICULTY_MAP.midway;
     const party = cfg.players?.length ? cfg.players.slice(0, COOP.maxPlayers) : [{ character: cfg.character }];
@@ -304,7 +321,8 @@ export class Game {
     this.foodTimer = this.rng.range(HEALING.foodFirst[0], HEALING.foodFirst[1]);
     this.goldenTimer = this.rng.range(150, 330);
     this.director.init();
-    this.quests = new QuestSystem(this, MAP_ID);
+    this.quests = new QuestSystem(this, this.mapId);
+    if (this.mapId === 'fun_house') refreshFunhouseWalls(this);
   }
 
   // ------------------------------------------------------------------ party
@@ -373,6 +391,7 @@ export class Game {
   // ------------------------------------------------------------------ tick
   /** Advance one fixed step (TICK seconds). */
   tick(): void {
+    if (activeMapId() !== this.mapId) useMap(this.mapId); // another game may have switched maps (tests, the attract demo)
     if (this.hub) return this.tickHub();
     if (this.phase === 'ended' || this.phase === 'draft') return;
     let dt = TICK;
@@ -390,13 +409,13 @@ export class Game {
 
     // Run clock (D-01: stall at 24:59 while the Ringmaster lives).
     if (!this.endless && this.time + dt >= DAWN_TIME - 1 && !this.ringmasterDefeated) {
-      const rm = this.bosses.find((b) => b.def.id === 'ringmaster');
+      const rm = this.bosses.find((b) => b.def.id === this.map.finalBoss);
       if (rm || this.time >= DAWN_TIME - 60) {
         if (!this.stalled) {
           this.stalled = true;
           this.bus.emit('stall', {});
-          if (this.finaleActive) this.bus.emit('banner', { text: 'THE CALLIOPE PLAYS ON…', sub: 'The dawn will not come until the song ends', style: 'danger' });
-          else this.bus.emit('banner', { text: 'THE RINGMASTER HOLDS BACK THE DAWN!', sub: 'Defeat him to end the night', style: 'danger' });
+          if (this.finaleActive) this.bus.emit('banner', { ...this.map.quest.hold, style: 'danger' });
+          else this.bus.emit('banner', { text: `${(this.map.bosses.find((b) => b.id === this.map.finalBoss)?.name ?? 'The Ringmaster').toUpperCase()} HOLDS BACK THE DAWN!`, sub: 'Defeat him to end the night', style: 'danger' });
         }
         this.time = DAWN_TIME - 1;
       } else this.time += dt;
@@ -453,6 +472,7 @@ export class Game {
       this.updateMapHazards(dt);
     }
     this.setCtx(p0);
+    if (this.mapId === 'fun_house') this.updateFunhouse(dt);
     this.updateTimers(dt);
     this.cleanupDead();
 
@@ -463,6 +483,7 @@ export class Game {
 
   /** The Midway (D-60): nothing spawns, nothing fights, the clock stands still; the party walks the grounds. */
   private tickHub(): void {
+    if (activeMapId() !== this.mapId) useMap(this.mapId);
     const dt = TICK;
     this.tickCount++;
     this.realTime += dt;
@@ -688,6 +709,8 @@ export class Game {
     e.hidden = false;
     e.invuln = false;
     e.noContact = false;
+    e.illusion = false;
+    e.illusionOf = -1;
     e.noSep = false;
     e.leashExempt = false;
     e.kbT = 0;
@@ -720,6 +743,13 @@ export class Game {
     return e;
   }
 
+  /** The Fun House's walls and machinery, once per tick (D-63). */
+  private updateFunhouse(dt: number): void {
+    if (this.pivotShuffleT > 0) this.pivotShuffleT = Math.max(0, this.pivotShuffleT - dt);
+    refreshFunhouseWalls(this);
+    updateFunhouseHazards(this, dt);
+  }
+
   /** Recycle without a kill (leash despawn, flyby exit, trap popped). */
   despawnEnemy(e: Enemy): void {
     if (!e.alive) return;
@@ -729,8 +759,13 @@ export class Game {
   killEnemy(e: Enemy, srcWeapon = ''): void {
     if (!e.alive) return;
     e.alive = false;
-    this.kills++;
     const d = e.def;
+    if (e.illusion) {
+      // a Reflection Thief's decoy: it was never there
+      this.fx.push('death', e.x, e.y, e.scale * (d.drawScale * d.radius) / 40, 0, 0, 'glass');
+      return;
+    }
+    this.kills++;
     if (d.behavior === 'ambusher' || d.behavior === 'brute' || d.behavior === 'line_charger' || d.behavior === 'rail_strafer') this.clearHazardsOf(e.uid);
     this.dropTickets(e.x, e.y, e.tickets);
     this.fx.push('death', e.x, e.y, e.scale * (d.drawScale * d.radius) / 34, e.elite ? 1 : 0, 0, d.deathFx);
@@ -761,6 +796,15 @@ export class Game {
       const dmg = 40 * this.player.stats.might;
       this.fx.push('explosion', e.x, e.y, 70, 0, 0, 'frost');
       this.forEachTargetInCircle(e.x, e.y, 70, (t) => this.damageTarget(t, dmg, false, 0.5, e.x, e.y, w.def.id));
+    }
+    if (d.behavior === 'thief') dispelDecoys(this, e.uid);
+    // the Splitter comes apart into smaller ones (D-63)
+    if (d.splitInto) {
+      for (let i = 0; i < (d.splitCount ?? 2); i++) {
+        const a = this.rng.angle();
+        const c = this.spawnEnemy(d.splitInto, e.x + Math.cos(a) * e.r, e.y + Math.sin(a) * e.r);
+        if (c) this.knockback(c, e.x, e.y, 2.2);
+      }
     }
     this.events.onKill(e);
     this.quests.onKill(e);
@@ -933,7 +977,7 @@ export class Game {
     let hit: Enemy | null = null;
     this.grid.query(p.x, p.y, p.r + 40, (id) => {
       const e = this.enemies[id];
-      if (!e.alive || e.hidden || e.noContact) return;
+      if (!e.alive || e.hidden || e.noContact || e.illusion) return;
       if (e.def.behavior === 'rail_strafer') return; // snake contact handled per segment in its AI
       const rr = e.r * 0.85 + p.r;
       if (dist2(e.x, e.y, p.x, p.y) < rr * rr) {
@@ -1745,14 +1789,16 @@ export class Game {
 
   /** Tilt-a-Whirl rotating arm (doc 03 §4): telegraphed by its glowing track, chip damage. */
   private updateMapHazards(dt: number): void {
-    if (this.player === this.players[0] || !this.isUp(this.players[0])) this.tiltAngle += (TAU / TILT_A_WHIRL.period) * dt;
+    const TW = TILT_A_WHIRL;
+    if (!TW) return; // the Fun House runs its own machinery (updateFunhouse)
+    if (this.player === this.players[0] || !this.isUp(this.players[0])) this.tiltAngle += (TAU / TW.period) * dt;
     const p = this.player;
-    if (dist2(p.x, p.y, TILT_A_WHIRL.x, TILT_A_WHIRL.y) < (TILT_A_WHIRL.armLen + 30) ** 2) {
+    if (dist2(p.x, p.y, TW.x, TW.y) < (TW.armLen + 30) ** 2) {
       for (let k = 0; k < 2; k++) {
         const a = this.tiltAngle + k * Math.PI;
-        const ex = TILT_A_WHIRL.x + Math.cos(a) * TILT_A_WHIRL.armLen;
-        const ey = TILT_A_WHIRL.y + Math.sin(a) * TILT_A_WHIRL.armLen;
-        if (segDist2(p.x, p.y, TILT_A_WHIRL.x, TILT_A_WHIRL.y, ex, ey) < (16 + p.r) ** 2) {
+        const ex = TW.x + Math.cos(a) * TW.armLen;
+        const ey = TW.y + Math.sin(a) * TW.armLen;
+        if (segDist2(p.x, p.y, TW.x, TW.y, ex, ey) < (16 + p.r) ** 2) {
           if (this.hurtPlayer(8 * this.diff.dmgMult, ex, ey)) {
             p.pullX += Math.cos(a + Math.PI / 2) * 900;
             p.pullY += Math.sin(a + Math.PI / 2) * 900;
@@ -1794,9 +1840,9 @@ export class Game {
     this.bus.emit('boss_defeated', { id, noHit });
     if (noHit) this.achievementsHit.add('no_hit_boss');
     this.achievementsHit.add(id === 'carnival_tent' ? 'beat_tent' : `beat_${id}`);
-    if (id === 'ringmaster') this.ringmasterSlain = true;
+    if (id === this.map.finalBoss) this.ringmasterSlain = true;
     if (this.quests.onBossDefeated(id)) return;
-    if (id === 'ringmaster') {
+    if (id === this.map.finalBoss) {
       this.ringmasterDefeated = true;
       if (this.endless) return;
       if (this.time < DAWN_TIME - 1) {
@@ -1919,7 +1965,8 @@ export class Game {
       achievementsHit: [...this.achievementsHit],
       trueEnding: this.trueEnding,
       voucherTickets: this.voucherPaid,
-      questStage: this.quests.get('last_song')?.stage ?? 0,
+      questStage: this.quests.get(this.map.quest.id)?.stage ?? 0,
+      map: this.mapId,
     };
   }
 

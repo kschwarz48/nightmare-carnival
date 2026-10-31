@@ -47,8 +47,10 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'f_skip', name: 'Skip Ticket', desc: 'Lets you skip a draft (heals 10 HP).', cost: 50, kind: 'feature' },
 ];
 
-/** Unlocks that are never sold — earned only through discovery (the Last Song Easter egg). */
-export const SECRET_UNLOCKS = ['w_calliope'];
+/** Unlocks that are never sold — earned only through discovery (each map's hidden quest). */
+export const SECRET_UNLOCKS = ['w_calliope', 'p_hand_mirror'];
+/** Which hidden quest grants which of them. */
+export const QUEST_UNLOCKS: Record<string, string[]> = { last_song: ['w_calliope'], unreflected: ['p_hand_mirror'] };
 
 export interface AchievementDef {
   id: string;
@@ -77,6 +79,12 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'daily_run', name: 'Daily Special', desc: 'Complete a Daily Run.', reward: 30 },
   { id: 'no_hit_boss', name: 'Untouchable', desc: 'Defeat a boss without taking damage during the fight.', reward: 80 },
   { id: 'last_song', name: 'The Last Song', desc: 'Hear the whole song.', reward: 400 },
+  // the Fun House (D-63)
+  { id: 'beat_crooked_twins', name: 'Untied', desc: 'Defeat the Crooked Twins.', reward: 40 },
+  { id: 'beat_looking_glass', name: 'Seven Years', desc: 'Defeat the Looking Glass.', reward: 60 },
+  { id: 'beat_stringmistress', name: 'Cut the Cradle', desc: 'Defeat the Stringmistress.', reward: 80 },
+  { id: 'beat_proprietor', name: 'The House Loses', desc: "Defeat the Proprietor and see the Fun House's dawn.", reward: 150 },
+  { id: 'unreflected', name: 'Through the Looking Glass', desc: 'Bring Mira home.', reward: 400 },
 ];
 
 /** End-of-run payout (doc 01 §8). */

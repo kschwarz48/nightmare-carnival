@@ -34,7 +34,7 @@ export class LightShafts {
   private shafts: Shaft[] = [];
   private uTime = { value: 0 };
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Object3D) {
     for (const p of PROPS) {
       if (p.kind === 'lamp') this.shafts.push({ x: p.x, y: p.y, h: LAMP_LIGHT_H - 16, r: 112, col: [1, 0.58, 0.28], flicker: 0, k: p.x, kind: 'lamp' });
       if (p.kind === 'ghost_lamp') this.shafts.push({ x: p.x, y: p.y, h: LAMP_LIGHT_H - 16, r: 116, col: [0.45, 1, 0.72], flicker: 0, k: p.x, kind: 'ghost' });
@@ -197,7 +197,7 @@ export class FogLayers {
   };
   private base = [0.2, 0.13, 0.08];
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Object3D) {
     const layers: [number, number, number][] = [[7, 0.0019, 0.016], [28, 0.0013, 0.011], [60, 0.0009, 0.008]];
     layers.forEach(([h, scale, speed], i) => {
       const mat = new THREE.ShaderMaterial({

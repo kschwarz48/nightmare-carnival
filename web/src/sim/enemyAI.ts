@@ -4,6 +4,7 @@
 import { clamp, dist2, TAU } from '../core/math';
 import { PROPS } from '../data/map';
 import type { Enemy } from './entities';
+import { crooked, doppel, glasswalker, mannequin, marionette, splitter, thief } from './funhouseAI';
 import type { Game } from './game';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
@@ -61,7 +62,17 @@ export function updateEnemy(g: Game, e: Enemy, dt: number): void {
     case 'pop_up': popUp(g, e, dt); break;
     case 'rail_strafer': railStrafer(g, e, dt); break;
     case 'brute': brute(g, e, dt); break;
+    // the Fun House (D-63)
+    case 'mannequin': mannequin(g, e, dt); break;
+    case 'doppel': doppel(g, e, dt); break;
+    case 'glasswalker': glasswalker(g, e, dt); break;
+    case 'marionette': marionette(g, e, dt); break;
+    case 'splitter': splitter(g, e, dt); break;
+    case 'crooked': crooked(g, e, dt); break;
+    case 'thief': thief(g, e, dt); break;
   }
+  // a Reflection Thief's decoy fades after a while
+  if (e.illusion && e.spawnT > 12) g.despawnEnemy(e);
   // Magnetic affix: drag nearby trash toward the elite.
   if (e.elite && e.affixes.length && e.affixes.includes('magnetic')) {
     g.forEachEnemyInCircle(e.x, e.y, 180, (o) => {

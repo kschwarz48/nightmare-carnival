@@ -468,7 +468,7 @@ function carnivalBrute(): THREE.BufferGeometry {
 import { CREATURE_IDS, creatureModel } from './creatures';
 
 /** Enemies big enough to cast real shadows; the crowd gets soft blob shadows (performance). */
-const BIG = new Set(['carousel_horse', 'walking_ticket_booth', 'carnival_brute', 'bumper_car', 'jack_in_the_box', 'jack_open']);
+const BIG = new Set(['carousel_horse', 'walking_ticket_booth', 'carnival_brute', 'bumper_car', 'jack_in_the_box', 'jack_open', 'grand_mannequin', 'splitter', 'glasswalker']);
 
 const LEGACY_MODELS: Record<string, ModelDef> = {
   living_balloon: { build: livingBalloon, anim: { a: [0, 0.03, 0, 0], b: [0.1, 0, 0, 0] }, rim: [0.9, 0.5, 0.35, 0.3], hover: 34, shadow: true },
@@ -490,6 +490,17 @@ const LEGACY_MODELS: Record<string, ModelDef> = {
   roller_coaster_snake: { build: () => coasterCar(true), anim: { a: [0.5, 0, 0, 0], b: [0, 12, 0.1, 0] }, rim: RIM_WARM, shadow: true },
   snake_seg: { build: () => coasterCar(false), anim: { a: [0.5, 0, 0, 0], b: [0, 12, 0, 0] }, rim: RIM_WARM, shadow: true },
   carnival_brute: { build: carnivalBrute, anim: { a: [2.4, 0.02, 0.4, 0.3], b: [0.08, 0, 0.3, 1.1] }, rim: RIM_WARM, shadow: true },
+  // the Fun House (D-63): sculpted only; these carry their rims (the builds come from creatures.ts)
+  grinning_mannequin: { build: () => new THREE.BufferGeometry(), rim: [0.85, 0.8, 0.7, 0.5], shadow: true },
+  grand_mannequin: { build: () => new THREE.BufferGeometry(), rim: [0.95, 0.85, 0.7, 0.6], shadow: true },
+  doppelganger: { build: () => new THREE.BufferGeometry(), rim: [0.55, 0.85, 1, 0.65], shadow: true },
+  glasswalker: { build: () => new THREE.BufferGeometry(), rim: [0.45, 1, 0.85, 0.65], shadow: true },
+  marionette: { build: () => new THREE.BufferGeometry(), rim: RIM_WARM, shadow: true },
+  splitter: { build: () => new THREE.BufferGeometry(), rim: [1, 0.5, 0.6, 0.55], shadow: true },
+  splitter_mid: { build: () => new THREE.BufferGeometry(), rim: [1, 0.5, 0.6, 0.55], shadow: true },
+  splitter_small: { build: () => new THREE.BufferGeometry(), rim: [1, 0.5, 0.6, 0.55], shadow: true },
+  crooked_clown: { build: () => new THREE.BufferGeometry(), rim: RIM_SICK, shadow: true },
+  reflection_thief: { build: () => new THREE.BufferGeometry(), rim: [0.7, 0.6, 1, 0.6], shadow: true },
 };
 
 /** Sculpted, skeletal creatures replace the primitive builds; the coaster snake and mole hole stay rigid. */

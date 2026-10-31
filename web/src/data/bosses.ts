@@ -1,7 +1,8 @@
 // Boss metadata (doc 05). Attack logic lives in src/sim/bosses/*.
 
 export interface BossDef {
-  id: 'carnival_tent' | 'ferris_wheel' | 'puppet_king' | 'ringmaster' | 'calliope';
+  id: 'carnival_tent' | 'ferris_wheel' | 'puppet_king' | 'ringmaster' | 'calliope'
+    | 'crooked_twins' | 'looking_glass' | 'stringmistress' | 'proprietor' | 'unreflected';
   name: string;
   title: string;
   gate: number;
@@ -17,7 +18,8 @@ export interface BossDef {
   barColor: string;
 }
 
-export const BOSSES: BossDef[] = [
+/** The Carnival Core's schedule. (`BOSSES` below is the active map's; see maps.ts.) */
+export const CARNIVAL_BOSSES: BossDef[] = [
   {
     id: 'carnival_tent', name: 'The Carnival Tent', title: 'The Big Top Awakens', gate: 360, hp: 6500, contact: 16, radius: 120, enrage: 100,
     phases: [{ at: 1, name: 'Setting Up' }, { at: 0.6, name: 'The Big Inhale' }, { at: 0.3, name: 'Brought the House Down' }],
@@ -57,5 +59,52 @@ export const CALLIOPE_DEF: BossDef = {
   lore: 'The steam organ was the carnival’s heart long before the Ringmaster bought it. It only wanted to be heard.', barColor: '#7dffb0',
 };
 
-export const ALL_BOSSES: BossDef[] = [...BOSSES, CALLIOPE_DEF];
+// ---------------------------------------------------------------- the Fun House (D-63): same gates
+export const FUNHOUSE_BOSSES: BossDef[] = [
+  {
+    id: 'crooked_twins', name: 'The Crooked Twins', title: 'Two Bodies, One Grudge', gate: 360, hp: 7200, contact: 16, radius: 70, enrage: 100,
+    phases: [{ at: 1, name: 'The Act' }, { at: 0.6, name: 'The Quarrel' }, { at: 0.25, name: 'Alone' }],
+    intro: 'A tall one and a round one, roped at the waist, step out of the same mirror.',
+    defeat: 'The rope goes slack. Both of them finally lie still, still holding on.', unlocks: '—',
+    lore: 'Stilts and Barrel were the act that opened every show. They never learned to perform apart.', barColor: '#e0a04a',
+  },
+  {
+    id: 'looking_glass', name: 'The Looking Glass', title: 'Which One Is Real?', gate: 720, hp: 20000, contact: 20, radius: 95, enrage: 100,
+    phases: [{ at: 1, name: 'Reflection' }, { at: 0.66, name: 'Refraction' }, { at: 0.33, name: 'Shatter' }],
+    intro: 'Every mirror in the house turns to look at you. One of them climbs out of its frame.',
+    defeat: 'Ten thousand splinters of you rain onto the floor, and stop smiling.', unlocks: '—',
+    lore: 'Grinwell\'s first mirror. It has been looking at people for a hundred years and learned to want things.', barColor: '#9ad8ff',
+  },
+  {
+    id: 'stringmistress', name: 'The Stringmistress', title: 'Everyone Dances', gate: 1080, hp: 33000, contact: 22, radius: 85, enrage: 100,
+    phases: [{ at: 1, name: 'The Cradle' }, { at: 0.66, name: 'The Web' }, { at: 0.33, name: 'Cut Loose' }],
+    intro: 'Something long-fingered lowers itself from the dark above the house, humming.',
+    defeat: 'Her strings snap one by one, and everything she was holding falls down.', unlocks: '—',
+    lore: 'Every marionette in the gallery was strung by her hands. Some of them were people first.', barColor: '#c79bff',
+  },
+  {
+    id: 'proprietor', name: 'The Proprietor', title: 'The House Always Wins', gate: 1440, hp: 58000, contact: 24, radius: 75, enrage: 120,
+    phases: [{ at: 1, name: 'The Illusionist' }, { at: 0.66, name: 'The House Itself' }, { at: 0.33, name: 'The Grin' }],
+    intro: '"Welcome, welcome! Professor Ignatius Grinwell — at your service. Forever."',
+    defeat: 'The grin cracks from ear to ear. The doors of the Fun House swing open on the dawn.', unlocks: 'Endless',
+    lore: 'He built the Palace of Illusions in 1931 and never left it. The house grew around him like a smile.', barColor: '#ff5a4a',
+  },
+];
+
+/** Secret boss — only reachable through the Unreflected (the Fun House's hidden quest). */
+export const UNREFLECTED_DEF: BossDef = {
+  id: 'unreflected', name: 'The Unreflected', title: 'Through the Looking Glass', gate: 99999, hp: 64000, contact: 24, radius: 110, enrage: 130,
+  phases: [{ at: 1, name: 'The Other Side' }, { at: 0.66, name: 'Every Face' }, { at: 0.33, name: 'No Reflection' }],
+  intro: 'The house shatters inward. On the other side of the glass, something wearing Grinwell\'s smile has been waiting.',
+  defeat: 'The last mirror breaks with a sound like a sigh. Mira steps out of the glass and into the morning.', unlocks: 'True Dawn',
+  lore: 'What the mirrors kept: every stolen face, worn at once by the reflection Grinwell traded his own for.', barColor: '#b8fff0',
+};
+
+// The active map's schedule (maps.ts `useMap`); the Carnival Core by default.
+export let BOSSES: BossDef[] = CARNIVAL_BOSSES;
+export function applyBossSchedule(list: BossDef[]): void {
+  BOSSES = list;
+}
+
+export const ALL_BOSSES: BossDef[] = [...CARNIVAL_BOSSES, CALLIOPE_DEF, ...FUNHOUSE_BOSSES, UNREFLECTED_DEF];
 export const BOSS_MAP = Object.fromEntries(ALL_BOSSES.map((b) => [b.id, b])) as Record<BossDef['id'], BossDef>;

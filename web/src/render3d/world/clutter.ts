@@ -185,7 +185,7 @@ export class Clutter {
     for (const b of this.grass) b.mesh.visible = q !== 'low';
   }
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Object3D) {
     const r = rng(1931);
     const kinds: Record<string, { geos: THREE.BufferGeometry[]; wind: boolean; list: Map<string, Inst[]>[] }> = {
       tuft: { geos: [tuftGeo(false, 3)], wind: true, list: [new Map()] },

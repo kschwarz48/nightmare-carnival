@@ -13,7 +13,8 @@ export interface WaveDef {
   eliteBurst?: number;
 }
 
-export const WAVES: WaveDef[] = [
+/** The Carnival Core's night. (`WAVES` below is the active map's; see maps.ts.) */
+export const CARNIVAL_WAVES: WaveDef[] = [
   { id: 'w_0000', start: 0, enemies: [['living_balloon', 100]], minAlive: 22, maxAlive: 60, interval: 0.8, batch: 3 },
   { id: 'w_0100', start: 60, enemies: [['living_balloon', 70], ['wind_up_monkey', 30]], minAlive: 22, maxAlive: 85, interval: 1.0, batch: 2 },
   { id: 'w_0200', start: 120, enemies: [['living_balloon', 65], ['wind_up_monkey', 35]], minAlive: 28, maxAlive: 120, interval: 0.95, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 8, size: 28 } },
@@ -36,13 +37,13 @@ export const WAVES: WaveDef[] = [
 ];
 
 /** Victory lap after the Ringmaster falls before 25:00 (D-01). */
-export const VICTORY_LAP_WAVE: WaveDef = {
+export const CARNIVAL_VICTORY: WaveDef = {
   id: 'victory_lap', start: 0, enemies: [['living_balloon', 85], ['mini_stuffie', 15]], minAlive: 150, maxAlive: 280, interval: 0.3, batch: 10,
   swarm: { enemy: 'swarm_balloon', interval: 2.2, size: 60 },
 };
 
 /** Endless / Lock-In loops a dense Act IV mix (D-17). */
-export const ENDLESS_WAVE: WaveDef = {
+export const CARNIVAL_ENDLESS: WaveDef = {
   id: 'endless', start: 0,
   enemies: [['roller_coaster_snake', 10], ['carousel_horse', 18], ['bumper_car', 16], ['puppet_soldier', 18], ['evil_clown', 18], ['possessed_stuffie', 12], ['dunk_tank_clown', 8], ['walking_ticket_booth', 4]],
   minAlive: 130, maxAlive: 400, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 3, size: 64 }, eliteBurst: 6,
@@ -50,4 +51,53 @@ export const ENDLESS_WAVE: WaveDef = {
 
 export const ACT_GATES = [360, 720, 1080];
 export const DAWN_TIME = 1500;
-export const ACT_NAMES = ['Act I — Warm-Up', 'Act II — The Crowd', 'Act III — The Parade', 'Act IV — Last Call'];
+export const CARNIVAL_ACTS = ['Act I — Warm-Up', 'Act II — The Crowd', 'Act III — The Parade', 'Act IV — Last Call'];
+
+// ---------------------------------------------------------------- the Fun House (D-63)
+// Same clock and the same crowd curve as the Carnival Core (minimum/maximum alive, interval, batch), so
+// the night is as long and as dense; the roster is the house's own: seven new enemies arriving act by
+// act, plus clowns, jack-in-the-boxes and balloons.
+export const FUNHOUSE_WAVES: WaveDef[] = [
+  // Act I — Admission
+  { id: 'f_0000', start: 0, enemies: [['living_balloon', 60], ['grinning_mannequin', 25], ['marionette', 15]], minAlive: 22, maxAlive: 60, interval: 0.85, batch: 3 },
+  { id: 'f_0100', start: 60, enemies: [['living_balloon', 45], ['grinning_mannequin', 30], ['marionette', 25]], minAlive: 24, maxAlive: 90, interval: 1.0, batch: 2 },
+  { id: 'f_0200', start: 120, enemies: [['living_balloon', 35], ['marionette', 35], ['grinning_mannequin', 30]], minAlive: 30, maxAlive: 120, interval: 0.95, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 8, size: 26 } },
+  { id: 'f_0300', start: 180, enemies: [['marionette', 40], ['grinning_mannequin', 30], ['evil_clown', 30]], minAlive: 34, maxAlive: 150, interval: 0.9, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 7.5, size: 30 } },
+  { id: 'f_0400', start: 240, enemies: [['marionette', 35], ['evil_clown', 30], ['grinning_mannequin', 20], ['jack_in_the_box', 15]], minAlive: 44, maxAlive: 200, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 36 } },
+  { id: 'f_0500', start: 300, enemies: [['evil_clown', 35], ['marionette', 30], ['grinning_mannequin', 25], ['jack_in_the_box', 10]], minAlive: 54, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 42 }, eliteBurst: 4 },
+  // Act II — The Mirrors
+  { id: 'f_0600', start: 360, enemies: [['crooked_clown', 25], ['splitter', 20], ['marionette', 25], ['evil_clown', 30]], minAlive: 60, maxAlive: 220, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 30 } },
+  { id: 'f_0800', start: 480, enemies: [['crooked_clown', 25], ['splitter', 20], ['grinning_mannequin', 20], ['evil_clown', 20], ['jack_in_the_box', 15]], minAlive: 68, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 5.5, size: 34 } },
+  { id: 'f_1000', start: 600, enemies: [['splitter', 22], ['crooked_clown', 26], ['marionette', 22], ['grinning_mannequin', 18], ['jack_in_the_box', 12]], minAlive: 78, maxAlive: 260, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 38 }, eliteBurst: 3 },
+  // Act III — The Gallery Wakes
+  { id: 'f_1200', start: 720, enemies: [['glasswalker', 22], ['doppelganger', 16], ['splitter', 20], ['crooked_clown', 20], ['evil_clown', 22]], minAlive: 80, maxAlive: 270, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 40 } },
+  { id: 'f_1400', start: 840, enemies: [['glasswalker', 22], ['doppelganger', 18], ['grinning_mannequin', 20], ['marionette', 20], ['splitter', 20]], minAlive: 86, maxAlive: 280, interval: 0.7, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 44 } },
+  { id: 'f_1600', start: 960, enemies: [['doppelganger', 20], ['glasswalker', 20], ['crooked_clown', 20], ['evil_clown', 20], ['splitter', 20]], minAlive: 92, maxAlive: 280, interval: 0.68, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 48 }, eliteBurst: 4 },
+  // Act IV — Closing Time
+  { id: 'f_1800', start: 1080, enemies: [['reflection_thief', 6], ['doppelganger', 22], ['glasswalker', 22], ['grinning_mannequin', 22], ['crooked_clown', 18], ['splitter', 10]], minAlive: 96, maxAlive: 280, interval: 0.66, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 52 } },
+  { id: 'f_2000', start: 1260, enemies: [['reflection_thief', 8], ['doppelganger', 22], ['glasswalker', 20], ['splitter', 18], ['marionette', 18], ['crooked_clown', 14]], minAlive: 100, maxAlive: 280, interval: 0.62, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 3.5, size: 56 }, eliteBurst: 4 },
+  { id: 'f_2200', start: 1380, enemies: [['reflection_thief', 8], ['doppelganger', 22], ['glasswalker', 22], ['grinning_mannequin', 20], ['evil_clown', 18], ['splitter', 10]], minAlive: 108, maxAlive: 280, interval: 0.6, batch: 7, swarm: { enemy: 'swarm_balloon', interval: 3, size: 60 }, eliteBurst: 5 },
+  { id: 'f_2400', start: 1440, enemies: [['living_balloon', 60], ['marionette', 25], ['evil_clown', 15]], minAlive: 140, maxAlive: 280, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 2.5, size: 70 } },
+];
+export const FUNHOUSE_VICTORY: WaveDef = {
+  id: 'f_victory_lap', start: 0, enemies: [['living_balloon', 80], ['marionette', 20]], minAlive: 150, maxAlive: 280, interval: 0.3, batch: 10,
+  swarm: { enemy: 'swarm_balloon', interval: 2.2, size: 60 },
+};
+export const FUNHOUSE_ENDLESS: WaveDef = {
+  id: 'f_endless', start: 0,
+  enemies: [['doppelganger', 18], ['glasswalker', 18], ['grinning_mannequin', 16], ['splitter', 14], ['crooked_clown', 14], ['marionette', 10], ['reflection_thief', 4], ['evil_clown', 6]],
+  minAlive: 130, maxAlive: 400, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 3, size: 64 }, eliteBurst: 6,
+};
+export const FUNHOUSE_ACTS = ['Act I — Admission', 'Act II — The Mirrors', 'Act III — The Gallery Wakes', 'Act IV — Closing Time'];
+
+// The active map's (maps.ts `useMap`); the Carnival Core by default.
+export let WAVES: WaveDef[] = CARNIVAL_WAVES;
+export let VICTORY_LAP_WAVE: WaveDef = CARNIVAL_VICTORY;
+export let ENDLESS_WAVE: WaveDef = CARNIVAL_ENDLESS;
+export let ACT_NAMES: string[] = CARNIVAL_ACTS;
+export function applyWaves(w: WaveDef[], victory: WaveDef, endless: WaveDef, acts: string[]): void {
+  WAVES = w;
+  VICTORY_LAP_WAVE = victory;
+  ENDLESS_WAVE = endless;
+  ACT_NAMES = acts;
+}

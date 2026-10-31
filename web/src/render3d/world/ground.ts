@@ -154,7 +154,7 @@ export class Ground3D {
       uGroundData: { value: data },
       uPlaza: { value: new THREE.Vector3(PLAZA.x, PLAZA.y, PLAZA.r) },
       uProm: { value: new THREE.Vector3(PROMENADE.y0, PROMENADE.y1, MAP_HALF) },
-      uPad: { value: new THREE.Vector4(TILT_A_WHIRL.x, TILT_A_WHIRL.y, 300, 210) },
+      uPad: { value: new THREE.Vector4(TILT_A_WHIRL?.x ?? 1e5, TILT_A_WHIRL?.y ?? 1e5, 300, 210) },
       uSlicks: { value: slicks },
     };
     this.material = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, envMapIntensity: 0.7 });

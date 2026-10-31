@@ -50,7 +50,7 @@ export class Director {
 
   init(): void {
     // The Tent and the Ferris Wheel are scenery from the first second (doc 05: the reveal).
-    for (const id of ['carnival_tent', 'ferris_wheel'] as const) {
+    for (const id of this.g.map.scenery) {
       const b = createBoss(this.g, BOSS_MAP[id]);
       this.g.bosses.push(b);
       this.spawned.add(id);
@@ -127,7 +127,7 @@ export class Director {
     if (this.minibossAcc >= g.diff.minibossInterval && !g.victoryLap) {
       this.minibossAcc = 0;
       const pt = this.spawnPoint();
-      g.spawnEnemy('carnival_brute', pt.x, pt.y);
+      g.spawnEnemy(g.map.miniboss, pt.x, pt.y);
       if (!this.bruteAnnounced) {
         this.bruteAnnounced = true;
         g.bus.emit('banner', { text: 'A CARNIVAL BRUTE APPROACHES', sub: 'He carries a prize chest', style: 'gold' });
@@ -165,7 +165,7 @@ export class Director {
       this.encoreAcc += dt;
       if (this.encoreAcc >= 300) {
         this.encoreAcc = 0;
-        const b = createBoss(g, BOSS_MAP.ringmaster, { encore: true });
+        const b = createBoss(g, BOSS_MAP[g.map.finalBoss], { encore: true });
         g.bosses.push(b);
       }
     }

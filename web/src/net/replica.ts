@@ -13,6 +13,7 @@ import type { BossBase } from '../sim/bosses/boss';
 import { BossPart, Enemy, EnemyBullet, Hazard, Pickup, PlayerProjectile, Summon, Zone, type BulletKind, type HazardShape, type PickupKind, type ProjKind, type SummonKind, type ZoneKind } from '../sim/entities';
 import type { Game } from '../sim/game';
 import { addHazardPull, addRingPull, moveBody, steer } from '../sim/movement';
+import { addConveyorPush, refreshFunhouseWalls } from '../sim/funhouse';
 import { PlayerStats } from '../sim/stats';
 import { WeaponInst } from '../sim/weapons';
 import { TICK } from '../sim/constants';
@@ -101,6 +102,8 @@ export class Replica {
     g.trueEnding = !!(s.flags & GF.trueEnding);
     g.ringmasterDefeated = !!(s.flags & GF.ringmasterDefeated);
     this.frozen = !!(s.flags & GF.frozen);
+    g.funhouseDoorOpen = !!(s.flags & GF.doorOpen);
+    g.pivotShuffleT = s.shuffle;
     g.tiltAngle = s.tilt;
     g.dawnT = s.dawnT;
     g.tickCount = s.tick;
@@ -228,6 +231,7 @@ export class Replica {
         ls.carrying = s.quest.carrying;
       }
     }
+    for (const e of s.questExtra) g.quests.chains.find((q) => q.id === e.id)?.applyNet?.(e.v);
     for (const e of s.fx) g.fx.push(e.type, e.x, e.y, e.a, e.b, e.c, e.style, e.text);
     for (const e of s.sfx) g.bus.emit('sfx', { id: e.id, x: e.x, y: e.y, vol: e.vol, pitch: e.pitch });
     // only a fully applied snapshot counts (it is what the guest acknowledges as its baseline)
@@ -311,6 +315,7 @@ export class Replica {
         e.r = S.r;
         e.elite = !!(S.flags & EF.elite);
         e.hidden = !!(S.flags & EF.hidden);
+        e.illusion = !!(S.flags & EF.illusion);
         e.invuln = !!(S.flags & EF.invuln);
       }
       if (M) {
@@ -434,8 +439,12 @@ export class Replica {
     const [mx, my] = steer(p, ix, iy);
     // an inhale pulls the guest exactly as the host will (same formula, replicated hazard)
     for (const h of this.g.hazards) if (h.alive && h.pull !== 0 && h.tele <= 0 && h.active > 0 && !h.safe) addHazardPull(p, h);
-    // and so does a boss's stage ring (D-61)
+    // and so does a boss's stage ring (D-61), and the Fun House's conveyors and moving walls (D-63)
     for (const b of this.g.bosses) if (b.ringR > 0) addRingPull(p, b);
+    if (this.g.mapId === 'fun_house') {
+      refreshFunhouseWalls(this.g);
+      addConveyorPush(p);
+    }
     moveBody(p, mx, my, p.stats.moveSpeed() * this.slowF, TICK, this.g.bosses, false);
     if (p.moving) p.animT += TICK * ((p.stats.moveSpeed() * this.slowF) / 220);
     else p.animT += TICK * 0.4;

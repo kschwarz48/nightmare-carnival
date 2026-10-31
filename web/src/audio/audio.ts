@@ -1,8 +1,9 @@
 // Web Audio engine (doc 02 §9). Buses: master → music / sfx / ambience / ui. The original score
 // ("Freaky Funk Circus" by Bradley Schwarz) plays on the title menus and through every boss fight; the
 // night between bosses gets a quieter procedural music-box waltz that darkens with each Act (D-55), and
-// the Midway hub a hushed, broken carousel waltz of its own (D-61). Quest chimes dip the music so they
-// always carry. SFX are synthesized at boot.
+// the Midway hub a hushed, broken carousel waltz of its own (D-61), and the Fun House a waltz that runs
+// backwards over glass harmonics, with an indoor ambience of its own (D-63). Quest chimes dip the music
+// so they always carry. SFX are synthesized at boot.
 
 import { RECIPES, SR } from './synth';
 
@@ -20,6 +21,8 @@ interface NightTheme {
   pulse: number; // 0..1: a heartbeat on the downbeat
   warp: number; // music-box pitch wobble
   vol: number;
+  /** 0..1: glass harmonics ringing high over the chords (the Fun House) */
+  glass?: number;
 }
 
 const MINOR = [0, 2, 3, 5, 7, 8, 11, 12, 14, 15];
@@ -29,6 +32,10 @@ const WALTZ_BASS = [0, 5, 0, 7, 0, 3, 5, 7];
 /** The Midway's tune: a slow, lilting carousel phrase that keeps leaning on the leading tone. */
 const MIDWAY = [4, -1, 3, 2, 1, 0, 6, -1, -1, 0, -1, 4, 7, 6, 5, 4, -1, 3, 2, 6, 1, 0, -1, -1];
 const MIDWAY_BASS = [0, 5, 7, 0, 8, 5, 7, 0];
+/** The Fun House (D-63): the night's waltz played backwards, over a bass line that won't resolve. */
+const BACKWARDS = [...WALTZ].reverse();
+const BACKWARDS_LOW = [...WALTZ_LOW].reverse();
+const HOUSE_BASS = [0, 8, 5, 1, 0, 8, 6, 7];
 const NIGHT: Record<string, NightTheme> = {
   act1: { bpm: 72, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0, pulse: 0, warp: 0.002, vol: 0.9 },
   act2: { bpm: 76, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0.5, pulse: 0.25, warp: 0.004, vol: 0.95 },
@@ -38,6 +45,12 @@ const NIGHT: Record<string, NightTheme> = {
   // the Midway (D-61): quieter and slower than any night, the music box further out of tune, a faint
   // calliope trailing it, no heartbeat
   midway: { bpm: 58, root: 57, melody: MIDWAY, bass: MIDWAY_BASS, counter: 0.35, pulse: 0, warp: 0.009, vol: 0.55 },
+  // the Fun House (D-63): slower, a semitone lower, more out of tune, glass ringing over it
+  fh_act1: { bpm: 66, root: 56, melody: BACKWARDS, bass: HOUSE_BASS, counter: 0.25, pulse: 0, warp: 0.006, vol: 0.85, glass: 0.6 },
+  fh_act2: { bpm: 70, root: 56, melody: BACKWARDS, bass: HOUSE_BASS, counter: 0.55, pulse: 0.2, warp: 0.009, vol: 0.9, glass: 0.75 },
+  fh_act3: { bpm: 74, root: 55, melody: BACKWARDS_LOW, bass: HOUSE_BASS, counter: 0.8, pulse: 0.5, warp: 0.013, vol: 0.95, glass: 0.9 },
+  fh_act4: { bpm: 80, root: 54, melody: BACKWARDS_LOW, bass: [0, 1, 8, 7, 0, 1, 6, 7], counter: 1, pulse: 0.8, warp: 0.018, vol: 1, glass: 1 },
+  fh_endless: { bpm: 84, root: 54, melody: BACKWARDS_LOW, bass: [0, 1, 8, 7, 0, 1, 6, 7], counter: 1, pulse: 1, warp: 0.02, vol: 1, glass: 1 },
 };
 /** Bradley's song (one file since his 2026-10-30 mix): menus play it from the top, then loop from the groove. */
 const SONG = 'freaky_funky_circus.mp3';
@@ -234,7 +247,8 @@ export class AudioEngine {
     else if (night) this.fadeOutTrack(2);
     else if (c === 'silence') this.duckTrack(0);
     // dread drone grows with the Act (doc 02 §9: motifs bent darker as the night deepens)
-    const dread = c === 'act2' ? 0.15 : c === 'act3' ? 0.28 : c === 'act4' ? 0.38 : c === 'endless' ? 0.4 : 0;
+    const act = c.replace('fh_', '');
+    const dread = act === 'act2' ? 0.15 : act === 'act3' ? 0.28 : act === 'act4' ? 0.38 : act === 'endless' ? 0.4 : 0;
     this.setDrone(dread);
     void t;
   }
@@ -413,11 +427,112 @@ export class AudioEngine {
       this.chime(f, t, beat * 2.4, 0.09 * th.vol);
       if (th.counter) this.note(f * 0.502, t, beat * 0.95, 'square', 0.018 * th.counter * th.vol, 1500, 0.006 + th.warp);
     }
+    // the Fun House: a wet finger round a glass rim, two octaves up, on the off-bars
+    if (th.glass && inBar === 2 && bar % 2 === 1) {
+      const g = mtof(chord + 31) * (1 + (Math.random() - 0.5) * th.warp * 0.5);
+      this.note(g, t, beat * 3.2, 'sine', 0.02 * th.glass * th.vol, 6000, 0.004);
+      this.note(g * 1.5, t + beat * 0.5, beat * 2.6, 'sine', 0.012 * th.glass * th.vol, 6000, 0.004);
+    }
   }
 
   // ---------------------------------------------------------------- ambience & dread drone
+  private ambKind: 'carnival' | 'funhouse' = 'carnival';
+  private ambBufs = new Map<string, AudioBuffer>();
+
+  /** Which place's ambience plays (D-63). Built the first time it is needed, crossfaded in. */
+  setAmbience(kind: 'carnival' | 'funhouse'): void {
+    if (kind === this.ambKind) return;
+    this.ambKind = kind;
+    if (!this.unlocked || !this.ctx) return;
+    const old = this.ambSrc;
+    if (old) {
+      try {
+        old.stop(this.ctx.currentTime + 0.05);
+      } catch {
+        /* already stopped */
+      }
+    }
+    this.ambSrc = null;
+    this.startAmbience();
+  }
+
+  /** The Fun House's insides: no wind; boards settling, a drip, glass ringing, a broken music box, far laughter. */
+  private houseAmbience(): AudioBuffer {
+    const ctx = this.ctx!;
+    const len = 14 * SR;
+    const buf = ctx.createBuffer(2, len, SR);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      let lp = 0;
+      for (let i = 0; i < len; i++) {
+        lp += 0.004 * ((Math.random() * 2 - 1) - lp);
+        d[i] = lp * 0.25; // a close, airless room tone
+      }
+      // boards settling underfoot
+      for (const at of [1.1, 4.7, 9.3, 12.2]) {
+        const st = Math.floor((at + ch * 0.13) * SR);
+        for (let i = 0; i < SR * 0.5 && st + i < len; i++) {
+          const f = 120 + 60 * Math.sin(i / 700) + 20 * Math.sin(i / 90);
+          d[st + i] += Math.sin((2 * Math.PI * f * i) / SR) * 0.045 * Math.sin((Math.PI * i) / (SR * 0.5));
+        }
+      }
+      // a slow drip
+      for (let k = 0; k < 6; k++) {
+        const st = Math.floor((0.7 + k * 2.3 + (ch ? 0.02 : 0)) * SR);
+        const f0 = 1400 + (k % 3) * 160;
+        for (let i = 0; i < SR * 0.12 && st + i < len; i++) d[st + i] += Math.sin((2 * Math.PI * f0 * (1 + i / (SR * 0.2)) * i) / SR) * Math.exp(-i / (SR * 0.025)) * 0.05;
+      }
+      // glass resonance: two high partials swelling and fading
+      for (const [at, f] of [[2.6, 1975], [8.1, 2349]] as [number, number][]) {
+        const st = Math.floor(at * SR);
+        for (let i = 0; i < SR * 2.4 && st + i < len; i++) {
+          const env = Math.sin((Math.PI * i) / (SR * 2.4)) ** 2;
+          d[st + i] += (Math.sin((2 * Math.PI * f * i) / SR) + 0.5 * Math.sin((2 * Math.PI * f * 1.502 * i) / SR)) * env * 0.012;
+        }
+      }
+      // a broken music box: a few notes of the waltz, backwards, the spring running down
+      const mel = [71, 72, 76, 74, 71, 76, 79];
+      mel.forEach((m, k) => {
+        const st = Math.floor((5.4 + k * (0.5 + k * 0.06)) * SR);
+        const f = 440 * Math.pow(2, (m - 69) / 12) * (1 - k * 0.006);
+        for (let i = 0; i < SR * 0.6 && st + i < len; i++) d[st + i] += Math.sin((2 * Math.PI * f * i) / SR) * Math.exp(-i / (SR * 0.22)) * 0.03 * (ch ? 0.8 : 1);
+      });
+      // far-off laughter, pitched down and smeared
+      for (let k = 0; k < 5; k++) {
+        const st = Math.floor((10.4 + k * 0.19) * SR);
+        const f0 = 190 - k * 9;
+        for (let i = 0; i < SR * 0.15 && st + i < len; i++) {
+          const ph = (f0 * (1 + 0.04 * Math.sin(i / 500)) * i) / SR;
+          d[st + i] += ((ph % 1) * 2 - 1) * Math.sin((Math.PI * i) / (SR * 0.15)) * 0.012 * (ch ? 0.6 : 1);
+        }
+      }
+    }
+    return buf;
+  }
+
   private startAmbience(): void {
     const ctx = this.ctx!;
+    if (this.ambKind === 'funhouse') {
+      const hb = this.ambBufs.get('funhouse') ?? this.houseAmbience();
+      this.ambBufs.set('funhouse', hb);
+      const s = ctx.createBufferSource();
+      s.buffer = hb;
+      s.loop = true;
+      s.connect(this.amb);
+      s.start();
+      this.ambSrc = s;
+      return;
+    }
+    const cached = this.ambBufs.get('carnival');
+    if (cached) {
+      const s = ctx.createBufferSource();
+      s.buffer = cached;
+      s.loop = true;
+      s.connect(this.amb);
+      s.start();
+      this.ambSrc = s;
+      return;
+    }
     // 12 s loop: night wind + distant creaking + a faraway music-box carousel
     const len = 12 * SR;
     const buf = ctx.createBuffer(2, len, SR);
@@ -477,6 +592,7 @@ export class AudioEngine {
         }
       }
     }
+    this.ambBufs.set('carnival', buf);
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.loop = true;

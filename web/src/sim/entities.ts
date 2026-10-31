@@ -87,6 +87,10 @@ export class Enemy implements Target {
   hidden = false; // burrowed etc. — untargetable, no contact
   invuln = false;
   noContact = false;
+  /** a Reflection Thief's decoy (D-63): harmless, dies to any hit, drops nothing */
+  illusion = false;
+  /** the thief that made this decoy (its uid) */
+  illusionOf = -1;
   noSep = false;
   leashExempt = false;
   // knockback
@@ -161,7 +165,7 @@ export class PlayerProjectile {
   flag = 0;
 }
 
-export type BulletKind = 'pie' | 'musket' | 'ticket' | 'popcorn' | 'spiral' | 'spark' | 'bolt' | 'ring' | 'hellfire' | 'star' | 'crown' | 'spoke' | 'gondola' | 'kernel_big' | 'note';
+export type BulletKind = 'pie' | 'musket' | 'ticket' | 'popcorn' | 'spiral' | 'spark' | 'bolt' | 'ring' | 'hellfire' | 'star' | 'crown' | 'spoke' | 'gondola' | 'kernel_big' | 'note' | 'pin' | 'shard';
 
 export class EnemyBullet {
   alive = false;

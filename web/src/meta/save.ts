@@ -56,12 +56,14 @@ export interface SaveData {
   stats: { runs: number; wins: number; kills: number; bestTime: number; bossKills: Record<string, number>; playSeconds: number };
   history: RunRecord[];
   daily: Record<string, { score: number; won: boolean; character: string }>;
-  last: { character: string; difficulty: string; curse: boolean };
+  last: { character: string; difficulty: string; curse: boolean; map?: string };
   settings: Settings;
   /** Easter-egg memory per quest chain (D-32): completions and furthest stage ever reached. */
   quests: Record<string, { completions: number; bestStage: number }>;
   /** the Midway hub was opened by the alpha-testing unlock (D-60), not by finishing the Last Song */
   midwayTester?: boolean;
+  /** alpha testing aid: `?unlock=funhouse` opens the Fun House on this save (D-63) */
+  funhouseTester?: boolean;
 }
 
 export const DEFAULT_BINDINGS: Record<string, string[]> = {
@@ -306,6 +308,15 @@ export class SaveManager {
   /** The Midway hub (D-60): the first night fully completed — its secret quest carried to True Dawn. */
   hubUnlocked(): boolean {
     return (this.data.quests.last_song?.completions ?? 0) > 0 || !!this.data.midwayTester;
+  }
+  /**
+   * Which nights can be chosen (D-63): the Carnival Core always; the Fun House once the first night
+   * has been survived (the Ringmaster beaten), or with the Midway open, or with the alpha tester flag.
+   */
+  mapAvailable(id: string): boolean {
+    if (id === 'carnival_core') return true;
+    if (id === 'fun_house') return this.hasAchievement('beat_ringmaster') || this.hubUnlocked() || !!this.data.funhouseTester;
+    return false;
   }
   dailyAvailable(): boolean {
     return this.data.stats.runs >= 1;

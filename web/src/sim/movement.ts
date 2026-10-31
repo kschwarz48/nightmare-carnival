@@ -3,7 +3,7 @@
 // the map's solid props, solid boss bodies and the play bounds. Pure: no events, no randomness.
 
 import { clamp, dist2 } from '../core/math';
-import { GREASE_SLICKS, PLAYER_BOUNDS, PROPS, type Prop } from '../data/map';
+import { DYNAMIC_WALLS, GREASE_SLICKS, PLAYER_BOUNDS, PROPS, type Prop } from '../data/map';
 import type { Player } from './player';
 
 export interface SolidBody { x: number; y: number; solid: boolean; solidR: number }
@@ -89,6 +89,8 @@ export function steer(p: Player, ix: number, iy: number): [number, number] {
 
 export function collideBody(p: Player, bodies: readonly SolidBody[]): void {
   for (const pr of PROPS) pushOut(p, pr);
+  // walls that come and go (the Fun House's pivoting panels and quest doors, D-63)
+  for (const pr of DYNAMIC_WALLS) pushOut(p, pr);
   // A dormant/standing boss body is solid scenery (the Tent at the center, the Wheel at its base).
   for (const b of bodies) {
     if (!b.solid) continue;

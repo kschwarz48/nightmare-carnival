@@ -4,6 +4,7 @@
 
 import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
 import { DIFFICULTIES, CURSE } from '../data/difficulty';
+import { MAP_IDS, MAPS, type MapId } from '../data/maps';
 import { WEAPONS } from '../data/weapons';
 import type { LobbyState } from '../net/protocol';
 import type { Reach } from '../net/peer';
@@ -80,6 +81,8 @@ export interface LobbyActions {
   pick: (id: string) => void;
   ready: (r: boolean) => void;
   difficulty: (id: string, curse: boolean) => void;
+  /** host only: choose the night's map (D-63) */
+  map?: (id: MapId) => void;
   start: () => void;
   leave: () => void;
   /** host with the Midway unlocked: take everyone back to the hub instead of starting (D-60) */
@@ -128,6 +131,12 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
   const detail = chDef
     ? h('div', { class: 'mp-detail' }, h('b', {}, chDef.name), ' — ', chDef.quirkName, h('div', { class: 'muted' }, `Starts with ${WEAPONS[chDef.startWeapon].name}. ${chDef.quirkDesc}`))
     : h('div', { class: 'mp-detail muted' }, 'Pick your fool. Friends may pick the same one.');
+  const mapRow = host && o.actions.map
+    ? h('div', { class: 'diff-row map-row' }, ...MAP_IDS.map((id) => {
+        const ok = s.mapAvailable(id);
+        return h('button', { class: `diff-btn${id === lobby.map ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? MAPS[id].tagline : 'Locked — survive the first night', onclick: () => { c.click(); o.actions.map!(id); } }, ok ? MAPS[id].name : `🔒 ${MAPS[id].name}`);
+      }))
+    : h('div', { class: 'muted' }, `Tonight: ${MAPS[lobby.map]?.name ?? lobby.map}${host ? '' : ' (the host chooses)'}`);
   const diffRow = host
     ? h('div', { class: 'diff-row' }, ...DIFFICULTIES.map((d) => {
         const ok = s.difficultyAvailable(d.id);
@@ -152,6 +161,7 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
     h('div', { class: 'mp-cards six' }, ...lobby.players.map((_, i) => card(i))),
     grid,
     detail,
+    mapRow,
     diffRow,
     h('div', { class: 'muted mp-hint' }, hint),
     actions,

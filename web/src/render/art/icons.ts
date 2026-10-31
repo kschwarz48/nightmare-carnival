@@ -265,7 +265,7 @@ export function passiveIcon(ctx: Ctx, w: number, h: number, id: string): void {
     strongman_belt: '#7a3a20', energy_drink: '#3a8a3a', spectacles: '#3a5a9a', foam_finger: '#2a5ab0', extra_token: '#a08020',
     spinning_top: '#9a3a6a', caffeine: '#5a3a20', running_shoes: '#a03030', sugar_rush: '#c06aa0', funnel_cake: '#b08040',
     safety_goggles: '#4a6a7a', magnet_glove: '#902a2a', lucky_ticket: '#3a8a5a', season_pass: '#3a4aa0', coin_purse: '#8a6a20',
-    rabbits_foot: '#6a6a6a',
+    rabbits_foot: '#6a6a6a', hand_mirror: '#2a6a7a',
   };
   badge(ctx, w, h, bg[id] ?? '#5a4a6a', false);
   const s = w / 64;
@@ -456,6 +456,33 @@ export function passiveIcon(ctx: Ctx, w: number, h: number, id: string): void {
       circle(ctx, 32, 18, 5);
       fillInk(ctx, PAL.gold, 1.6);
       break;
+    case 'hand_mirror': {
+      // Mira's cracked hand mirror: a gilt oval on a handle, a crack, a pale face just behind you
+      ctx.save();
+      ctx.translate(32, 32);
+      ctx.rotate(-0.35);
+      roundRect(ctx, -3.5, 10, 7, 20, 3);
+      fillInk(ctx, PAL.gold, 2);
+      ellipse(ctx, 0, -6, 15, 19);
+      fillInk(ctx, shade(ctx, 0, -6, 18, '#e8fbff', '#6aa8bc'), 3);
+      ctx.strokeStyle = PAL.gold;
+      ctx.lineWidth = 3;
+      ellipse(ctx, 0, -6, 15, 19);
+      ctx.stroke();
+      ctx.globalAlpha = 0.55;
+      ellipse(ctx, 4, -9, 5, 6.5);
+      fillInk(ctx, '#ffffff', 1);
+      ctx.globalAlpha = 1;
+      ink(ctx, 1.6);
+      ctx.beginPath();
+      ctx.moveTo(-9, -20);
+      ctx.lineTo(-2, -8);
+      ctx.lineTo(-6, 0);
+      ctx.lineTo(3, 9);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
     case 'rabbits_foot':
       ellipse(ctx, 32, 36, 9, 14, 0.3);
       fillInk(ctx, '#fffaf0', 2.4);

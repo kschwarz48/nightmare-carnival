@@ -72,7 +72,7 @@ export interface QuestSnap { stage: number; lit: boolean[]; souls: number[]; ord
 export interface Snapshot {
   seq: number; tick: number; ackInput: number;
   time: number; realTime: number; phase: (typeof PHASES)[number]; level: number; xp: number; xpToNext: number; kills: number;
-  darkness: number; wind: number; act: number; flags: number; tilt: number; dawnT: number; rarity: string;
+  darkness: number; wind: number; act: number; flags: number; tilt: number; shuffle: number; dawnT: number; rarity: string;
   players: PlayerSnap[];
   enemies: PoolSnap<EnemyS, EnemyM, EnemyT>;
   projs: PoolSnap<ProjS, ProjM>;
@@ -86,15 +86,18 @@ export interface Snapshot {
   /** keys that changed since the guest's acknowledged snapshot `base`, per boss uid (in order `uids`) */
   bossDelta: BossDelta | null;
   remains: { id: string; x: number; y: number }[];
-  quest: QuestSnap | null; fx: FxEvent[]; sfx: SfxEvt[];
+  quest: QuestSnap | null;
+  /** other maps' quest chains (D-63): id and their `netState` bytes */
+  questExtra: { id: string; v: number[] }[];
+  fx: FxEvent[]; sfx: SfxEvt[];
 }
 
 /** Game-wide flags packed in one byte. */
-export const GF = { stalled: 1, victoryLap: 2, endless: 4, finaleActive: 8, trueEnding: 16, ringmasterDefeated: 32, frozen: 64 };
+export const GF = { stalled: 1, victoryLap: 2, endless: 4, finaleActive: 8, trueEnding: 16, ringmasterDefeated: 32, frozen: 64, doorOpen: 128 };
 /** Player flags. */
 export const PF = { moving: 1, dead: 2, downed: 4, shieldReady: 8, reviveAssist: 16 };
 /** Enemy flags: identity (static part) and status (state part). */
-export const EF = { elite: 1, hidden: 2, invuln: 4 };
+export const EF = { elite: 1, hidden: 2, invuln: 4, illusion: 8 };
 export const ET = { frozen: 1, sticky: 2, burn: 4, shield: 8 };
 
 const inside = (v: View, x: number, y: number, k: number) => Math.abs(x - v.x) < v.hx * k && Math.abs(y - v.y) < v.hy * k;
@@ -141,7 +144,7 @@ const POOLS = {
         w.u16(d.id(e.def.id));
         w.u8(Math.min(255, e.scale * 64));
         w.u8(Math.min(255, e.r));
-        w.u8((e.elite ? EF.elite : 0) | (e.hidden ? EF.hidden : 0) | (e.invuln ? EF.invuln : 0));
+        w.u8((e.elite ? EF.elite : 0) | (e.hidden ? EF.hidden : 0) | (e.invuln ? EF.invuln : 0) | (e.illusion ? EF.illusion : 0));
       },
       (w, e) => {
         w.pos(e.x);
@@ -354,8 +357,9 @@ export class SnapshotEncoder {
     w.frac(g.darkness);
     w.f32(g.director.wind);
     w.u8(g.act);
-    w.u8((g.stalled ? GF.stalled : 0) | (g.victoryLap ? GF.victoryLap : 0) | (g.endless ? GF.endless : 0) | (g.finaleActive ? GF.finaleActive : 0) | (g.trueEnding ? GF.trueEnding : 0) | (g.ringmasterDefeated ? GF.ringmasterDefeated : 0) | (c.frozen ? GF.frozen : 0));
+    w.u8((g.stalled ? GF.stalled : 0) | (g.victoryLap ? GF.victoryLap : 0) | (g.endless ? GF.endless : 0) | (g.finaleActive ? GF.finaleActive : 0) | (g.trueEnding ? GF.trueEnding : 0) | (g.ringmasterDefeated ? GF.ringmasterDefeated : 0) | (c.frozen ? GF.frozen : 0) | (g.funhouseDoorOpen ? GF.doorOpen : 0));
     w.f32(g.tiltAngle);
+    w.u8(Math.min(255, Math.ceil(g.pivotShuffleT * 10)));
     w.f32(g.dawnT);
     w.u16(d.id(g.nextDraftRarity));
     let mark = w.o;
@@ -388,6 +392,14 @@ export class SnapshotEncoder {
       w.u8(ls.progress);
       w.u8(ls.rings);
       w.u8(ls.carrying ? 1 : 0);
+    }
+    const extra = g.quests.chains.filter((q) => q.id !== 'last_song' && q.netState);
+    w.u8(extra.length);
+    for (const q of extra) {
+      const v = q.netState!().slice(0, 64);
+      w.u16(d.id(q.id));
+      w.u8(v.length);
+      for (const x of v) w.u8(Math.max(0, Math.min(255, Math.round(x))));
     }
     // cosmetic events near the view (capped; a lost snapshot just loses a few sparks)
     mark = w.o;
@@ -655,7 +667,7 @@ export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
   const time = r.f32(), realTime = r.f32();
   const phase = PHASES[r.u8()] ?? 'play';
   const level = r.u16(), xp = r.f32(), xpToNext = r.f32(), kills = r.u32();
-  const darkness = r.frac(), wind = r.f32(), act = r.u8(), flags = r.u8(), tilt = r.f32(), dawnT = r.f32();
+  const darkness = r.frac(), wind = r.f32(), act = r.u8(), flags = r.u8(), tilt = r.f32(), shuffle = r.u8() / 10, dawnT = r.f32();
   const ids: { o: Record<string, unknown>; k: string; id: number }[] = [];
   const S: Defer = (o, k, id) => ids.push({ o, k, id });
   const top: Record<string, unknown> = { rarity: '' };
@@ -740,6 +752,13 @@ export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
       progress: r.u8(), rings: r.u8(), carrying: r.u8() === 1,
     };
   }
+  const questExtra: Snapshot['questExtra'] = [];
+  for (let k = r.u8(); k > 0; k--) {
+    const e = { id: '', v: [] as number[] };
+    S(e, 'id', r.u16());
+    for (let n = r.u8(); n > 0; n--) e.v.push(r.u8());
+    questExtra.push(e);
+  }
   const fx: FxEvent[] = [];
   for (let k = r.u16(); k > 0; k--) {
     const e = { type: '' as FxType, x: 0, y: 0, a: 0, b: 0, c: 0, style: '' } as FxEvent;
@@ -769,7 +788,7 @@ export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
   dict.readInto(r);
   for (const s of ids) s.o[s.k] = dict.get(s.id);
   return {
-    seq, tick, ackInput, time, realTime, phase, level, xp, xpToNext, kills, darkness, wind, act, flags, tilt, dawnT, rarity: top.rarity as string,
+    seq, tick, ackInput, time, realTime, phase, level, xp, xpToNext, kills, darkness, wind, act, flags, tilt, shuffle, dawnT, rarity: top.rarity as string,
     players,
     enemies: pools.enemies as Snapshot['enemies'],
     projs: pools.projs as Snapshot['projs'],
@@ -778,6 +797,6 @@ export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
     hazards: pools.hazards as Snapshot['hazards'],
     zones: pools.zones as Snapshot['zones'],
     summons: pools.summons as Snapshot['summons'],
-    bosses, bossDelta, remains, quest, fx, sfx,
+    bosses, bossDelta, remains, quest, questExtra, fx, sfx,
   };
 }

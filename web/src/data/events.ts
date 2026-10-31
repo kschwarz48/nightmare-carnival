@@ -1,7 +1,9 @@
 // Carnival Events (doc 03 §5, D-16). Timed spice that creates positional decisions.
 
 export type EventId =
-  | 'lights_out' | 'funnel_cake' | 'stampede' | 'clown_car' | 'last_ticket' | 'carousel_spins' | 'calliope' | 'formation' | 'mole_brigade';
+  | 'lights_out' | 'funnel_cake' | 'stampede' | 'clown_car' | 'last_ticket' | 'carousel_spins' | 'calliope' | 'formation' | 'mole_brigade'
+  // the Fun House (D-63)
+  | 'house_lights' | 'mirror_shuffle' | 'laughing_gallery' | 'kaleidoscope';
 
 export interface EventDef {
   id: EventId;
@@ -23,12 +25,33 @@ export const EVENTS: Record<EventId, EventDef> = {
   calliope: { id: 'calliope', name: 'Calliope Crescendo', banner: 'CALLIOPE CRESCENDO!', duration: 20, minAct: 2, weights: [0, 0.6, 1, 1.4], desc: 'All spawn rates +50% — and Tickets +50%.' },
   formation: { id: 'formation', name: 'The Parade Marches', banner: 'THE PARADE MARCHES IN!', duration: 4, minAct: 3, weights: [0, 0, 1, 0.8], desc: 'A marching column of Puppet Soldiers.' },
   mole_brigade: { id: 'mole_brigade', name: 'Mole Brigade', banner: 'MOLE BRIGADE!', duration: 5, minAct: 2, weights: [0, 1, 0.8, 0.6], desc: 'A row of moles pops up in sequence.' },
+  house_lights: { id: 'house_lights', name: 'The House Lights Fail', banner: 'THE HOUSE LIGHTS FAIL!', duration: 15, minAct: 2, weights: [0, 1, 1.2, 1.2], desc: 'Darkness to your lantern bubble; survive for bonus Tickets.' },
+  mirror_shuffle: { id: 'mirror_shuffle', name: 'The Mirrors Shuffle', banner: 'THE MIRRORS SHUFFLE!', duration: 15, minAct: 2, weights: [0, 1, 1, 1], desc: 'Every pivoting panel in the maze turns every few seconds.' },
+  laughing_gallery: { id: 'laughing_gallery', name: 'The Laughing Gallery', banner: 'THE MANNEQUINS ARE LAUGHING!', duration: 4, minAct: 1, weights: [0.8, 1, 1, 0.8], desc: 'A ring of mannequins wakes around you. Keep your eyes on them.' },
+  kaleidoscope: { id: 'kaleidoscope', name: 'The Kaleidoscope Turns', banner: 'THE KALEIDOSCOPE TURNS!', duration: 14, minAct: 2, weights: [0, 0.9, 1.2, 1.2], desc: 'The Rotunda\'s mirrored column throws turning beams of light.' },
 };
 
+export const CARNIVAL_EVENTS: EventId[] = ['lights_out', 'funnel_cake', 'stampede', 'clown_car', 'last_ticket', 'carousel_spins', 'calliope', 'formation', 'mole_brigade'];
+export const FUNHOUSE_EVENTS: EventId[] = ['house_lights', 'funnel_cake', 'clown_car', 'last_ticket', 'calliope', 'mirror_shuffle', 'laughing_gallery', 'kaleidoscope'];
+
 /** Authored timeline beats (doc 03 §7.4). */
-export const SCHEDULED_EVENTS: { time: number; id: EventId }[] = [
+export const CARNIVAL_SCHEDULE: { time: number; id: EventId }[] = [
   { time: 180, id: 'funnel_cake' },
   { time: 480, id: 'clown_car' },
   { time: 900, id: 'formation' },
   { time: 1260, id: 'calliope' },
 ];
+export const FUNHOUSE_SCHEDULE: { time: number; id: EventId }[] = [
+  { time: 180, id: 'funnel_cake' },
+  { time: 480, id: 'clown_car' },
+  { time: 900, id: 'laughing_gallery' },
+  { time: 1260, id: 'calliope' },
+];
+
+// The active map's pool and beats (maps.ts `useMap`); the Carnival Core by default.
+export let EVENT_POOL: EventId[] = CARNIVAL_EVENTS;
+export let SCHEDULED_EVENTS: { time: number; id: EventId }[] = CARNIVAL_SCHEDULE;
+export function applyEvents(pool: EventId[], scheduled: { time: number; id: EventId }[]): void {
+  EVENT_POOL = pool;
+  SCHEDULED_EVENTS = scheduled;
+}

@@ -128,7 +128,7 @@ export class PropSet {
   /** emblem wisps rising from melody lamps that were just played: lamp index and age (s) */
   private wisps: { lamp: number; t: number }[] = [];
 
-  constructor(private scene: THREE.Scene) {
+  constructor(private scene: THREE.Object3D) {
     // ---- group static props by model key
     const groups = new Map<string, { spec: KindSpec; props: Prop[] }>();
     for (const p of PROPS) {
@@ -358,10 +358,11 @@ export class PropSet {
       r.glow.draw(this.glowF ??= r.assets.atlas.get('fx_glow_0'), L.x, L.y, hgt + 6, 1.5, 1.5, 0, 1, 0.42, 0.32, 0.55 * s);
     }
     // Tilt-a-Whirl arms follow the sim's hazard angle exactly
-    if (inView(TILT_A_WHIRL.x, TILT_A_WHIRL.y)) {
+    const whirl = TILT_A_WHIRL;
+    if (whirl && inView(whirl.x, whirl.y)) {
       for (let k = 0; k < 2; k++) {
         const a = g.tiltAngle + k * Math.PI;
-        this.tiltArms.add(TILT_A_WHIRL.x, TILT_A_WHIRL.y, 0, -a, TILT_A_WHIRL.armLen / 260);
+        this.tiltArms.add(whirl.x, whirl.y, 0, -a, whirl.armLen / 260);
       }
     }
     // High Striker: the puck races on the rail during the timing trial, else it twitches at rest

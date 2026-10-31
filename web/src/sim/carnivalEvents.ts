@@ -3,7 +3,8 @@
 
 import { dist2 } from '../core/math';
 import { BOSSES } from '../data/bosses';
-import { EVENTS, SCHEDULED_EVENTS, type EventId } from '../data/events';
+import { EVENT_POOL, EVENTS, SCHEDULED_EVENTS, type EventId } from '../data/events';
+import { ROTUNDA } from '../data/funhouse';
 import { PROPS } from '../data/map';
 import type { Enemy } from './entities';
 import type { Game } from './game';
@@ -42,7 +43,7 @@ export class CarnivalEvents {
     for (const r of this.running) {
       r.t += dt;
       this.tickEvent(r, dt);
-      if (r.id === 'lights_out') {
+      if (r.id === 'lights_out' || r.id === 'house_lights') {
         darknessTarget = r.t < r.dur - 1 ? 1 : 0;
         this.spawnRateMult *= 1.3;
       }
@@ -74,8 +75,9 @@ export class CarnivalEvents {
     this.timer -= dt;
     if (this.timer <= 0 && !nearGate && !g.victoryLap) {
       this.timer = g.rng.range(70, 100);
-      const ids = (Object.keys(EVENTS) as EventId[]).filter((id) => EVENTS[id].minAct <= g.act && !this.running.some((r) => r.id === id));
-      const weights = ids.map((id) => EVENTS[id].weights[Math.min(3, g.act - 1)] * (id === 'carousel_spins' && this.distToCarousel() > 1500 ? 0 : 1));
+      const ids = EVENT_POOL.filter((id) => EVENTS[id].minAct <= g.act && !this.running.some((r) => r.id === id));
+      const far = (id: EventId) => (id === 'carousel_spins' && this.distToCarousel() > 1500) || (id === 'kaleidoscope' && Math.sqrt(dist2(ROTUNDA.x, ROTUNDA.y, g.player.x, g.player.y)) > 1300);
+      const weights = ids.map((id) => EVENTS[id].weights[Math.min(3, g.act - 1)] * (far(id) ? 0 : 1));
       if (ids.length && weights.some((w) => w > 0)) this.start(ids[g.rng.weighted(weights)]);
     }
   }
@@ -91,6 +93,28 @@ export class CarnivalEvents {
     const r: Running = { id, t: 0, dur: def.duration, x: g.player.x, y: g.player.y, members: new Set(), acc: 0, done: false };
     g.bus.emit('carnival_event', { id, banner: def.banner });
     switch (id) {
+      // ---------------------------------------------------------------- the Fun House (D-63)
+      case 'mirror_shuffle':
+        g.pivotShuffleT = def.duration;
+        g.bus.emit('sfx', { id: 'grind', vol: 0.8 });
+        break;
+      case 'laughing_gallery': {
+        const n = 8 + Math.min(6, g.act * 2);
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          g.spawnEnemy('grinning_mannequin', g.player.x + Math.cos(a) * 430, g.player.y + Math.sin(a) * 430, { elite: i === 0 && g.act >= 3 });
+        }
+        g.bus.emit('sfx', { id: 'laugh', vol: 0.9 });
+        break;
+      }
+      case 'kaleidoscope': {
+        // six turning beams thrown by the mirrored column at the Rotunda's heart
+        for (let k = 0; k < 6; k++) {
+          g.spawnHazard('line', 'kaleido_beam', ROTUNDA.x, ROTUNDA.y, { len: 820, r2: 16, angle: (k * Math.PI) / 3, spinRate: k % 2 ? 0.42 : -0.42, tele: 1.6, active: def.duration - 1.6, dmg: 9 * g.diff.dmgMult, tick: 0.5 });
+        }
+        g.bus.emit('sfx', { id: 'glint', vol: 0.9 });
+        break;
+      }
       case 'funnel_cake': {
         // Pick a stall near the player (crowd magnet).
         let best = PROPS[0], bd = Infinity;

@@ -2,15 +2,19 @@
 // spatial reference (Big Top center, Carousel west, Ticket Booth east, Prize Stand SW, stalls SE,
 // north fence with three gates). Solids block the PLAYER only; enemies walk through (VS model, doc 03 §3).
 // Coordinates: x right, y DOWN (north = negative y), matching the Godot project.
+//
+// D-63: these exports are the ACTIVE map's layout. They're live bindings, swapped by `applyLayout`
+// (through `useMap` in maps.ts) when a run on another map starts; the Carnival Core is the default, so
+// everything that imports them keeps working unchanged. Read them at call time, never cache them.
 
 import { LAST_SONG } from './quests';
 
-export const MAP_HALF = 2200;
-export const MAP_MIN = -MAP_HALF;
-export const MAP_MAX = MAP_HALF;
-/** The sea wall: the player can't go further south than this. */
-export const SEA_Y = 1960;
-export const PLAYER_BOUNDS = { minX: -2140, maxX: 2140, minY: -2140, maxY: SEA_Y - 30 };
+export let MAP_HALF = 2200;
+export let MAP_MIN = -MAP_HALF;
+export let MAP_MAX = MAP_HALF;
+/** The sea wall: the player can't go further south than this (the Fun House: its south wall). */
+export let SEA_Y = 1960;
+export let PLAYER_BOUNDS = { minX: -2140, maxX: 2140, minY: -2140, maxY: SEA_Y - 30 };
 
 export type PropKind =
   | 'carousel' | 'ticket_booth' | 'prize_stand' | 'stall_ringtoss' | 'stall_bottles' | 'stall_darts' | 'stall_shooting'
@@ -19,7 +23,12 @@ export type PropKind =
   | 'trash' | 'balloon_post' | 'bench' | 'strongman_tower' | 'dunk_tank' | 'caravan' | 'pennant_pole' | 'sign_midway'
   | 'bleachers' | 'tent_small' | 'tombstone_prize' | 'clown_statue' | 'rail'
   // The Last Song (D-32): four soul lamps, Zoltana's fortune automaton, the High Striker's mallet pad
-  | 'ghost_lamp' | 'fortune_machine' | 'striker_pad';
+  | 'ghost_lamp' | 'fortune_machine' | 'striker_pad'
+  // The Fun House (D-63): walls and mirror panels, the rooms' furniture and machinery
+  | 'fh_wall' | 'fh_mirror' | 'fh_column' | 'fh_booth' | 'fh_counter' | 'fh_face' | 'fh_poster' | 'fh_barker'
+  | 'fh_kaleidoscope' | 'fh_mannequin' | 'fh_plinth' | 'fh_marionette_rack' | 'fh_musicbox' | 'fh_projector'
+  | 'fh_curtain' | 'fh_stage' | 'fh_clock' | 'fh_vanity' | 'fh_crystal' | 'fh_mark' | 'fh_mural' | 'fh_bench'
+  | 'fh_piston' | 'fh_pivot' | 'fh_lamp' | 'fh_rope' | 'fh_trunk' | 'fh_chandelier';
 
 export interface Prop {
   kind: PropKind;
@@ -29,10 +38,14 @@ export interface Prop {
   r?: number;
   hw?: number;
   hh?: number;
-  w?: number; // visual width/length for stretchable props (fences)
+  w?: number; // visual width/length for stretchable props (fences, walls)
   flip?: boolean;
   variant?: number;
   label?: string;
+  /** Fun House walls: style (deco, mirror, crooked, gallery, curtain, door) and which side shows glass */
+  style?: string;
+  /** decorative yaw (radians) */
+  yaw?: number;
 }
 
 const props: Prop[] = [];
@@ -112,10 +125,10 @@ for (const [kind, x, y, variant] of decor) {
   add({ kind, x, y, variant, r: solid ? (kind === 'tree_dead' ? 22 : kind === 'bench' ? 0 : 20) : undefined });
 }
 
-export const PROPS: Prop[] = props;
+export let PROPS: Prop[] = props;
 
 /** String-light runs between anchor points (visual + light pools). */
-export const STRING_LIGHTS: [number, number, number, number][] = [
+export let STRING_LIGHTS: [number, number, number, number][] = [
   [-260, -420, 260, -420], [-430, 0, -260, -420], [260, -420, 430, 0], [-430, 0, -260, 420], [430, 0, 260, 420], [-260, 420, 260, 420],
   [-140, -800, 140, -800], [-140, 900, 140, 900], [-140, 1450, 140, 1450], [-140, -800, -260, -420], [140, -800, 260, -420],
   [-1400, -150, -700, 120], [700, -120, 1400, 340], [-1000, -1350, 0, -1400], [0, -1400, 1000, -1350],
@@ -128,7 +141,7 @@ export interface LightDef {
 }
 
 /** Light pools (doc 02 §3). Flicker 0..1 = how much it sputters. */
-export const LIGHTS: LightDef[] = [
+export let LIGHTS: LightDef[] = [
   { x: 0, y: 0, r: 620, color: [1.0, 0.82, 0.55], intensity: 0.9, flicker: 0.05 },
   { x: -990, y: -150, r: 430, color: [1.0, 0.55, 0.8], intensity: 0.9, flicker: 0.25 },
   { x: 1090, y: 340, r: 330, color: [0.55, 0.85, 1.0], intensity: 0.85, flicker: 0.15 },
@@ -152,7 +165,8 @@ export const LIGHTS: LightDef[] = [
 ];
 
 /** Paths painted on the ground: polylines with width (midway avenues, plaza ring, promenade). */
-export const PATHS: { pts: [number, number][]; w: number; style: 'dirt' | 'planks' | 'cobble' }[] = [
+export type PathDef = { pts: [number, number][]; w: number; style: 'dirt' | 'planks' | 'cobble' };
+export let PATHS: PathDef[] = [
   { pts: [[0, -2100], [0, -1150], [0, -420]], w: 230, style: 'dirt' },
   { pts: [[0, 420], [0, 1100], [0, 1700]], w: 230, style: 'dirt' },
   { pts: [[-2100, 0], [-1200, 0], [-430, 0]], w: 200, style: 'dirt' },
@@ -165,16 +179,67 @@ export const PATHS: { pts: [number, number][]; w: number; style: 'dirt' | 'plank
   { pts: [[-350, 520], [-900, 900], [-1300, 1300]], w: 160, style: 'dirt' },
 ];
 /** The plaza ring around the Big Top. */
-export const PLAZA = { x: 0, y: 0, r: 470 };
+export let PLAZA = { x: 0, y: 0, r: 470 };
 /** Promenade (boardwalk planks) strip. */
-export const PROMENADE = { y0: 1700, y1: SEA_Y };
+export let PROMENADE = { y0: 1700, y1: SEA_Y };
 
 /** Fixed hazard: the Tilt-a-Whirl's rotating arm (doc 03 §4). */
-export const TILT_A_WHIRL = { x: -380, y: -1520, armLen: 260, period: 7 };
+export let TILT_A_WHIRL: { x: number; y: number; armLen: number; period: number } | null = { x: -380, y: -1520, armLen: 260, period: 7 };
 /** Popcorn grease slicks near carts (slide = reduced friction). */
-export const GREASE_SLICKS: { x: number; y: number; r: number }[] = [
+export let GREASE_SLICKS: { x: number; y: number; r: number }[] = [
   { x: 1690, y: -430, r: 90 }, { x: 1470, y: 1100, r: 80 }, { x: 1650, y: 680, r: 70 },
 ];
 
 /** Player spawn: just south of the Big Top plaza, facing the tent. */
-export const PLAYER_SPAWN = { x: 0, y: 330 };
+export let PLAYER_SPAWN = { x: 0, y: 330 };
+
+/**
+ * Walls that come and go during a night (D-63): the Fun House's pivoting mirror panels (a pure function
+ * of sim time) and doors its hidden quest opens. Rebuilt every tick by the map's own logic, on the host
+ * and in a guest's mirror alike, so prediction collides with the same walls. Empty on the Carnival Core.
+ */
+export let DYNAMIC_WALLS: Prop[] = [];
+export function setDynamicWalls(w: Prop[]): void {
+  DYNAMIC_WALLS = w;
+}
+
+/** Everything a map's floor plan defines (D-63). */
+export interface MapLayout {
+  half: number;
+  seaY: number;
+  bounds: { minX: number; maxX: number; minY: number; maxY: number };
+  spawn: { x: number; y: number };
+  props: Prop[];
+  stringLights: [number, number, number, number][];
+  lights: LightDef[];
+  paths: PathDef[];
+  plaza: { x: number; y: number; r: number };
+  promenade: { y0: number; y1: number };
+  tiltAWhirl: { x: number; y: number; armLen: number; period: number } | null;
+  greaseSlicks: { x: number; y: number; r: number }[];
+}
+
+/** The Carnival Core's layout, as declared above. */
+export const CARNIVAL_LAYOUT: MapLayout = {
+  half: MAP_HALF, seaY: SEA_Y, bounds: { ...PLAYER_BOUNDS }, spawn: { ...PLAYER_SPAWN }, props: PROPS, stringLights: STRING_LIGHTS,
+  lights: LIGHTS, paths: PATHS, plaza: { ...PLAZA }, promenade: { ...PROMENADE }, tiltAWhirl: TILT_A_WHIRL, greaseSlicks: GREASE_SLICKS,
+};
+
+/** Make `l` the active layout (see the note at the top). */
+export function applyLayout(l: MapLayout): void {
+  MAP_HALF = l.half;
+  MAP_MIN = -l.half;
+  MAP_MAX = l.half;
+  SEA_Y = l.seaY;
+  PLAYER_BOUNDS = { ...l.bounds };
+  PLAYER_SPAWN = { ...l.spawn };
+  PROPS = l.props;
+  STRING_LIGHTS = l.stringLights;
+  LIGHTS = l.lights;
+  PATHS = l.paths;
+  PLAZA = { ...l.plaza };
+  PROMENADE = { ...l.promenade };
+  TILT_A_WHIRL = l.tiltAWhirl;
+  GREASE_SLICKS = l.greaseSlicks;
+  DYNAMIC_WALLS = [];
+}

@@ -14,11 +14,20 @@ export type BehaviorId =
   | 'ambusher'
   | 'pop_up'
   | 'rail_strafer'
-  | 'brute';
+  | 'brute'
+  // the Fun House (D-63)
+  | 'mannequin'
+  | 'doppel'
+  | 'glasswalker'
+  | 'marionette'
+  | 'splitter'
+  | 'crooked'
+  | 'thief';
 
 export type DeathFx =
   | 'pop' | 'springs' | 'stuffing' | 'sugar' | 'bonk' | 'deflate' | 'confetti' | 'splash'
-  | 'wood' | 'ceramic' | 'boards' | 'derail' | 'crumple' | 'brute';
+  | 'wood' | 'ceramic' | 'boards' | 'derail' | 'crumple' | 'brute'
+  | 'porcelain' | 'glass' | 'strings' | 'goo';
 
 export interface EnemyDef {
   id: string;
@@ -50,6 +59,9 @@ export interface EnemyDef {
   tell: string;
   /** Hard cap on how many may be alive at once (snakes, booths). */
   maxAlive?: number;
+  /** the Fun House's Splitter: what it breaks into on death, and how many (D-63) */
+  splitInto?: string;
+  splitCount?: number;
 }
 
 const E = (d: EnemyDef) => d;
@@ -178,6 +190,85 @@ export const ENEMIES: Record<string, EnemyDef> = {
     behavior: 'chaser', radius: 10, sep: 14, knockbackTaken: 1, canElite: false,
     params: {}, deathFx: 'stuffing', hitSfx: 'thump', deathSfx: 'pop', drawScale: 2.9, act: 1, role: 'Add',
     lore: 'What the Stitch-King leaves behind.', tell: 'Small and quick.',
+  }),
+  // ================================================================ the Fun House (D-63)
+  grinning_mannequin: E({
+    id: 'grinning_mannequin', name: 'Grinning Mannequin', hp: 120, speed: 215, contact: 14, tickets: 5,
+    behavior: 'mannequin', radius: 14, sep: 18, knockbackTaken: 0.5, canElite: true, eliteName: 'Window Display',
+    params: { watch: 520, cone: 0.62 },
+    deathFx: 'porcelain', hitSfx: 'clack', deathSfx: 'shatter', drawScale: 3.4, act: 1, role: 'Durable ambusher',
+    lore: 'A shop dummy with a painted smile. It was never meant to have knees.',
+    tell: 'Frozen while anyone faces it. Turn your back and it sprints.',
+  }),
+  grand_mannequin: E({
+    id: 'grand_mannequin', name: 'The Grand Display', hp: 2600, speed: 170, contact: 26, tickets: 40,
+    behavior: 'mannequin', radius: 30, sep: 34, knockbackTaken: 0.1, canElite: false, dropsChest: true, chestMin: 1, chestMax: 2,
+    params: { watch: 640, cone: 0.55 },
+    deathFx: 'porcelain', hitSfx: 'clack', deathSfx: 'shatter', drawScale: 3.6, act: 2, role: 'Miniboss',
+    lore: 'The window display from the old department store. It has been posing for ninety years.',
+    tell: 'A giant dummy: frozen while you face it, a stampede when you don\'t.',
+  }),
+  doppelganger: E({
+    id: 'doppelganger', name: 'Doppelganger', hp: 160, speed: 190, contact: 14, tickets: 6,
+    behavior: 'doppel', radius: 13, sep: 16, knockbackTaken: 0.7, canElite: true, eliteName: 'Perfect Copy',
+    params: { delay: 1.2, lunge: 520, lungeRange: 150, windup: 0.4 },
+    deathFx: 'glass', hitSfx: 'glass_hit', deathSfx: 'shatter', drawScale: 3.4, act: 3, role: 'Fast stalker',
+    lore: 'Your reflection, a little late, and very tired of copying you.',
+    tell: 'Walks your own footsteps a moment behind; gleams before it lunges.',
+  }),
+  glasswalker: E({
+    id: 'glasswalker', name: 'Glasswalker', hp: 140, speed: 90, contact: 16, tickets: 6,
+    behavior: 'glasswalker', radius: 14, sep: 16, knockbackTaken: 0.6, canElite: true, eliteName: 'Cathedral Glass',
+    params: { hop: 3.2, emerge: 0.9, slash: 34, slashR: 95 },
+    deathFx: 'glass', hitSfx: 'glass_hit', deathSfx: 'shatter', drawScale: 3.6, act: 3, role: 'Mirror stepper',
+    lore: 'It lives in the space behind the glass and visits.',
+    tell: 'A mirror ripples and cracks where it is about to step out — then it slashes.',
+  }),
+  marionette: E({
+    id: 'marionette', name: 'Marionette', hp: 60, speed: 120, contact: 10, tickets: 4,
+    behavior: 'marionette', radius: 12, sep: 15, knockbackTaken: 0.9, canElite: true, eliteName: 'Prima Puppet',
+    params: { leap: 0.55, rest: 0.5, land: 70, landDmg: 8 },
+    deathFx: 'strings', hitSfx: 'knock', deathSfx: 'wood', drawScale: 3.3, act: 1, role: 'Erratic leaper',
+    lore: 'Its strings go up into the dark, and something up there is bored.',
+    tell: 'Yanked into the air in jerks; it lands with a little thump around it.',
+  }),
+  splitter: E({
+    id: 'splitter', name: 'Splitter', hp: 260, speed: 55, contact: 14, tickets: 6,
+    behavior: 'splitter', radius: 22, sep: 26, knockbackTaken: 0.4, canElite: true, eliteName: 'Amalgam', splitInto: 'splitter_mid', splitCount: 2,
+    params: {},
+    deathFx: 'goo', hitSfx: 'squelch', deathSfx: 'splat', drawScale: 3.0, act: 2, role: 'Durable, multiplies',
+    lore: 'What a funhouse mirror would look like if it got out.',
+    tell: 'Wobbles and bulges; burst it and it comes apart into smaller ones — twice.',
+  }),
+  splitter_mid: E({
+    id: 'splitter_mid', name: 'Splitter', hp: 110, speed: 75, contact: 10, tickets: 3,
+    behavior: 'splitter', radius: 16, sep: 19, knockbackTaken: 0.6, canElite: false, splitInto: 'splitter_small', splitCount: 2,
+    params: {},
+    deathFx: 'goo', hitSfx: 'squelch', deathSfx: 'splat', drawScale: 3.0, act: 2, role: 'Splitter (half)',
+    lore: 'Half of a Splitter, and angrier about it.', tell: 'Bursts into two smaller ones.',
+  }),
+  splitter_small: E({
+    id: 'splitter_small', name: 'Splitter', hp: 40, speed: 100, contact: 6, tickets: 1,
+    behavior: 'splitter', radius: 10, sep: 12, knockbackTaken: 1, canElite: false,
+    params: {},
+    deathFx: 'goo', hitSfx: 'squelch', deathSfx: 'splat', drawScale: 3.0, act: 2, role: 'Splitter (quarter)',
+    lore: 'The last of it.', tell: 'Fast and small.',
+  }),
+  crooked_clown: E({
+    id: 'crooked_clown', name: 'Crooked Clown', hp: 70, speed: 80, contact: 8, tickets: 5,
+    behavior: 'crooked', radius: 13, sep: 16, knockbackTaken: 1, canElite: true, eliteName: 'Ringmaster\'s Cousin',
+    params: { fire: 2.1, projSpeed: 250, projDmg: 10, projLife: 3.6, keep: 360, windup: 0.5, curve: 1.6, side: 1.2 },
+    deathFx: 'confetti', hitSfx: 'honk', deathSfx: 'slide', drawScale: 3.6, act: 2, role: 'Ranged (curving)',
+    lore: 'A performer stretched by a bad mirror, and he liked it.',
+    tell: 'Sidesteps, winds back — and throws bent pins that curve toward you.',
+  }),
+  reflection_thief: E({
+    id: 'reflection_thief', name: 'Reflection Thief', hp: 220, speed: 70, contact: 8, tickets: 10,
+    behavior: 'thief', radius: 14, sep: 18, knockbackTaken: 0.5, canElite: true, eliteName: 'Mirror Merchant', maxAlive: 3,
+    params: { cast: 5, decoys: 4, blink: 260, blinkCd: 3 },
+    deathFx: 'glass', hitSfx: 'glass_hit', deathSfx: 'shatter', drawScale: 3.5, act: 4, role: 'Illusionist',
+    lore: 'It sells you your own face back, one decoy at a time.',
+    tell: 'Raises a hand mirror: shimmering copies of nearby monsters appear. They\'re harmless — it isn\'t. Blinks away when cornered.',
   }),
 };
 

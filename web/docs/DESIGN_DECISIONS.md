@@ -431,3 +431,56 @@ and teleports, and the prize wheel dull and see-through.
 - **Prize wheel bulbs** cycle eight saturated colours, saturated enough that the hue survives the glow.
 - **The Steam Calliope's icon** was missing (no drawing for the `calliope` kind). It's now a little
   steam organ, and the Grand Requiem's version adds notes.
+
+### D-63 · The Fun House: a second map
+- **A map registry, not a fork.** `data/maps.ts` defines each map: layout, waves, Acts, bosses, events,
+  scenery, final boss, miniboss, world builder, intro card and hidden quest. `useMap(id)` swaps the live
+  bindings every other module already reads (`PROPS`, `WAVES`, `BOSSES`, `EVENT_POOL`, …). A `Game` asserts
+  its own map every tick, so games on different maps interleave safely; the tests and the co-op guest
+  mirror both rely on that. The renderer keeps one world per map and swaps it in (`setWorld`). The
+  Carnival Core is untouched except for reading its tables through the registry.
+- **Same night, different house.** The Fun House keeps the first map's gates (6:00, 12:00, 18:00 and
+  24:00), its run length, its crowd curve and its payout. It differs in floor plan, roster (7 of 11 enemy
+  types new), machinery, bosses, events, score and quest. That makes the maps comparable, and every
+  balance tool still applies.
+- **Mirrors you can believe, at a price we can pay.** Planar reflections per row of south-facing glass
+  (the camera looks north, so only those are seen face-on), with:
+  - a low-resolution target and a tightened frustum;
+  - an oblique near plane, using the general form for orthographic cameras;
+  - a round-robin budget by quality;
+  - a lagging copy for the "slow" glass;
+  - a mirror-only layer for the quest's faces.
+
+  The reflection plane leans back 12° because an honest top-down reflection only shows shins. A
+  low-quality fallback (a sheen, plus a smudge on the glass for the quest's faces) keeps the map
+  completable everywhere.
+- **Bosses that ignore walls.** In a building full of walls, pathfinding bosses would be stuck or
+  absurd. These are the house's own creatures, and walls are scenery to them:
+  - the Twins step out of mirrors;
+  - the Glass climbs out of its frame;
+  - the Stringmistress hangs above the rafters;
+  - the Proprietor owns the place.
+
+  They arrive near the party and stay inside the house. Every attack picks on the nearest standing
+  player, so co-op shares the pressure.
+- **A quest twice as deep, still fair.** The Unreflected has nine steps from dormant to complete,
+  against the Last Song's six. It leans on attention:
+  - reflections (with a low-quality smudge);
+  - an anamorphic mural that pulls together as you near its footprints;
+  - a four-mirror beam puzzle drawn live as you solve it;
+  - a mirrored-clock riddle with exactly one answer and exactly one trap (tested over 40 seeds).
+
+  Other guarantees:
+  - Everything is diegetic. Mira's whispers use the existing whisper line, as the Last Song's
+    fortunes do.
+  - Nothing breaks permanently, and nothing needs two players at once.
+  - Co-op guests get the whole chain as 17 bytes a snapshot through a new generic quest block (every
+    chain except the Last Song, which keeps its own).
+  - Its fixtures were moved after visual checks so the camera can see them: the footprints, three
+    pivot plates and the corridor clock had been in wall-hidden strips or facing sideways.
+  - The reward is a new passive, Mira's Hand Mirror. The secret unlocks are now granted per quest
+    (`QUEST_UNLOCKS`).
+- **Map choice is the host's.** The solo character screen has a "Tonight" row. The co-op lobby carries
+  `map`, set by the host (`setMap`, refused mid-run). `StartCfg.map` tells every guest which house to
+  build, and unknown ids fall back to the Carnival Core on the wire. PROTO 7. The Fun House opens after
+  the Ringmaster's first defeat or the Midway unlock; `?unlock=funhouse` opens it for testing.

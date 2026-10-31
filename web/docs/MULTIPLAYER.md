@@ -243,6 +243,25 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### Map choice and the Fun House (D-63, PROTO 7)
+
+- **The host chooses.** The night's map is the host's choice. The lobby carries `map`; `setMap` is
+  refused once a run has started. Every guest's lobby shows it. `StartCfg.map` tells every machine
+  which world to build, and the guest's mirror `Game` runs the same map's tables. An unknown map id
+  never survives validation: the lobby falls back to the Carnival Core, and a start config drops the
+  field.
+- **The machinery is predicted.** Guests run these from sim time and replicated state, as the Midway's
+  rides were:
+  - the Fun House's pivots;
+  - the dressing-room door (`GF.doorOpen`);
+  - the shuffle event's timer;
+  - the conveyors' push.
+
+  Illusion decoys carry `EF.illusion`, so guests see them as decoys too.
+- **Quests have a generic block.** After the Last Song's block, every other quest chain sends its own
+  bytes (`netState` / `applyNet`). The Unreflected is 17 bytes, and guests draw the same quest state as
+  the host. Bumping PROTO to 7 keeps older builds out of new lobbies.
+
 ## 4. Deploying the alpha (static hosting)
 
 ```bash
@@ -374,7 +393,8 @@ Two people, **two different networks**: e.g. one on home Wi-Fi, one on a phone h
 
 | Scope | Status |
 |---|---|
-| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects) | **Passing**: 192 tests in the whole suite |
+| Automated loopback suite (sessions, replication, prediction, loss/jitter, disconnects, map choice) | **Passing**: 231 tests in the whole suite |
+| The Fun House in co-op | **Loopback only**: lobby map choice, guests building the map, the quest through snapshots. No real two-machine night yet |
 | Two browser tabs on **one machine**, real PeerJS Cloud signalling and WebRTC | **Done**: see the list below |
 | The **deployed site** (Netlify), two tabs on one machine | **Done**: see below |
 | **Three** tabs on one machine (host + two guests), real PeerJS, dev server | **Done** (2026-10-30): six-seat lobby, shared characters, 3 + 3 slots, party HUD, both guests kept alive in background tabs, mirrors matched the host |

@@ -21,35 +21,14 @@ import { actorDepthMaterial, actorMaterial, pool, setObjectState } from './core/
 import { PAL, bulb, eyes, glove, limb, ruff, shoe, tophat } from './models/kit';
 import type { GameRenderer3D } from './renderer3d';
 import { COT_EL as COT } from './core/view';
+import { Rig } from './rig';
+import { GlassRig, ProprietorRig, StringmistressRig, TwinsRig, UnreflectedRig, funhouseGlow } from './funhouseBosses';
+import type { TwinsBoss } from '../sim/bosses/twins';
+import type { LookingGlassBoss } from '../sim/bosses/lookingGlass';
+import type { StringmistressBoss } from '../sim/bosses/stringmistress';
+import type { ProprietorBoss } from '../sim/bosses/proprietor';
+import type { UnreflectedBoss } from '../sim/bosses/unreflected';
 
-abstract class Rig {
-  group = new THREE.Group();
-  mat = actorMaterial({ emitBoost: 3, matte: true, detail: true });
-  depth = actorDepthMaterial(this.mat);
-  constructor(scene: THREE.Scene) {
-    this.group.visible = false;
-    scene.add(this.group);
-  }
-  mesh(geo: THREE.BufferGeometry, parent: THREE.Object3D = this.group, shadow = true): THREE.Mesh {
-    const m = new THREE.Mesh(geo, this.mat);
-    m.castShadow = shadow;
-    m.receiveShadow = true;
-    m.customDepthMaterial = this.depth;
-    m.frustumCulled = false;
-    parent.add(m);
-    return m;
-  }
-  node(parent: THREE.Object3D = this.group, x = 0, y = 0, z = 0): THREE.Group {
-    const n = new THREE.Group();
-    n.position.set(x, y, z);
-    parent.add(n);
-    return n;
-  }
-  state(b: BossBase, time: number, tint: [number, number, number, number] = [1, 1, 1, 1], rim: [number, number, number, number] = [0.9, 0.5, 0.3, 0.5]): void {
-    const fl = b.flash * 0.6 + (b.transitioning ? 0.35 + 0.35 * Math.sin(time * 30) : 0);
-    setObjectState(this.mat, time * 2, b.windup, Math.min(1, fl), 1, tint, b.windup > 0.05 ? [1, 0.3, 0.12, 0.8 + b.windup * 1.5] : rim);
-  }
-}
 
 // ======================================================================= the Carnival Tent
 class TentRig extends Rig {
@@ -688,6 +667,8 @@ export class BossRigs {
   private puppet: PuppetRig;
   private ring: RingmasterRig;
   private calliope: CalliopeRig;
+  // the Fun House's (D-63): built the first time one appears
+  private fh: { twins: TwinsRig; glass: GlassRig; strings: StringmistressRig; prop: ProprietorRig; unref: UnreflectedRig } | null = null;
   private wrecks = new Map<string, THREE.Mesh>();
   private wreckMat = actorMaterial({});
   /** The tent's fallen tarp: both faces (folds), nudged toward the camera so it never fights the ground. */
@@ -714,7 +695,22 @@ export class BossRigs {
         case 'puppet_king': this.puppet.update(b as PuppetBoss, g, r, x, y, dt); break;
         case 'ringmaster': this.ring.update(b as RingmasterBoss, g, r, x, y, dt); break;
         case 'calliope': this.calliope.update(b as CalliopeBoss, g, r, x, y, dt); break;
+        default: {
+          const fh = (this.fh ??= { twins: new TwinsRig(this.scene), glass: new GlassRig(this.scene), strings: new StringmistressRig(this.scene), prop: new ProprietorRig(this.scene), unref: new UnreflectedRig(this.scene) });
+          if (b.def.id === 'crooked_twins') fh.twins.update(b as TwinsBoss, g, r, alpha, dt);
+          else if (b.def.id === 'looking_glass') fh.glass.update(b as LookingGlassBoss, g, r, alpha, dt);
+          else if (b.def.id === 'stringmistress') fh.strings.update(b as StringmistressBoss, g, r, alpha, dt);
+          else if (b.def.id === 'proprietor') fh.prop.update(b as ProprietorBoss, g, r, alpha, dt);
+          else if (b.def.id === 'unreflected') fh.unref.update(b as UnreflectedBoss, g, r, alpha, dt);
+        }
       }
+    }
+    if (this.fh) {
+      if (!seen.has('crooked_twins')) this.fh.twins.group.visible = false;
+      if (!seen.has('looking_glass')) this.fh.glass.group.visible = false;
+      if (!seen.has('stringmistress')) this.fh.strings.group.visible = false;
+      if (!seen.has('proprietor')) this.fh.prop.group.visible = false;
+      if (!seen.has('unreflected')) this.fh.unref.group.visible = false;
     }
     if (!seen.has('carnival_tent')) this.tent.group.visible = false;
     if (!seen.has('ferris_wheel')) {
@@ -751,7 +747,7 @@ export class BossRigs {
       case 'ferris_wheel': return [1, 0.3, 0.3];
       case 'puppet_king': return [0.75, 0.5, 1];
       case 'calliope': return [0.45, 1, 0.7];
-      default: return [1, 0.6, 0.35];
+      default: return funhouseGlow(b.def.id) ?? [1, 0.6, 0.35];
     }
   }
 
@@ -784,6 +780,27 @@ export class BossRigs {
           r.teleLine.ring(h.holeX, h.holeY, h.holeR - 4, h.holeR, 0.4, 1, 0.6, 1, 1);
         }
         r.teleLine.ring(h.x, h.y, h.r - 4, h.r, 1, 0.25, 0.12, 0.8 * pulse, 0.8 * pulse);
+        return true;
+      }
+      // the Fun House's (D-63): broken glass glitters, mirror walls and beams are cold light
+      case 'glass': {
+        if (h.tele > 0) return false;
+        const k = Math.min(1, h.active / 0.6);
+        r.addShapes.circle(h.x, h.y, h.r, 0.75, 0.9, 1, 0.22 * k, 0.02);
+        for (let i = 0; i < 3; i++) {
+          const a = i * 2.1 + h.x * 0.01, tw = 0.5 + 0.5 * Math.sin(t * 9 + i * 2 + h.y * 0.02);
+          r.addShapes.circle(h.x + Math.cos(a) * h.r * 0.5, h.y + Math.sin(a) * h.r * 0.5, 4 + tw * 4, 0.9, 0.97, 1, 0.7 * tw * k, 0);
+        }
+        r.teleLine.ring(h.x, h.y, h.r - 2, h.r, 1, 0.35, 0.25, 0.5 * k, 0.5 * k);
+        return true;
+      }
+      case 'mirror_wall':
+      case 'beam': {
+        if (h.tele > 0) return false;
+        const w = Math.max(4, h.r2);
+        r.addShapes.line(h.x, h.y, h.x2, h.y2, w + 10, 0.6, 0.9, 1, h.style === 'beam' ? 0.75 : 0.45, 0);
+        r.teleFill.line(h.x, h.y, h.x2, h.y2, w * 0.6, 0.85, 0.97, 1, 0.9, 0.9);
+        r.teleLine.line(h.x, h.y, h.x2, h.y2, 2.2, 1, 0.3, 0.2, 0.85 * pulse);
         return true;
       }
       case 'steam': {
