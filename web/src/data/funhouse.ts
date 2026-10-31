@@ -203,7 +203,7 @@ for (const [x, y] of [[-1500, 1200], [1500, 1200], [-300, 1150], [300, 1150], [-
 export const UNREFLECTED = {
   id: 'unreflected',
   /** the Lost & Found counter where the cracked hand mirror lies */
-  counter: { x: -760, y: 1250, r: 90 },
+  counter: { x: -760, y: 1250 },
   /** the four maze panels hiding a performer's face (cell key, the spot in front of the glass) */
   faces: [
     { key: 'h:1:0', who: 'strongman', x: mazeCx(0), y: mazeCy(2) - 60 },
@@ -212,7 +212,6 @@ export const UNREFLECTED = {
     { key: 'h:7:4', who: 'magician', x: mazeCx(4), y: mazeCy(8) - 60 },
   ],
   faceReveal: 320,
-  faceTouch: 100,
   /** the performers' plinths in the gallery, west to east */
   plinths: [
     { who: 'strongman', x: -1850, y: -2000 },
@@ -220,11 +219,9 @@ export const UNREFLECTED = {
     { who: 'clown', x: -1250, y: -2000 },
     { who: 'magician', x: -950, y: -2000 },
   ],
-  plinthR: 95,
   /** the anamorphic mural and the brass footprints it's meant to be seen from */
   mural: { x: 950, y: -1700 },
-  mark: { x: 950, y: -1580, r: 60 },
-  markHold: 2,
+  mark: { x: 950, y: -1580 },
   /** the prism projector behind the gallery's great curtain, aimed down the maze door */
   projector: { x: mazeCx(3), y: -1580, r: 150 },
   charge: 30,
@@ -240,8 +237,6 @@ export const UNREFLECTED = {
     { c: 5, r: 7, x: mazeCx(5), y: mazeCy(7) - 60 },
     { c: 2, r: 7, x: mazeCx(2), y: mazeCy(7) - 60 },
   ],
-  pivotPlate: 70,
-  pivotStep: 1.25,
   /** the solution: '\\' = 3, '/' = 1 (see beamTrace) */
   beamSolution: [3, 3, 1, 3],
   crystal: { x: mazeCx(2), y: -260, r: 40 },
@@ -256,7 +251,6 @@ export const UNREFLECTED = {
     { id: 'corridor', x: 2000, y: -205, face: 's' },
     { id: 'chamber', x: 1700, y: -2112, face: 's' },
   ],
-  clockHold: 2,
   /** the finale rises at the Rotunda's heart */
   finaleAt: { x: ROTUNDA.x, y: ROTUNDA.y + 220 },
   finaleDelay: 4,
@@ -346,33 +340,28 @@ export function mirroredTime(h: number, m: number): [number, number] {
   return [hh === 0 ? 12 : hh, total % 60];
 }
 
-/** Light pools: warm bulbs in the entrance, cold glass in the maze, amber in the corridor, violet in the gallery, stage light in the chamber. */
+/**
+ * Room tone: soft pools that aren't a fixture of their own (D-67). The lamps, chandeliers, sconces,
+ * pendants and spots in render3d/world/funhouse/lighting.ts add the rest, each from a fixture you can see.
+ * Warm in the entrance, the mirror tower's glow in the Rotunda, amber in the corridor, violet in the
+ * gallery, stage light in the chamber.
+ */
 const LIGHTS: LightDef[] = [
-  { x: 0, y: 1500, r: 620, color: [1, 0.78, 0.5], intensity: 0.85, flicker: 0.08 },
+  { x: 0, y: 1500, r: 600, color: [1, 0.78, 0.5], intensity: 0.45, flicker: 0.05 },
   { x: -420, y: 1860, r: 300, color: [1, 0.7, 0.4], intensity: 0.8, flicker: 0.2 },
   { x: 420, y: 1860, r: 300, color: [1, 0.7, 0.4], intensity: 0.8, flicker: 0.2 },
   { x: -760, y: 1250, r: 260, color: [0.7, 0.85, 1], intensity: 0.7, flicker: 0.12 },
-  { x: 0, y: 2000, r: 520, color: [1, 0.35, 0.25], intensity: 0.6, flicker: 0.3 },
-  { x: -1500, y: 1350, r: 380, color: [1, 0.75, 0.5], intensity: 0.6, flicker: 0.25 },
-  { x: 1500, y: 1350, r: 380, color: [1, 0.75, 0.5], intensity: 0.6, flicker: 0.25 },
-  { x: 0, y: -225, r: 760, color: [0.95, 0.6, 1], intensity: 0.8, flicker: 0.06 },
-  { x: -420, y: 520, r: 300, color: [1, 0.8, 0.55], intensity: 0.55, flicker: 0.15 },
-  { x: 420, y: 520, r: 300, color: [1, 0.8, 0.55], intensity: 0.55, flicker: 0.15 },
-  { x: -1910, y: -1125, r: 380, color: [0.55, 0.75, 1], intensity: 0.65, flicker: 0.18 },
-  { x: -1680, y: -225, r: 330, color: [0.45, 1, 0.85], intensity: 0.7, flicker: 0.1 },
-  { x: -1450, y: 450, r: 380, color: [0.6, 0.8, 1], intensity: 0.6, flicker: 0.22 },
-  { x: -990, y: 680, r: 300, color: [0.6, 0.75, 1], intensity: 0.55, flicker: 0.3 },
-  { x: -1910, y: 680, r: 300, color: [0.6, 0.75, 1], intensity: 0.55, flicker: 0.3 },
-  { x: -1000, y: -900, r: 320, color: [0.65, 0.8, 1], intensity: 0.55, flicker: 0.25 },
-  { x: 1450, y: 650, r: 400, color: [1, 0.65, 0.3], intensity: 0.65, flicker: 0.35 },
-  { x: 1100, y: -50, r: 380, color: [1, 0.6, 0.28], intensity: 0.6, flicker: 0.4 },
-  { x: 1800, y: -450, r: 380, color: [1, 0.62, 0.3], intensity: 0.6, flicker: 0.35 },
-  { x: 1450, y: -1000, r: 380, color: [1, 0.65, 0.3], intensity: 0.6, flicker: 0.3 },
-  { x: -1600, y: -1850, r: 420, color: [0.7, 0.5, 1], intensity: 0.6, flicker: 0.2 },
-  { x: -900, y: -1750, r: 380, color: [0.75, 0.5, 1], intensity: 0.55, flicker: 0.25 },
+  { x: 0, y: 2000, r: 520, color: [1, 0.35, 0.25], intensity: 0.45, flicker: 0.3 },
+  { x: 0, y: -225, r: 460, color: [0.95, 0.6, 1], intensity: 0.55, flicker: 0.06 },
+  { x: 1450, y: 650, r: 400, color: [1, 0.65, 0.3], intensity: 0.4, flicker: 0.35 },
+  { x: 1100, y: -50, r: 380, color: [1, 0.6, 0.28], intensity: 0.4, flicker: 0.4 },
+  { x: 1800, y: -450, r: 380, color: [1, 0.62, 0.3], intensity: 0.4, flicker: 0.35 },
+  { x: 1450, y: -1000, r: 380, color: [1, 0.65, 0.3], intensity: 0.4, flicker: 0.3 },
+  { x: -1600, y: -1850, r: 420, color: [0.7, 0.5, 1], intensity: 0.45, flicker: 0.2 },
+  { x: -900, y: -1750, r: 380, color: [0.75, 0.5, 1], intensity: 0.4, flicker: 0.25 },
   { x: -600, y: -2000, r: 300, color: [1, 0.8, 0.5], intensity: 0.7, flicker: 0.12 },
   { x: -1335, y: -1560, r: 260, color: [1, 0.9, 0.7], intensity: 0.5, flicker: 0.4 },
-  { x: 950, y: -1950, r: 560, color: [1, 0.9, 0.7], intensity: 0.85, flicker: 0.05 },
+  { x: 950, y: -1950, r: 560, color: [1, 0.9, 0.7], intensity: 0.5, flicker: 0.05 },
   { x: 500, y: -1650, r: 320, color: [1, 0.35, 0.4], intensity: 0.55, flicker: 0.15 },
   { x: 1400, y: -1650, r: 320, color: [0.4, 0.55, 1], intensity: 0.55, flicker: 0.15 },
   { x: 950, y: -1460, r: 220, color: [1, 0.85, 0.5], intensity: 0.5, flicker: 0.1 },

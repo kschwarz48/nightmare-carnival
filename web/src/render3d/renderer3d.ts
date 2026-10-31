@@ -5,7 +5,6 @@
 // never mutates it, and interpolates positions between fixed ticks.
 
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { clamp, lerp } from '../core/math';
 import { LIGHTS, MAP_HALF, PROPS, SEA_Y } from '../data/map';
 import type { Assets } from '../render/assets';
@@ -58,6 +57,10 @@ export interface RenderSettings {
   quality: 'low' | 'medium' | 'high';
 }
 
+/** Ambient settings outdoors (the night) and indoors (the Fun House, D-67). */
+const OUTDOOR = { sky: 0x34477a, ground: 0x2a1a10, hemiK: 1, fill: [0.045, 0.06, 0.13], mist: [0.05, 0.07, 0.115], edge: [2200, 1960], mistK: 1 };
+const INDOOR = { sky: 0x3d3052, ground: 0x1e1412, hemiK: 0.62, fill: [0.046, 0.036, 0.074], mist: [0.062, 0.046, 0.074], edge: [1e5, 1e5], mistK: 0.7 };
+
 /** Theatre searchlights (D-46): mounted on the gate towers, their discs wander over the plaza and midway. */
 export const SEARCHLIGHTS = [
   { tower: [-1000, -1150] as const, cx: -120, cy: 240, ax: 520, ay: 380, r: 115, i: 0.6, col: [0.7, 0.82, 1] as const, speed: 0.11, phase: 0, x: 0, y: 0 },
@@ -72,6 +75,8 @@ interface WorldParts {
   root: THREE.Group;
   ground: { mesh: THREE.Mesh; update(time: number, dawn: number): void };
   shafts: { update(time: number, darkness: number, dawn: number, lampLevel: (x: number, y: number) => number, played: (x: number, y: number) => boolean): void };
+  /** the world's own light motes (the renderer's default ones drift round the Carnival Core's lamps) */
+  motes?: Motes;
   props: { update(g: Game, r: GameRenderer3D, inView: (x: number, y: number) => boolean, dt: number): void; addLights(g: Game, time: number): void; wisp?(lamp: number): void };
   clutter?: Clutter;
   indoor: boolean;
@@ -219,7 +224,7 @@ export class GameRenderer3D {
     if (!w) {
       if (id === 'fun_house') {
         const fw = new FunhouseWorld();
-        w = { root: fw.root, ground: fw.ground, shafts: fw.shafts, props: fw, indoor: true, funhouse: fw };
+        w = { root: fw.root, ground: fw.ground, shafts: fw.shafts, motes: fw.motes, props: fw, indoor: true, funhouse: fw };
       } else {
         const root = new THREE.Group();
         const ground = new Ground3D(this.renderer);
@@ -261,8 +266,21 @@ export class GameRenderer3D {
     env.add(moon);
     const pm = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pm.fromScene(env, 0.02).texture;
-    // the overlay (the prize booth) is a lit show: a bright room for its gold and brass to mirror
-    this.overlay.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    // the overlay (the prize booth, D-67) is a neon booth at midnight: a black room with a warm softbox
+    // overhead and neon strips in magenta and cyan, so its gilt mirrors coloured light, not a bright studio
+    const booth = new THREE.Scene();
+    booth.add(new THREE.Mesh(new THREE.BoxGeometry(20, 12, 20), new THREE.MeshBasicMaterial({ color: 0x060309, side: THREE.BackSide })));
+    const strip = (w: number, h: number, d: number, col: number, k: number, x: number, y: number, z: number) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(k) }));
+      m.position.set(x, y, z);
+      booth.add(m);
+    };
+    strip(7, 0.2, 3, 0xffe0b8, 7, -1.5, 5.8, 3);
+    strip(0.3, 8, 0.3, 0xff2fb8, 5, -7.5, 0, -2);
+    strip(0.3, 8, 0.3, 0x2ee6ff, 5, 7.5, 0, -2);
+    strip(12, 0.3, 0.3, 0xff2fb8, 3, 0, -4.5, 7);
+    strip(3, 1.5, 0.2, 0xff9a3a, 2.5, 3, 1.5, 9.8);
+    this.overlay.environment = pm.fromScene(booth, 0.03).texture;
     pm.dispose();
   }
 
@@ -417,7 +435,7 @@ export class GameRenderer3D {
     this.ground.update(this.time, this.dawn);
     shared.uMistTime.value = this.time;
     shared.uMistWind.value.set(Math.cos(g.director.wind), Math.sin(g.director.wind));
-    shared.uMistDensity.value = (this.settings.quality === 'low' ? 0.28 : 0.36) * (1 + g.darkness * 0.5) * (1 - this.dawn * 0.6);
+    shared.uMistDensity.value = (this.settings.quality === 'low' ? 0.28 : 0.36) * (1 + g.darkness * 0.5) * (1 - this.dawn * 0.6) * (this.world.indoor ? INDOOR.mistK : 1);
     const lsq = g.quests?.get<LastSongChain>('last_song');
     const lampAt = (x: number, y: number) => LAST_SONG.lamps.findIndex((l) => l.x === x && l.y === y);
     this.shafts.update(
@@ -447,7 +465,7 @@ export class GameRenderer3D {
     const inView = (x: number, y: number) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
 
     this.props.update(g, this, inView, dt);
-    this.motes.draw(this.glow, this.f('fx_glow_0'), this.time, inView, (1 - g.darkness * 0.8) * (1 - this.dawn));
+    (this.world.motes ?? this.motes).draw(this.glow, this.f('fx_glow_0'), this.time, inView, (1 - g.darkness * 0.8) * (1 - this.dawn));
     this.drawZones(g, inView);
     this.drawHazards(g);
     this.drawStageRings(g, alpha, p, px, py);
@@ -531,8 +549,17 @@ export class GameRenderer3D {
     this.moon.position.set(tx - 1900, 1500, ty - 1100);
     this.moon.target.position.set(tx, 0, ty);
     this.moon.target.updateMatrixWorld();
-    this.hemi.intensity = lerp(lerp(0.42, 0.08, dark), 1.2, dawn) * (this.world.indoor ? 0.75 : 1);
-    if (this.world.indoor) (this.scene.fog as THREE.FogExp2).color.setRGB(0.05, 0.025, 0.045);
+    this.hemi.intensity = lerp(lerp(0.42, 0.08, dark), 1.2, dawn) * (this.world.indoor ? INDOOR.hemiK : 1);
+    // indoors (D-67): a plum ceiling instead of the night sky, shadows that stay the house's colours, and a
+    // low haze that lies evenly through the rooms (outdoors the mist thickens toward the woods and the sea)
+    const ind = this.world.indoor;
+    const A = ind ? INDOOR : OUTDOOR;
+    this.hemi.color.setHex(A.sky);
+    this.hemi.groundColor.setHex(A.ground);
+    shared.uShadowFill.value.set(A.fill[0], A.fill[1], A.fill[2]);
+    shared.uMistCol.value.set(A.mist[0], A.mist[1], A.mist[2]);
+    shared.uMistEdge.value.set(A.edge[0], A.edge[1]);
+    if (ind) (this.scene.fog as THREE.FogExp2).color.setRGB(0.05, 0.025, 0.045);
     // the lantern: a warm cone from above and slightly behind the player — long radial shadows
     const lanternOn = menu ? 0.5 : 1;
     this.lantern.position.set(px - 40, 640, py + 210);

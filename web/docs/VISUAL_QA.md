@@ -9,7 +9,10 @@ threejs-aaa-graphics-builder workflow, adapted to this project). Dev builds only
   `window.__THREE_GAME_TEST_HOOKS__`: `seed(n)`, `setState(name)` (returns `{state}`, throws on
   unknown), `setPausedForScreenshot(on)`, `hideDebugUi()`, `states`. Named states:
   `active-play-desktop` (a minute into a night, plaza), `late-combat` (Act IV density, evolved
-  arsenal), `boss-ringmaster` (boss lighting, telegraphs, summons). Runs are seeded
+  arsenal), `boss-ringmaster` (boss lighting, telegraphs, summons); the Fun House room by room
+  (`fh-entrance`, `fh-maze`, `fh-maze-dark`, `fh-rotunda`, `fh-corridor`, `fh-gallery`,
+  `fh-chamber`); the prize wheel mid-spin and landed (`prize-wheel`, `prize-wheel-landed`, framed as
+  the game frames it: bloom eased down, the booth graded as a lit show). Runs are seeded
   (`startRun({ seed })`).
 * **Diagnostics** — `window.__THREE_GAME_DIAGNOSTICS__` (getter): frame, state, time, player,
   enemies, per-frame renderer totals (calls, triangles, geometries, textures).
@@ -81,3 +84,77 @@ Materials and Lighting are at 2, not above. Next passes that would raise them: a
 for the remaining attractions (caravans, carts, gate arches, coaster ruin), more distinct enemy
 silhouettes for the toy roster, searchlight beams through the mist, and a human playtest of
 readability during heavy combat.
+
+## Fun House and prize wheel pass, 2026-10-31 (D-67) — evidence
+
+Runs captured (all inspected): `d67-before`, `d67-iter1`…`d67-iter3b` (house), `d67-iter1`/`d67-iter2`
+(wheel), `d67-after`. The wheel's "before" was re-shot with the same framing as the "after" (an earlier
+mid-spin capture was washed white because the dev state skipped the app's bloom easing; the game never
+showed that).
+
+### Measured (1600×900, High)
+
+| Capture | entropy (bits) | edge density | contrast | mean | calls | triangles |
+|---|---|---|---|---|---|---|
+| Carnival Core plaza (reference, unchanged) | 5.02 → 5.08 | 0.394 → 0.400 | 92 → 92.6 | 49.6 → 51.9 | 269 → 269 | 2.09 M → 2.09 M |
+| fh-entrance | 5.94 → 5.38 | 0.247 → 0.271 | 102.9 → 93.5 | 56.7 → 47.0 | 241 → 257 | 1.50 M → 1.73 M |
+| fh-maze | 4.42 → 5.31 | 0.246 → 0.325 | 83.9 → 136.5 | 35.2 → 61.8 | 310 → 331 | 2.31 M → 2.54 M |
+| fh-maze-dark (the weakest view) | 3.86 → 4.79 | 0.207 → 0.302 | 64.8 → 100.9 | 25.5 → 43.3 | 315 → 336 | 2.28 M → 2.52 M |
+| fh-rotunda | 5.65 → 5.56 | 0.348 → 0.370 | 115.0 → 110.2 | 48.6 → 52.4 | 305 → 326 | 2.33 M → 2.51 M |
+| fh-corridor | 4.58 → 5.00 | 0.253 → 0.329 | 75.6 → 109.8 | 33.7 → 46.9 | 180 → 191 | 0.84 M → 1.06 M |
+| fh-gallery | 4.64 → 5.27 | 0.185 → 0.276 | 66.4 → 101.1 | 29.4 → 46.5 | 237 → 188 | 1.42 M → 1.13 M |
+| fh-chamber | 4.87 → 5.12 | 0.188 → 0.256 | 74.6 → 74.2 | 34.4 → 41.9 | 180 → 191 | 0.79 M → 1.05 M |
+| prize-wheel (mid-spin) | 4.89 → 5.29 | 0.234 → 0.250 | 207.5 → 156.7 | 61.8 → 35.1 | 281 → 291 | 2.33 M → 2.35 M |
+| prize-wheel-landed | 5.00 → 5.36 | 0.260 → 0.276 | 204.0 → 148.9 | 59.2 → 36.0 | 284 → 294 | 2.33 M → 2.35 M |
+
+- **The dark rooms.** The maze's dark corner went from the one view under the inspector's contrast floor
+  (64.8, mean 25.5) to 100.9 (mean 43.3). Every house view now has more edge density (authored detail)
+  than before. The entrance and the Rotunda were already the brightest rooms; they moved little. The
+  chamber's contrast is flat (74.6 → 74.2): its stage stays dark between the drifting spots.
+- **The wheel** is meant to be darker: mean brightness roughly halved and contrast fell from a
+  front-lit 205 to a still-strong 149–157, as the board went from lit purple velvet to black lacquer
+  under a raking key light and neon.
+- **Draw calls vary with the crowd.** Re-capturing `fh-gallery` gave 221 calls (stable over three
+  captures with seed 42), against 188 in the after run and 237 before: the crowd differs with the seed
+  and the order states run in. Differences under ~30 calls are noise, not savings.
+
+### Budget and tradeoffs
+
+- **Mirror views are over the 300-call desktop budget** (maze 331–336, Rotunda 326; before D-67 they
+  were already 305–315). Every mesh in view is drawn again for each row of live mirror glass, so each
+  new layer costs one call per mirror pass. The soft layers (moonlit windows, contact shade, stage beams,
+  light shafts) are left out of the reflections; the fixtures stay in them (lamps in the glass are the
+  point of a hall of mirrors). Medium quality draws one mirror pass and Low none.
+- **Triangles** were over the 750k guideline before this pass in every view but the corridor and
+  chamber (the sculpted crowd, the props and the mirror passes); the pass adds 0.02–0.27 M.
+- **Frame time** (`__nc.bench(90)`, CPU+GPU with `gl.finish`, after only): maze 6.96 ms, Rotunda
+  10.7 ms, corridor 5.95 ms, against 10.19 ms on the Carnival Core plaza. The pane may have been
+  backgrounded during the bench, so treat these as indicative.
+- **Shadow lights** stay at the world's two (moon, lantern); the prize booth adds one shadowed spot in
+  its own overlay pass, only while a wheel is up.
+
+### Scorecard: the Fun House (genre equivalents as above; Rewards/interactables = tickets, chests, the
+prize wheel and the quest's fixtures)
+
+| Category | Before | After | Evidence |
+|---|---|---|---|
+| Art direction | 2 | 2 | the house's forms (mirrors, deco walls, crooked boards) were there; lighting now carries them |
+| Hero | 2 | 2 | unchanged |
+| Obstacles/enemies | 2 | 2 | piston crowns now read as crushers (hazard stripes), otherwise unchanged |
+| Rewards/interactables | 1.5 | 2.5 | the wheel has depth, real shadows and neon; quest fixtures prompt their action and answer a press |
+| World | 2 | 2.5 | sconces, pendants, capital lamps, picture lights, stage booms, stained-glass tower, moonlit windows |
+| Materials | 1.5 | 2 | marble caps with glowing gilt edges; gilt paint instead of camo-blotched gold; booth glass no longer blown out |
+| Lighting/render | 1.5 | 2.5 | every pool from a visible fixture with a halo (and a shaft under hanging/standing lamps), contact shade, indoor ambience, theatre spots |
+| VFX/motion | 2 | 2 | drifting stage beams and buzzing neon; no new combat effects |
+| UI/HUD | 2 | 2 | the interact prompt matches the Midway's |
+| Performance evidence | 2 | 2.5 | per-room before/after metrics, a bench, the mirror-pass bottleneck and its tradeoff named |
+
+Average ≈ 2.2 (before ≈ 1.85). Every category is at 2 or above, but the premium bar (average ≥ 2.3)
+is **not met**. Passes that would raise it: house-specific combat effects (glass shatters, mirror
+ripples on hits), plaster and wallpaper detail on the lit wall faces, and a human read of the new
+lighting during a crowded night. No automatic failure stands: the dark rooms are now lit from
+authored fixtures rather than left to darkness and fog.
+
+Not captured: mobile viewports (the game's QA has been desktop-only), and an unpaused motion sequence
+of the wheel (only stills at two moments of the spin).
+

@@ -71,7 +71,7 @@ export class FunhouseFloor {
             // the Grand Entrance: a big worn checkerboard, a red runner from the doors to the arch
             vec2 t = floor(ww / 110.0), f = fract(ww / 110.0);
             float chk = mod(t.x + t.y, 2.0);
-            col = mix(vec3(0.035, 0.03, 0.035), vec3(0.5, 0.46, 0.38), chk);
+            col = mix(vec3(0.035, 0.03, 0.035), vec3(0.43, 0.4, 0.34), chk);
             float grout = smoothstep(0.0, 0.025, min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)));
             col *= mix(0.45, 1.0, grout);
             fRough = mix(0.5, 0.28, chk);
@@ -190,7 +190,7 @@ export class FunhouseFloor {
           }`,
         );
     };
-    this.material.customProgramCacheKey = () => 'nc-funhouse-floor-v2';
+    this.material.customProgramCacheKey = () => 'nc-funhouse-floor-v3';
     const geo = new THREE.PlaneGeometry(4800, 4800, 1, 1);
     geo.rotateX(-Math.PI / 2);
     this.mesh = new THREE.Mesh(geo, this.material);

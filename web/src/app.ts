@@ -1061,6 +1061,7 @@ export class App {
         if (this.net?.role !== 'guest' && !g.draftPending(this.localIndex)) this.draft.hide();
         return;
       }
+      if ((e === 'interact' || e === 'confirm') && this.game.phase === 'play') this.interactPress();
       if (e === 'pause' && (this.game.phase === 'play' || (this.net && this.game.phase === 'draft'))) {
         this.audio.play('ui_click');
         this.go('paused');
@@ -1160,6 +1161,7 @@ export class App {
       this.renderer.render(g!, alpha, dt);
       this.stageTug(g!);
       this.updateCoopHud();
+      this.hud.padKeys = this.input.usingGamepad;
       this.hud.update(g!, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
     } else if (this.state === 'paused' || this.state === 'results') {
       if (g) {
@@ -1347,6 +1349,14 @@ export class App {
     const hs = this.net?.role === 'host' ? this.net.host : null;
     this.hubHud.root.classList.toggle('under', this.state !== 'hub');
     this.hubHud.update({ labels, prompt, dialogue, code: hs ? hs.lobby.code : null, party: g.players.map((p) => p.name) });
+  }
+
+  /** Interact during a night (E, or A on a pad; D-67): the sim uses it next tick; a guest sends it to the host. */
+  private interactPress(): void {
+    const g = this.game;
+    if (!g || g.hub) return;
+    if (this.net?.role === 'guest') this.net.guest.interact();
+    else g.inputs[this.localIndex].interact = true;
   }
 
   /** Interact on the Midway: talk, shop, start the night, or rattle a chained gate. */
@@ -1729,6 +1739,7 @@ export class App {
     this.stageTug(g);
     if (this.state === 'playing') {
       this.updateCoopHud();
+      this.hud.padKeys = this.input.usingGamepad;
       this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
     } else if (g.hub) this.updateHubHud(cssW, cssH);
   }

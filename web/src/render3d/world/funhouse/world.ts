@@ -19,6 +19,7 @@ import { MirrorSystem } from './mirrors';
 import { FUNHOUSE_PROPS, SEG, WALL_T, mirrorPanel, wallSection } from './models';
 import { lampFlicker } from '../props';
 import { QuestVisuals } from './quest';
+import { FunhouseLighting } from './lighting';
 
 /** Props with moving parts of their own (drawn per frame), and kinds the walls handle. */
 const DYNAMIC = new Set(['fh_wall', 'fh_mirror']);
@@ -41,7 +42,10 @@ export class FunhouseWorld {
   /** the gallery's great curtain over the projector (the quest parts it) */
   greatCurtain: StaticBatch | null = null;
   private quest = new QuestVisuals(this);
-  readonly shafts = { update: () => {} };
+  /** the house's fixtures, halos, shafts, motes and moonlit windows (D-67) */
+  private lighting: FunhouseLighting;
+  readonly shafts: FunhouseLighting['shafts'];
+  readonly motes: FunhouseLighting['motes'];
 
   constructor() {
     this.root.add(this.ground.mesh);
@@ -123,6 +127,9 @@ export class FunhouseWorld {
     this.ballerina = dyn(FUNHOUSE_PROPS.fh_ballerina(0), 1, 1.6, false);
     this.lamps = PROPS.filter((p) => p.kind === 'fh_lamp' || p.kind === 'fh_chandelier');
     this.musicBox = PROPS.find((p) => p.kind === 'fh_musicbox');
+    this.lighting = new FunhouseLighting(this.root);
+    this.shafts = this.lighting.shafts;
+    this.motes = this.lighting.motes;
   }
 
   /** A per-frame batch for other modules (created once, filled every frame). */
@@ -186,6 +193,7 @@ export class FunhouseWorld {
     if (this.musicBox && inView(this.musicBox.x, this.musicBox.y)) this.ballerina.add(this.musicBox.x, this.musicBox.y, 96, now * 1.4, 1.4);
     for (const b of [this.pivots, this.pivotGlass, this.crown, this.pistonHeads, this.ballerina]) b.end();
     this.quest.update(g, r, inView, dt);
+    this.lighting.update(g, r, inView);
     this.mirrors.doorOpen += ((g.funhouseDoorOpen ? 1 : 0) - this.mirrors.doorOpen) * 0.05;
   }
 
@@ -206,11 +214,12 @@ export class FunhouseWorld {
       const c = [[1, 0.3, 0.4], [0.3, 0.8, 1], [1, 0.85, 0.3], [0.7, 0.4, 1], [0.4, 1, 0.6], [1, 0.5, 0.2]][k];
       pool.add(ROTUNDA.x + Math.cos(a) * 420, ROTUNDA.y + Math.sin(a) * 300, 150, 0.55 * on, c[0], c[1], c[2], 600, 5, 0.3);
     }
+    this.lighting.addLights(g, time);
   }
 
   /** Reflections are rendered last, once every batch for the frame is filled. */
   beforeComposite(r: GameRenderer3D, scene: THREE.Scene, camera: THREE.OrthographicCamera, view: { x0: number; x1: number; y0: number; y1: number }, budget: number): void {
-    const hide: THREE.Object3D[] = [r.teleLine.mesh, r.wire.mesh];
+    const hide: THREE.Object3D[] = [r.teleLine.mesh, r.wire.mesh, ...this.lighting.unreflected];
     for (const l of [r.numbers, r.fxAdd, r.fxNormal, r.glow]) for (const b of l.batches) hide.push(b.mesh);
     this.mirrors.render(r.renderer, scene, camera, r.time, view.x0, view.x1, view.y0, view.y1, budget, hide);
   }

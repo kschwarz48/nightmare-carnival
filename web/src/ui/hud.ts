@@ -10,6 +10,7 @@ import type { Assets } from '../render/assets';
 import type { Game } from '../sim/game';
 import type { DraftOption } from '../sim/draft';
 import { readyEvolutions } from '../sim/draft';
+import type { UnreflectedChain } from '../sim/quest/unreflected';
 import { FocusNav, fmtTime, h } from './dom';
 
 /** Player colours for UI (Player 1 lamp-gold, 2 ghost-teal, 3 rose, 4 lime, 5 violet, 6 tangerine); match PLAYER_COLS and `.p1`…`.p6` in style.css. */
@@ -93,6 +94,11 @@ export class Hud {
   private arrowLayer: HTMLDivElement;
   private arrows: HTMLDivElement[] = [];
   private partyH = 0;
+  /** the interact prompt over something the local player can use (D-67) */
+  private promptEl: HTMLDivElement;
+  private promptKey = '';
+  /** the prompt names the pad's button instead of the key (set by the app from the input in use) */
+  padKeys = false;
 
   constructor(private assets: Assets) {
     this.root = h('div', { class: 'hud' });
@@ -123,7 +129,8 @@ export class Hud {
     this.splats = h('div', { class: 'passthrough' });
     this.barLayer = h('div', { class: 'passthrough' });
     this.arrowLayer = h('div', { class: 'passthrough' });
-    this.root.append(this.barLayer, this.arrowLayer, this.splats);
+    this.promptEl = h('div', { class: 'quest-prompt hidden' });
+    this.root.append(this.barLayer, this.arrowLayer, this.splats, this.promptEl);
     this.root.append(xp, this.lvl, this.preview, clock, this.act, this.hpWrap, this.tray, this.statsR, this.boss, this.toast, this.fpsEl, this.indicators, this.partner, this.tags, this.statusEl, this.pingEl, this.diagEl);
   }
 
@@ -248,6 +255,23 @@ export class Hud {
     this.updateCoop(g, screen);
     this.updateBars(g, screen);
     this.updateChestArrows(g, screen);
+    this.updatePrompt(g, screen);
+  }
+
+  /** "E  Turn the mirror": floats over whatever the local player could use right now (D-67). */
+  private updatePrompt(g: Game, screen: HudScreen): void {
+    const p = g.player;
+    const it = g.phase === 'play' && g.isUp(p) ? g.quests?.get<UnreflectedChain>('unreflected')?.interaction(p.x, p.y) ?? null : null;
+    const key = it ? `${it.kind}${it.i}|${it.label}|${this.padKeys}` : '';
+    if (key !== this.promptKey) {
+      this.promptKey = key;
+      this.promptEl.classList.toggle('hidden', !it);
+      if (it) this.promptEl.replaceChildren(h('span', { class: 'key' }, this.padKeys ? 'A' : 'E'), h('span', {}, it.label));
+    }
+    if (!it) return;
+    const s = screen.toScreen(it.x, it.y, 150);
+    this.promptEl.style.left = `${Math.max(90, Math.min(screen.w - 90, s.x))}px`;
+    this.promptEl.style.top = `${Math.max(70, Math.min(screen.h - 150, s.y))}px`;
   }
 
   /** How far up from the bottom the chat box sits: above the health bar, its portrait and any party cards. */

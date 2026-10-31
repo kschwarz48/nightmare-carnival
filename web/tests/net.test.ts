@@ -350,12 +350,13 @@ describe('replication into the guest mirror', () => {
 // ===================================================================================== protocol
 describe('protocol validation', () => {
   it('round-trips input packets and clamps hostile values', () => {
-    const buf = encodeInputPacket({ ackSnap: 12, dictSize: 40, inputs: [{ seq: 9, mx: 1, my: 0, ax: 0, ay: -1, aim: true }, { seq: 10, mx: -0.5, my: 0.5, ax: 1, ay: 0, aim: false }] });
+    const buf = encodeInputPacket({ ackSnap: 12, dictSize: 40, inputs: [{ seq: 9, mx: 1, my: 0, ax: 0, ay: -1, aim: true, ia: 3 }, { seq: 10, mx: -0.5, my: 0.5, ax: 1, ay: 0, aim: false, ia: 260 }] });
     const p = decodeInputPacket(buf)!;
     expect(p.ackSnap).toBe(12);
     expect(p.dictSize).toBe(40);
     expect(p.inputs.map((i) => i.seq)).toEqual([9, 10]);
     expect(p.inputs[0].aim).toBe(true);
+    expect(p.inputs.map((i) => i.ia)).toEqual([3, 4]); // the interact count wraps at 256 (D-67)
     expect(p.inputs[1].mx).toBeCloseTo(-0.5, 1);
     // a forged packet with (127,127) movement is normalised to the unit disc
     const forged = new Uint8Array(buf.slice(0));
@@ -499,6 +500,34 @@ class Harness {
     if (g.phase === 'draft' && g.draftPending(0)) g.chooseDraft(0, 0);
   };
 }
+
+describe('interact over the network (D-67)', () => {
+  it("a guest's press reaches the host's sim exactly once, over a lossy link, and only when pressed", () => {
+    const h = new Harness({ latency: 45, jitter: 15, loss: 0.15, dupe: 0.05, seed: 5 });
+    const g = h.startRun();
+    let seen = 0, frame = 0, pressedAt = -1;
+    h.run(4000, () => {
+      const gs = h.guest;
+      if (gs.state === 'run' && gs.game?.phase === 'play' && !gs.pausedBy && !gs.replica?.frozen) {
+        if (++frame === 90) {
+          gs.interact();
+          pressedAt = frame;
+        }
+        gs.step(0, 0, 0, 0, false);
+        gs.replica!.frame(1 / 60);
+      }
+      if (!h.host.paused && h.host.prizeReady && g.phase === 'play') {
+        h.host.beforeTick(g);
+        if (g.inputs[1].interact) seen++;
+        g.tick();
+        expect(g.inputs[1].interact).toBe(false); // good for one tick only
+      }
+      if (g.phase === 'draft' && g.draftPending(0)) g.chooseDraft(0, 0);
+    });
+    expect(pressedAt).toBeGreaterThan(0);
+    expect(seen).toBe(1);
+  });
+});
 
 describe('lobby and session flow', () => {
   it('chat (D-65): lines are cleaned, validated, relayed to the whole party in order, and floods are dropped', () => {

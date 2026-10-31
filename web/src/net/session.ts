@@ -69,6 +69,8 @@ interface Seat {
   deepTicks: number;
   /** when the last new input arrived (a silent guest stops moving instead of running on) */
   lastInputAt: number;
+  /** the guest's interact count as last applied (-1: not yet heard, so the first input sets it; D-67) */
+  lastIa: number;
   /** consecutive ticks covered by repeating the last input while the buffer was empty */
   repeats: number;
   /** dropped mid-run: the night waits for them until this time (0 = not waiting) */
@@ -358,7 +360,7 @@ export class HostSession {
     if (index < 0) return this.refuse(link, 'full');
     const seat: Seat = {
       index, link: null, profile: { ...m.profile, name: this.uniqueName(m.profile.name) }, token: randomToken(), character: null, ready: false, connected: false, lastHeard: this.now, heard: false, rtt: 0,
-      view: { hx: 900, hy: 700 }, queue: [], lastQueued: 0, lastApplied: 0, lastInput: null, ackSnap: 0, dictAck: 0, invalid: 0,
+      view: { hx: 900, hy: 700 }, queue: [], lastQueued: 0, lastApplied: 0, lastInput: null, lastIa: -1, ackSnap: 0, dictAck: 0, invalid: 0,
       limiter: new RateLimiter(40, 80, this.now), binLimiter: new RateLimiter(180, 240, this.now), paused: false, goneAt: 0, deepTicks: 0, lastInputAt: 0, repeats: 0,
       waitUntil: 0, prize: 0, enc: new SnapshotEncoder(), snapSeq: 0, snapAcc: 0, fx: [], sfx: [],
       stats: { bytes: 0, snaps: 0, winStart: this.now, bps: 0, rate: 0, last: 0, skipped: 0, starved: 0, dropped: 0 },
@@ -383,6 +385,7 @@ export class HostSession {
     s.queue.length = 0;
     s.lastQueued = s.lastApplied = 0;
     s.lastInput = null;
+    s.lastIa = -1;
     s.paused = false;
     s.waitUntil = 0;
     this.resetStream(s);
@@ -638,6 +641,7 @@ export class HostSession {
       s.queue.length = 0;
       s.lastQueued = s.lastApplied = 0;
       s.lastInput = null;
+      s.lastIa = -1;
       s.prize = 0;
     }
     for (const type of FORWARDED_EVENTS) {
@@ -734,6 +738,10 @@ export class HostSession {
       inp.aimX = next.ax;
       inp.aimY = next.ay;
       inp.aimActive = next.aim;
+      // a changed interact count is a press (or several, folded into one) for this tick
+      const ia = next.ia ?? 0;
+      if (s.lastIa >= 0 && ia !== s.lastIa) inp.interact = true;
+      s.lastIa = ia;
     }
   }
 
@@ -898,6 +906,8 @@ export class GuestSession {
   closeReason = '';
   private seq = 0;
   private recent: NetInput[] = [];
+  /** interact presses so far, sent with every input (D-67) */
+  private ia = 0;
   private writer = new Writer(128);
   private lastPing = 0;
   private lastHeard = 0;
@@ -1087,11 +1097,16 @@ export class GuestSession {
    */
   step(mx: number, my: number, ax: number, ay: number, aim: boolean): void {
     if (this.state !== 'run' || !this.replica) return;
-    const inp: NetInput = { seq: ++this.seq, mx, my, ax, ay, aim };
+    const inp: NetInput = { seq: ++this.seq, mx, my, ax, ay, aim, ia: this.ia };
     this.recent.push(inp);
     if (this.recent.length > INPUT_REDUNDANCY) this.recent.shift();
     this.replica.predict(inp.seq, mx, my);
     this.sendInputs();
+  }
+
+  /** The local player pressed interact (E, or A on a pad): it rides out with the next inputs. */
+  interact(): void {
+    this.ia = (this.ia + 1) & 255;
   }
 
   private sendInputs(): void {

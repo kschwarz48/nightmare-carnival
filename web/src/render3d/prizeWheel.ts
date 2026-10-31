@@ -7,15 +7,20 @@
 // gets the world's bloom and grade. A slot-machine show: rim lights ride the wheel, the marquee races
 // with its spin, a blip climbs with every peg, and a jackpot bell rings the win. The prize card names
 // the item, its level and (in co-op) who won it.
+//
+// D-67: a neon booth at midnight. Black lacquer inside a heavy gilded frame, two neon tubes tracing the
+// arch (magenta outside, cyan within), a deep wheel (raised gilt dividers, long pegs, a heavy rim, a
+// domed hub) in neon lacquer alternating with black, a key light from the upper left that throws real
+// shadows (pegs across the wedges, the wheel across the board), neon spill and a violet backglow.
 
 import * as THREE from 'three';
 import type { ChestEntry } from '../sim/draft';
 import type { Assets } from '../render/assets';
-import { ModelBuilder, SURF, box, cone, cyl, ellipsoid, extrude, rbox, smoothShape, sphere, starShape, torus, weather } from './core/geo';
+import { ModelBuilder, SURF, box, cone, cyl, ellipsoid, extrude, lathe, rbox, smoothShape, sphere, starShape, torus, tube, weather } from './core/geo';
 import { actorMaterial, setObjectState } from './core/materials';
 import { ActorBatch } from './core/batch';
 import { PAL, bulb, eyes } from './models/kit';
-import { signMesh } from './world/props';
+import { dyingNeon } from './world/props';
 
 export interface PrizeUi {
   /** Co-op: player names by slot (null in solo) */
@@ -34,8 +39,10 @@ type Phase = 'idle' | 'rise' | 'crank' | 'spin' | 'reveal' | 'summary' | 'sink';
 
 const N = 10;
 const SEG = (Math.PI * 2) / N;
-/** bright midway paint (cherry, cream, gold, teal, magenta, violet, royal blue), barely weathered */
-const SEG_COLS = [0xa8121e, 0xf0e2c0, 0xd08a10, 0x0e8078, 0x8e1e70, 0xf0e2c0, 0x4422a0, 0xd08a10, 0x15409a, 0xf0e2c0];
+/** neon lacquer alternating with black, like a casino wheel at midnight (D-67): crimson, ultraviolet, poison
+ *  teal, hot magenta, blood orange */
+const SEG_COLS = [0xd0102c, 0x140c14, 0x7a1ad8, 0x140c14, 0x08b89a, 0x140c14, 0xe0167a, 0x140c14, 0xf08a0c, 0x140c14];
+const NEON_PINK = 0xff2fb8, NEON_CYAN = 0x2ee6ff;
 /** lights on the wheel's rim, two per wedge, riding the spin */
 const RIM_N = N * 2;
 /** the prize card's face, in pixels (the card is 220 x 300 units) */
@@ -75,11 +82,19 @@ export class PrizeWheel {
   private highlight: THREE.Mesh<THREE.ShapeGeometry, THREE.MeshBasicMaterial>;
   private dim: THREE.Mesh;
   private dimMat: THREE.MeshBasicMaterial;
-  private mat = actorMaterial({ emitBoost: 1.6, envIntensity: 0.45 });
+  private mat = actorMaterial({ emitBoost: 1.6, envIntensity: 0.75 });
   private bulbs: ActorBatch;
   private bulbMats: THREE.Matrix4[] = [];
   private spot: THREE.SpotLight;
   private fill: THREE.PointLight;
+  /** the violet backglow on the board round the wheel, and the neon's coloured spill either side */
+  private halo: THREE.PointLight;
+  private neonL: THREE.PointLight;
+  private neonR: THREE.PointLight;
+  private neonOuter: THREE.MeshBasicMaterial;
+  private neonInner: THREE.MeshBasicMaterial;
+  private signMat: THREE.MeshBasicMaterial;
+  private glowMat: THREE.MeshBasicMaterial;
   private loader = new THREE.TextureLoader();
   private texCache = new Map<string, THREE.Texture>();
   private phase: Phase = 'idle';
@@ -110,40 +125,87 @@ export class PrizeWheel {
     this.dim.renderOrder = 20;
     this.root.add(this.dim);
     this.root.add(this.board);
-    // ---- backboard: arched, velvet and peeling gold leaf, a marquee of bulbs
+    // a violet glow pooled in the dark behind the booth, so it stands out of the night
+    this.glowMat = new THREE.MeshBasicMaterial({ map: radialTexture([150, 40, 190]), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(1700, 1500), this.glowMat);
+    glow.position.set(0, 40, -280);
+    glow.renderOrder = 20;
+    this.board.add(glow);
+    // ---- backboard: black lacquer in a heavy gilded frame, two neon tubes, a marquee of bulbs
     const bm = new ModelBuilder();
     const arch = smoothShape([[-330, -330], [330, -330], [340, 120], [300, 260], [170, 350], [0, 380], [-170, 350], [-300, 260], [-340, 120]], 60);
-    bm.add(extrude(arch, 30, 6, 30), { col: weather(PAL.velvet, 0.5, 0.008, PAL.woodPale), pos: [0, 0, -40], surf: SURF.velvet });
-    bm.add(extrude(arch, 10, 3, 30), { col: weather(PAL.gold, 0.35, 0.01), pos: [0, 0, -58], scale: [1.04, 1.04, 1], surf: SURF.gold });
+    const archPts = arch.getPoints();
+    bm.add(extrude(arch, 30, 6, 30), { col: weather(0x2a1030, 0.35, 0.01), pos: [0, 0, -60], surf: [0.32, 0] });
+    // a gilt sunburst on the board round the wheel: it catches the key light, and the wheel's shadow falls on it
+    const inside = (x: number, y: number) => {
+      let c = false;
+      for (let i = 0, j = archPts.length - 1; i < archPts.length; j = i++) {
+        const a = archPts[i], b = archPts[j];
+        if ((a.y > y) !== (b.y > y) && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) c = !c;
+      }
+      return c;
+    };
+    for (let k = 0; k < 40; k++) {
+      const th = (k / 40) * Math.PI * 2 + Math.PI / 40;
+      let r1 = 312;
+      while (r1 < 460 && inside((Math.cos(th) * (r1 + 4)) / 0.95, (Math.sin(th) * (r1 + 4)) / 0.95)) r1 += 4;
+      if (r1 - 306 < 14) continue;
+      const mid = (306 + r1) / 2;
+      bm.add(box(r1 - 306, 3.2, 4), { col: weather(0x8a6424, 0.3), pos: [Math.cos(th) * mid, Math.sin(th) * mid, -38], rot: [0, 0, th], surf: SURF.gold, emit: 0.06 });
+    }
+    // the frame stands proud of the board, so the key light rakes it and it shadows the board's edge
+    const ring = new THREE.Shape(archPts.map((q) => q.clone().multiplyScalar(1.07)));
+    ring.holes.push(new THREE.Path(archPts.map((q) => q.clone().multiplyScalar(0.985)).reverse()));
+    bm.add(extrude(ring, 22, 6, 4), { col: weather(0x9a7428, 0.3, 0.012), pos: [0, 0, -44], surf: SURF.gold });
+    // a black plate under the neon sign, with a gilt edge
+    bm.add(rbox(392, 70, 8, 12, 2), { col: weather(0x0e080e, 0.3), pos: [0, 322, -30], surf: [0.3, 0] });
+    bm.add(rbox(404, 82, 4, 14, 2), { col: PAL.gold, pos: [0, 322, -35], surf: SURF.gold });
     // pedestal and the booth counter
-    bm.add(rbox(520, 90, 120, 8, 2), { col: weather(PAL.redDeep, 0.5, 0.01, PAL.woodPale), pos: [0, -380, 10], surf: SURF.wood });
+    bm.add(rbox(520, 90, 120, 8, 2), { col: weather(0x2a1410, 0.45, 0.01, PAL.woodDark), pos: [0, -380, 10], surf: SURF.wood });
     bm.add(rbox(540, 14, 130, 4, 1), { col: PAL.gold, pos: [0, -330, 10], surf: SURF.gold });
-    for (let i = 0; i < 5; i++) bm.add(extrude(starShape(5, 16, 7), 3, 0.6, 1), { col: PAL.mustard, pos: [-200 + i * 100, -380, 72], surf: SURF.paint });
+    for (let i = 0; i < 5; i++) bm.add(extrude(starShape(5, 16, 7), 3, 0.6, 1), { col: PAL.gold, pos: [-200 + i * 100, -385, 72], surf: SURF.gold, emit: 0.3 });
     // the jester on top of the board (its jaw laughs on a win)
-    bm.add(ellipsoid(44, 50, 30, 18, 12), { col: weather(PAL.bone, 0.3, 0.02), pos: [0, 400, -10], surf: SURF.porcelain });
-    for (const s of [-1, 1]) bm.add(cone(18, 60, 8), { col: s > 0 ? PAL.redDeep : PAL.teal, pos: [s * 44, 450, -10], rot: [0, 0, -s * 0.9], surf: SURF.cloth });
+    bm.add(ellipsoid(44, 50, 30, 18, 12), { col: weather(PAL.bone, 0.45, 0.02), pos: [0, 400, -10], surf: SURF.porcelain });
+    for (const s of [-1, 1]) bm.add(cone(18, 60, 8), { col: s > 0 ? PAL.redDeep : 0x1a3a40, pos: [s * 44, 450, -10], rot: [0, 0, -s * 0.9], surf: SURF.velvet });
     for (const s of [-1, 1]) bm.add(sphere(9, 8, 6), { col: PAL.gold, pos: [s * 92, 478, -10], surf: SURF.gold });
-    eyes(bm, { x: 15, y: 412, z: 18, r: 7, color: PAL.amber, glow: 1.2, part: 0 });
+    eyes(bm, { x: 15, y: 412, z: 18, r: 7, color: PAL.hotRed, glow: 1.6, part: 0 });
     for (const s of [-1, 1]) bm.add(ellipsoid(10, 4, 3, 8, 6), { col: PAL.ink, pos: [s * 15, 424, 20], rot: [0, 0, s * 0.3], surf: SURF.porcelain });
     const boardMesh = new THREE.Mesh(bm.build({ ao: 0.1 }), this.mat);
+    boardMesh.castShadow = boardMesh.receiveShadow = true;
     this.board.add(boardMesh);
+    // the neon: magenta round the outside of the frame, cyan inside it over the top, a cyan strip on the counter
+    const tubePts = (k: number, z: number, keep: (q: THREE.Vector2) => boolean = () => true) => archPts.filter(keep).map((q): [number, number, number] => [q.x * k, q.y * k, z]);
+    this.neonOuter = new THREE.MeshBasicMaterial({ color: new THREE.Color(NEON_PINK).multiplyScalar(2.4) });
+    this.neonInner = new THREE.MeshBasicMaterial({ color: new THREE.Color(NEON_CYAN).multiplyScalar(2.2) });
+    const outer = new THREE.Mesh(tube(tubePts(1.11, -36), 4.2, 8, 220, true), this.neonOuter);
+    // the cyan runs from one side over the top to the other (the wheel fills the bottom of the board)
+    const inner = new ModelBuilder();
+    inner.add(tube(tubePts(0.935, -32, (q) => q.y > -210), 3.6, 8, 200, false), { col: 0xffffff });
+    inner.add(box(520, 3.6, 3.6), { col: 0xffffff, pos: [0, -340, 72] });
+    const innerMesh = new THREE.Mesh(inner.build({ ao: 0 }), this.neonInner);
+    for (const m of [outer, innerMesh]) {
+      m.renderOrder = 21;
+      this.board.add(m);
+    }
+    this.signMat = neonSign('PRIZE WHEEL', 372, 60, '#ff3fc8');
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(372, 60), this.signMat);
+    sign.position.set(0, 322, -24);
+    sign.renderOrder = 22;
+    this.board.add(sign);
     const jm = new ModelBuilder();
     jm.add(ellipsoid(26, 12, 14, 14, 8), { col: weather(PAL.bone, 0.3), surf: SURF.porcelain });
     jm.add(ellipsoid(20, 6, 6, 12, 6), { col: PAL.blood, pos: [0, 4, 8], surf: SURF.latex });
     this.jaw.position.set(0, 372, 6);
     this.jaw.add(new THREE.Mesh(jm.build({ ao: 0 }), this.mat));
     this.board.add(this.jaw);
-    const sign = signMesh('PRIZE WHEEL', 360, 54, { glow: 0.35, color: '#f0dca8' });
-    sign.position.set(0, 300, -10);
-    this.board.add(sign);
     // marquee bulbs around the arch (instanced so they can chase)
     const bulbGeo = new ModelBuilder();
     bulb(bulbGeo, [0, 0, 0], 5.5, 0xffffff, 0, undefined, 1);
     const pts = arch.getSpacedPoints(44);
     this.bulbs = new ActorBatch(bulbGeo.build({ ao: 0 }), actorMaterial({ emitBoost: 2.4 }), pts.length, { receive: false });
-    for (let i = 0; i < pts.length; i++) this.bulbMats.push(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(pts[i].x * 0.97, pts[i].y * 0.97, -12));
+    for (let i = 0; i < pts.length; i++) this.bulbMats.push(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(pts[i].x * 0.97, pts[i].y * 0.97, -30));
     this.board.add(this.bulbs.mesh);
-    // ---- the wheel: painted wedges, brass rim and pegs, a sun-faced hub, icons on every wedge
+    // ---- the wheel: lacquered wedges between raised gilt dividers, long brass pegs, a heavy rim, a domed hub
     this.board.add(this.wheel);
     const wm = new ModelBuilder();
     for (let i = 0; i < N; i++) {
@@ -155,23 +217,29 @@ export class PrizeWheel {
         s.lineTo(Math.cos(a) * 250, Math.sin(a) * 250);
       }
       s.lineTo(0, 0);
-      wm.add(extrude(s, 14, 0, 8), { col: weather(SEG_COLS[i], 0.12, 0.004, PAL.woodPale), surf: SURF.paint });
-      wm.add(cyl(4, 4, 18, 8), { col: PAL.brass, pos: [Math.cos(a0) * 262, Math.sin(a0) * 262, 6], rot: [Math.PI / 2, 0, 0], surf: SURF.brass });
-      wm.add(box(240, 3, 4), { col: PAL.gold, pos: [Math.cos(a0) * 120, Math.sin(a0) * 120, 8], rot: [0, 0, a0], surf: SURF.gold });
+      const black = i % 2 === 1;
+      wm.add(extrude(s, 14, 0, 8), { col: weather(SEG_COLS[i], 0.12, 0.004, black ? 0x2a1a24 : PAL.woodPale), surf: [0.22, 0], emit: black ? 0 : 0.22 });
+      // a peg on the rim at every wedge's edge, and a gilt divider standing proud between the wedges
+      wm.add(cyl(5, 5, 30, 10), { col: PAL.brass, pos: [Math.cos(a0) * 258, Math.sin(a0) * 258, 18], rot: [Math.PI / 2, 0, 0], surf: SURF.brass });
+      wm.add(sphere(6.5, 10, 8), { col: PAL.gold, pos: [Math.cos(a0) * 258, Math.sin(a0) * 258, 34], surf: SURF.gold });
+      wm.add(box(244, 5, 10), { col: PAL.gold, pos: [Math.cos(a0) * 128, Math.sin(a0) * 128, 10], rot: [0, 0, a0], surf: SURF.gold });
     }
-    wm.add(torus(256, 9, 8, 64), { col: weather(PAL.gold, 0.1, 0.01), surf: SURF.gold });
-    wm.add(cyl(46, 46, 26, 24), { col: PAL.gold, rot: [Math.PI / 2, 0, 0], pos: [0, 0, 6], surf: SURF.gold });
-    wm.add(extrude(starShape(12, 62, 40), 8, 1, 1), { col: weather(PAL.gold, 0.25), pos: [0, 0, 10], surf: SURF.gold });
-    eyes(wm, { x: 14, y: 8, z: 22, r: 7, color: PAL.hotRed, glow: 1, part: 0 });
-    wm.add(ellipsoid(16, 6, 3, 10, 6), { col: PAL.ink, pos: [0, -14, 22], surf: SURF.porcelain });
-    this.wheel.add(new THREE.Mesh(wm.build({ ao: 0 }), this.mat));
-    // rim lights: two per wedge, between the pegs, riding the wheel round
+    wm.add(torus(258, 14, 10, 80), { col: weather(PAL.gold, 0.12, 0.01), surf: SURF.gold });
+    wm.add(torus(286, 9, 8, 80), { col: weather(0x140a10, 0.2), surf: [0.3, 0.2] });
+    wm.add(extrude(starShape(12, 66, 44), 10, 2, 1), { col: weather(0x9a7428, 0.25), pos: [0, 0, 10], surf: SURF.gold });
+    wm.add(lathe([[0, 0], [44, 0], [43, 9], [36, 19], [22, 27], [0, 30]], 28), { col: weather(PAL.gold, 0.15), pos: [0, 0, 14], rot: [Math.PI / 2, 0, 0], surf: SURF.gold });
+    eyes(wm, { x: 14, y: 8, z: 40, r: 7, color: PAL.hotRed, glow: 1.4, part: 0 });
+    wm.add(ellipsoid(14, 5, 3, 10, 6), { col: PAL.ink, pos: [0, -13, 40], surf: SURF.porcelain });
+    const wheelMesh = new THREE.Mesh(wm.build({ ao: 0 }), this.mat);
+    wheelMesh.castShadow = wheelMesh.receiveShadow = true;
+    this.wheel.add(wheelMesh);
+    // rim lights: two per wedge, on the black outer ring, riding the wheel round
     const rim = new ModelBuilder();
     bulb(rim, [0, 0, 0], 7, 0xffffff, 0, undefined, 1);
     this.rimBulbs = new ActorBatch(rim.build({ ao: 0 }), actorMaterial({ emitBoost: 2.4 }), RIM_N, { receive: false });
     for (let i = 0; i < RIM_N; i++) {
       const a = (i + 0.5) * (SEG / 2);
-      this.rimMats.push(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(Math.cos(a) * 282, Math.sin(a) * 282, 8));
+      this.rimMats.push(new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(Math.cos(a) * 286, Math.sin(a) * 286, 12));
     }
     this.wheel.add(this.rimBulbs.mesh);
     for (let i = 0; i < N; i++) {
@@ -193,24 +261,29 @@ export class PrizeWheel {
     this.highlight = new THREE.Mesh(new THREE.ShapeGeometry(hs), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.8, 0.4).multiplyScalar(2), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
     this.highlight.position.z = 26;
     this.board.add(this.highlight);
-    // gears grinding behind the wheel
+    // gears grinding behind the wheel, in the gap between it and the board
     for (const [x, y, r, teeth] of [[-250, -170, 90, 14], [255, -150, 70, 11], [0, -250, 60, 9]] as [number, number, number, number][]) {
       const g = new THREE.Group();
-      g.position.set(x, y, -24);
+      g.position.set(x, y, -26);
       const gm = new ModelBuilder();
       gm.add(extrude(starShape(teeth, r, r * 0.82), 12, 1, 1), { col: weather(PAL.brass, 0.35, 0.02), surf: SURF.brass });
       gm.add(cyl(r * 0.25, r * 0.25, 18, 12), { col: PAL.iron, rot: [Math.PI / 2, 0, 0], surf: SURF.iron });
-      g.add(new THREE.Mesh(gm.build({ ao: 0 }), this.mat));
+      const gearMesh = new THREE.Mesh(gm.build({ ao: 0 }), this.mat);
+      gearMesh.castShadow = gearMesh.receiveShadow = true;
+      g.add(gearMesh);
       g.userData.ratio = 260 / r * (this.gears.length % 2 ? -1 : 1);
       this.board.add(g);
       this.gears.push(g);
     }
-    // the clapper at 12 o'clock
-    this.pointer.position.set(0, 290, 40);
+    // the clapper at 12 o'clock: a gilt arrow on an iron pin with a red glass jewel, riding above the pegs
+    this.pointer.position.set(0, 282, 62);
     const pm = new ModelBuilder();
-    pm.add(extrude([[-16, 0], [16, 0], [0, -64]], 8, 2, 1), { col: PAL.gold, surf: SURF.gold });
-    pm.add(sphere(12, 10, 8), { col: PAL.blood, surf: SURF.latex });
-    this.pointer.add(new THREE.Mesh(pm.build({ ao: 0 }), this.mat));
+    pm.add(extrude([[-20, 6], [20, 6], [0, -70]], 12, 3, 2), { col: PAL.gold, surf: SURF.gold });
+    pm.add(cyl(8, 8, 24, 12), { col: PAL.iron, pos: [0, 4, -8], rot: [Math.PI / 2, 0, 0], surf: SURF.iron });
+    pm.add(sphere(12, 12, 10), { col: 0xff1a3a, pos: [0, 4, 10], surf: SURF.glass, emit: 0.9 });
+    const pointerMesh = new THREE.Mesh(pm.build({ ao: 0 }), this.mat);
+    pointerMesh.castShadow = true;
+    this.pointer.add(pointerMesh);
     this.board.add(this.pointer);
     // the crank lever on the right
     this.lever.position.set(320, -150, 30);
@@ -218,7 +291,9 @@ export class PrizeWheel {
     lm.add(cyl(8, 8, 150, 8), { col: PAL.iron, pos: [0, 75, 0], surf: SURF.iron });
     lm.add(sphere(22, 12, 10), { col: PAL.blood, pos: [0, 155, 0], surf: SURF.latex });
     lm.add(cyl(20, 26, 30, 12), { col: PAL.brass, rot: [0, 0, Math.PI / 2], surf: SURF.brass });
-    this.lever.add(new THREE.Mesh(lm.build({ ao: 0 }), this.mat));
+    const leverMesh = new THREE.Mesh(lm.build({ ao: 0 }), this.mat);
+    leverMesh.castShadow = true;
+    this.lever.add(leverMesh);
     this.board.add(this.lever);
     // the prize card that leaps out on a reveal: a painted face naming the prize, its level and its winner
     const cm = new ModelBuilder();
@@ -235,17 +310,30 @@ export class PrizeWheel {
     this.card.add(this.cardFace);
     this.card.visible = false;
     this.root.add(this.card);
-    // stage lighting for the booth
-    // inverse-square with a hard cutoff: the stage lights touch the booth, never the world behind
-    this.spot = new THREE.SpotLight(0xffd9a0, 0, 1900, 0.5, 0.6, 2);
-    this.spot.position.set(0, 900, 900);
-    this.spot.target.position.set(0, 0, 0);
+    // ---- stage lighting: inverse-square with a hard cutoff, so it touches the booth, never the world behind.
+    // The key comes from the upper left and throws shadows; the rest is colour: neon spill either side, a
+    // violet glow on the board behind the wheel, a cool fill from below, and only a whisper of ambient.
+    this.spot = new THREE.SpotLight(0xffe2b8, 0, 2400, 0.55, 0.6, 2);
+    this.spot.position.set(-480, 720, 540);
+    this.spot.target.position.set(0, -20, 0);
+    this.spot.castShadow = true;
+    this.spot.shadow.mapSize.set(1024, 1024);
+    this.spot.shadow.bias = -0.0004;
+    this.spot.shadow.normalBias = 1.2;
+    this.spot.shadow.camera.near = 200;
+    this.spot.shadow.camera.far = 2400;
     this.root.add(this.spot, this.spot.target);
-    this.fill = new THREE.PointLight(0xff9a5a, 0, 950, 2);
-    this.fill.position.set(-300, -100, 500);
+    this.fill = new THREE.PointLight(0x6a4aff, 0, 950, 2);
+    this.fill.position.set(220, -260, 420);
+    this.halo = new THREE.PointLight(0xb43cff, 0, 620, 2);
+    this.halo.position.set(0, 0, -24);
+    this.neonL = new THREE.PointLight(NEON_PINK, 0, 760, 2);
+    this.neonL.position.set(-410, 60, 110);
+    this.neonR = new THREE.PointLight(NEON_CYAN, 0, 760, 2);
+    this.neonR.position.set(410, 60, 110);
+    this.board.add(this.halo, this.neonL, this.neonR);
     this.root.add(this.fill);
-    // a warm wash over the whole booth: the show is lit, not lurking
-    this.hemi = new THREE.HemisphereLight(0xfff0d6, 0x4a2c20, 0);
+    this.hemi = new THREE.HemisphereLight(0x8a7aa8, 0x1a0e10, 0);
     this.root.add(this.hemi);
     for (const o of [boardMesh]) o.renderOrder = 21;
   }
@@ -521,11 +609,12 @@ export class PrizeWheel {
     if (this.phase === 'sink') up = Math.max(0, 1 - t / 0.45);
     const ease = 1 - Math.pow(1 - up, 3);
     this.board.position.y = (1 - ease) * -900;
-    this.dimMat.opacity = 0.72 * ease;
-    this.spot.intensity = 3.0e6 * ease * (this.evoShow ? 0.75 : 1);
-    this.fill.intensity = 2.0e5 * ease;
-    this.hemi.intensity = 0.6 * ease;
-    this.spot.color.setRGB(1, this.evoShow ? 0.55 : 0.9, this.evoShow ? 0.4 : 0.72);
+    this.dimMat.opacity = 0.78 * ease;
+    this.spot.intensity = 2.0e6 * ease * (this.evoShow ? 0.75 : 1);
+    this.fill.intensity = 0.8e5 * ease;
+    this.hemi.intensity = 0.16 * ease;
+    this.spot.color.setRGB(1, this.evoShow ? 0.55 : 0.89, this.evoShow ? 0.4 : 0.72);
+    this.glowMat.opacity = 0.6 * ease;
     // the lights race with the wheel: the marquee chase runs at the wheel's own speed and slows as it
     // does; a win strobes every bulb for a moment
     this.spinV = Math.abs(this.angle - this.prevAngle) / Math.max(dt, 1e-3);
@@ -533,6 +622,16 @@ export class PrizeWheel {
     this.chase += dt * (4 + this.spinV * 2.4);
     const strobe = this.winT >= 0 && this.winT < 1.1 ? (Math.floor(this.winT * 10) % 2 ? 0.25 : 1) : -1;
     if (this.winT >= 0) this.winT += dt;
+    // the neon buzzes (the cyan tube is failing a little), its spill follows it, and a win pulses the backglow
+    const buzz = 0.95 + 0.05 * Math.sin(time * 3.1);
+    const fail = dyingNeon(time * 0.6, 7) > 0.5 ? 1 : 0.35;
+    this.neonOuter.color.setHex(this.evoShow ? 0xff3a1a : NEON_PINK).multiplyScalar(2.4 * ease * buzz);
+    this.neonInner.color.setHex(this.evoShow ? 0xffb02a : NEON_CYAN).multiplyScalar(2.2 * ease * fail);
+    this.signMat.color.setScalar(2.2 * ease * buzz);
+    this.neonL.intensity = 8e4 * ease * buzz;
+    this.neonR.intensity = 8e4 * ease * fail;
+    this.halo.color.setHex(this.evoShow ? 0xff2a2a : strobe >= 0 ? 0xffc040 : 0xb43cff);
+    this.halo.intensity = (strobe >= 0 ? 2.2e5 + 3e5 * strobe : 2.6e5) * ease;
     this.bulbs.begin();
     for (let i = 0; i < this.bulbMats.length; i++) {
       const on = strobe >= 0 ? strobe : Math.sin(this.chase - i * 0.9) > 0 ? 1 : 0.22;
@@ -642,6 +741,58 @@ export class PrizeWheel {
       screenFlash(this.flash * 0.5);
       this.flash = Math.max(0, this.flash - dt * 3);
     }
-    setObjectState(this.mat, time * 3, 0, 0, 0, [1, 1, 1, ease], [1, 0.75, 0.4, 0.35 * ease]);
+    setObjectState(this.mat, time * 3, 0, 0, 0, [1, 1, 1, ease], [0.85, 0.4, 1, 0.3 * ease]);
   }
+}
+
+/** A neon sign (D-67): the lettering as a glowing tube with a white-hot core, drawn once the font has loaded. */
+function neonSign(text: string, w: number, h: number, col: string): THREE.MeshBasicMaterial {
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = Math.round((1024 * h) / w);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const draw = () => {
+    const x = c.getContext('2d');
+    if (!x) return;
+    x.clearRect(0, 0, c.width, c.height);
+    let size = c.height * 0.7;
+    x.font = `${size}px Rye, serif`;
+    while (x.measureText(text).width > c.width * 0.86 && size > 8) x.font = `${(size -= 2)}px Rye, serif`;
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.lineJoin = 'round';
+    x.shadowColor = col;
+    x.shadowBlur = c.height * 0.22;
+    x.strokeStyle = col;
+    x.lineWidth = c.height * 0.07;
+    for (let i = 0; i < 2; i++) x.strokeText(text, c.width / 2, c.height / 2);
+    x.shadowBlur = 0;
+    x.lineWidth = c.height * 0.024;
+    x.strokeStyle = '#ffe8fa';
+    x.strokeText(text, c.width / 2, c.height / 2);
+    tex.needsUpdate = true;
+  };
+  draw();
+  document.fonts?.ready.then(draw).catch(() => undefined);
+  return new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: new THREE.Color(2.2, 2.2, 2.2) });
+}
+
+/** A soft round glow (for the light pooled behind the booth), coloured `rgb` (0-255). */
+function radialTexture(rgb: [number, number, number]): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const x = c.getContext('2d');
+  if (x) {
+    const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.55)`);
+    g.addColorStop(0.45, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.22)`);
+    g.addColorStop(1, `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`);
+    x.fillStyle = g;
+    x.fillRect(0, 0, 128, 128);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }

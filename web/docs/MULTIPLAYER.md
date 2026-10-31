@@ -243,6 +243,19 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### Interact presses (D-67, PROTO 9)
+
+- **What.** The Fun House quest's hands-on steps are presses of interact (E, or A on a pad). A guest's
+  press has to reach the host's sim, which runs the quest.
+- **How.** Every input a guest sends carries `ia`, its running count of presses (one byte, wrapping at
+  256). When the host applies an input whose count differs from the last one it applied for that seat,
+  that player's sim input gets a press for the tick. The count rides in every input, including the
+  redundant copies, so a lost packet never loses a press and a duplicate never doubles one. On a rejoin
+  the host relearns the count from the first input it hears.
+- **Test.** `tests/net.test.ts` sends one press over a link with 15% loss and 5% duplication and checks
+  the host's sim sees it on exactly one tick.
+- **PROTO 9.** The input packet grew a byte per input, so old builds can't join new lobbies.
+
 ### Chat and miniboss health (D-65, PROTO 8)
 
 - **Chat.**

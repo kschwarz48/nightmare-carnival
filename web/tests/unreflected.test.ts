@@ -30,6 +30,19 @@ function stand(g: Game, x: number, y: number, sec: number): void {
   }
 }
 
+/** Walk player `who` to (x, y), let a moment pass, press interact once, and let it land (D-67). */
+function press(g: Game, x: number, y: number, who = 0): void {
+  const p = g.players[who];
+  for (let i = 0; i < 40; i++) {
+    if (g.phase === 'draft') g.chooseDraft(0);
+    p.x = p.px = x;
+    p.y = p.py = y;
+    for (const e of g.active) if (e.alive && Math.hypot(e.x - x, e.y - y) < 300) g.despawnEnemy(e);
+    if (i === 20) g.inputs[who].interact = true;
+    g.tick();
+  }
+}
+
 function hitBoss(g: Game, b: BossBase): void {
   let guard = 0;
   while (!b.dead && guard++ < 8000) {
@@ -89,33 +102,38 @@ describe('the Unreflected, solved solo from the counter to the True Dawn (D-63)'
     expect(ch.stage).toBe(UR.Dormant);
     stand(g, 0, 1400, 0.5);
     expect(ch.stage).toBe(UR.Dormant);
-    // 1: the hand mirror
-    stand(g, U.counter.x, U.counter.y + 70, 0.3);
+    // 1: the hand mirror: standing at the counter does nothing; a press picks it up (D-67)
+    stand(g, U.counter.x, U.counter.y + 70, 2.5);
+    expect(ch.stage).toBe(UR.Dormant);
+    expect(ch.interaction(U.counter.x, U.counter.y + 70)?.kind).toBe('mirror');
+    expect(ch.interaction(U.counter.x + 400, U.counter.y)).toBeNull();
+    press(g, U.counter.x + 300, U.counter.y);
+    expect(ch.stage).toBe(UR.Dormant); // out of reach
+    press(g, U.counter.x, U.counter.y + 70);
     expect(ch.stage).toBe(UR.Faces);
-    // 2: the four faces (any order)
-    for (const i of [2, 0, 3, 1]) stand(g, U.faces[i].x, U.faces[i].y, 0.3);
+    // 2: the four faces (any order): a press at each glass
+    stand(g, U.faces[2].x, U.faces[2].y, 1);
+    expect(ch.freed).toBe(0);
+    for (const i of [2, 0, 3, 1]) press(g, U.faces[i].x, U.faces[i].y);
     expect(ch.freed).toBe(15);
     expect(ch.stage).toBe(UR.Mural);
-    // 3: the mural, from the footprints (stepping off resets the hold)
-    stand(g, U.mark.x, U.mark.y, 1.2);
-    stand(g, U.mark.x + 300, U.mark.y, 0.3);
-    stand(g, U.mark.x, U.mark.y, 1.2);
+    // 3: the mural, from the footprints
+    stand(g, U.mark.x, U.mark.y, 3);
     expect(ch.stage).toBe(UR.Mural);
-    stand(g, U.mark.x, U.mark.y, 1.0);
+    press(g, U.mark.x, U.mark.y);
     expect(ch.stage).toBe(UR.Overture);
     expect(ch.muralSeen).toBe(true);
-    // 4: the overture: a wrong plinth stops the music box, then the true order
-    const away = (j: number) => stand(g, U.plinths[j].x, U.plinths[j].y + 260, 0.2);
-    const wrong = [0, 1, 2, 3].find((j) => j !== ch.order[0])!;
-    stand(g, U.plinths[ch.order[0]].x, U.plinths[ch.order[0]].y + 70, 0.2);
-    away(ch.order[0]);
-    stand(g, U.plinths[wrong === ch.order[1] ? ch.order[2] : wrong].x, U.plinths[0].y + 70, 0.2);
+    // 4: the overture: a wrong plinth stops the music box, then the true order (walking past them does nothing)
+    for (const p of U.plinths) stand(g, p.x, p.y + 60, 0.3);
+    expect(ch.progress).toBe(0);
+    expect(cues).not.toContain('u_sour');
+    const wrong = [0, 1, 2, 3].find((j) => j !== ch.order[0] && j !== ch.order[1])!;
+    press(g, U.plinths[ch.order[0]].x, U.plinths[ch.order[0]].y + 70);
+    expect(ch.progress).toBe(1);
+    press(g, U.plinths[wrong].x, U.plinths[wrong].y + 70);
     expect(cues).toContain('u_sour');
     expect(ch.progress).toBe(0);
-    for (const j of ch.order) {
-      away(j);
-      stand(g, U.plinths[j].x, U.plinths[j].y + 70, 0.2);
-    }
+    for (const j of ch.order) press(g, U.plinths[j].x, U.plinths[j].y + 70);
     expect(ch.stage).toBe(UR.Projector);
     // 5: the projector warms only while someone stays (and cools when left)
     stand(g, U.projector.x, U.projector.y + 90, 12);
@@ -125,27 +143,33 @@ describe('the Unreflected, solved solo from the counter to the True Dawn (D-63)'
     expect(ch.charge).toBeLessThan(warm);
     stand(g, U.projector.x, U.projector.y + 90, U.charge - ch.charge + 0.5);
     expect(ch.stage).toBe(UR.Beam);
-    // 6: the beam: turn each pivot to its solution by standing on its plate
+    // 6: the beam: each press turns a pivot one notch; standing on its plate does nothing
     expect(DYNAMIC_WALLS.some((w) => w.style === 'door')).toBe(true);
+    const before = [...ch.pivots];
+    stand(g, U.beamPivots[0].x, U.beamPivots[0].y + 50, 3);
+    expect(ch.pivots).toEqual(before);
+    press(g, U.beamPivots[0].x, U.beamPivots[0].y + 50);
+    expect(ch.pivots[0]).toBe((before[0] + 1) % 4);
     U.beamPivots.forEach((pv, i) => {
-      for (let guard = 0; guard < 6 && ch.pivots[i] !== U.beamSolution[i]; guard++) stand(g, pv.x, pv.y + 50, U.pivotStep + 0.05);
-      stand(g, pv.x + 200, pv.y, 0.1);
+      for (let guard = 0; guard < 6 && ch.pivots[i] !== U.beamSolution[i]; guard++) press(g, pv.x, pv.y + 50);
     });
     expect(beamTrace(ch.pivots).hit).toBe(true);
     expect(ch.stage).toBe(UR.Vanity);
     expect(g.funhouseDoorOpen).toBe(true);
     stand(g, 0, 1400, 0.1);
     expect(DYNAMIC_WALLS.some((w) => w.style === 'door')).toBe(false);
-    // 7: the vanity, a wrong clock (the house laughs), then the true one
-    stand(g, U.vanity.x, U.vanity.y + 60, 0.3);
+    // 7: the vanity, a wrong clock (the house laughs), then the true one: a press each
+    press(g, U.vanity.x, U.vanity.y + 60);
     expect(ch.vanitySeen).toBe(true);
     const wrongClock = [0, 1, 2, 3].find((k) => k !== ch.trueClock)!;
     const ws = clockSpot(wrongClock);
-    stand(g, ws.x, ws.y, U.clockHold + 0.2);
+    press(g, ws.x, ws.y);
     expect(cues).toContain('u_wrong_clock');
     expect(ch.stage).toBe(UR.Vanity);
     const ts = clockSpot(ch.trueClock);
-    stand(g, ts.x, ts.y, U.clockHold + 0.2);
+    stand(g, ts.x, ts.y, 3);
+    expect(ch.stage).toBe(UR.Vanity);
+    press(g, ts.x, ts.y);
     expect(ch.stage).toBe(UR.Carrying);
     expect(ch.carrier).toBe(0);
     // 8: the Proprietor falls while Mira follows: the house shatters instead of the dawn
@@ -185,15 +209,14 @@ describe('the Unreflected in co-op (D-63)', () => {
   it('any player can act, Mira passes on if her carrier falls, and guests mirror the whole chain', () => {
     const host = fh({ seed: 8, players: [{ character: 'carny', name: 'Host' }, { character: 'strongman', name: 'Guest' }] });
     const ch = chainOf(host);
-    // the guest (player 1) picks up the mirror alone
+    // the guest (player 1) picks up the mirror alone, with their own press
     const p1 = host.players[1];
-    for (let i = 0; i < 20; i++) {
-      p1.x = p1.px = U.counter.x;
-      p1.y = p1.py = U.counter.y + 70;
-      host.player.x = host.player.px = 1500;
-      host.player.y = host.player.py = 1500;
-      host.tick();
-    }
+    host.player.x = host.player.px = 1500;
+    host.player.y = host.player.py = 1500;
+    host.inputs[0].interact = true; // the host pressing far away does nothing
+    host.tick();
+    expect(ch.stage).toBe(UR.Dormant);
+    press(host, U.counter.x, U.counter.y + 70, 1);
     expect(ch.stage).toBe(UR.Faces);
     // jump the chain to Carrying with player 1 as carrier, then down player 1
     ch.stage = UR.Carrying;

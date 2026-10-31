@@ -11,7 +11,7 @@ import { Reader, Writer } from './codec';
 import { isMapId, type MapId } from '../data/maps';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 8;
+export const PROTO = 9;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
@@ -350,6 +350,11 @@ export interface NetInput {
   ax: number;
   ay: number;
   aim: boolean;
+  /**
+   * How many times the guest has pressed interact (wraps at 256; D-67). Every input carries the count,
+   * so a lost packet never loses a press: the host acts once each time the count changes.
+   */
+  ia?: number;
 }
 
 export interface InputPacket {
@@ -377,6 +382,7 @@ export function encodeInputPacket(p: InputPacket, w = new Writer(128)): ArrayBuf
     w.i8(q8(i.ax));
     w.i8(q8(i.ay));
     w.u8(i.aim ? 1 : 0);
+    w.u8((i.ia ?? 0) & 255);
   }
   return w.done();
 }
@@ -398,7 +404,7 @@ export function decodeInputPacket(buf: ArrayBuffer): InputPacket | null {
         mx /= l;
         my /= l;
       }
-      inputs.push({ seq: seq - (n - 1 - k), mx, my, ax: r.i8() / 127, ay: r.i8() / 127, aim: (r.u8() & 1) === 1 });
+      inputs.push({ seq: seq - (n - 1 - k), mx, my, ax: r.i8() / 127, ay: r.i8() / 127, aim: (r.u8() & 1) === 1, ia: r.u8() });
     }
     return { ackSnap, dictSize, inputs };
   } catch {

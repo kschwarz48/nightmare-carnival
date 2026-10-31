@@ -225,6 +225,12 @@ verified, and how.
 - **Integration:** map selection in the solo character screen and the co-op lobby (PROTO 7), the
   Midway's Fun House gate, and a new passive unlock.
 
+**Lighting, readable walls, E to interact (D-67):** every light pool now comes from a fixture you
+can see (sconces, pendants, capital lamps, picture lights, stage booms, chandeliers and floor lamps,
+all with halos), moonlight falls through tall windows, walls wear pale caps with glowing edges and a
+contact shade, and every hands-on quest step is a press of interact with a prompt. Evidence:
+`VISUAL_QA.md`; quest rules: `EASTER_EGG_FUN_HOUSE.md`.
+
 **Verified locally:**
 - The full Vitest suite passes, and the production build passes.
 - Visual captures in the dev build (in-app browser, 1600×900) cover:

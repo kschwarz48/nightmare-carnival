@@ -272,13 +272,33 @@ export function installDevTools(app: App): void {
       app.draft.hide();
       app.overlayPause = true;
     };
-    const run = (char = 'carny') => {
+    const run = (char = 'carny', map: MapId = 'carnival_core') => {
       app.overlayPause = false;
       app.renderer.zoom = 1;
       app.renderer.inspect = null;
-      app.startRun({ character: char, difficulty: 'midway', curse: false, seed });
+      if (map === 'fun_house') app.save.data.funhouseTester = true;
+      app.startRun({ character: char, difficulty: 'midway', curse: false, seed, map });
       app.game!.cfg.godMode = true;
       return app.game!;
+    };
+    /** a minute into a Fun House night, then the player stood at (x, y) */
+    const house = (x: number, y: number) => {
+      const g = run('carny', 'fun_house');
+      api.advance(60);
+      g.player.x = g.player.px = x;
+      g.player.y = g.player.py = y;
+      api.advance(0.5);
+    };
+    /** a chest opened at the player, the prize wheel stepped `frames` into its show */
+    const wheel = (frames: number) => {
+      const g = run();
+      api.advance(20);
+      g.spawnPickup('chest', g.player.x, g.player.y, 0);
+      for (let i = 0; i < 30 && !app.prize.active; i++) g.tick();
+      for (let i = 0; i < frames; i++) app.prize.update(1 / 60, () => {});
+      // what the app's own frame eases to while a wheel is up: less bloom, the booth graded as a lit show
+      app.renderer.post.bloomScale = 0.35;
+      app.renderer.overlayFocus = 1;
     };
     const STATES: Record<string, () => void> = {
       /** a minute into a night: the opening crowd around the player on the plaza */
@@ -287,6 +307,17 @@ export function installDevTools(app: App): void {
       'late-combat': () => { const g = run('ride_operator'); api.jump(1150); api.advance(45); g.cfg.godMode = true; },
       /** the Ringmaster's stage: boss lighting, telegraphs, summons */
       'boss-ringmaster': () => { run(); api.advance(20); api.spawnBoss('ringmaster', 0, -380); api.advance(5); },
+      // the Fun House, room by room (D-67)
+      'fh-entrance': () => house(0, 1450),
+      'fh-maze': () => house(-1450, -330),
+      'fh-maze-dark': () => house(-1795, 390),
+      'fh-rotunda': () => house(0, -100),
+      'fh-corridor': () => house(1450, -420),
+      'fh-gallery': () => house(-1300, -1780),
+      'fh-chamber': () => house(950, -1640),
+      /** the prize wheel mid-spin, and as it lands */
+      'prize-wheel': () => wheel(80),
+      'prize-wheel-landed': () => wheel(330),
     };
     (window as any).__THREE_GAME_TEST_HOOKS__ = {
       seed(n: number) { seed = n | 0; },

@@ -3,7 +3,7 @@
 // mirror panels are framed boxes whose glass the mirror system draws.
 
 import * as THREE from 'three';
-import { C, SURF, box, cone, cyl, ellipsoid, extrude, lathe, rbox, smoothShape, sphere, starShape, torus, vnoise, weather, type ColorFn } from '../../core/geo';
+import { C, SURF, box, cone, cyl, ellipsoid, extrude, lathe, rbox, smoothShape, sphere, starShape, torus, vnoise, weather, type ColorFn, type Surf } from '../../core/geo';
 import { ModelBuilder, PAL, bulb, eyes } from '../../models/kit';
 
 export const SEG = 200;
@@ -17,6 +17,20 @@ const damask: ColorFn = (p) => {
 };
 const velvetRed = weather(0x6a0f1c, 0.35, 0.02);
 const woodDark = weather(PAL.woodDark, 0.35, 0.05);
+const marble = weather(0xb0a184, 0.28, 0.025);
+/** Gilt paint rather than bare metal (D-67): big flat gold surfaces seen from above stay clean (bare metal
+ * picks up the shared shader's verdigris, which reads as camouflage blotches across a plinth or a lid). */
+const GILT: Surf = [0.3, 0.45];
+
+/**
+ * A wall's cap (D-67): pale marble along the top with a gilt edge either side that glows faintly, so from
+ * above every wall reads as a clean line even where no lamp reaches. The camera sees all of the tops.
+ */
+function cap(m: ModelBuilder, y: number, depth: number, line: number, emit = 0.42, tilt = 0): void {
+  m.add(box(SEG, 5, depth), { col: marble, pos: [0, y + 2.5, 0], rot: [0, 0, tilt], surf: SURF.porcelain });
+  for (const s of [-1, 1]) m.add(box(SEG, 2.2, 2.6), { col: C(line), pos: [0, y + 5.6, s * (depth / 2 - 1.3)], rot: [0, 0, tilt], surf: GILT, emit });
+}
+const GILT_LINE = 0xffc46a;
 
 // ---------------------------------------------------------------- walls (one SEG section)
 export function wallSection(style: string): THREE.BufferGeometry {
@@ -28,14 +42,16 @@ export function wallSection(style: string): THREE.BufferGeometry {
       m.add(box(SEG, 72, t), { col: woodDark, pos: [0, 36, 0], surf: SURF.wood });
       for (const x of [-50, 50]) m.add(rbox(80, 44, 3, 2, 1), { col: weather(PAL.wood, 0.3), pos: [x, 36, front + 1], surf: SURF.wood });
       m.add(box(SEG, H - 92, t - 4), { col: damask, pos: [0, 72 + (H - 92) / 2, 0], surf: SURF.cloth });
-      m.add(box(SEG, 6, t + 6), { col: PAL.gold, pos: [0, 74, 0], surf: SURF.gold });
+      m.add(box(SEG, 6, t + 6), { col: PAL.gold, pos: [0, 74, 0], surf: GILT });
       m.add(box(SEG, 20, t + 10), { col: woodDark, pos: [0, H - 10, 0], surf: SURF.wood });
+      cap(m, H, t + 12, GILT_LINE);
       break;
     case 'curtain':
       m.add(box(SEG, H, t * 0.6), { col: C(0x2a0810), pos: [0, H / 2, -t * 0.2], surf: SURF.velvet });
       for (let i = 0; i < 9; i++) m.add(cyl(13, 15, H - 14, 8), { col: velvetRed, pos: [-SEG / 2 + 11 + i * 22.2, (H - 14) / 2, front - 6], surf: SURF.velvet });
-      m.add(box(SEG, 16, t + 10), { col: PAL.gold, pos: [0, H - 6, 0], surf: SURF.gold });
-      for (const x of [-60, 60]) m.add(sphere(5, 8, 6), { col: PAL.gold, pos: [x, H - 26, front + 6], surf: SURF.gold });
+      m.add(box(SEG, 16, t + 10), { col: PAL.gold, pos: [0, H - 6, 0], surf: GILT });
+      for (const x of [-60, 60]) m.add(sphere(5, 8, 6), { col: PAL.gold, pos: [x, H - 26, front + 6], surf: GILT });
+      cap(m, H + 2, t + 12, GILT_LINE);
       break;
     case 'crooked': {
       // boards leaning every which way, painted in carnival stripes, peeling
@@ -44,6 +60,7 @@ export function wallSection(style: string): THREE.BufferGeometry {
         m.add(box(SEG / 6 - 3, H - 10, t), { col: weather(i % 2 ? 0xc8a878 : 0x8a1f24, 0.45, 0.04, PAL.woodPale), pos: [-SEG / 2 + (i + 0.5) * (SEG / 6), (H - 10) / 2, 0], rot: [0, 0, lean], surf: SURF.wood });
       }
       m.add(box(SEG + 10, 14, t + 8), { col: woodDark, pos: [0, H - 6, 0], rot: [0, 0, 0.03], surf: SURF.wood });
+      cap(m, H + 1, t + 10, 0xff7048, 0.5, 0.03); // the corridor's caps are edged in carnival red
       break;
     }
     default: {
@@ -51,13 +68,13 @@ export function wallSection(style: string): THREE.BufferGeometry {
       const dark = style === 'outer' ? C(0x1a1016) : null;
       m.add(box(SEG, 16, t + 6), { col: woodDark, pos: [0, 8, 0], surf: SURF.wood });
       m.add(box(SEG, H - 36, t), { col: dark ?? plaster, pos: [0, 16 + (H - 36) / 2, 0], surf: SURF.paint });
-      for (const y of [66, H - 52]) m.add(box(SEG, 3, 2), { col: PAL.gold, pos: [0, y, front + 1], surf: SURF.gold });
+      for (const y of [66, H - 52]) m.add(box(SEG, 3, 2), { col: PAL.gold, pos: [0, y, front + 1], surf: GILT });
       // a sunburst fan between the bands: the house's deco signature
-      for (let k = -3; k <= 3; k++) m.add(box(2, 40, 1.5), { col: PAL.gold, pos: [Math.sin(k * 0.3) * 20, 92 + Math.cos(k * 0.3) * 20, front + 0.8], rot: [0, 0, -k * 0.3], surf: SURF.gold });
+      for (let k = -3; k <= 3; k++) m.add(box(2, 40, 1.5), { col: PAL.gold, pos: [Math.sin(k * 0.3) * 20, 92 + Math.cos(k * 0.3) * 20, front + 0.8], rot: [0, 0, -k * 0.3], surf: GILT });
       m.add(box(18, H - 20, t + 8), { col: woodDark, pos: [-SEG / 2 + 9, (H - 20) / 2, 0], surf: SURF.wood });
       for (let f = 0; f < 3; f++) m.add(box(2, H - 40, 1.5), { col: C(0x24160e), pos: [-SEG / 2 + 4 + f * 5, (H - 20) / 2, front + 4.6], surf: SURF.wood });
       m.add(box(SEG, 20, t + 12), { col: woodDark, pos: [0, H - 10, 0], surf: SURF.wood });
-      m.add(box(SEG, 3, t + 14), { col: PAL.gold, pos: [0, H, 0], surf: SURF.gold });
+      cap(m, H, t + 14, GILT_LINE);
       break;
     }
   }
@@ -70,14 +87,19 @@ export function mirrorPanel(len: number, door = false): THREE.BufferGeometry {
   const m = new ModelBuilder();
   const frame = door ? C(0xd8a088) : C(0xb8933e);
   m.add(box(len, H, t * 0.6), { col: C(0x1a1a20), pos: [0, H / 2, -t * 0.2], surf: SURF.iron });
-  m.add(box(len, 12, t), { col: frame, pos: [0, 6, 0], surf: SURF.gold });
-  m.add(box(len, 12, t), { col: frame, pos: [0, H - 6, 0], surf: SURF.gold });
-  for (const s of [-1, 1]) m.add(box(12, H, t), { col: frame, pos: [s * (len / 2 - 6), H / 2, 0], surf: SURF.gold });
-  // finials on top
-  for (const s of [-1, 1]) m.add(sphere(5, 8, 6), { col: frame, pos: [s * (len / 2 - 6), H + 4, 0], surf: SURF.gold });
+  m.add(box(len, 12, t), { col: frame, pos: [0, 6, 0], surf: GILT });
+  m.add(box(len, 12, t), { col: frame, pos: [0, H - 6, 0], surf: GILT });
+  for (const s of [-1, 1]) m.add(box(12, H, t), { col: frame, pos: [s * (len / 2 - 6), H / 2, 0], surf: GILT });
+  // a silver line along the top that catches the light, and a vanity bulb on each post (D-67): the maze's
+  // layout reads from above even in its darkest corners, and the glass multiplies the bulbs
+  m.add(box(len - 22, 1.6, 3.4), { col: C(0xb8d4f0), pos: [0, H + 0.8, 0], surf: SURF.glass, emit: 0.14 });
+  for (const s of [-1, 1]) {
+    m.add(cyl(4.6, 5.6, 4, 8), { col: frame, pos: [s * (len / 2 - 6), H + 2, 0], surf: GILT });
+    m.add(sphere(4.8, 8, 6), { col: C(0xffe4b8), pos: [s * (len / 2 - 6), H + 8.5, 0], surf: SURF.bulb, emit: 1.3 });
+  }
   if (door) {
-    m.add(torus(18, 2.4, 6, 18), { col: frame, pos: [0, H - 2, t / 2], surf: SURF.gold });
-    m.add(extrude(starShape(5, 10, 4), 2, 0.5, 1), { col: C(0xffd8c8), pos: [0, H - 2, t / 2 + 1], surf: SURF.gold, emit: 0.6 });
+    m.add(torus(18, 2.4, 6, 18), { col: frame, pos: [0, H - 2, t / 2], surf: GILT });
+    m.add(extrude(starShape(5, 10, 4), 2, 0.5, 1), { col: C(0xffd8c8), pos: [0, H - 2, t / 2 + 1], surf: GILT, emit: 0.6 });
   }
   return m.build({ ao: 0.2 });
 }
@@ -95,23 +117,40 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
     m.add(cyl(24, 26, 200, 14), { col: weather(0x2a3a34, 0.3, 0.03), pos: [0, 116, 0], surf: SURF.porcelain });
     for (let k = 0; k < 7; k++) {
       const a = (k / 7) * Math.PI * 2;
-      m.add(box(2.4, 196, 3), { col: PAL.gold, pos: [Math.cos(a) * 24.6, 116, Math.sin(a) * 24.6], rot: [0, -a, 0], surf: SURF.gold });
+      m.add(box(2.4, 196, 3), { col: PAL.gold, pos: [Math.cos(a) * 24.6, 116, Math.sin(a) * 24.6], rot: [0, -a, 0], surf: GILT });
     }
-    m.add(lathe([[0, 0], [30, 0], [36, 10], [30, 20], [0, 22]], 14), { col: PAL.gold, pos: [0, 214, 0], surf: SURF.gold });
+    m.add(lathe([[0, 0], [30, 0], [36, 10], [30, 20], [0, 22]], 14), { col: PAL.gold, pos: [0, 214, 0], surf: GILT });
   }),
   fh_kaleidoscope: () => B((m) => {
     m.add(cyl(110, 120, 28, 6), { col: woodDark, pos: [0, 14, 0], surf: SURF.wood });
-    m.add(cyl(118, 118, 6, 6), { col: PAL.gold, pos: [0, 30, 0], surf: SURF.gold });
-    // a hexagonal tower of mirrors with gilt edges
-    m.add(cyl(80, 92, 280, 6), { col: C(0xc8e0ec), pos: [0, 172, 0], surf: SURF.glass, emit: 0.2 });
+    m.add(cyl(118, 118, 6, 6), { col: PAL.gold, pos: [0, 30, 0], surf: GILT });
+    // a hexagonal tower of dark mirror glass, gilt at its corners and bands, and on every face two
+    // stained-glass rosettes like the view down a kaleidoscope (D-67)
+    m.add(cyl(80, 92, 280, 6), { col: C(0x4a5e6c), pos: [0, 172, 0], surf: SURF.glass, emit: 0.05 });
+    const radius = (y: number) => 92 - (12 * (y - 32)) / 280;
     for (let k = 0; k < 6; k++) {
-      const a = (k / 6) * Math.PI * 2;
-      m.add(box(5, 284, 5), { col: PAL.gold, pos: [Math.cos(a) * 86, 172, Math.sin(a) * 86], surf: SURF.gold });
+      const a = (k / 6) * Math.PI * 2 + Math.PI / 6;
+      m.add(box(5, 284, 5), { col: PAL.gold, pos: [Math.cos(a) * 87, 172, Math.sin(a) * 87], surf: GILT });
     }
-    m.add(cyl(96, 82, 18, 6), { col: PAL.gold, pos: [0, 320, 0], surf: SURF.gold });
+    for (const y of [42, 172, 302]) m.add(cyl(radius(y) + 3, radius(y) + 3, 5, 6), { col: PAL.gold, pos: [0, y, 0], surf: GILT });
+    const ROSE = [0xff3a4a, 0xffb02a, 0x3ad8a0, 0x3a7aff, 0xb05aff, 0xff5ab8];
+    for (let k = 0; k < 6; k++) {
+      const phi = (k / 6) * Math.PI * 2; // the face's outward direction
+      const nx = Math.cos(phi), nz = Math.sin(phi), tx = -nz, tz = nx;
+      for (const [y, n, rr] of [[110, 8, 24], [238, 6, 18]]) {
+        const ap = radius(y) * 0.866 + 2.5;
+        m.add(sphere(5, 8, 6), { col: PAL.gold, pos: [nx * ap, y, nz * ap], surf: GILT });
+        for (let i = 0; i < n; i++) {
+          const psi = (i / n) * Math.PI * 2;
+          const u = Math.cos(psi) * rr, v = Math.sin(psi) * rr;
+          m.add(box(rr * 0.5, rr * 0.5, 2), { col: ROSE[(i + k) % ROSE.length], pos: [nx * ap + tx * u, y + v, nz * ap + tz * u], rot: [0, Math.PI / 2 - phi, Math.PI / 4 + psi], surf: SURF.glass, emit: 0.9 });
+        }
+      }
+    }
+    m.add(cyl(96, 82, 18, 6), { col: PAL.gold, pos: [0, 320, 0], surf: GILT });
   }, 0.2),
   fh_kaleido_crown: () => B((m) => {
-    m.add(extrude(starShape(8, 70, 34), 10, 2, 1), { col: PAL.gold, rot: [-Math.PI / 2, 0, 0], surf: SURF.gold });
+    m.add(extrude(starShape(8, 70, 34), 10, 2, 1), { col: PAL.gold, rot: [-Math.PI / 2, 0, 0], surf: GILT });
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2;
       bulb(m, [Math.cos(a) * 62, 14, Math.sin(a) * 62], 6, [0xff4a4a, 0x4ad8ff, 0xffd84a, 0xb04aff][k % 4], 0, undefined, 1.4);
@@ -119,16 +158,16 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
   }, 0),
   fh_booth: () => B((m) => {
     m.add(rbox(160, 90, 120, 6, 2), { col: weather(0x6a1a24, 0.4, 0.03), pos: [0, 45, 0], surf: SURF.wood });
-    m.add(box(140, 70, 4), { col: C(0x9fd0e0), pos: [0, 120, 52], surf: SURF.glass, emit: 0.35 });
-    m.add(box(150, 8, 110), { col: PAL.gold, pos: [0, 88, 0], surf: SURF.gold });
+    m.add(box(140, 70, 4), { col: C(0x5a8494), pos: [0, 120, 52], surf: SURF.glass, emit: 0.12 });
+    m.add(box(150, 8, 110), { col: PAL.gold, pos: [0, 88, 0], surf: GILT });
     m.add(extrude(smoothShape([[-80, 0], [80, 0], [80, 20], [40, 50], [0, 62], [-40, 50], [-80, 20]], 30), 110, 2, 1), { col: weather(0x2a1a24, 0.3), pos: [0, 156, -55], surf: SURF.wood });
-    m.add(box(120, 22, 3), { col: C(0xffd890), pos: [0, 176, 60], surf: SURF.paint, emit: 1.1 });
+    m.add(box(120, 22, 3), { col: C(0xffd890), pos: [0, 176, 60], surf: SURF.paint, emit: 0.6 });
     for (let k = 0; k < 7; k++) bulb(m, [-60 + k * 20, 196, 58], 3.6, PAL.amber, 0, undefined, 1.3);
   }),
   fh_counter: () => B((m) => {
     m.add(rbox(220, 70, 70, 4, 2), { col: weather(PAL.wood, 0.4), pos: [0, 35, 0], surf: SURF.wood });
     m.add(box(230, 6, 80), { col: woodDark, pos: [0, 72, 0], surf: SURF.wood });
-    m.add(box(160, 26, 3), { col: C(0xe8d8a8), pos: [0, 104, -20], surf: SURF.paint, emit: 0.4 });
+    m.add(box(160, 26, 3), { col: C(0xe8d8a8), pos: [0, 104, -20], surf: SURF.paint, emit: 0.18 });
     m.add(box(4, 40, 4), { col: woodDark, pos: [-70, 90, -20], surf: SURF.wood });
     m.add(box(4, 40, 4), { col: woodDark, pos: [70, 90, -20], surf: SURF.wood });
     // lost things: a hat, an umbrella, a doll, a shoe
@@ -156,7 +195,7 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
   fh_poster: (v) => B((m) => {
     const cols = [0x8a1f24, 0x1f4a6a, 0x5a2a6a, 0x2a5a3a];
     m.add(box(110, 160, 3), { col: weather(cols[v % 4], 0.5, 0.05, 0xd8c8a0), pos: [0, 150, 0], surf: SURF.paint });
-    m.add(box(116, 166, 2), { col: PAL.gold, pos: [0, 150, -1.5], surf: SURF.gold });
+    m.add(box(116, 166, 2), { col: PAL.gold, pos: [0, 150, -1.5], surf: GILT });
     // a face on every poster: the house is in all of its advertising
     m.add(ellipsoid(30, 36, 2, 14, 8), { col: C(0xe8dcc0), pos: [0, 170, 2], surf: SURF.paint });
     m.add(ellipsoid(22, 6, 2, 12, 4), { col: C(0x2a0408), pos: [0, 152, 3], surf: SURF.paint });
@@ -192,7 +231,7 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
   }),
   fh_plinth: (v) => B((m) => {
     m.add(rbox(90, 44, 90, 4, 2), { col: weather(0xd8d0c0, 0.25, 0.03), pos: [0, 22, 0], surf: SURF.porcelain });
-    m.add(box(96, 6, 96), { col: PAL.gold, pos: [0, 46, 0], surf: SURF.gold });
+    m.add(box(96, 6, 96), { col: PAL.gold, pos: [0, 46, 0], surf: GILT });
     m.add(box(50, 14, 2), { col: PAL.brass, pos: [0, 24, 46], surf: SURF.brass });
     // the performer's empty costume on a dress form; the head is lit by the quest
     const costume = [0x9a5a2a, 0xe8a0b8, 0xe8e0d0, 0x14101a][v % 4];
@@ -220,8 +259,8 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
   }),
   fh_musicbox: () => B((m) => {
     m.add(rbox(150, 80, 110, 8, 2), { col: weather(0x4a1a2a, 0.35, 0.03), pos: [0, 40, 0], surf: SURF.wood });
-    m.add(box(156, 8, 116), { col: PAL.gold, pos: [0, 82, 0], surf: SURF.gold });
-    for (let k = 0; k < 6; k++) m.add(box(14, 30, 2), { col: PAL.gold, pos: [-55 + k * 22, 40, 56], surf: SURF.gold });
+    m.add(box(156, 8, 116), { col: PAL.gold, pos: [0, 82, 0], surf: GILT });
+    for (let k = 0; k < 6; k++) m.add(box(14, 30, 2), { col: PAL.gold, pos: [-55 + k * 22, 40, 56], surf: GILT });
     m.add(cyl(30, 30, 10, 18), { col: C(0xd8c8e8), pos: [0, 92, 0], surf: SURF.porcelain });
     m.add(cyl(2, 2, 20, 6), { col: PAL.brass, pos: [80, 50, 0], rot: [0, 0, Math.PI / 2], surf: SURF.brass });
   }),
@@ -247,12 +286,12 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
     const W = v === 1 ? 1420 : v === 2 ? 260 : 240, H = v === 1 ? 280 : 230;
     const n = Math.round(W / 26);
     for (let i = 0; i < n; i++) m.add(cyl(14, 16, H, 8), { col: v === 3 ? weather(0x4a1a5a, 0.3, 0.02) : velvetRed, pos: [-W / 2 + 13 + i * (W / n), H / 2, Math.sin(i * 1.3) * 3], surf: SURF.velvet });
-    m.add(box(W + 20, 16, 30), { col: PAL.gold, pos: [0, H + 4, 0], surf: SURF.gold });
-    if (v !== 3) for (const s of [-1, 1]) m.add(sphere(9, 8, 6), { col: PAL.gold, pos: [s * (W / 2 - 30), H * 0.55, 18], surf: SURF.gold });
+    m.add(box(W + 20, 16, 30), { col: PAL.gold, pos: [0, H + 4, 0], surf: GILT });
+    if (v !== 3) for (const s of [-1, 1]) m.add(sphere(9, 8, 6), { col: PAL.gold, pos: [s * (W / 2 - 30), H * 0.55, 18], surf: GILT });
   }),
   fh_stage: () => B((m) => {
     m.add(box(1300, 10, 280), { col: weather(PAL.woodDark, 0.3, 0.02), pos: [0, 5, 0], surf: SURF.wood });
-    m.add(box(1310, 8, 6), { col: PAL.gold, pos: [0, 10, 141], surf: SURF.gold });
+    m.add(box(1310, 8, 6), { col: PAL.gold, pos: [0, 10, 141], surf: GILT });
     for (let k = 0; k < 24; k++) bulb(m, [-620 + k * 54, 12, 136], 4, PAL.amber, 0, undefined, 1.2);
   }, 0.2),
   fh_clock: () => B((m) => {
@@ -262,14 +301,14 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
       const a = (k / 12) * Math.PI * 2;
       m.add(box(2.4, k % 3 ? 5 : 9, 1), { col: PAL.ink, pos: [Math.sin(a) * 34, 150 + Math.cos(a) * 34, 7.4], rot: [0, 0, -a], surf: SURF.paint });
     }
-    m.add(torus(46, 3, 6, 24), { col: PAL.gold, pos: [0, 150, 4], surf: SURF.gold });
+    m.add(torus(46, 3, 6, 24), { col: PAL.gold, pos: [0, 150, 4], surf: GILT });
   }, 0.2),
   fh_clock_hand: () => B((m) => {
     m.add(box(3, 30, 1.2), { col: PAL.ink, pos: [0, 13, 0], surf: SURF.paint });
   }, 0),
   fh_vanity: () => B((m) => {
     m.add(rbox(140, 60, 44, 4, 2), { col: weather(0xd8b8c0, 0.35, 0.03), pos: [0, 30, 0], surf: SURF.wood });
-    m.add(box(110, 120, 6), { col: PAL.gold, pos: [0, 126, -14], surf: SURF.gold });
+    m.add(box(110, 120, 6), { col: PAL.gold, pos: [0, 126, -14], surf: GILT });
     m.add(box(96, 106, 2), { col: C(0xc8e0ea), pos: [0, 126, -10], surf: SURF.glass, emit: 0.35 });
     for (let k = 0; k < 6; k++) {
       bulb(m, [-54, 78 + k * 20, -10], 4, PAL.amber, 0, undefined, 1.3);
@@ -279,12 +318,12 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
   }),
   fh_crystal: () => B((m) => {
     m.add(cyl(26, 32, 30, 8), { col: woodDark, pos: [0, 15, 0], surf: SURF.wood });
-    m.add(cyl(20, 20, 4, 8), { col: PAL.gold, pos: [0, 32, 0], surf: SURF.gold });
+    m.add(cyl(20, 20, 4, 8), { col: PAL.gold, pos: [0, 32, 0], surf: GILT });
     m.add(ellipsoid(16, 34, 16, 6, 4), { col: C(0xb8fff0), pos: [0, 66, 0], surf: SURF.glass, emit: 0.9 });
   }, 0.2),
   fh_mark: () => B((m) => {
     for (const s of [-1, 1]) m.add(ellipsoid(9, 1.5, 18, 10, 4), { col: PAL.brass, pos: [s * 12, 1, 0], rot: [0, s * 0.1, 0], surf: SURF.brass, emit: 0.2 });
-    m.add(torus(30, 1.4, 4, 24), { col: PAL.gold, pos: [0, 1, 0], rot: [Math.PI / 2, 0, 0], surf: SURF.gold });
+    m.add(torus(30, 1.4, 4, 24), { col: PAL.gold, pos: [0, 1, 0], rot: [Math.PI / 2, 0, 0], surf: GILT });
   }, 0),
   fh_bench: () => B((m) => {
     m.add(box(150, 8, 40), { col: weather(0x6a1a24, 0.4), pos: [0, 40, 0], surf: SURF.velvet });
@@ -302,14 +341,19 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
   fh_piston_head: () => B((m) => {
     m.add(cyl(62, 66, 40, 16), { col: weather(PAL.iron, 0.4, 0.05), surf: SURF.iron });
     m.add(cyl(68, 68, 6, 16), { col: PAL.mustard, pos: [0, -18, 0], surf: SURF.paint });
+    // hazard stripes round its crown: from above it reads as a crusher, not a manhole cover (D-67)
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      m.add(box(30, 2, 22), { col: k % 2 ? PAL.mustard : PAL.ink, pos: [Math.cos(a) * 44, 20.5, Math.sin(a) * 44], rot: [0, -a, 0], surf: SURF.paint });
+    }
     m.add(cyl(10, 10, 220, 8), { col: PAL.iron, pos: [0, 130, 0], surf: SURF.iron });
   }, 0.2),
   fh_pivot: () => B((m) => {
     m.add(cyl(34, 40, 14, 12), { col: woodDark, pos: [0, 7, 0], surf: SURF.wood });
-    m.add(cyl(30, 30, 3, 12), { col: PAL.gold, pos: [0, 15, 0], surf: SURF.gold });
+    m.add(cyl(30, 30, 3, 12), { col: PAL.gold, pos: [0, 15, 0], surf: GILT });
   }, 0.2),
   fh_pivot_mirror: () => B((m) => {
-    m.add(box(8, 70, 66), { col: PAL.gold, pos: [0, 56, 0], surf: SURF.gold });
+    m.add(box(8, 70, 66), { col: PAL.gold, pos: [0, 56, 0], surf: GILT });
     m.add(box(9, 60, 56), { col: C(0xd8f0ff), pos: [0, 56, 0], surf: SURF.glass, emit: 0.6 });
     m.add(cyl(3, 3, 24, 6), { col: PAL.brass, pos: [0, 16, 0], surf: SURF.brass });
   }, 0),
@@ -326,8 +370,8 @@ export const FUNHOUSE_PROPS: Record<string, (variant: number) => THREE.BufferGeo
   }),
   fh_chandelier: () => B((m) => {
     m.add(cyl(1.2, 1.2, 120, 4), { col: PAL.iron, pos: [0, 380, 0], surf: SURF.iron });
-    m.add(torus(40, 3, 6, 18), { col: PAL.gold, pos: [0, 312, 0], rot: [Math.PI / 2, 0, 0], surf: SURF.gold });
-    m.add(lathe([[0, 0], [10, 0], [16, 16], [8, 30], [0, 34]], 12), { col: PAL.gold, pos: [0, 300, 0], surf: SURF.gold });
+    m.add(torus(40, 3, 6, 18), { col: PAL.gold, pos: [0, 312, 0], rot: [Math.PI / 2, 0, 0], surf: GILT });
+    m.add(lathe([[0, 0], [10, 0], [16, 16], [8, 30], [0, 34]], 12), { col: PAL.gold, pos: [0, 300, 0], surf: GILT });
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2;
       bulb(m, [Math.cos(a) * 40, 318, Math.sin(a) * 40], 5, PAL.amber, 0, undefined, 1.6);

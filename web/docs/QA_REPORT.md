@@ -115,6 +115,47 @@ understate that character.
 
 ---
 
+## Fun House lighting, readable walls, E to interact, neon prize wheel — 2026-10-31 (D-67)
+
+**Changed:**
+- The Fun House is lit from fixtures you can see (sconces, pendants, capital lamps, picture lights,
+  stage booms with drifting spots and beams), every lamp wears a halo, moonlight falls through tall
+  windows, and the indoor ambience no longer thickens the haze toward the map's edges.
+- Walls wear pale caps with glowing gilt edges; mirror panels a silver top line and post bulbs; a
+  contact shade runs where walls meet the floor.
+- The Unreflected's hands-on steps are presses of interact (E / pad A) with an on-screen prompt; the
+  projector stays a hold. Guests' presses travel as a running count in the input packet (PROTO 9).
+- The prize wheel is a neon booth: black lacquer, gilded frame, magenta and cyan neon, a deep wheel,
+  a shadow-casting key light, neon spill and a dark neon reflection environment.
+
+**Automated:** 238 tests pass (16 files), and the production build passes.
+- `unreflected.test.ts`: the solo walk now presses interact at each step, and checks that standing at
+  the counter, a face, the footprints, a pivot and the true clock does nothing; that walking past every
+  plinth doesn't play or sour the overture; that a press out of reach does nothing; and that a guest's
+  own press acts while the host's press far away doesn't.
+- `net.test.ts`: interact counts round-trip and wrap; one guest press over a link with 15% loss and 5%
+  duplication reaches the host's sim on exactly one tick. Mutation-checked: with the host's
+  count comparison disabled, the test fails.
+
+**In the browser (dev build, 1600×900, High):**
+- Before/after captures of all seven house views, the Carnival Core plaza (unchanged) and the wheel
+  mid-spin and landed, with pixel metrics, renderer totals and a frame-time bench: `VISUAL_QA.md`. The
+  maze's dark corner went from contrast 64.8 / mean 25.5 to 100.9 / 43.3.
+- Interact, through the real input path: standing two seconds at the Lost & Found counter left the
+  quest dormant; a dispatched E keydown set the press, and the next tick picked up the hand mirror; the
+  press cleared after that tick. The prompt ("E · Pick up the hand mirror") was seen floating over the
+  counter in a screenshot.
+- The production build (`vite preview`) boots to the title with no console errors, and the dev hooks
+  are absent.
+
+**Not verified:**
+- A person playing the new lighting through a crowded night, or the quest end to end with E.
+- A co-op night on two machines with PROTO 9 (loopback tests only).
+- The wheel in motion: only stills at two moments, and the first chest's icons load as before.
+- Mobile viewports.
+
+---
+
 ## Party XP 150% of solo — 2026-10-30 (D-66)
 
 **Changed:** a party's tickets are worth 1.5×. The crowd density and the XP per level are unchanged.

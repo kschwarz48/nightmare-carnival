@@ -8,10 +8,14 @@
 //   3 OVERTURE   Touch the plinths in that order (a wrong one stops the music box: start again).
 //   4 PROJECTOR  The gallery's great curtain parts on a prism projector: keep someone beside it for
 //                30 seconds while it warms (it cools slowly when left).
-//   5 BEAM       Its beam runs down into the maze. Turn the four pivot mirrors (stand on their plates)
-//                to lead it to the crystal at the Heart; the Heart's north glass turns to water.
+//   5 BEAM       Its beam runs down into the maze. Turn the four pivot mirrors on their plates to lead
+//                it to the crystal at the Heart; the Heart's north glass turns to water.
 //   6 VANITY     In Mira's dressing room her vanity shows the hour he took her, as a mirror shows it.
-//                Of the house's four stopped clocks, stand at the one that truly shows that hour.
+//                Of the house's four stopped clocks, strike the one that truly shows that hour.
+//
+// Everything a player does by hand is a press of interact (E, or A on a pad) within reach (D-67): the
+// mirror, the glass, the footprints, a plinth, a pivot (one notch a press), the vanity, a clock. Only
+// the projector still asks someone to stay beside it.
 //   7 CARRYING   Mira's Reflection follows whoever found the hour. Defeat the Proprietor while she does…
 //   8 FINALE     …and the house shatters: the Unreflected rises in the Rotunda.
 //   9 COMPLETE   Defeat it → the Fun House's True Dawn, an achievement, Mira's Hand Mirror unlocked.
@@ -22,13 +26,29 @@
 import { dist2 } from '../../core/math';
 import { Rng } from '../../core/rng';
 import { UNREFLECTED_DEF } from '../../data/bosses';
-import { UNREFLECTED, beamTrace, mirroredTime } from '../../data/funhouse';
+import { PERFORMER_NAMES, UNREFLECTED, beamTrace, mirroredTime } from '../../data/funhouse';
 import { DAWN_TIME } from '../../data/waves';
 import { createBoss } from '../bosses';
 import type { Game } from '../game';
 import { QuestChain } from './quest';
 
 export const UR = { Dormant: 0, Faces: 1, Mural: 2, Overture: 3, Projector: 4, Beam: 5, Vanity: 6, Carrying: 7, Finale: 8, Complete: 9 } as const;
+
+/** Something in the house a player can use with interact right now (D-67). */
+export interface Interaction {
+  kind: 'mirror' | 'face' | 'mark' | 'plinth' | 'pivot' | 'vanity' | 'clock';
+  /** which face, plinth, pivot or clock */
+  i: number;
+  x: number;
+  y: number;
+  /** what the prompt says */
+  label: string;
+}
+
+/** How near a player must stand to use each kind (sim units). */
+export const REACH: Record<Interaction['kind'], number> = { mirror: 120, face: 115, mark: 90, plinth: 115, pivot: 100, vanity: 115, clock: 105 };
+/** Seconds before the same thing answers another press (a held or mashed key never double-counts). */
+const COOLDOWN: Record<Interaction['kind'], number> = { mirror: 0, face: 0, mark: 0, plinth: 0.35, pivot: 0.2, vanity: 0, clock: 1.2 };
 
 /** Where a player stands to strike a clock: a step out from its wall. */
 export function clockSpot(k: number): { x: number; y: number } {
@@ -55,11 +75,9 @@ export class UnreflectedChain extends QuestChain {
   carrier = 255;
   finaleT = -1;
   private faceSeen = false;
-  private markT = 0;
-  private plateT = [0, 0, 0, 0];
-  private clockT = [0, 0, 0, 0];
-  private plinthIn: boolean[][] = [];
   private chargeQ = 0;
+  /** per-thing cooldowns after a press (kind + index → seconds left) */
+  private cool = new Map<string, number>();
 
   init(): void {
     // its own random stream, so the quest never perturbs gameplay randomness
@@ -97,62 +115,73 @@ export class UnreflectedChain extends QuestChain {
     return beamTrace(this.pivots);
   }
 
+  /** What a player standing at (x, y) could use with interact right now: the nearest in reach, or null. */
+  interaction(x: number, y: number): Interaction | null {
+    const U = UNREFLECTED;
+    const list: Interaction[] = [];
+    switch (this.stage) {
+      case UR.Dormant:
+        list.push({ kind: 'mirror', i: 0, x: U.counter.x, y: U.counter.y, label: 'Pick up the hand mirror' });
+        break;
+      case UR.Faces:
+        U.faces.forEach((f, i) => { if (!(this.freed & (1 << i))) list.push({ kind: 'face', i, x: f.x, y: f.y, label: 'Touch the glass' }); });
+        break;
+      case UR.Mural:
+        list.push({ kind: 'mark', i: 0, x: U.mark.x, y: U.mark.y, label: 'Look from the brass footprints' });
+        break;
+      case UR.Overture:
+        U.plinths.forEach((p, i) => list.push({ kind: 'plinth', i, x: p.x, y: p.y, label: `Touch ${PERFORMER_NAMES[i]}'s plinth` }));
+        break;
+      case UR.Beam:
+        U.beamPivots.forEach((p, i) => list.push({ kind: 'pivot', i, x: p.x, y: p.y, label: 'Turn the mirror' }));
+        break;
+      case UR.Vanity: {
+        const v = U.vanity;
+        if (!this.vanitySeen) list.push({ kind: 'vanity', i: 0, x: v.x, y: v.y + 40, label: 'Look into the vanity' });
+        for (let k = 0; k < 4; k++) {
+          const s = clockSpot(k);
+          list.push({ kind: 'clock', i: k, x: s.x, y: s.y, label: 'Strike the hour' });
+        }
+        break;
+      }
+    }
+    let best: Interaction | null = null, bd = Infinity;
+    for (const it of list) {
+      const d = dist2(x, y, it.x, it.y);
+      if (d < REACH[it.kind] ** 2 && d < bd) {
+        best = it;
+        bd = d;
+      }
+    }
+    return best;
+  }
+
   update(dt: number): void {
     const g = this.g;
     if (g.phase !== 'play') return;
     const up = g.players.filter((p) => g.isUp(p));
     const near = (x: number, y: number, r: number) => up.some((p) => dist2(p.x, p.y, x, y) < r * r);
     const U = UNREFLECTED;
+    for (const [k, t] of this.cool) if (t - dt <= 0) this.cool.delete(k); else this.cool.set(k, t - dt);
+    // presses first: each player who pressed uses the nearest thing in reach
+    for (const p of up) {
+      if (!g.inputs[p.index]?.interact) continue;
+      const it = this.interaction(p.x, p.y);
+      if (!it) continue;
+      const key = `${it.kind}${it.i}`;
+      if (this.cool.has(key)) continue;
+      if (COOLDOWN[it.kind] > 0) this.cool.set(key, COOLDOWN[it.kind]);
+      this.use(it, p.index);
+    }
     switch (this.stage) {
-      case UR.Dormant: {
-        const c = U.counter;
-        if (near(c.x, c.y, c.r)) {
-          this.stage = UR.Faces;
-          this.cue('u_awaken', { x: c.x, y: c.y });
-        }
-        break;
-      }
       case UR.Faces: {
-        U.faces.forEach((f, i) => {
-          if (this.freed & (1 << i)) return;
-          if (!this.faceSeen && near(f.x, f.y, U.faceReveal)) {
+        // the first face anyone walks near whispers where to look
+        if (!this.faceSeen) {
+          const f = U.faces.find((q, i) => !(this.freed & (1 << i)) && near(q.x, q.y, U.faceReveal));
+          if (f) {
             this.faceSeen = true;
             this.cue('u_face_seen', { x: f.x, y: f.y });
           }
-          if (near(f.x, f.y, U.faceTouch)) {
-            this.freed |= 1 << i;
-            const n = [0, 1, 2, 3].filter((k) => this.freed & (1 << k)).length;
-            this.cue('u_face', { x: f.x, y: f.y, a: i, b: n });
-            if (n === 4) {
-              this.stage = UR.Mural;
-              this.cue('u_faces_done', {});
-            }
-          }
-        });
-        break;
-      }
-      case UR.Mural: {
-        const m = U.mark;
-        this.markT = near(m.x, m.y, m.r) ? this.markT + dt : 0;
-        if (this.markT >= U.markHold) {
-          this.muralSeen = true;
-          this.stage = UR.Overture;
-          this.progress = 0;
-          this.cue('u_mural', { x: U.mural.x, y: U.mural.y });
-        }
-        break;
-      }
-      case UR.Overture: {
-        for (const p of up) {
-          const ins = (this.plinthIn[p.index] ??= [false, false, false, false]);
-          U.plinths.forEach((pl, j) => {
-            const d = dist2(p.x, p.y, pl.x, pl.y);
-            if (d < U.plinthR * U.plinthR) {
-              if (ins[j]) return;
-              ins[j] = true;
-              this.touchPlinth(j);
-            } else if (d > (U.plinthR + 45) ** 2) ins[j] = false;
-          });
         }
         break;
       }
@@ -166,50 +195,6 @@ export class UnreflectedChain extends QuestChain {
           this.charge = U.charge;
           this.stage = UR.Beam;
           this.cue('u_beam', { x: P.x, y: P.y });
-        }
-        break;
-      }
-      case UR.Beam: {
-        U.beamPivots.forEach((pv, i) => {
-          if (!near(pv.x, pv.y, U.pivotPlate)) {
-            this.plateT[i] = 0;
-            return;
-          }
-          this.plateT[i] += dt;
-          if (this.plateT[i] < U.pivotStep) return;
-          this.plateT[i] -= U.pivotStep;
-          this.pivots[i] = (this.pivots[i] + 1) % 4;
-          this.cue('u_pivot', { x: pv.x, y: pv.y, a: i, b: this.pivots[i] });
-          if (this.beam().hit) {
-            this.stage = UR.Vanity;
-            g.funhouseDoorOpen = true;
-            this.cue('u_door', { x: U.crystal.x, y: U.crystal.y });
-          }
-        });
-        break;
-      }
-      case UR.Vanity: {
-        const v = U.vanity;
-        if (!this.vanitySeen && near(v.x, v.y + 40, 95)) {
-          this.vanitySeen = true;
-          this.cue('u_vanity', { x: v.x, y: v.y });
-        }
-        for (let k = 0; k < 4; k++) {
-          const s = clockSpot(k);
-          if (!near(s.x, s.y, 90)) {
-            this.clockT[k] = 0;
-            continue;
-          }
-          if (this.clockT[k] < 0) continue; // struck already: step away to try again
-          this.clockT[k] += dt;
-          if (this.clockT[k] < U.clockHold) continue;
-          this.clockT[k] = -1;
-          if (k === this.trueClock) {
-            const who = g.nearestLiving(s.x, s.y);
-            this.carrier = who.index;
-            this.stage = UR.Carrying;
-            this.cue('u_mira', { x: s.x, y: s.y, a: k });
-          } else this.cue('u_wrong_clock', { x: s.x, y: s.y, a: k });
         }
         break;
       }
@@ -236,6 +221,57 @@ export class UnreflectedChain extends QuestChain {
         }
         break;
       }
+    }
+  }
+
+  /** A player (index `who`) used `it`. */
+  private use(it: Interaction, who: number): void {
+    const g = this.g;
+    const U = UNREFLECTED;
+    switch (it.kind) {
+      case 'mirror':
+        this.stage = UR.Faces;
+        this.cue('u_awaken', { x: it.x, y: it.y });
+        break;
+      case 'face': {
+        this.freed |= 1 << it.i;
+        const n = [0, 1, 2, 3].filter((k) => this.freed & (1 << k)).length;
+        this.cue('u_face', { x: it.x, y: it.y, a: it.i, b: n });
+        if (n === 4) {
+          this.stage = UR.Mural;
+          this.cue('u_faces_done', {});
+        }
+        break;
+      }
+      case 'mark':
+        this.muralSeen = true;
+        this.stage = UR.Overture;
+        this.progress = 0;
+        this.cue('u_mural', { x: U.mural.x, y: U.mural.y });
+        break;
+      case 'plinth':
+        this.touchPlinth(it.i);
+        break;
+      case 'pivot':
+        this.pivots[it.i] = (this.pivots[it.i] + 1) % 4;
+        this.cue('u_pivot', { x: it.x, y: it.y, a: it.i, b: this.pivots[it.i] });
+        if (this.beam().hit) {
+          this.stage = UR.Vanity;
+          g.funhouseDoorOpen = true;
+          this.cue('u_door', { x: U.crystal.x, y: U.crystal.y });
+        }
+        break;
+      case 'vanity':
+        this.vanitySeen = true;
+        this.cue('u_vanity', { x: U.vanity.x, y: U.vanity.y });
+        break;
+      case 'clock':
+        if (it.i === this.trueClock) {
+          this.carrier = who; // she follows whoever found the hour
+          this.stage = UR.Carrying;
+          this.cue('u_mira', { x: it.x, y: it.y, a: it.i });
+        } else this.cue('u_wrong_clock', { x: it.x, y: it.y, a: it.i });
+        break;
     }
   }
 

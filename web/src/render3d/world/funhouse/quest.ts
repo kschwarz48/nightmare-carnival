@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import type { Game } from '../../../sim/game';
 import type { GameRenderer3D } from '../../renderer3d';
-import { UR, type UnreflectedChain } from '../../../sim/quest/unreflected';
+import { REACH, UR, type UnreflectedChain } from '../../../sim/quest/unreflected';
 import { MAZE, PANEL, UNREFLECTED } from '../../../data/funhouse';
 import { ModelBuilder, SURF, cone, cyl, ellipsoid, lathe, sphere, torus, tube, weather } from '../../core/geo';
 import { PAL, eyes } from '../../models/kit';
@@ -136,10 +136,10 @@ export class QuestVisuals {
       // the overture: the plinths already played this attempt glow
       if (st === UR.Overture) {
         const played = ch.order.slice(0, ch.progress).includes(i);
-        if (played) r.addShapes.circle(p.x, p.y, U.plinthR, COLS[i][0], COLS[i][1], COLS[i][2], 0.22, 0);
+        if (played) r.addShapes.circle(p.x, p.y, REACH.plinth, COLS[i][0], COLS[i][1], COLS[i][2], 0.22, 0);
       }
     });
-    if (st === UR.Overture) for (const p of U.plinths) r.teleLine.ring(p.x, p.y, U.plinthR - 3, U.plinthR, 0.9, 0.8, 0.6, 0.18 + 0.1 * Math.sin(t * 2), 0.18 + 0.1 * Math.sin(t * 2));
+    if (st === UR.Overture) for (const p of U.plinths) r.teleLine.ring(p.x, p.y, REACH.plinth - 3, REACH.plinth, 0.9, 0.8, 0.6, 0.18 + 0.1 * Math.sin(t * 2), 0.18 + 0.1 * Math.sin(t * 2));
 
     // ---- the anamorphic mural: smeared until seen from the footprints
     if (inView(U.mural.x, U.mural.y)) {
@@ -150,7 +150,7 @@ export class QuestVisuals {
       const order = ch.muralSeen || ready ? ch.order : [2, 0, 3, 1];
       order.forEach((who, k) => this.emblem(r, who, U.mural.x + (k - 1.5) * 92, U.mural.y - (smear - 1) * 14 * (k % 2 ? 1 : -1), smear, 0.2 + 0.38 * sharp));
       // the footprints glow once the faces are home
-      if (ready && !ch.muralSeen) r.addShapes.circle(U.mark.x, U.mark.y, U.mark.r, 1, 0.85, 0.5, 0.18 + 0.1 * Math.sin(t * 3), 0);
+      if (ready && !ch.muralSeen) r.addShapes.circle(U.mark.x, U.mark.y, REACH.mark, 1, 0.85, 0.5, 0.18 + 0.1 * Math.sin(t * 3), 0);
     }
 
     // ---- the projector: the great curtain parts; its warm-up bulbs; its beam
@@ -183,7 +183,7 @@ export class QuestVisuals {
       const end = tr.pts[tr.pts.length - 1];
       r.glow.draw(glowF, end.x, end.y, 40, tr.hit ? 2.4 : 1, tr.hit ? 2.4 : 1, 0, tr.hit ? 0.7 : 1, tr.hit ? 1 : 0.8, tr.hit ? 0.95 : 0.5, tr.hit ? 0.9 : 0.55);
       if (tr.hit) pool.add(U.crystal.x, U.crystal.y, 420, 1.4, 0.6, 1, 0.92, 140, 3);
-      if (st === UR.Beam) for (const pv of U.beamPivots) r.addShapes.ring(pv.x, pv.y, U.pivotPlate - 5, U.pivotPlate, 1, 0.9, 0.6, 0.25 + 0.1 * Math.sin(t * 3), 0.25);
+      if (st === UR.Beam) for (const pv of U.beamPivots) r.addShapes.ring(pv.x, pv.y, REACH.pivot - 5, REACH.pivot, 1, 0.9, 0.6, 0.25 + 0.1 * Math.sin(t * 3), 0.25);
     }
     // the pivot mirrors themselves, turning to their states
     const pm = w.batch('fh_q_pivotmirror', () => FUNHOUSE_PROPS.fh_pivot_mirror(0), 4, 1.8);

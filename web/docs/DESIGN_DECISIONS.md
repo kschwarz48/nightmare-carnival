@@ -558,3 +558,53 @@ and teleports, and the prize wheel dull and see-through.
 - **Why not tuned with bots.** Measuring the ratio directly (`scripts/xprate.ts`) failed. A single
   character's haul swings 5–10× between seeds, and mixed parties also hinge on whether bots ever pick up
   the Ticket Bank. A unit test holds the multiplier exactly; Kevin's playtests decide the next nudge.
+
+### D-67 · The Fun House lit like the first night; readable walls; E to interact; a neon prize wheel
+- **The report.** The Fun House's lighting should be polished like the Carnival Core's. Walls were hard
+  to see in the dark rooms. The quest's hands-on steps should use E instead of standing still for a
+  few seconds. The prize wheel looked flat: it should look like a neon-vibrant, dark and moody Nightmare
+  Carnival wheel, with real depth, shadows and lights.
+- **Every pool from a fixture you can see** (`render3d/world/funhouse/lighting.ts`). The Carnival Core
+  reads well because each pool sits under a lamp with a halo. The house had pools from nowhere and
+  broad washes. Now:
+  - brass sconces are placed automatically along every wall face the camera sees (clear of doorways,
+    posters, clocks and the stage), each with a halo and a tight pool;
+  - frosted pendants hang over the Hall of Mirrors where its cold pools were;
+  - a lamp burns on every Rotunda capital;
+  - picture lights throw museum spots on the gallery's plinths;
+  - lighting booms beside the stage throw three drifting theatre spots, with beams through the haze;
+  - chandeliers and floor lamps got halos and light shafts, and the house got its own motes (the
+    renderer's motes had been drifting round the first map's lamp positions inside the house);
+  - moonlight comes through tall west and north windows as cold panes on the maze and gallery floors.
+  The room-tone pools in `data/funhouse.ts` were cut back or removed where a fixture now lights them.
+- **Indoor ambience.** The sky light is a dim plum ceiling instead of a blue night sky, shadows keep
+  the house's colours, and the haze lies evenly. The outdoor mist thickens toward the map's edges (the
+  woods, the sea), which is where most of the house's rooms are, so they had been the foggiest.
+- **Readable walls.** Every wall wears a pale marble cap with a faintly glowing gilt edge either side
+  (carnival red in the crooked corridor), so the floor plan reads from above even where no lamp reaches.
+  Each mirror panel carries a thin silver line on top and a vanity bulb on each post, and the glass
+  multiplies the bulbs. A soft contact shade runs where walls and panels meet the floor.
+- **Surfaces.** Big flat gold in the house is gilt paint (bare metal picked up the shared shader's
+  verdigris, which read as camouflage across plinths and wall tops). The kaleidoscope tower is dark
+  mirror glass with stained-glass rosettes. Piston crowns carry hazard stripes. Booth glass is no
+  longer blown out.
+- **E to interact.** Every hands-on step of the Unreflected is one press of interact (E, or A on a
+  pad), within reach: the hand mirror, the glass, the footprints, a plinth, a pivot (one notch a press),
+  the vanity and a clock. A prompt floats over the thing, naming the action, only while the quest can
+  use it. Standing still or walking past does nothing, so a fight can't trip a plinth or a clock. Short
+  per-thing cooldowns stop a held or mashed key double-counting. The projector stays a hold: it is the
+  quest's pressure stage by design. Mira now follows whoever struck the true clock.
+- **Interact over the wire (PROTO 9).** Each guest input carries a running count of interact presses;
+  the host acts once whenever it changes. A lost packet can't lose a press, and a redundant copy can't
+  double one.
+- **The prize wheel.** A neon booth at midnight. Black lacquer inside a heavy gilded frame, a magenta
+  neon tube round the frame and a cyan one inside it, and a neon sign. The wheel is deep: lacquered
+  wedges alternating neon colour and black, raised gilt dividers, long pegs, a heavy rim, a black bulb
+  ring and a domed hub. A key light from the upper left throws real shadows: the clapper on the wedges,
+  the pegs and dividers across them, the wheel and frame on the board's gilt sunburst. Neon spill
+  colours either side, a violet backglow sits behind the wheel, and its gilt mirrors a dark neon room
+  instead of a bright studio. The show's timing, sounds and card are unchanged.
+- **Cost.** Mirror views were already over the 300-call budget and gained ~20 calls, because every
+  mesh is drawn again per mirror pass. The soft layers stay out of the reflections. Medium and Low
+  quality cut the mirror passes. Measured in `VISUAL_QA.md`.
+

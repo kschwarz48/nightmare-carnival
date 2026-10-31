@@ -22,16 +22,24 @@ south-facing surfaces are seen face-on, and every fixture below sits where it ca
 
 | # | Stage | Goal | Mechanic |
 |---|---|---|---|
-| 0 | DORMANT | Pick up the cracked hand mirror | positional (visit) |
+| 0 | DORMANT | Pick up the cracked hand mirror | interact at the counter |
 | 1 | FACES | Free the four faces hiding in the maze's mirrors | exploration + reflections |
-| 2 | MURAL | Read the anamorphic mural from its brass footprints | observation (hold 2 s) |
+| 2 | MURAL | Read the anamorphic mural from its brass footprints | observation (interact on the footprints) |
 | 3 | OVERTURE | Touch the four plinths in the mural's order | sequence + audio |
 | 4 | PROJECTOR | Keep someone beside the prism projector for 30 s | hold the zone under pressure |
 | 5 | BEAM | Turn four pivot mirrors to lead the beam to the crystal | spatial puzzle |
-| 6 | VANITY | Read Mira's mirrored clock; stand at the clock that truly shows it | riddle + search |
+| 6 | VANITY | Read Mira's mirrored clock; strike the clock that truly shows it | riddle + search |
 | 7 | CARRYING | Beat the Proprietor while Mira's Reflection follows you | boss-linked condition |
 | 8 | FINALE | Defeat the secret Unreflected | boss fight |
 | 9 | COMPLETE | The Fun House's True Dawn, achievement, permanent unlock | — |
+
+**Interact (D-67).** Every hands-on step is one press of interact: **E** on the keyboard (rebindable) or
+**A** on a pad, within reach of the thing. A prompt floats over it while you're in reach, naming the
+action (*E · Touch the glass*), and only while the quest can use it. Standing or walking past does
+nothing, so a fight can't trip a plinth or a clock by accident. Only the projector still asks someone
+to stay beside it. Reach: hand mirror 120, glass 115, footprints 90, plinth 115, pivot 100, vanity 115,
+clock 105. A held or mashed key never double-counts: a plinth answers again after 0.35 s, a pivot after
+0.2 s, a clock after 1.2 s.
 
 The Last Song (Map 1) has six steps between dormant and complete, one of them a fight. The
 Unreflected has nine. Each takes more attention: reflections, an anamorphic picture, a four-part
@@ -41,7 +49,8 @@ spatial puzzle, and a riddle with a trap answer. That makes it about twice as de
 
 ### 0 → 1 · The hand mirror
 A cracked hand mirror lies on the **Lost & Found counter** in the Grand Entrance, west of the red
-carpet, at **(-760, 1250)**. It glints every couple of seconds. Walk within **90** units of the counter.
+carpet, at **(-760, 1250)**. It glints every couple of seconds. Press interact within **120** units of
+the counter (*Pick up the hand mirror*).
 
 You hear a glint and a cold shimmer. Mira's first whisper: *"A cracked hand mirror. In it, a girl stands
 just behind your shoulder. 'Find us in the glass.'"*
@@ -55,7 +64,8 @@ mirror-only render layer: it is in the glass, not in the room. A faint pale smud
 glass itself, so low quality, which has no live reflections, still shows the clue. The first face seen
 whispers *"A face in the glass that isn't yours."*
 
-Touch the glass where a face looks out: stand within **100** of its spot. That frees it with a chime in
+Touch the glass where a face looks out: press interact within **115** of its spot (*Touch the glass*).
+That frees it with a chime in
 the performer's note and a ripple, and their head reappears on their dress form in the Puppet Gallery.
 
 | Performer | Panel (row, col) | Glass at | Stand at |
@@ -75,7 +85,7 @@ the floor around **(950, -1700)**. All night they are a vertical smear. Once the
 brass footprints at **(950, -1580)** glow. The closer anyone gets to them, the more the smear pulls
 together.
 
-Stand within **60** of the footprints for **2 s** (stepping off resets the hold). The picture snaps
+Press interact within **90** of the footprints (*Look from the brass footprints*). The picture snaps
 into a crisp row of four emblems and stays crisp for the rest of the night. The music box plays the four
 notes in that order. Whisper: *"From the brass footprints, the smear becomes a picture: the performers,
 in the order they bowed."*
@@ -97,8 +107,8 @@ The four plinths in the Puppet Gallery stand west to east:
 - Clown **(-1250, -2000)**
 - Magician **(-950, -2000)**
 
-Touch them in the mural's order. A touch is walking within **95** of a plinth; it's edge-triggered,
-so step away before touching it again.
+Touch them in the mural's order: press interact within **115** of a plinth (the prompt names the
+performer, *Touch The Clown's plinth*). Walking past a plinth does nothing.
 
 - **Right plinth:** its note plays, its ring glows, and you hear *"The music box answers: one of four…"*.
 - **Wrong plinth:** the music box grinds to a stop with a sour note, and the overture restarts from the
@@ -128,8 +138,8 @@ partner can hold the zone, but nobody has to stand there with you.
 The beam runs south down maze **column 3** and stops at the first thing that doesn't turn it.
 
 Four **pivot mirrors** stand on round plates in the north part of four cells. Their cells have glass on
-the south side, which hides the south part from the camera. Standing within **70** of a plate turns its
-mirror one notch every **1.25 s**, for as long as you stay. The states cycle:
+the south side, which hides the south part from the camera. Each press of interact within **100** of a
+plate turns its mirror one notch (*Turn the mirror*). The states cycle:
 
 | State | Mirror | Beam |
 |---|---|---|
@@ -158,12 +168,13 @@ When the beam reaches the crystal:
 
 ### 6 → 7 · The vanity and the clocks
 Mira's dressing room is cells (1–2, 3). Inside, her vanity at **(-1680, -629)** shows a small clock with
-backwards ticks, drawn mirrored. Stand within **95** of **(-1680, -589)**. Whisper: *"The hour he took
+backwards ticks, drawn mirrored. Press interact within **115** of **(-1680, -589)** (*Look into the
+vanity*). Whisper: *"The hour he took
 me. Read it the way the glass does. One clock in the house still shows it."*
 
 The house has four stopped clocks. Their times are **per run**:
 
-| Clock | On | Stand at (hold 2 s, within 90) |
+| Clock | On | Press interact at (within 105; *Strike the hour*) |
 |---|---|---|
 | Entrance | the Grand Entrance's north wall | **(900, 1005)** |
 | Rotunda | the Rotunda's north wall | **(-115, -1252)** |
@@ -180,11 +191,12 @@ hour. The true hour is the vanity's reading flipped left to right: 2:50 reads 9:
 
 The true hour is never one a mirror leaves unchanged (6:00, 12:00).
 
-- **Wrong clock:** *"Not that hour."* and the house laughs. Step more than 90 away and try another.
+- **Wrong clock:** *"Not that hour."* and the house laughs. Try another (that clock answers again
+  after 1.2 s).
 - **Right clock:** three tolls, and Mira's Reflection appears.
 
 ### 7 → 8 · Carrying Mira
-Mira's Reflection, a small glass girl, drifts at the shoulder of whoever struck the clock: *"Mira's
+Mira's Reflection, a small glass girl, drifts at the shoulder of whoever struck the true clock: *"Mira's
 Reflection follows you. 'Take me to him.'"*
 
 If her carrier is downed, she goes to the nearest player still standing.
@@ -212,7 +224,10 @@ Defeating it:
 
 ## Rules, co-op and recovery
 - **One shared chain.** The host runs it. Any standing player can act at every step. Nothing ever needs
-  two players at once: every hold and touch counts any single player.
+  two players at once: a press counts for whoever makes it, and the projector's hold counts any single
+  player.
+- **A guest's press** rides in its input packets as a running count (PROTO 9), so a lost packet never
+  loses a press, and the host acts once each time the count changes.
 - **Guests** receive the whole chain every snapshot as 17 bytes (`netState` / `applyNet`): stage, freed
   faces, order, overture progress, charge, pivot states, mural/vanity seen, true clock, carrier, and the
   four clock times. Their worlds draw the same house.
@@ -235,9 +250,12 @@ Defeating it:
   - the beam solution, and edge-on mirrors stopping it;
   - per-seed fairness (40 seeds): unsolved starts, one true clock, one trap, varied orders;
   - a solo walk through every stage to the True Dawn, including a wrong plinth, a wrong clock, the
-    projector cooling, and the door opening in the walls;
+    projector cooling, and the door opening in the walls; at each hands-on step, standing still does
+    nothing and one press does;
   - the Proprietor without Mira (an ordinary dawn);
-  - co-op: a guest acting alone, Mira passing on, and the full chain arriving through a real snapshot.
+  - co-op: a guest acting alone with its own press (the host's press far away does nothing), Mira
+    passing on, and the full chain arriving through a real snapshot;
+  - `tests/net.test.ts`: a guest's press crosses a lossy link to the host's sim exactly once.
 - In the dev build:
   - `?unlock=funhouse` opens the map.
   - `__nc.shot({ restart: true, map: 'fun_house' })` starts a night.

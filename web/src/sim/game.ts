@@ -73,6 +73,8 @@ export interface InputState {
   aimX: number;
   aimY: number;
   aimActive: boolean;
+  /** an interact press (E, or A on a pad) for the next tick to use; cleared once a tick has run (D-67) */
+  interact?: boolean;
 }
 
 export interface RunStats {
@@ -391,6 +393,12 @@ export class Game {
   // ------------------------------------------------------------------ tick
   /** Advance one fixed step (TICK seconds). */
   tick(): void {
+    this.step();
+    // an interact press is good for the one tick that sees it (D-67)
+    for (const i of this.inputs) i.interact = false;
+  }
+
+  private step(): void {
     if (activeMapId() !== this.mapId) useMap(this.mapId); // another game may have switched maps (tests, the attract demo)
     if (this.hub) return this.tickHub();
     if (this.phase === 'ended' || this.phase === 'draft') return;

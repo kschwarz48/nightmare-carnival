@@ -24,7 +24,8 @@ float aFbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += 
 `;
 
 // ------------------------------------------------------------------ volumetric lamp shafts
-interface Shaft { x: number; y: number; h: number; r: number; col: [number, number, number]; flicker: number; k: number; kind: 'lamp' | 'ghost' | 'light' }
+/** A cone of light from a lamp (apex at height h) to the floor; `a` scales its strength. */
+export interface Shaft { x: number; y: number; h: number; r: number; col: [number, number, number]; flicker: number; k: number; kind: 'lamp' | 'ghost' | 'light'; a?: number }
 const PLAYED_COL: [number, number, number] = [1, 0.2, 0.14];
 
 export class LightShafts {
@@ -34,12 +35,16 @@ export class LightShafts {
   private shafts: Shaft[] = [];
   private uTime = { value: 0 };
 
-  constructor(scene: THREE.Object3D) {
-    for (const p of PROPS) {
-      if (p.kind === 'lamp') this.shafts.push({ x: p.x, y: p.y, h: LAMP_LIGHT_H - 16, r: 112, col: [1, 0.58, 0.28], flicker: 0, k: p.x, kind: 'lamp' });
-      if (p.kind === 'ghost_lamp') this.shafts.push({ x: p.x, y: p.y, h: LAMP_LIGHT_H - 16, r: 116, col: [0.45, 1, 0.72], flicker: 0, k: p.x, kind: 'ghost' });
+  /** The Carnival Core's lamps and mid-sized light pools by default; another world passes its own (D-67). */
+  constructor(scene: THREE.Object3D, defs?: Shaft[]) {
+    if (defs) this.shafts = defs;
+    else {
+      for (const p of PROPS) {
+        if (p.kind === 'lamp') this.shafts.push({ x: p.x, y: p.y, h: LAMP_LIGHT_H - 16, r: 112, col: [1, 0.58, 0.28], flicker: 0, k: p.x, kind: 'lamp' });
+        if (p.kind === 'ghost_lamp') this.shafts.push({ x: p.x, y: p.y, h: LAMP_LIGHT_H - 16, r: 116, col: [0.45, 1, 0.72], flicker: 0, k: p.x, kind: 'ghost' });
+      }
+      for (const l of LIGHTS) if (l.r >= 300 && l.r <= 460) this.shafts.push({ x: l.x, y: l.y, h: 260, r: l.r * 0.42, col: l.color, flicker: l.flicker, k: l.x * 0.7, kind: 'light' });
     }
-    for (const l of LIGHTS) if (l.r >= 300 && l.r <= 460) this.shafts.push({ x: l.x, y: l.y, h: 260, r: l.r * 0.42, col: l.color, flicker: l.flicker, k: l.x * 0.7, kind: 'light' });
     const geo = new THREE.CylinderGeometry(0.12, 1, 1, 24, 6, true);
     geo.translate(0, -0.5, 0); // apex at the lamp, base on the ground
     this.col = new Float32Array(this.shafts.length * 4);
@@ -97,7 +102,7 @@ export class LightShafts {
     this.uTime.value = time;
     const on = (1 - darkness * 0.92) * (1 - dawn);
     this.shafts.forEach((s, i) => {
-      let k = s.kind === 'light' ? 0.08 : 0.12;
+      let k = (s.kind === 'light' ? 0.08 : 0.12) * (s.a ?? 1);
       if (s.kind === 'lamp') k *= lampFlicker({ x: s.x, y: s.y }, time);
       if (s.kind === 'light' && s.flicker > 0) {
         const t = time * 7 + s.k;
@@ -121,14 +126,14 @@ interface Mote { ax: number; ay: number; h: number; r: number; sp: number; ph: n
 
 export class Motes {
   private motes: Mote[] = [];
-  constructor() {
+  /** Seven motes round each anchor: the Carnival Core's lamps by default; another world passes its own (D-67). */
+  constructor(anchors?: { x: number; y: number; col: [number, number, number] }[]) {
     let seed = 1931;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    for (const p of PROPS) {
-      if (p.kind !== 'lamp' && p.kind !== 'ghost_lamp') continue;
-      const ghost = p.kind === 'ghost_lamp';
+    const list = anchors ?? PROPS.filter((p) => p.kind === 'lamp' || p.kind === 'ghost_lamp').map((p) => ({ x: p.x, y: p.y, col: (p.kind === 'ghost_lamp' ? [0.45, 1, 0.72] : [1, 0.66, 0.34]) as [number, number, number] }));
+    for (const p of list) {
       for (let k = 0; k < 7; k++) {
-        this.motes.push({ ax: p.x + (rnd() - 0.5) * 60, ay: p.y + (rnd() - 0.5) * 60, h: 40 + rnd() * 90, r: 14 + rnd() * 46, sp: 0.2 + rnd() * 0.5, ph: rnd() * 100, col: ghost ? [0.45, 1, 0.72] : [1, 0.66, 0.34] });
+        this.motes.push({ ax: p.x + (rnd() - 0.5) * 60, ay: p.y + (rnd() - 0.5) * 60, h: 40 + rnd() * 90, r: 14 + rnd() * 46, sp: 0.2 + rnd() * 0.5, ph: rnd() * 100, col: p.col });
       }
     }
   }
