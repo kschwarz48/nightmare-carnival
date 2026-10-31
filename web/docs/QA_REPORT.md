@@ -115,6 +115,72 @@ understate that character.
 
 ---
 
+## Co-op playtest round: crowd, tide, tooltips, leaderboard, lobby — 2026-10-31 (D-71)
+
+**Changed:** from the owner's co-op night on the Boardwalk, and an interface list:
+- The Boardwalk's crowd from Act II on is mostly runners. Its specials are a party-capped, sturdier few,
+  and Act III eases in after the Captain.
+- The stage ring now reels players back in.
+- The tide turns on a 100 s timer, with a notice before each turn.
+- Whispers hold twice as long; the shooting gallery's ducks have 12× the health.
+- A co-op party leaderboard on the results screen.
+- The lobby no longer rebuilds on every change.
+- Equipment-bar tooltips, and recipe bands on tooltips and draft cards.
+- The Midway's gate labels show open, or a padlock and what opens the gate.
+- Bouncing arrows over chests, food and golden tickets.
+- Golden tickets two or three a night.
+
+Decision: D-71.
+
+**Automated:** 300 tests pass in 20 files; typecheck clean; the production build passes.
+- `boardwalk.test.ts`: the tide holds, turns within 6 s, is known 3 s before a turn, and low water
+  uncovers `upBeach + out` of beach.
+- `boardwalkBosses.test.ts`: a player parked 700 outside the Captain's ring is drawn back toward it.
+- `coop.test.ts`: in a two-player night each player has their own damage and kills, the shares add up to
+  the night's total, and every player's end stats carry the whole table; a solo night has none.
+- `summersEnd.test.ts`: the porthole presses wait for settled low water under the new timer.
+- The full Boardwalk bot night still plays all four acts, beats every boss and reaches dawn. Before
+  the ring fix, it stalled at the Captain, whose bot had walked out of his ring.
+
+**Measured:**
+- **Crowd health per spawn against the first map** (`scripts/maphp.ts`, two seeds, god-mode bot):
+
+  | Act | Before | After |
+  |---|---|---|
+  | I | 1.2× | 1.1× |
+  | II | 1.4× | 1.1× |
+  | III | 1.5× | 0.8× |
+  | IV | 1.0× | 0.9× |
+
+- **Density stays high:** away from the boss fights, Acts III–IV spawn 430–760 a minute, about as many
+  as the first map's 460–730.
+- **Golden tickets** (six bot nights: two maps, three seeds):
+  - before, 1–3 spawned a night (about 2.2), of which the bot reached 0–1;
+  - after, 2–3 a night (2.8 on average), of which the bot reached 1–3.
+
+**In the browser (dev build, 1600×900), checked:**
+- the tray tooltip (Throwing Cards, its next level, the READY recipe);
+- the draft cards' recipe bands;
+- the Midway's gate labels (open, and 🔒 with what's missing) and the chainless open signpost;
+- arrows over a chest, food and a golden ticket;
+- the tide notice ("THE TIDE IS COMING IN");
+- the party leaderboard: a normal table drawn with each column's best in gold, and a malformed table
+  dropped or zeroed rather than crashing;
+- the lobby's `morph` keeping nodes and focus in place.
+
+Found on the way and fixed: the Boardwalk's ambience beds crossfaded only for co-op guests, because the
+solo and host frame never fed the mix (D-68).
+
+**Not verified:**
+- A person playing the changes, in co-op or solo: the crowd, the tide, the gallery.
+- The lobby and the leaderboard over a real connection (both were exercised in-page and in the sim
+  only; no protocol change, PROTO is still 10).
+- The whispers' new length, by eye in play.
+- Mobile viewports.
+- Audio (the tide notice reuses the surge sound; not listened to).
+
+---
+
 ## Playtest round on the Boardwalk — 2026-10-31 (D-69)
 
 **Changed:** the owner's first playtest list:

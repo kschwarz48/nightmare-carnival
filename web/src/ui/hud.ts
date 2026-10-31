@@ -29,6 +29,11 @@ const BAR_H: Record<string, number> = {
   crooked_twins: 360, looking_glass: 330, stringmistress: 300, proprietor: 300, unreflected: 330,
   barker: 300, drowned_captain: 320, last_ride: 200, leviathan: 380, commodore: 300,
 };
+/** An item marker (points down at what it marks; coloured by the CSS through `currentColor`). */
+const MARK_SVG = '<svg viewBox="0 0 24 24"><path d="M4 3 L12 21 L20 3 L12 8 Z" fill="currentColor" stroke="#17110e" stroke-width="2.2" stroke-linejoin="round"/></svg>';
+/** What gets a bouncing arrow over it, and how high above the ground the arrow hangs (D-71). */
+const MARKED: Partial<Record<string, number>> = { chest: 74, food: 48, funnel: 48, golden: 66 };
+
 /** A chest arrow (points along +x; rotated toward its chest). */
 const ARROW_SVG = '<svg viewBox="0 0 24 24"><path d="M3 4 L21 12 L3 20 L8 12 Z" fill="#f2c14e" stroke="#17110e" stroke-width="2.4" stroke-linejoin="round"/></svg>';
 
@@ -46,6 +51,36 @@ export interface CoopHud {
   status?: { text: string; action?: { label: string; fn: () => void } } | null;
 }
 
+/**
+ * An evolution recipe at a glance (D-71): the weapon at its top level + the passive = the evolution, as icons
+ * with their names, each requirement ticked once it's met (a teammate's passive counts, as in the draft); the
+ * band lights up gold when it's ready. `levelAfter` is the weapon's level once an offered card is taken.
+ */
+export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?: number): HTMLElement | null {
+  const d = WEAPONS[weaponId];
+  if (!d?.evolvesTo || !d.evoPassive) return null;
+  const evo = WEAPONS[d.evolvesTo], pas = PASSIVES[d.evoPassive];
+  const lv = Math.min(d.maxLevel, levelAfter ?? g.weapons.get(weaponId)?.level ?? 0);
+  const haveLv = lv >= d.maxLevel;
+  const mine = g.player.passiveLevel(d.evoPassive) >= 1;
+  const party = g.players.some((pl) => pl.passiveLevel(d.evoPassive!) >= 1);
+  const ready = haveLv && party;
+  const part = (icon: string, name: string, ok: boolean | null, note: string) =>
+    h('div', { class: `rp${ok === null ? ' out' : ok ? ' ok' : ''}` }, h('img', { src: icon, alt: '' }), h('b', {}, name), note ? h('small', {}, `${ok ? '✓ ' : ''}${note}`) : null);
+  return h('div', { class: `recipe${ready ? ' ready' : ''}` },
+    h('div', { class: 'rh' }, ready ? '✦ READY: next level-up or chest' : '✦ EVOLUTION'),
+    h('div', { class: 'rrow' },
+      part(assets.weaponIcon(weaponId), d.name, haveLv, `Lv ${lv}/${d.maxLevel}`),
+      h('span', { class: 'op' }, '+'),
+      part(assets.passiveIcon(d.evoPassive), pas.name, party, party ? (mine ? 'have it' : 'a friend has it') : 'need it'),
+      h('span', { class: 'op' }, '='),
+      part(assets.weaponIcon(evo.id), evo.name, null, ''),
+    ));
+}
+
+/** A quest whisper stays on screen this many times as long as it asks for (D-71). */
+const WHISPER_HOLD = 2;
+
 export class Hud {
   root: HTMLDivElement;
   private xpFill: HTMLDivElement;
@@ -59,6 +94,9 @@ export class Hud {
   private hpWrap: HTMLDivElement;
   private extras: HTMLDivElement;
   private tray: HTMLDivElement;
+  /** the equipment bar's hover tooltip, and the night it describes (D-71) */
+  private tip = h('div', { class: 'tray-tip hidden' });
+  private tipGame: Game | null = null;
   private statsR: HTMLDivElement;
   private boss: HTMLDivElement;
   private toast: HTMLDivElement;
@@ -94,6 +132,7 @@ export class Hud {
   private bars = new Map<number, { el: HTMLDivElement; fill: HTMLElement; key: string }>();
   private arrowLayer: HTMLDivElement;
   private arrows: HTMLDivElement[] = [];
+  private markers: HTMLDivElement[] = [];
   private partyH = 0;
   /** the interact prompt over something the local player can use (D-67) */
   private promptEl: HTMLDivElement;
@@ -142,6 +181,7 @@ export class Hud {
   }
 
   update(g: Game, fps: number, dt: number, screen: HudScreen): void {
+    this.tipGame = g;
     const p = g.player;
     this.xpFill.style.width = `${Math.min(100, (g.xp / g.xpToNext) * 100)}%`;
     this.lvl.textContent = String(g.level);
@@ -200,7 +240,8 @@ export class Hud {
         }
         const max = w.level >= w.def.maxLevel;
         const lv = max ? (w.def.isEvolution ? '✦MAX' : 'MAX') : w.def.isEvolution ? `✦${w.level}` : String(w.level);
-        wg.append(h('div', { class: `slot${ready.has(w.def.id) ? ' evo-ready' : ''}`, title: w.def.name }, h('img', { src: this.assets.weaponIcon(w.def.id), alt: w.def.name }), h('span', { class: `lv${max ? ' max' : ''}${w.def.isEvolution ? ' evo' : ''}` }, lv)));
+        const id = w.def.id;
+        wg.append(h('div', { class: `slot${ready.has(id) ? ' evo-ready' : ''}`, onpointerenter: (ev: PointerEvent) => this.showTip(ev.currentTarget as HTMLElement, 'weapon', id), onpointerleave: () => this.hideTip() }, h('img', { src: this.assets.weaponIcon(id), alt: w.def.name }), h('span', { class: `lv${max ? ' max' : ''}${w.def.isEvolution ? ' evo' : ''}` }, lv)));
       }
       const pg = h('div', { class: 'group' });
       const ps = [...p.passives];
@@ -211,8 +252,10 @@ export class Hud {
           continue;
         }
         const d = PASSIVES[e[0]];
-        pg.append(h('div', { class: 'slot', title: d.name }, h('img', { src: this.assets.passiveIcon(e[0]), alt: d.name }), h('span', { class: `lv${e[1] >= d.maxLevel ? ' max' : ''}` }, e[1] >= d.maxLevel ? 'MAX' : String(e[1]))));
+        const id = e[0];
+        pg.append(h('div', { class: 'slot', onpointerenter: (ev: PointerEvent) => this.showTip(ev.currentTarget as HTMLElement, 'passive', id), onpointerleave: () => this.hideTip() }, h('img', { src: this.assets.passiveIcon(id), alt: d.name }), h('span', { class: `lv${e[1] >= d.maxLevel ? ' max' : ''}` }, e[1] >= d.maxLevel ? 'MAX' : String(e[1]))));
       }
+      this.hideTip();
       this.tray.replaceChildren(wg, pg);
     }
     this.statsR.replaceChildren(h('div', {}, `☠ ${g.kills.toLocaleString('en-US')}`), h('div', {}, `🎪 ${g.diff.name}${g.cfg.curse ? ' · Cursed' : ''}${g.cfg.daily ? ' · Daily' : ''}`));
@@ -256,6 +299,7 @@ export class Hud {
     this.updateCoop(g, screen);
     this.updateBars(g, screen);
     this.updateChestArrows(g, screen);
+    this.updateItemMarkers(g, screen);
     this.updatePrompt(g, screen);
   }
 
@@ -355,6 +399,26 @@ export class Hud {
       el.style.top = `${ps.y + Math.sin(a) * R}px`;
       el.style.transform = `translate(-50%, -50%) rotate(${a}rad)`;
       el.style.opacity = String(i === 0 ? 1 : 0.7);
+    });
+  }
+
+  /** A bouncing arrow over each chest, food and golden ticket on screen (D-71), so they're easy to spot. */
+  private updateItemMarkers(g: Game, screen: HudScreen): void {
+    const list = g.pickups.filter((pk) => pk.alive && MARKED[pk.kind] !== undefined).slice(0, 12);
+    while (this.markers.length < list.length) {
+      const el = h('div', { class: 'item-mark', html: MARK_SVG });
+      this.arrowLayer.append(el);
+      this.markers.push(el);
+    }
+    this.markers.forEach((el, i) => {
+      const pk = list[i];
+      const s = pk ? screen.toScreen(pk.x, pk.y, MARKED[pk.kind]!) : null;
+      const on = !!s && s.x > -30 && s.x < screen.w + 30 && s.y > -30 && s.y < screen.h + 30;
+      el.style.display = on ? '' : 'none';
+      if (!on || !s) return;
+      el.style.left = `${s.x}px`;
+      el.style.top = `${s.y}px`;
+      if (el.dataset.kind !== pk.kind) el.dataset.kind = pk.kind;
     });
   }
 
@@ -461,9 +525,21 @@ export class Hud {
     this.onWhisper?.(text, sub);
     while (this.whispers.childElementCount >= 3) this.whispers.firstElementChild!.remove();
     const el = h('div', { class: 'whisper', 'data-key': key }, h('div', { class: 't' }, text), sub ? h('div', { class: 's' }, sub) : null);
-    el.style.animationDuration = `${dur}s`;
+    // on screen twice as long as asked (D-71: quest lines faded before they were read), fading in and out
+    // as quickly as before
+    const total = dur * WHISPER_HOLD;
+    if (typeof el.animate === 'function') {
+      const fin = Math.min(0.2, 0.5 / total), fout = 1 - Math.min(0.3, 0.9 / total);
+      el.style.animation = 'none';
+      el.animate([
+        { opacity: 0, transform: 'translateY(14px)', filter: 'blur(4px)', offset: 0 },
+        { opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)', offset: fin },
+        { opacity: 1, transform: 'translateY(0)', filter: 'blur(0px)', offset: fout },
+        { opacity: 0, transform: 'translateY(-18px)', filter: 'blur(3px)', offset: 1 },
+      ], { duration: total * 1000, easing: 'ease-out', fill: 'forwards' });
+    } else el.style.animationDuration = `${total}s`;
     this.whispers.append(el);
-    setTimeout(() => el.remove(), dur * 1000);
+    setTimeout(() => el.remove(), total * 1000);
   }
 
   warning(bossId: string, reducedFlash: boolean): void {
@@ -479,6 +555,54 @@ export class Hud {
   eventBanner(id: string): void {
     const def = EVENTS[id as keyof typeof EVENTS];
     this.banner(def?.banner ?? id, def?.desc, 'gold', 3);
+  }
+
+  /** The Boardwalk's tide turning (D-71): a short notice, or a toast if a bigger banner is up. */
+  tide(going: 'out' | 'in'): void {
+    const [text, sub] = going === 'out' ? ['THE TIDE IS GOING OUT', 'the sea draws back off the sand'] : ['THE TIDE IS COMING IN', 'get off the flats'];
+    if (this.bannerT > 0) this.toastMsg(text.charAt(0) + text.slice(1).toLowerCase());
+    else this.banner(text, sub, 'tide', 2.6);
+  }
+
+  /**
+   * The equipment bar's tooltip (D-71): hover a slot to see what it is and does, its level, what its next
+   * level brings, and its evolution recipe (or, for a passive, which evolutions it feeds).
+   */
+  private showTip(slot: HTMLElement, kind: 'weapon' | 'passive', id: string): void {
+    const g = this.tipGame;
+    if (!g) return;
+    const p = g.player;
+    const body: (HTMLElement | null)[] = [];
+    if (kind === 'weapon') {
+      const d = WEAPONS[id], w = g.weapons.get(id), lv = w?.level ?? 1;
+      const next = lv < d.maxLevel ? d.levelText?.[lv + 1] : '';
+      body.push(
+        h('div', { class: 'tt-head' }, h('img', { src: this.assets.weaponIcon(id), alt: '' }), h('div', {}, h('b', {}, d.name), h('small', {}, `${d.isEvolution ? '✦ Evolution · ' : ''}Level ${lv} / ${d.maxLevel}`))),
+        h('div', { class: 'tt-desc' }, d.desc),
+        next ? h('div', { class: 'tt-next' }, h('span', {}, 'Next level'), next) : lv >= d.maxLevel ? h('div', { class: 'tt-next max' }, 'Top level reached') : null,
+        d.isEvolution && d.evolvedFrom ? h('div', { class: 'tt-note' }, `Evolved from ${WEAPONS[d.evolvedFrom].name}`) : evoRecipe(this.assets, g, id),
+      );
+    } else {
+      const d = PASSIVES[id], lv = p.passiveLevel(id);
+      const feeds = Object.values(WEAPONS).filter((wd) => wd.evoPassive === id && !wd.isEvolution);
+      const owned = feeds.filter((wd) => g.weapons.has(wd.id));
+      body.push(
+        h('div', { class: 'tt-head' }, h('img', { src: this.assets.passiveIcon(id), alt: '' }), h('div', {}, h('b', {}, d.name), h('small', {}, `Passive · Level ${lv} / ${d.maxLevel}`))),
+        h('div', { class: 'tt-desc' }, `${d.desc} per level`),
+        ...owned.map((wd) => evoRecipe(this.assets, g, wd.id)),
+        !owned.length && feeds.length ? h('div', { class: 'tt-note' }, `Evolves ${feeds.map((wd) => `${wd.name} into ${WEAPONS[wd.evolvesTo!].name}`).join(' · ')}`) : null,
+      );
+    }
+    this.tip.replaceChildren(...body.filter((x): x is HTMLElement => !!x));
+    this.tip.classList.remove('hidden');
+    if (!this.tip.isConnected) this.root.append(this.tip);
+    const r = slot.getBoundingClientRect(), t = this.tip.getBoundingClientRect();
+    this.tip.style.left = `${Math.max(8, Math.min(innerWidth - t.width - 8, r.left + r.width / 2 - t.width / 2))}px`;
+    this.tip.style.top = `${Math.max(8, r.top - t.height - 12)}px`;
+  }
+
+  private hideTip(): void {
+    this.tip.classList.add('hidden');
   }
 
   toastMsg(msg: string, ms = 2600): void {
@@ -533,13 +657,12 @@ export class DraftView {
       const icon = o.kind === 'passive' ? this.assets.passiveIcon(o.refId) : o.kind === 'heal' ? this.assets.passiveIcon('funnel_cake') : o.kind === 'voucher' ? this.assets.passiveIcon('coin_purse') : this.assets.weaponIcon(o.kind === 'evolution' ? WEAPONS[o.refId].evolvesTo! : o.refId);
       const evoLv = o.kind === 'level_weapon' && WEAPONS[o.refId]?.isEvolution;
       const lvlTxt = o.kind === 'evolution' ? 'EVOLUTION!' : o.kind === 'new_weapon' ? 'New weapon' : o.kind === 'passive' ? (o.isNew ? 'New passive' : `Level ${o.level}`) : o.kind === 'heal' ? 'A small mercy' : o.kind === 'voucher' ? 'Permanent currency' : `${evoLv ? '✦ Evo Level' : 'Level'} ${o.level}${o.level === 8 ? ' — MAX' : ''}`;
+      // the evolution it leads to, as a recipe band (D-71): weapon + passive = evolution, ticked as you go
       let hint = '';
-      if (o.kind === 'new_weapon' || o.kind === 'level_weapon') {
-        const d = WEAPONS[o.refId];
-        if (d.evolvesTo && d.evoPassive) hint = `Lv8 + ${PASSIVES[d.evoPassive].name} → ${WEAPONS[d.evolvesTo].name}`;
-      } else if (o.kind === 'passive') {
-        const evos = Object.values(WEAPONS).filter((w) => w.evoPassive === o.refId && g.weapons.has(w.id));
-        if (evos.length) hint = `Evolves: ${evos.map((w) => WEAPONS[w.evolvesTo!].name).join(', ')}`;
+      const recipes: (HTMLElement | null)[] = [];
+      if (o.kind === 'new_weapon' || o.kind === 'level_weapon') recipes.push(evoRecipe(this.assets, g, o.refId, o.level));
+      else if (o.kind === 'passive') {
+        for (const w of Object.values(WEAPONS)) if (w.evoPassive === o.refId && !w.isEvolution && g.weapons.has(w.id)) recipes.push(evoRecipe(this.assets, g, w.id));
       } else if (o.kind === 'evolution') hint = `Replaces ${WEAPONS[o.refId].name}`;
       const rarityName = o.rarity === 'evolution' ? '✦ EVOLUTION ✦' : o.rarity.toUpperCase();
       return h('div', { class: `card ${o.rarity}${o.kind === 'voucher' ? ' voucher' : ''}${o.disabled ? ' disabled' : ''}`, 'data-nav': o.disabled ? undefined : '', 'data-default': i === 0 ? '' : undefined, onclick: () => (o.disabled ? undefined : this.banishMode ? this.doBanish(i) : this.onPick(i)) },
@@ -549,6 +672,7 @@ export class DraftView {
         h('div', { class: 'nm' }, o.title),
         h('div', { class: 'lvl' }, lvlTxt),
         h('div', { class: 'desc' }, o.desc),
+        ...recipes.filter((x): x is HTMLElement => !!x).slice(0, 2),
         hint ? h('div', { class: 'evo-hint' }, hint) : null,
         h('div', { class: 'key' }, String(i + 1)));
     });

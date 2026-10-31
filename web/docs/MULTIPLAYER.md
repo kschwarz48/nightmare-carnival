@@ -40,6 +40,15 @@ The rules follow Vampire Survivors co-op:
 | Rewards | Each player banks **their own** Lost Tickets and achievements into their own save. The Last Song's reward unlocks for both. |
 | Difficulty | Crowd density ×1.25 / 1.45 / 1.6 / 1.72 / 1.82 and enemy + boss HP ×1.3 / 1.5 / 1.7 / 1.85 / 2.0 for 2–6 players (guesses to tune). |
 
+**The party leaderboard (D-71).** Every player's results screen shows THE PARTY: each player's own
+damage, boss damage, kills, tickets, revives given, damage taken and downs, ranked by damage, with the
+best in each column in gold. The host keeps the tally:
+- a zone's damage is its layer's, and a burn's ticks go to whoever hit last;
+- a revive counts for every teammate standing by the coffin when it opens.
+
+Each guest's end stats carry the whole table (`RunStats.party`, `me`). The results screen draws only a
+well-formed table (`partyRows`), so a broken peer can't crash it.
+
 After the night, the host can press **Back to the Lobby** for another round with the same connection.
 
 **The Midway (D-60).** If the host has fully completed the first night, friends who join land on the
@@ -262,6 +271,20 @@ Anything in this file is public.
 - **Interiors.** Each screen cuts away the building its own player is in. Positions replicate as
   anywhere else, so partners can be in different buildings at once.
 - **PROTO 10.** Old builds can't join new lobbies; everyone reloads.
+- **The stage ring (D-71).** The host now reels players back into a Boardwalk boss's stage ring, as the
+  Puppet King's stage always did. A guest's prediction already applied that pull, so a guest who walked
+  out of a ring was corrected back out until this was fixed. No protocol change: PROTO stays 10.
+- **The tide** turns on a timer of sim time (D-71), so every screen's notice of a turn ("THE TIDE IS GOING
+  OUT") comes at the same moment without any message.
+
+### The lobby doesn't flash (D-71)
+
+Every lobby change (a character, the map, the difficulty, a ready) used to rebuild the whole screen,
+replaying its entrance animation on every machine. While the lobby is open it is now brought in line with
+a freshly built copy, node by node (`morph` in `ui/dom.ts`):
+- unchanged nodes stay where they are, with their focus, pictures and animations;
+- attributes and click handlers are synced;
+- the focus ring of keyboard and gamepad navigation (the `focus` class) is kept.
 
 ### Interact presses (D-67, PROTO 9)
 

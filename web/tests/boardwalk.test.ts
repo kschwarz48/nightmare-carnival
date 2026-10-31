@@ -11,7 +11,7 @@ import { BOARDWALK_WAVES, CARNIVAL_WAVES, DAWN_TIME, WAVES, type WaveDef } from 
 import { BOARDWALK_BOSSES, BOSSES } from '../src/data/bosses';
 import { ENEMIES } from '../src/data/enemies';
 import { BOARDWALK_EVENTS, EVENT_POOL } from '../src/data/events';
-import { BENTS, BUILDINGS, CROSSING, PIER, RETREAT, SEA, SUMMERS_END, TIDE, WADE, insideBuilding, onDeck, shoreBase, shoreMix, shoreY, tideRise, trackAt, trainU, waterDepth, walkClamp, BW_BOUNDS } from '../src/data/boardwalk';
+import { BENTS, BUILDINGS, CROSSING, PIER, RETREAT, SEA, SUMMERS_END, TIDE, WADE, insideBuilding, isLowTide, nextTideTurn, onDeck, shoreBase, shoreMix, shoreY, tideRise, trackAt, trainU, waterDepth, walkClamp, BW_BOUNDS } from '../src/data/boardwalk';
 import { trainCars } from '../src/sim/boardwalk';
 import { MARKED_HASTE } from '../src/sim/boardwalkAI';
 import { SaveManager, type StorageLike } from '../src/meta/save';
@@ -95,10 +95,19 @@ describe('the map registry with three maps (D-68)', () => {
 });
 
 describe('the shore (D-68)', () => {
-  it('the tide moves the waterline in and out; low water draws it far out', () => {
-    expect(Math.abs(tideRise(0))).toBeLessThan(1e-9);
-    const hi = shoreY(0, TIDE.period / 4), lo = shoreY(0, (TIDE.period * 3) / 4);
-    expect(lo - hi).toBeCloseTo(TIDE.amp * 2, 3);
+  it('the tide holds, turns quickly on a timer, and is announced before each turn; low water draws it far out', () => {
+    // high water at nightfall, low water after the first turn, back again a period later
+    expect(tideRise(0)).toBe(1);
+    const lowAt = TIDE.high + TIDE.fall + 1;
+    expect(tideRise(lowAt)).toBe(-1);
+    expect(shoreY(0, lowAt) - shoreY(0, 0)).toBeCloseTo(TIDE.upBeach + TIDE.out, 3);
+    expect(tideRise(TIDE.period)).toBe(1);
+    // each turn takes only a few seconds, and is known about before it starts
+    expect(TIDE.fall).toBeLessThanOrEqual(6);
+    expect(TIDE.rise).toBeLessThanOrEqual(6);
+    expect(nextTideTurn(TIDE.high - 3)).toEqual({ going: 'out', in: 3 });
+    expect(nextTideTurn(lowAt).going).toBe('in');
+    expect(isLowTide(lowAt) && !isLowTide(1)).toBe(true);
     expect(shoreY(0, 0, 1) - shoreY(0, 0, 0)).toBeCloseTo(RETREAT, 3);
   });
 

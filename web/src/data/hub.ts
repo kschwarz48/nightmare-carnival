@@ -34,12 +34,14 @@ export const HUB_SPOTS = {
   bigTop: { id: 'bigtop', x: 0, y: 120, r: 120, label: 'The Big Top', sub: 'Begin the First Night' } as HubSpot,
 };
 
-/** Future attractions: the gates are chained shut for now. */
+/** The attractions' gates: the Fun House and the Boardwalk open as a save progresses; the Ghost Train is still to come. */
 export const HUB_EXITS: HubSpot[] = [
-  { id: 'funhouse', x: -1350, y: -1555, r: 130, label: 'The Fun House', sub: 'Coming soon' },
-  { id: 'boardwalk', x: 1620, y: 1820, r: 140, label: 'The Boardwalk', sub: 'Coming soon' },
+  { id: 'funhouse', x: -1350, y: -1555, r: 130, label: 'The Fun House', sub: 'Open: a night in the Palace of Illusions' },
+  { id: 'boardwalk', x: 1620, y: 1820, r: 140, label: 'The Boardwalk', sub: "Open: a night on Penhallow's Boardwalk" },
   { id: 'train', x: 2040, y: -520, r: 140, label: 'The Ghost Train', sub: 'Coming soon' },
 ];
+/** The map each gate leads to (D-71: a gate's label says whether it's open, or what opens it). */
+export const HUB_GATE_MAP: Record<string, 'fun_house' | 'boardwalk'> = { funhouse: 'fun_house', boardwalk: 'boardwalk' };
 
 /** The starting cast, each beside the game they know best. */
 export const HUB_NPCS: HubNpc[] = [

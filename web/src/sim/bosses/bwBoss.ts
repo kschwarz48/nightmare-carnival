@@ -7,6 +7,7 @@
 import { BW_BOUNDS, PIER_DECKS, onDeck, shoreY, waterDepth } from '../../data/boardwalk';
 import type { BossDef } from '../../data/bosses';
 import type { Game } from '../game';
+import { addRingPull } from '../movement';
 import type { Player } from '../player';
 import { BossBase, type BossOpts } from './boss';
 
@@ -16,6 +17,15 @@ export abstract class BoardwalkBoss extends BossBase {
 
   constructor(g: Game, def: BossDef, opts?: BossOpts) {
     super(g, def, opts);
+  }
+
+  update(dt: number): void {
+    super.update(dt);
+    // The stage holds its fight (D-71): anyone who walks out of the ring is reeled back in, as on the first
+    // map's Puppet King stage. Without it a boss held to its stage could be left out of reach (a party
+    // kiting off the stage stalled the fight), and a guest, whose prediction already applies the pull,
+    // was corrected back out.
+    if (this.awake && !this.dead && this.ringR > 0) for (const p of this.g.players) if (this.g.isUp(p)) addRingPull(p, this);
   }
 
   /** The nearest standing player. */

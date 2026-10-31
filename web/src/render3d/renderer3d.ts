@@ -1374,6 +1374,9 @@ export class GameRenderer3D {
     }
   }
 
+  /** The Midway's gates that stand open on this save (their signposts lose the chains; D-71). */
+  hubOpen = new Set<string>();
+
   private drawHub(g: Game, dt: number): void {
     const me = g.player;
     for (const npc of g.hubNpcs) {
@@ -1383,7 +1386,8 @@ export class GameRenderer3D {
       this.drawPlayer(g, npc, npc.x, npc.y, dt, true);
     }
     const b = this.batch('hub_sign', { build: () => signpost(), rim: [0, 0, 0, 0] }, HUB_EXITS.length);
-    for (const e of HUB_EXITS) b.add(e.x, e.y - 30, 0, 0, 1.15);
+    const open = this.batch('hub_sign_open', { build: () => signpost(true), rim: [0, 0, 0, 0] }, HUB_EXITS.length);
+    for (const e of HUB_EXITS) (this.hubOpen.has(e.id) ? open : b).add(e.x, e.y - 30, 0, 0, 1.15);
   }
 
   private drawPlayer(g: Game, p: Player, px: number, py: number, dt: number, npc = false): void {

@@ -33,7 +33,7 @@
 import { dist2 } from '../../core/math';
 import { Rng } from '../../core/rng';
 import { COMMODORE_DEF } from '../../data/bosses';
-import { ADA, GAME_NAMES, KEEPSAKE_GAME, KEEPSAKES, SUMMERS_END, isLowTide, shoreBase, trainU, wheelFromBottom } from '../../data/boardwalk';
+import { ADA, GAME_NAMES, KEEPSAKE_GAME, KEEPSAKES, SUMMERS_END, TIDE, isLowTide, shoreBase, trainU, wheelFromBottom } from '../../data/boardwalk';
 import { DAWN_TIME } from '../../data/waves';
 import { createBoss } from '../bosses';
 import type { LeviathanBoss } from '../bosses/leviathan';
@@ -141,7 +141,7 @@ export class SummersEndChain extends QuestChain {
   /** Where the conch lies tonight. */
   conchSpot(): { x: number; y: number } {
     const x = SUMMERS_END.conchXs[this.conch];
-    return { x, y: shoreBase(x) + 30 };
+    return { x, y: shoreBase(x) + TIDE.out - 50 };
   }
 
   /** The keepsake each game holds tonight (index into KEEPSAKES). */
@@ -478,7 +478,7 @@ export class SummersEndChain extends QuestChain {
     this.galleryHit = 0;
     this.ducks.clear();
     for (let k = 0; k < G.galleryDucks; k++) {
-      const e = g.spawnEnemy('tin_duck', A.x0 + (k / (G.galleryDucks - 1)) * (A.x1 - A.x0), A.y + (k % 2) * 34, { exact: true, noScale: true });
+      const e = g.spawnEnemy('tin_duck', A.x0 + (k / (G.galleryDucks - 1)) * (A.x1 - A.x0), A.y + (k % 2) * 34, { exact: true, noScale: true, hpMult: G.galleryDuckHp });
       if (!e) continue;
       e.dirX = k % 2 ? -1 : 1;
       e.dirY = 0;

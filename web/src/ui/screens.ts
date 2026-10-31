@@ -14,7 +14,9 @@ import type { AudioEngine } from '../audio/audio';
 import type { SaveManager, Settings } from '../meta/save';
 import { DEFAULT_BINDINGS } from '../meta/save';
 import type { Input } from '../input/input';
-import type { RunStats } from '../sim/game';
+import type { PartyRow, RunStats } from '../sim/game';
+import { MAX_PLAYERS } from '../net/protocol';
+import { PLAYER_CSS } from './hud';
 import { h, fmtNum, fmtTime } from './dom';
 
 export interface UICtx {
@@ -157,8 +159,57 @@ export function pauseScreen(c: UICtx, g: { weapons: string[]; passives: string[]
 }
 
 // ===================================================================== results
+/**
+ * The co-op leaderboard (D-71): everyone's own share of the night side by side, ranked by damage, with the
+ * best figure in each column in gold (for damage taken and downs, the fewest).
+ */
+/**
+ * The party's rows made safe to draw: a guest's table comes from the host unvalidated, and a broken peer
+ * must not be able to crash the results (unknown characters lose their portrait, odd figures read 0).
+ */
+function partyRows(st: RunStats): PartyRow[] | null {
+  if (!Array.isArray(st.party) || st.party.length < 2) return null;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  return st.party.slice(0, MAX_PLAYERS).map((r) => ({
+    name: String(r?.name ?? '').slice(0, 32), character: String(r?.character ?? ''),
+    damage: num(r?.damage), bossDamage: num(r?.bossDamage), kills: num(r?.kills), damageTaken: num(r?.damageTaken),
+    downs: num(r?.downs), revives: num(r?.revives), tickets: num(r?.tickets),
+  }));
+}
+
+function partyBoard(c: UICtx, rows: PartyRow[], me: number): HTMLElement {
+  const cols: [keyof PartyRow, string, 'hi' | 'lo'][] = [
+    ['damage', 'Damage', 'hi'], ['bossDamage', 'Boss damage', 'hi'], ['kills', 'Kills', 'hi'], ['tickets', 'Tickets', 'hi'],
+    ['revives', 'Revives', 'hi'], ['damageTaken', 'Damage taken', 'lo'], ['downs', 'Downs', 'lo'],
+  ];
+  const best = cols.map(([k, , dir]) => {
+    const v = rows.map((r) => r[k] as number);
+    return dir === 'hi' ? Math.max(...v) : Math.min(...v);
+  });
+  const order = rows.map((_, i) => i).sort((a, b) => rows[b].damage - rows[a].damage);
+  return h('div', { class: 'party-board' },
+    h('div', { class: 'pb-title' }, 'THE PARTY'),
+    h('table', {},
+      h('tr', {}, h('th', {}, ''), ...cols.map(([, label]) => h('th', {}, label))),
+      ...order.map((i, rank) => {
+        const r = rows[i];
+        return h('tr', { class: i === me ? 'me' : '' },
+          h('td', { class: 'who' },
+            h('span', { class: 'rank' }, rank === 0 ? '\u2605' : String(rank + 1)),
+            CHARACTER_MAP[r.character] ? h('img', { src: c.assets.portrait(r.character), alt: '' }) : null,
+            h('b', { style: { color: PLAYER_CSS[i % PLAYER_CSS.length] } }, r.name),
+            i === me ? h('small', {}, ' you') : null),
+          ...cols.map(([k, , dir], ci) => {
+            const v = r[k] as number;
+            const top = v === best[ci] && (dir === 'lo' || v > 0);
+            return h('td', { class: top ? 'top' : '' }, fmtNum(v));
+          }));
+      })));
+}
+
 export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: string[]; newUnlocks: string[]; dailyBest: boolean }, actions: { again: () => void; againLabel?: string; menu: () => void; menuLabel?: string; lostfound: () => void; endless?: () => void }): HTMLElement {
   const total = Math.max(1, st.weapons.reduce((n, w) => n + w.damage, 0));
+  const party = partyRows(st);
   const ch = CHARACTER_MAP[st.character];
   const won = st.won;
   const house = st.map === 'fun_house';
@@ -187,6 +238,7 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
       h('div', {}, h('b', {}, fmtNum(st.damageDealt)), 'Damage dealt'), h('div', {}, h('b', {}, fmtNum(st.damageTaken)), 'Damage taken'),
       h('div', {}, h('b', {}, String(st.evolutions.length)), 'Evolutions'), h('div', {}, h('b', {}, fmtNum(st.score)), st.daily ? `Score${extra.dailyBest ? ' (best!)' : ''}` : 'Score'),
     ),
+    party ? partyBoard(c, party, st.me ?? 0) : null,
     h('table', { class: 'dmg-table' }, ...rows),
     payout,
     st.voucherTickets > 0 ? h('div', { class: 'unlock-note' }, `+${fmtNum(st.voucherTickets)} Lost Tickets were already banked from Lost & Found vouchers.`) : null,

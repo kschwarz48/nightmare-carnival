@@ -8,7 +8,7 @@
 // underneath. One draw call, no extra scene pass.
 
 import * as THREE from 'three';
-import { PIER_DECKS, RETREAT, TIDE, tideRise } from '../../../data/boardwalk';
+import { PIER_DECKS, RETREAT, tideOffset } from '../../../data/boardwalk';
 import { POOL_GLSL, POOL_MAX } from '../../core/pool';
 import { MIST_GLSL, pool, shared } from '../../core/materials';
 
@@ -380,5 +380,5 @@ export class Ocean {
 
 /** The shore offset (tide + low water) the shaders add to the mean waterline, from the sim's sea state. */
 export function shoreOffset(t: number, retreat: number): number {
-  return -TIDE.amp * tideRise(t) + RETREAT * retreat;
+  return tideOffset(t) + RETREAT * retreat;
 }

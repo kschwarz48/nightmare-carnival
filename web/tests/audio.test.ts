@@ -37,7 +37,7 @@ function engine() {
     startScore: vi.fn(), stopScore: vi.fn(), setDrone: vi.fn(),
   });
   const playing = () => sources.filter((s) => !s.stopped);
-  return { a, sources, playing, score: a.startScore as unknown as ReturnType<typeof vi.fn> };
+  return { a, sources, playing, score: (a as unknown as Record<string, unknown>).startScore as ReturnType<typeof vi.fn> };
 }
 
 describe("Bradley's song on boss fights (D-70)", () => {

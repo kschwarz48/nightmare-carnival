@@ -17,6 +17,35 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<s
   return el;
 }
 
+/** Handlers `h()` sets as properties, which a morph carries over to the live node. */
+const HANDLERS = ['onclick', 'oninput', 'onchange', 'onkeydown', 'onpointerenter', 'onpointerleave', 'onpointerdown'] as const;
+
+/**
+ * Bring `a` in line with `b`, a freshly built copy of the same screen, keeping every node still there
+ * (D-71): attributes, text and handlers update in place, and children are added or dropped only where they
+ * differ. A menu refreshed this way doesn't replay its entrance, lose its focus or reload its pictures.
+ */
+export function morph(a: Element, b: Element): void {
+  if (a.tagName !== b.tagName) {
+    a.replaceWith(b);
+    return;
+  }
+  const focused = a.classList.contains('focus');
+  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
+  for (const { name, value } of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
+  if (focused) a.classList.add('focus');
+  for (const k of HANDLERS) if ((a as any)[k] !== (b as any)[k]) (a as any)[k] = (b as any)[k];
+  const ac = [...a.childNodes], bc = [...b.childNodes];
+  for (let i = 0; i < bc.length; i++) {
+    const x = ac[i], y = bc[i];
+    if (!x) a.appendChild(y);
+    else if (x.nodeType !== y.nodeType || (x.nodeType === 1 && (x as Element).tagName !== (y as Element).tagName)) a.replaceChild(y, x);
+    else if (x.nodeType === 1) morph(x as Element, y as Element);
+    else if (x.textContent !== y.textContent) x.textContent = y.textContent;
+  }
+  for (let i = bc.length; i < ac.length; i++) ac[i].remove();
+}
+
 /**
  * Spatial focus navigation: elements marked `data-nav` inside the root are focusable; arrows /
  * D-pad move to the nearest element in that direction; confirm clicks it.

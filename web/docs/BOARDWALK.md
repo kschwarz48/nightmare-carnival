@@ -42,8 +42,12 @@ The world is **8000 wide** (x −4000..4000) and runs from the hills (y −2300)
 | Ocean | beyond | deep, cold, blocked to players; sea creatures swim |
 | Pier | x ≈ −3060..−2740 → | the wharf from the west end of the promenade, 3000 long into the fog |
 
-The shoreline undulates gently and **moves with the tide** (±60 units every 75 s). Breakers come in at an
-angle (like the photo's long diagonal lines).
+The shoreline undulates gently and **turns with the tide on a timer** (D-71):
+- high water for 50 s, a 5 s turn out, 40 s of low water, a 5 s turn back in (a 100 s cycle);
+- high water comes 60 up the beach past the mean waterline, and low water uncovers 230 of flats;
+- every screen is told 4 s before each turn.
+
+Breakers come in at an angle (like the photo's long diagonal lines).
 
 ### 2.1 The Main Boardwalk — west to east (the promenade's stretches)
 
@@ -133,14 +137,14 @@ base values; every attack has a readable wind-up the renderer shows.
 |---|---|---|---|
 | The Drowned | sea | 38 / 95 / 6 | claws up out of the sand or the surf; drags itself a few steps, then lurches |
 | Shore Crawler | sea | 15 / 175 / 4 | a bottle-capped crab: scuttles sideways across your line, raises its claws, darts straight in |
-| Ticket Taker | boardwalk | 40 / 120 / 6 | keeps a stiff distance; flicks a punched stub that **marks** you for 5 s (the crowd moves 22% faster toward you) |
-| Taffy Horror | boardwalk | 72 / 40 / 8 | a twist of saltwater taffy: a sticky line marks its lash; caught, you're slowed hard and reeled in |
-| Arcade Automaton | boardwalk | 36 / 60 / 6 | a penny-arcade cabinet on brass legs: clockwork steps, then its crank ratchets and it spits five tokens in a fan |
-| Coaster Wraith | boardwalk | 180 / 70 / 18 | a rider in a coaster car: lays a bent rail of light (out to a bend beside you, then through you) and rides it at 620 |
+| Ticket Taker | boardwalk | 52 / 120 / 6 (max 6) | keeps a stiff distance; flicks a punched stub that **marks** you for 5 s (the crowd moves 22% faster toward you) |
+| Taffy Horror | boardwalk | 108 / 40 / 8 (max 4) | a twist of saltwater taffy: a sticky line marks its lash; caught, you're slowed hard and reeled in |
+| Arcade Automaton | boardwalk | 47 / 60 / 6 (max 5) | a penny-arcade cabinet on brass legs: clockwork steps, then its crank ratchets and it spits five tokens in a fan |
+| Coaster Wraith | boardwalk | 270 / 70 / 18 (max 4) | a rider in a coaster car: lays a bent rail of light (out to a bend beside you, then through you) and rides it at 620 |
 | Barnacle Brute | sea | 190 / 50 / 14 | a diver the reef grew over: its crust takes 30% until it has soaked half its health in raw damage, then cracks (125% after, 35% faster); telegraphed slam |
-| Lantern Angler | sea | 150 / 85 / 16 | holds still while its carnival lantern draws nearby players in (a gentle pull), then a wedge marks the bite and it lunges |
+| Lantern Angler | sea | 225 / 85 / 16 (max 4) | holds still while its carnival lantern draws nearby players in (a gentle pull), then a wedge marks the bite and it lunges |
 | Prize Collector | boardwalk | 520 / 70 / 12 (max 3) | the prize-counter man: hoovers up tickets on the ground and swells with them; pays them all back ×1.5 when it falls; telegraphed grab |
-| Tidecaller | sea | 330 / 65 / 8 (max 3) | hangs back; rings its bell and the drowned claw up round you; lifts its staff and a line of seawater rolls across the boards |
+| Tidecaller | sea | 400 / 65 / 8 (max 3) | hangs back; rings its bell and the drowned claw up round you; lifts its staff and a line of seawater rolls across the boards |
 | *reused:* Living Balloon, Balloon Swarm, Evil Clown, Wind-Up Monkey, Possessed Stuffie | carnival | | |
 | *miniboss:* The Great Barnacle | sea | 960 / 75 / 14 | a giant barnacle brute; its slam throws a ring of seawater outward with one gap; drops a chest |
 | *boss add:* Tin Duck | boardwalk | 22 | the Barker's shooting gallery (and the quest's): marches along a lit lane |
@@ -157,15 +161,24 @@ base values; every attack has a readable wind-up the renderer shows.
     they're up).
 
 Waves (`BOARDWALK_WAVES`) keep the other maps' crowd curve (minimum and maximum alive, interval, batch);
-the roster arrives act by act. Measured with `scripts/maphp.ts` (one seed, god-mode bot), crowd health
-per spawn is about 1.2× the first map's in Act I. By roster weights, Act II is about 1.25×. Later acts
-depend on when bosses die, so read them from three seeds.
+the roster arrives act by act.
+- **Mostly runners (D-71).** From Act II on, most of each wave is things that just come at you
+  (drowned, clowns, stuffies, crawlers, barnacle brutes, the prize collector).
+- **A noticeable few specials.** The shooters, chargers and snares are about 7–21% of each wave's
+  weights. They are also capped for the whole party (the "max" above), and the caps don't grow with
+  co-op density, so a party's bigger crowd fills with runners.
+- **Easing in after the Captain.** Act III (12:00) eases in, and Acts III–IV's crowd is a little sturdier
+  per wave (`hpMult` ×1.1–1.15).
+- **Measured** with `scripts/maphp.ts` (two seeds, god-mode bot), crowd health per spawn against the
+  first map is about 1.1× in Act I, 1.1× in II, 0.8× in III and 0.9× in IV. Later acts depend on when
+  bosses die, so read them from more than one seed.
 
 ## 5. Bosses (same gates as every map)
 
 As built (`sim/bosses/*`, rigs in `render3d/boardwalkBosses.ts`, portraits in
 `render/art/boardwalkBosses.ts`). Every fight draws a stage ring round everyone standing when it begins,
-so an open map still gives a contained fight, and nobody starts outside the ring.
+so an open map still gives a contained fight, and nobody starts outside the ring. Anyone who walks out
+is reeled back in, as on the Puppet King's stage (D-71).
 
 | Gate | Boss (HP) | Phases | Signature |
 |---|---|---|---|
@@ -180,14 +193,14 @@ so an open map still gives a contained fight, and nobody starts outside the ring
 - **Machinery:**
   - The Undertow runs on a schedule; where its track dips low over the beach, a car hits whatever
     stands under it.
-  - The tide moves the waterline ±60 every 75 s.
+  - The tide turns on a 100 s timer, announced to every screen 4 s ahead (D-71; see §2).
   - The lighthouse beam sweeps the sea and the pier.
 - **Events** (`BOARDWALK_EVENTS`; the shared funnel cake, clown car, last ticket and calliope too):
 
   | Event | What happens |
   |---|---|
   | Rogue Wave | a wall of water runs up the beach from the waterline, broken in two places |
-  | The Undertow Runs | a pack of coaster wraiths spills off the nearest stretch of track |
+  | The Undertow Runs | a pack of coaster wraiths (2 + act ÷ 2: three or four) spills off the nearest stretch of track |
   | The Fog Comes In | darkness to the lantern bubble; the drowned walk in with it; bonus tickets for surviving |
   | Short Circuit | telegraphed arcs leap between the promenade's lamps near you, every couple of seconds |
   | Washed Ashore | a sea-chest on the wet sand, guarded by what came in with it |

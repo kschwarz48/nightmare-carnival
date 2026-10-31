@@ -96,9 +96,11 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
   const myChar = mine?.character ?? null;
   const guests = lobby.players.filter((p, i) => p && i > 0).length;
   const copy = () => {
+    // the live button (the lobby refreshes in place, so this closure's own copy may not be the one on screen)
+    const live = (): HTMLElement => document.querySelector<HTMLElement>('.mp-code .btn') ?? copyBtn;
     void navigator.clipboard?.writeText(lobby.code).then(
-      () => (copyBtn.textContent = 'Copied!'),
-      () => (copyBtn.textContent = 'Copy failed'),
+      () => (live().textContent = 'Copied!'),
+      () => (live().textContent = 'Copy failed'),
     );
   };
   const copyBtn = btn('Copy', () => { c.click(); copy(); }, 'small purple');

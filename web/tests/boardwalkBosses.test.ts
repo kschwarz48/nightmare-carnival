@@ -204,3 +204,20 @@ describe('the Boardwalk bosses (D-68)', () => {
     }
   });
 });
+
+describe('a Boardwalk boss holds its stage (D-71)', () => {
+  it('reels anyone who walks out of the ring back in, so a fight never stalls out of reach', () => {
+    const g = bw();
+    const b = createBoss(g, BOARDWALK_BOSSES[1], { immediate: true, noChest: true });
+    g.bosses.push(b);
+    for (let i = 0; i < 60 * 3; i++) g.tick();
+    expect(b.ringR).toBeGreaterThan(0);
+    // stand far outside the ring and do nothing: the stage draws the player back to its edge
+    g.player.x = g.player.px = b.ringX;
+    g.player.y = g.player.py = b.ringY - b.ringR - 700;
+    const before = Math.hypot(g.player.x - b.ringX, g.player.y - b.ringY);
+    for (let i = 0; i < 60 * 4; i++) g.tick();
+    const after = Math.hypot(g.player.x - b.ringX, g.player.y - b.ringY);
+    expect(after).toBeLessThan(before - 400);
+  });
+});

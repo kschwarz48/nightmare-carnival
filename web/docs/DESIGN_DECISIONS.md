@@ -785,3 +785,77 @@ and teleports, and the prize wheel dull and see-through.
 - **Tests:** `tests/audio.test.ts` drives the engine through a stand-in AudioContext. In the browser, the
   Barker's fight started the song from the top; after his defeat the night's cue waited until the song's
   end, then the waltz came in.
+
+### D-71 · Co-op playtest round: a calmer Boardwalk crowd, a tide on a timer, the stage that holds its fight, tooltips, recipes, a party leaderboard, a lobby that doesn't flash
+- **The report** (the owner's co-op playtest on the Boardwalk, and a list of interface asks):
+  - After the Drowned Captain the difficulty spiked at once.
+  - Too many coaster wraiths and "mobs that suck you in". Fewer of those, but tougher, with the crowd
+    still dense and mostly things that just run at you: too many choreographed attacks make the screen
+    chaotic.
+  - The tide was hard to read: turn it quickly on a timer, with a message before each turn.
+  - Easter egg messages should stay up twice as long; the shooting gallery's ducks need much more health.
+  - A co-op leaderboard at the end of a run.
+  - The co-op lobby flashed and reloaded at every click.
+  - Tooltips on the equipment bar; evolution recipes easier to notice and read.
+  - The Midway's gates still said "Coming soon" whether or not they were open.
+  - A bouncing arrow over chests, food and golden tickets.
+  - Golden (magnet) tickets about two or three a night.
+- **The crowd** (`data/waves.ts`, `data/enemies.ts`):
+  - Acts II–IV are mostly runners (drowned, clowns, stuffies, crawlers, barnacle brutes, the prize
+    collector). The shooters, chargers and snares are a noticeable few: about 7–21% of each wave's
+    weights.
+  - Those specials are capped for the whole party (coaster wraith 4, lantern angler 4, taffy horror 4,
+    ticket taker 6, arcade automaton 5; tidecaller and prize collector 3 as before). Caps don't grow
+    with co-op density, so a party's bigger crowd fills with runners.
+  - The capped ones are sturdier, with their tickets in step: wraith 180 → 270, angler 150 → 225, taffy
+    72 → 108, ticket taker 40 → 52, automaton 36 → 47, tidecaller 330 → 400.
+  - Act III eases in after the Captain (12:00) instead of opening on a wave that was 78% heavies and
+    specials.
+  - A new per-wave `hpMult` makes Acts III–IV's runner-heavy crowd a little sturdier (×1.1–1.15).
+  - The Undertow Runs event spills 3–4 wraiths, not 6–7.
+  - Measured (`scripts/maphp.ts`, two seeds), crowd health per spawn against the first map: Act I 1.1×
+    (was 1.2×), II 1.1× (1.4×), III 0.8× (1.5×), IV 0.9× (1.0×).
+- **The stage holds its fight** (`sim/bosses/bwBoss.ts`):
+  - The Boardwalk's bosses drew a stage ring and held themselves inside it, but never reeled players
+    back in as the Puppet King's stage does.
+  - A party walking out of the ring left the boss out of reach, and the fight stalled. The full-night
+    test's bot did exactly that against the Captain.
+  - A guest's prediction already applied the pull the host never did, so guests outside a ring were
+    corrected back out.
+  - The host now applies `addRingPull` to every standing player.
+- **The tide on a timer** (`data/boardwalk.ts`):
+  - High water for 50 s, a 5 s turn out, low water for 40 s, a 5 s turn back (a 100 s period).
+  - Low water uncovers 230 past the mean waterline (the old swing was ±60).
+  - Every screen gets a sea-coloured notice ("THE TIDE IS GOING OUT" / "COMING IN") 4 s before each turn,
+    computed from the shared clock. The notice is smaller than an Act banner, and falls back to a toast
+    while a bigger banner is up.
+  - The conch lies out on the low-tide flats, and the wrack lines stay at the high-water mark.
+  - Found on the way: the solo and host frame never fed the ambience mix, so the promenade, beach and
+    pier beds only crossfaded for guests. One `boardwalkFrame` now serves every frame.
+- **Quest presentation:**
+  - Whispers stay on screen twice as long (`WHISPER_HOLD`), fading in and out as quickly as before.
+  - The shooting gallery's six ducks have 12× a tin duck's health (`galleryDuckHp`); a lost gallery is
+    replayable as before.
+- **The co-op leaderboard:**
+  - Each player's own damage, boss damage, kills, damage taken, downs, revives given and tickets are
+    tracked (`Player.run*`).
+  - A zone's damage is its layer's (`Zone.owner`), and a burn's ticks are credited to whoever hit last
+    (`Enemy.lastHitBy`).
+  - Every player's end-of-run stats carry the whole table (`RunStats.party`, `me`).
+  - The results screen shows THE PARTY, ranked by damage, with each column's best in gold.
+- **The lobby** (`ui/dom.ts` `morph`): a change used to rebuild the whole screen, replaying its entrance
+  animation for everyone at every click. The open lobby is now brought in line with a freshly built copy,
+  node by node, keeping focus and pictures.
+- **Tooltips and recipes** (`ui/hud.ts`):
+  - Hovering an equipment slot shows its name, level, description, what the next level brings, and the
+    evolution recipe (for a passive, the evolutions it feeds).
+  - The draft cards' one line of small print became the same recipe band: weapon + passive = evolution,
+    as icons with names, each requirement ticked when it's met, gold when the evolution is ready.
+- **The Midway's gates:** each label says whether it's open, or shows a padlock and what opens it
+  (`MAP_LOCK`). An open gate's signpost loses its chains. The Ghost Train is still "Coming soon".
+- **Item markers:** a bouncing arrow over every chest (gold), food (green) and golden ticket on screen.
+- **Golden tickets:** they spawned about 2.2 times a night, on a clock that boss fights paused, and they
+  vanished after 45 s, often off screen. Now:
+  - the first at 4½–7½ minutes, then every 7½–10½ minutes, on a clock bosses don't pause;
+  - measured over six bot nights (two maps, three seeds): two or three a night, 2.8 on average;
+  - each lasts 90 s and lands 180–400 from a player.

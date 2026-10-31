@@ -26,10 +26,34 @@ export const RIDES_Y0 = -2250;
 export function shoreBase(x: number): number {
   return 1150 + 70 * Math.sin(x * 0.00105 + 0.6) + 35 * Math.sin(x * 0.0029 + 2.1);
 }
-export const TIDE = { period: 75, amp: 60, lowAt: -0.45 };
-/** +1 high water, -1 low water. */
+/**
+ * The tide (D-71): it holds high, turns quickly on a set timer, holds low, and turns back, so nobody has to
+ * read the waterline to know where it is, and every screen is told `warn` seconds before each turn. Times
+ * are seconds within each `period`. The waterline sits `upBeach` up the sand at high water, and `out` past
+ * its mean line at low water.
+ */
+export const TIDE = { period: 100, high: 50, fall: 5, low: 40, rise: 5, warn: 4, upBeach: 60, out: 230, lowAt: -0.45 };
+const ease = (k: number) => k * k * (3 - 2 * k);
+const tideClock = (t: number) => ((t % TIDE.period) + TIDE.period) % TIDE.period;
+/** +1 high water, -1 low water (in between only while it turns). */
 export function tideRise(t: number): number {
-  return Math.sin((t / TIDE.period) * Math.PI * 2);
+  const T = TIDE, c = tideClock(t);
+  if (c < T.high) return 1;
+  if (c < T.high + T.fall) return 1 - 2 * ease((c - T.high) / T.fall);
+  if (c < T.high + T.fall + T.low) return -1;
+  return -1 + 2 * ease((c - T.high - T.fall - T.low) / T.rise);
+}
+/** How far the tide has moved the waterline from its mean line (positive: out to sea). */
+export function tideOffset(t: number): number {
+  const r = tideRise(t);
+  return r >= 0 ? -TIDE.upBeach * r : -TIDE.out * r;
+}
+/** The tide's next turn: whether it will go out or come in, and how many seconds until it starts. */
+export function nextTideTurn(t: number): { going: 'out' | 'in'; in: number } {
+  const T = TIDE, c = tideClock(t), outAt = T.high, inAt = T.high + T.fall + T.low;
+  if (c < outAt) return { going: 'out', in: outAt - c };
+  if (c < inAt) return { going: 'in', in: inAt - c };
+  return { going: 'out', in: T.period - c + outAt };
 }
 export function isLowTide(t: number): boolean {
   return tideRise(t) < TIDE.lowAt;
@@ -48,7 +72,7 @@ export const RETREAT = 650;
 
 /** The waterline at x right now. */
 export function shoreY(x: number, t = SEA.t, retreat = SEA.retreat): number {
-  return shoreBase(x) - TIDE.amp * tideRise(t) + RETREAT * retreat;
+  return shoreBase(x) + tideOffset(t) + RETREAT * retreat;
 }
 
 // ---------------------------------------------------------------- the pier
@@ -462,7 +486,7 @@ export const GAME_NAMES = ['the shooting gallery', 'the Crane', 'the Sea Wheel',
 
 export const SUMMERS_END = {
   id: 'summers_end',
-  /** where the conch can wash up (one per night), at the low-tide waterline */
+  /** where the conch can wash up (one per night), out on the flats the low tide uncovers */
   conchXs: [-1500, -300, 900, 2700],
   marina: { x: ARCADE_FIX.marina.x, y: ARCADE_FIX.marina.y + 70 },
   photo: { x: SHOP_FIX.photo.x, y: SHOP_FIX.photo.y + 100 },
@@ -471,6 +495,8 @@ export const SUMMERS_END = {
   gallery: { x: (ARCADE_FIX.gallery.x0 + ARCADE_FIX.gallery.x1) / 2, y: ARCADE_FIX.gallery.counterY + 50 },
   galleryDucks: 6,
   galleryTime: 25,
+  /** how many times a tin duck's health the gallery's ducks have (D-71: they fell to a single hit) */
+  galleryDuckHp: 12,
   crane: { x: ARCADE_FIX.crane.x, y: ARCADE_FIX.crane.y + 70, period: 2.2, window: 0.075 },
   wheel: { x: WHEEL.x, y: WHEEL.platformY + 40, window: 0.035 },
   brake: { x: 2580, y: FACADE_Y + 40, u0: 0.93 },
@@ -501,7 +527,7 @@ export const ADA = {
   hint: [
     ['THE FORTUNE READS:', '"When the tide runs out, the sea leaves a voice on the sand. Find it at the water\'s edge, and bring it to me."'],
     ['THE FORTUNE READS:', '"A shell that holds the sea. It shows at the waterline only while the tide is out."'],
-    ['THE FORTUNE READS:', '"The tide turns every minute or so. When the water draws back, walk the shore and look for the conch."'],
+    ['THE FORTUNE READS:', '"Listen for the tide going out. Follow the water down the sand, and look for the conch where it stops."'],
   ] as [string, string][],
   photo: ['That was me, the summer I was nine.', 'I had my things with me. Those ones, not the others.'],
   shelfTrue: (n: number): [string, string] => ['Yes… that one was mine.', `${n} of four`],

@@ -46,7 +46,12 @@ Design: `BOARDWALK.md`. Quest solution (developer-only): `EASTER_EGG_BOARDWALK.m
   - Wading: `wadeFactor` in `sim/boardwalk.ts`.
 - **Bosses:** HP in `data/bosses.ts`; per-attack timings and damage in each boss file; tuning exports
   (`BARKER`, `CAPTAIN`, `LAST_RIDE`, `LEVIATHAN`, `COMMODORE`) are what the tests read.
-- **Quest:** `SUMMERS_END` in `data/boardwalk.ts` (windows, fire time, bell hold, strike range).
+- **Quest:** `SUMMERS_END` in `data/boardwalk.ts` (windows, fire time, bell hold, strike range,
+  `galleryDuckHp`).
+- **Tide:** `TIDE` in `data/boardwalk.ts` (the phase lengths, the 4 s warning, how far high water
+  comes up and low water goes out).
+- **Crowd:** `BOARDWALK_WAVES` in `data/waves.ts` (weights per act, and `hpMult` per wave); the specials'
+  party-wide caps (`maxAlive`) in `data/enemies.ts`.
 - **Measuring:**
   - `npx vite-node scripts/maphp.ts 3 carnival_core,fun_house,boardwalk` compares crowd health per spawn
     across the maps.
@@ -59,16 +64,21 @@ Per the standing rule, tune from playtests in small steps (about 10–20%); bots
 
 ## Weak spots and next steps
 
-0. **D-69 playtest fixes** (the pier, the coaster, the Gift Shop, the Arcade, Marina's hint, flashing,
-   telegraphs, late-boss health) are in; see `QA_REPORT.md`. The new boss lengths are measured with
-   bots only; the owner's next playtest decides the next nudge.
+0. **D-71 co-op playtest round:**
+   - The crowd from Act II on is mostly runners. Specials are a capped, sturdier few (party-wide caps
+     in `data/enemies.ts`, `maxAlive`), and Act III eases in after the Captain.
+   - The tide turns on a 100 s timer with a notice to every screen (`TIDE` in `data/boardwalk.ts`).
+   - The stage ring now reels players back in (`bwBoss.update`).
+   - Measured with bots and `maphp.ts` only; the owner's next co-op night decides the next nudge.
+   - D-69's fixes (the pier, the coaster, the Gift Shop, the Arcade, Marina's hint, flashing, telegraphs,
+     late-boss health) are in; see `QA_REPORT.md`.
 1. **The beach is the weakest view:** dark, sparse and low-contrast, even after the lantern and fire-pit
    pass. It needs more dressing (snow fences, washed-up debris, footprints into the surf) and maybe a
    touch more moonlight on wet sand.
 2. **Not playtested by a person**; not tried in co-op on two machines (PROTO 10); not heard (the new
    ambience beds and waltz were built but not listened to).
-3. **Acts III–IV crowd balance** was measured with one noisy seed. Re-run `maphp.ts` with three seeds
-   now that the real bosses are in.
+3. **Acts III–IV crowd balance** was re-measured with two seeds for D-71 (0.8× / 0.9× the first map's
+   crowd health per spawn, with more of it in runners). A third seed and a human night would firm it up.
 4. **The ocean still lacks some planned effects:** foam rings at every pier piling and boat hull, and
    screen-space spray where breakers hit the pilings.
 5. **The Leviathan's head faces its player, so from the south the camera mostly sees its back and

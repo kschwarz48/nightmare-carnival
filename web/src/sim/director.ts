@@ -215,7 +215,7 @@ export class Director {
       return made > 0;
     }
     const elite = forceElite || this.g.rng.chance(this.eliteChance());
-    return this.g.spawnEnemy(id, pt.x, pt.y, { elite }) !== null;
+    return this.g.spawnEnemy(id, pt.x, pt.y, { elite, hpMult: wave.hpMult }) !== null;
   }
 
   /** A marching rank of Puppet Soldiers sharing one formation controller. */

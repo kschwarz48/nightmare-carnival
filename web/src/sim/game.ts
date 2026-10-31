@@ -86,6 +86,19 @@ export interface InputState {
   interact?: boolean;
 }
 
+/** One player's share of a co-op night (D-71), as the results' leaderboard shows it. */
+export interface PartyRow {
+  name: string;
+  character: string;
+  damage: number;
+  bossDamage: number;
+  kills: number;
+  damageTaken: number;
+  downs: number;
+  revives: number;
+  tickets: number;
+}
+
 export interface RunStats {
   won: boolean;
   time: number;
@@ -114,6 +127,9 @@ export interface RunStats {
   questStage: number;
   /** the map the night was on (D-63) */
   map: MapId;
+  /** co-op (D-71): every player's own share of the night, and which row is this player's */
+  party?: PartyRow[];
+  me?: number;
 }
 
 export type GameEvents = {
@@ -146,6 +162,13 @@ export type GameEvents = {
 };
 
 type Phase = 'play' | 'draft' | 'dawn' | 'ended';
+
+/**
+ * Golden tickets (they draw every loose ticket in; D-71): the first four and a half to seven and a half
+ * minutes in, then one every seven and a half to ten and a half minutes on a clock boss fights don't
+ * pause, two or three a night; each lasts a minute and a half and lands close enough to be seen.
+ */
+const GOLDEN = { first: [270, 450] as [number, number], every: [450, 630] as [number, number], life: 90, near: [180, 400] as [number, number] };
 
 export class Game {
   cfg: RunConfig;
@@ -251,6 +274,8 @@ export class Game {
   endStats: RunStats | null = null;
   /** Per-player end-of-run stats (co-op: each client shows and banks its own). */
   endStatsAll: RunStats[] = [];
+  /** whose damage a hit is when it isn't the acting player's (a zone's layer; -1: the acting player) */
+  private credit = -1;
   tiltAngle = 0;
   achievementsHit = new Set<string>();
   maxGems = GEM_CAP;
@@ -330,7 +355,7 @@ export class Game {
       this.hubNpcs.push(npc);
     }
     this.foodTimer = this.rng.range(HEALING.foodFirst[0], HEALING.foodFirst[1]);
-    this.goldenTimer = this.rng.range(150, 330);
+    this.goldenTimer = this.rng.range(GOLDEN.first[0], GOLDEN.first[1]);
     this.director.init();
     this.quests = new QuestSystem(this, this.mapId);
     if (this.mapId === 'fun_house') refreshFunhouseWalls(this);
@@ -609,6 +634,7 @@ export class Game {
     p.iframes = IFRAMES;
     p.hurtFlash = 0.3;
     p.bossDamageTaken += dmg;
+    p.runHurt += dmg;
     this.damageTaken += dmg;
     this.bus.emit('player_hurt', { amount: dmg, hp: p.hp, player: p.index });
     this.fx.push('shake', p.x, p.y, Math.min(1, 0.25 + dmg / 40));
@@ -632,6 +658,8 @@ export class Game {
     p.reviveAssist = assisted;
     p.reviveT = Math.min(1, p.reviveT + dt / (assisted ? COOP.reviveAssisted : COOP.reviveAlone));
     if (p.reviveT >= 1) {
+      // whoever stood by the coffin gets the save
+      for (const o of this.players) if (o !== p && this.isUp(o) && dist2(o.x, o.y, p.x, p.y) < COOP.reviveRadius * COOP.reviveRadius) o.runRevives++;
       p.downed = false;
       p.reviveT = 0;
       p.hp = p.stats.maxHp() * COOP.reviveHpFrac;
@@ -660,6 +688,7 @@ export class Game {
       return;
     }
     if (this.players.some((o) => o !== p && this.isUp(o))) {
+      p.runDowns++;
       // co-op: fall into a coffin until revived
       p.downed = true;
       p.hp = 0;
@@ -864,6 +893,13 @@ export class Game {
     e.hp -= dmg;
     e.flash = 1;
     this.damageDealt += dmg;
+    const by = this.credit >= 0 ? this.credit : weapon === 'burn' ? e.lastHitBy : this.player.index;
+    if (weapon !== 'burn') e.lastHitBy = by;
+    const who = this.players[by];
+    if (who) {
+      who.runDmg += dmg;
+      if (e.hp <= 0) who.runKills++;
+    }
     if (weapon) this.weaponDamage.set(weapon, (this.weaponDamage.get(weapon) ?? 0) + dmg);
     this.fx.push('dmgnum', e.x, e.y - e.r * 2, dmg, crit ? 1 : 0);
     if (kb > 0 && e.def.knockbackTaken > 0) this.knockback(e, srcX, srcY, kb * e.def.knockbackTaken);
@@ -892,6 +928,11 @@ export class Game {
           const d = b.takeDamage(part, amount, crit);
           if (d > 0) {
             this.damageDealt += d;
+            const who = this.players[this.credit >= 0 ? this.credit : this.player.index];
+            if (who) {
+              who.runDmg += d;
+              who.runBossDmg += d;
+            }
             if (weapon) this.weaponDamage.set(weapon, (this.weaponDamage.get(weapon) ?? 0) + d);
             this.fx.push('dmgnum', part.x + this.rng.range(-20, 20), part.y - part.r * 0.6, d, crit ? 1 : 0);
           }
@@ -1492,6 +1533,7 @@ export class Game {
     z.tickAcc = 0;
     z.slow = 0;
     z.harmful = false;
+    z.owner = this.player.index;
     return z;
   }
 
@@ -1508,6 +1550,7 @@ export class Game {
       if (z.tickAcc > 0) continue;
       z.tickAcc = z.tick;
       const src = z.kind === 'spark' ? 'spark_trail' : z.kind === 'burn' ? 'inferno_grill' : z.kind === 'web' ? 'sticky_situation' : z.kind;
+      this.credit = z.owner;
       this.forEachTargetInCircle(z.x, z.y, z.r, (t) => {
         if (!t.isBoss) {
           const e = t as Enemy;
@@ -1522,6 +1565,7 @@ export class Game {
         }
         this.damageTarget(t, z.dmg, false, 0, z.x, z.y, src);
       });
+      this.credit = -1;
     }
   }
 
@@ -1547,7 +1591,7 @@ export class Game {
     pk.magnet = false;
     pk.speed = 0;
     pk.t = 0;
-    pk.life = kind === 'food' ? 30 : kind === 'golden' ? 45 : kind === 'funnel' ? 14 : 1e9;
+    pk.life = kind === 'food' ? 30 : kind === 'golden' ? GOLDEN.life : kind === 'funnel' ? 14 : 1e9;
     pk.rolls = 0;
     pk.vx = pk.vy = 0;
     if (kind === 'ticket') this.gemsOnGround++;
@@ -1619,6 +1663,7 @@ export class Game {
     switch (pk.kind) {
       case 'ticket':
         this.gemsOnGround--;
+        p.runTickets++;
         this.addXp(pk.value);
         this.bus.emit('pickup', { kind: 'ticket', value: pk.value, player: p.index });
         break;
@@ -1800,6 +1845,15 @@ export class Game {
 
   // ------------------------------------------------------------------ timers & map hazards
   private updateTimers(dt: number): void {
+    // golden tickets keep their own clock, boss or no boss (D-71): about two or three a night
+    this.goldenTimer -= dt;
+    if (this.goldenTimer <= 0) {
+      this.goldenTimer = this.rng.range(GOLDEN.every[0], GOLDEN.every[1]);
+      this.setCtx(this.spawnAnchor());
+      const pos = this.nearbyOpenSpot(GOLDEN.near[0], GOLDEN.near[1]);
+      this.setCtx(this.players[0]);
+      this.spawnPickup('golden', pos.x, pos.y, 0);
+    }
     if (this.director.bossActive) return;
     this.foodTimer -= dt;
     if (this.foodTimer <= 0) {
@@ -1809,14 +1863,6 @@ export class Game {
       const pos = this.nearbyOpenSpot(200, 470);
       this.setCtx(this.players[0]);
       this.spawnPickup('food', pos.x, pos.y, 0);
-    }
-    this.goldenTimer -= dt;
-    if (this.goldenTimer <= 0) {
-      this.goldenTimer = this.rng.range(280, 440);
-      this.setCtx(this.spawnAnchor());
-      const pos = this.nearbyOpenSpot(250, 520);
-      this.setCtx(this.players[0]);
-      this.spawnPickup('golden', pos.x, pos.y, 0);
     }
   }
 
@@ -2018,6 +2064,11 @@ export class Game {
       voucherTickets: this.voucherPaid,
       questStage: this.quests.get(this.map.quest.id)?.stage ?? 0,
       map: this.mapId,
+      party: this.players.length > 1 ? this.players.map((pl) => ({
+        name: pl.name, character: pl.char.id, damage: Math.round(pl.runDmg), bossDamage: Math.round(pl.runBossDmg), kills: pl.runKills,
+        damageTaken: Math.round(pl.runHurt), downs: pl.runDowns, revives: pl.runRevives, tickets: pl.runTickets,
+      })) : undefined,
+      me: p.index,
     };
   }
 

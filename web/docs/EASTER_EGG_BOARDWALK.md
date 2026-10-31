@@ -77,17 +77,22 @@ Reaches are in sim units (`SE_REACH` in the chain): the prompt appears when a pl
   1. *"When the tide runs out, the sea leaves a voice on the sand. Find it at the water's edge, and bring
      it to me."*
   2. *"A shell that holds the sea. It shows at the waterline only while the tide is out."*
-  3. *"The tide turns every minute or so. When the water draws back, walk the shore and look for the
-     conch."*
+  3. *"Listen for the tide going out. Follow the water down the sand, and look for the conch where it
+     stops."* (D-71: the tide's turns are announced.)
 - **State:** nothing changes; the quest is still at step 0. Her crystal glows faintly while the
   question is unasked. A press answers every 2.5 s at most.
 
 ### 0 · CONCH — the beach, at low tide
-- **Where:** the conch washes up at one of four places along the waterline each night
-  (`conchXs` = −1500, −300, 900, 2700; y = the mean waterline + 30), chosen by the quest's own seeded
-  stream.
-- **Clue:** the conch glints at the waterline, and only shows when the tide is out. The tide is a 75 s
-  cycle; low tide is the part of it where `tideRise < −0.45`.
+- **Where:** the conch washes up at one of four places on the low-tide flats each night
+  (`conchXs` = −1500, −300, 900, 2700; y = the mean waterline + `TIDE.out` − 50, i.e. 180 past it and
+  50 short of low water), chosen by the quest's own seeded stream.
+- **Clue:** the conch glints out on the flats, and only shows when the tide is out.
+- **The tide runs on a timer (D-71):**
+  - 50 s of high water, a 5 s turn out, 40 s of low water, a 5 s turn back in (a 100 s cycle, `TIDE`).
+  - Low water uncovers 230 past the mean waterline.
+  - Every screen gets a notice 4 s before each turn ("THE TIDE IS GOING OUT" / "THE TIDE IS COMING IN",
+    with the surf).
+  - Low tide is the part of the cycle where `tideRise < −0.45` (`isLowTide`): about 43 s of every 100.
 - **Solve:** walk to it at low tide and press. The prompt only appears at low tide, and a press at high
   tide does nothing.
 - **Response:** Ada's first whisper ("Is someone there? I can hear the sea in you…" / *hold me to
@@ -129,6 +134,7 @@ Reaches are in sim units (`SE_REACH` in the chain): the prompt appears when a pl
 Each game shows its keepsake floating at the prize spot.
 - **Shooting gallery** (stand at the gallery counter, −1300, −1340):
   - A press starts a round: six tin ducks run back and forth along the gallery wall for 25 s.
+  - Each duck has 12× a tin duck's health (`galleryDuckHp`, D-71), so it takes a real volley.
   - Knock all six down (the player's weapons do it) before time is up.
   - If the time runs out, the ducks fold away and the round can be started again.
 - **The Crane** (−800, −1370):
@@ -232,6 +238,8 @@ the waterline and wading all follow (`SEA.retreat`). The seabed by the pier show
 
 ## State, co-op and failure
 
+- **Whispers.** Every whisper stays on screen twice as long as the duration it's given (`WHISPER_HOLD`
+  in `ui/hud.ts`, D-71: a default line now holds 8.4 s), so a party mid-fight can read it.
 - **Determinism.**
   - Every per-night choice (conch spot, keepsakes, engravings, porthole starts, green car, call sign)
     comes from the quest's own `Rng` (seed `cfg.seed ^ 0x5e5e1933`), so it never perturbs gameplay
@@ -253,6 +261,6 @@ the waterline and wading all follow (`SEA.retreat`). The seabed by the pier show
     read, its fall is the ordinary dawn. Once the account is open, it can't die until it is bound.
 - **Expected time.** A party that knows the solution can finish the hands-on steps (0–10) in about 14–18
   minutes of a 25-minute night, then wait for the Leviathan at 24:00. A first-time party will usually
-  need more than one night to learn the clues. Low tide comes every 75 s and the green car every 80 s, so
-  some steps have a short wait built in.
+  need more than one night to learn the clues. Low tide comes every 100 s (and is announced) and the
+  green car every 80 s, so some steps have a short wait built in.
 - **Rewards.** True Dawn, the achievement (400 Lost Tickets), Ada's Conch in the draft pool.

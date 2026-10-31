@@ -199,3 +199,29 @@ describe('co-op XP (D-57, D-61)', () => {
     }
   });
 });
+
+describe('the co-op leaderboard (D-71)', () => {
+  it("credits each player's own damage, kills, hurts and tickets, and hands every player the whole table", () => {
+    const g = duo({ seed: 3, godMode: true });
+    runFor(g, 90);
+    g.endRun(false);
+    for (const [i, st] of g.endStatsAll.entries()) {
+      expect(st.me).toBe(i);
+      expect(st.party?.map((r) => r.name)).toEqual(['Kevin', 'Brother']);
+    }
+    const rows = g.endStatsAll[0].party!;
+    // both fought: each has damage and kills of their own, and the shares add up to the night's
+    for (const r of rows) {
+      expect(r.damage).toBeGreaterThan(0);
+      expect(r.kills).toBeGreaterThan(0);
+    }
+    expect(rows[0].damage + rows[1].damage).toBeCloseTo(g.endStatsAll[0].damageDealt, -2);
+    expect(rows[0].kills + rows[1].kills).toBeLessThanOrEqual(g.kills);
+    expect(rows.reduce((n, r) => n + r.tickets, 0)).toBeGreaterThan(0);
+    // a solo night has no table
+    const solo = makeGame({ seed: 3, godMode: true });
+    runFor(solo, 10);
+    solo.endRun(false);
+    expect(solo.endStats?.party).toBeUndefined();
+  });
+});

@@ -263,7 +263,8 @@ export class CarnivalEvents {
         }
         r.x = bx;
         r.y = by;
-        const n = 3 + g.act;
+        // a few riders, not a pile-up (D-71: each is tougher now, and the crowd keeps them rare)
+        const n = 2 + Math.floor(g.act / 2);
         for (let i = 0; i < n; i++) {
           const a = (i / n) * Math.PI * 2;
           const e = g.spawnEnemy('coaster_wraith', bx + Math.cos(a) * 90, by + Math.sin(a) * 90, { elite: i === 0 && g.act >= 3 });

@@ -43,6 +43,14 @@ export class Player {
   slowF = 1;
   /** a Ticket Taker's stub (D-68): while it lasts, the crowd comes for this player faster */
   markedT = 0;
+  /** this player's own share of the night, for the co-op leaderboard (D-71) */
+  runDmg = 0;
+  runBossDmg = 0;
+  runKills = 0;
+  runHurt = 0;
+  runDowns = 0;
+  runRevives = 0;
+  runTickets = 0;
   pullX = 0;
   pullY = 0;
   dashT = 0; // bumper-car surge remaining

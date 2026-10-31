@@ -98,6 +98,8 @@ export class Enemy implements Target {
   cracked = false;
   /** tickets a Prize Collector has swallowed off the ground (paid back when it falls) */
   loot = 0;
+  /** the player whose hit landed last (a burn's ticks are credited to them; D-71) */
+  lastHitBy = 0;
   noSep = false;
   leashExempt = false;
   // knockback
@@ -300,6 +302,8 @@ export class Zone {
   tickAcc = 0;
   slow = 0;
   harmful = false; // true → hurts the player (enemy sticky patches)
+  /** the player whose weapon laid it (its damage is theirs; D-71) */
+  owner = 0;
 }
 
 export type SummonKind = 'plush' | 'rabbit' | 'dove' | 'lion' | 'elephant' | 'acrobat' | 'clone' | 'derby_ghost';

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeGame } from './helpers';
 import { Game } from '../src/sim/game';
-import { KEEPSAKE_GAME, SUMMERS_END, isLowTide, trainU, wheelFromBottom } from '../src/data/boardwalk';
+import { KEEPSAKE_GAME, SUMMERS_END, isLowTide, nextTideTurn, tideRise, trainU, wheelFromBottom } from '../src/data/boardwalk';
 import { BOARDWALK_BOSSES } from '../src/data/bosses';
 import { DAWN_TIME } from '../src/data/waves';
 import { SE, type SummersEndChain } from '../src/sim/quest/summersEnd';
@@ -154,7 +154,7 @@ describe("Summer's End, solo (D-68)", () => {
     for (let k = 0; k < 4; k++) {
       while (ch.holes[k] !== ch.engraved[k]) {
         const before = ch.holes[k];
-        pressWhen(g, S.portholes[k].x, S.portholes[k].y, () => isLowTide(g.time) && Math.sin((g.time / 75) * Math.PI * 2) < -0.6);
+        pressWhen(g, S.portholes[k].x, S.portholes[k].y, () => tideRise(g.time) === -1 && nextTideTurn(g.time).in > 2);
         expect(ch.holes[k]).toBe((before + 1) % 4);
       }
     }

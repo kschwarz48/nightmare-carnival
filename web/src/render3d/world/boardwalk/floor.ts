@@ -6,7 +6,7 @@
 // water, which slopes away offshore. Lit by the practical-light pool like every other surface.
 
 import * as THREE from 'three';
-import { ARCADE, BUILDINGS, FACADE_Y, GIFTSHOP, PIER_DECKS, PROMENADE, STAIRS } from '../../../data/boardwalk';
+import { ARCADE, BUILDINGS, FACADE_Y, GIFTSHOP, PIER_DECKS, PROMENADE, STAIRS, TIDE } from '../../../data/boardwalk';
 import { POOL_GLSL } from '../../core/pool';
 import { MIST_GLSL, pool, shared } from '../../core/materials';
 import { SHORE_GLSL } from './ocean';
@@ -95,12 +95,14 @@ export class BoardwalkFloor {
             dry = mix(dry, vec3(0.3, 0.29, 0.27), fleck * 0.45);
             float kelp = smoothstep(0.78, 0.86, bwFbm(w * 0.013 + 3.0)) * smoothstep(-260.0, -60.0, dsea) * smoothstep(40.0, -40.0, dsea);
             dry = mix(dry, vec3(0.05, 0.07, 0.04), kelp * 0.85);
-            // the wrack: the high-tide lines, broken strands of weed, splinters and froth left along the beach
+            // the wrack: the high-tide lines, broken strands of weed, splinters and froth left along the beach,
+            // measured from the high-water mark (the tide moves the sea, not what it left behind)
+            float dhigh = w.y - (shoreAt(w.x) - uShoreOff - ${TIDE.upBeach.toFixed(1)});
             float wl = 0.0;
             for (int k = 0; k < 2; k++) {
-              float at = k == 0 ? -150.0 : -290.0;
+              float at = k == 0 ? -90.0 : -230.0;
               float off = 22.0 * sin(w.x * 0.0037 + float(k) * 2.1) + 9.0 * sin(w.x * 0.017 + float(k));
-              float line = smoothstep(11.0 - float(k) * 3.0, 0.0, abs(dsea - at - off));
+              float line = smoothstep(11.0 - float(k) * 3.0, 0.0, abs(dhigh - at - off));
               wl = max(wl, line * smoothstep(0.32, 0.55, bwNoise(w * vec2(0.022, 0.05) + float(k) * 7.0)) * (k == 0 ? 1.0 : 0.6));
             }
             dry = mix(dry, vec3(0.045, 0.05, 0.035), wl * 0.9);
@@ -226,7 +228,7 @@ export class BoardwalkFloor {
           }`,
         );
     };
-    this.material.customProgramCacheKey = () => 'nc-boardwalk-floor-v2';
+    this.material.customProgramCacheKey = () => 'nc-boardwalk-floor-v3';
     // tessellated along the shore so the sea floor can slope away (finer across the beach band)
     const geo = new THREE.PlaneGeometry(10400, 7600, 208, 190);
     geo.rotateX(-Math.PI / 2);

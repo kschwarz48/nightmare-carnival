@@ -3,7 +3,7 @@
 // co-op (lobby, host loop, guest mirror loop — D-52), and the development-only timeline tools
 // (stripped from production builds).
 
-import { MAPS, type MapId } from './data/maps';
+import { MAPS, type MapId, MAP_LOCK } from './data/maps';
 import { AudioEngine } from './audio/audio';
 import { Input, type NavEvent } from './input/input';
 import { SaveManager } from './meta/save';
@@ -25,9 +25,9 @@ import { LAST_SONG } from './data/quests';
 import { QUEST_UNLOCKS } from './data/meta';
 import { MIRA, PERFORMER_NAMES, PERFORMER_NOTES } from './data/funhouse';
 import type { UnreflectedChain } from './sim/quest/unreflected';
-import { ADA, GAME_NAMES, KEEPSAKES, shoreMix } from './data/boardwalk';
+import { ADA, GAME_NAMES, KEEPSAKES, TIDE, nextTideTurn, shoreMix } from './data/boardwalk';
 import type { QuestCue } from './sim/quest';
-import { FocusNav, h } from './ui/dom';
+import { FocusNav, h, morph } from './ui/dom';
 import * as S from './ui/screens';
 import { dailyInfo } from './ui/screens';
 import * as L from './ui/lobby';
@@ -36,7 +36,7 @@ import type { GuestProfile, StartCfg } from './net/protocol';
 import { isValidCode, normalizeCode } from './net/codes';
 import { describeNetConfig, loadNetConfig } from './net/config';
 import { HubHud, type HubLabel } from './ui/hubHud';
-import { HUB_EXITS, HUB_NPCS, HUB_SPAWN, HUB_SPOTS } from './data/hub';
+import { HUB_EXITS, HUB_GATE_MAP, HUB_NPCS, HUB_SPAWN, HUB_SPOTS } from './data/hub';
 import { NetError, hostLobby, joinLobby, probeReach, reachAdvice, type HostHandle, type Reach } from './net/peer';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './sim/constants';
 
@@ -153,6 +153,8 @@ export class App {
   private hubJustUnlocked = false;
   /** guest: finished its prize wheel at this mirror time, waiting for the host's night to resume */
   private guestPrizeAt = -1;
+  /** the Boardwalk's last announced turn of the tide (its time, rounded), so each is told once */
+  private tideSaid = -1;
   private chestQueue: (() => void)[] = [];
 
   constructor() {
@@ -1394,6 +1396,7 @@ export class App {
       this.updateCoopHud();
       this.hud.padKeys = this.input.usingGamepad;
       this.hud.update(g!, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
+      this.boardwalkFrame(g!);
     } else if (this.state === 'paused' || this.state === 'results') {
       if (g) {
         hs?.captureFx(g.fx.events);
@@ -1545,9 +1548,13 @@ export class App {
     }
     HUB_EXITS.forEach((e, i) => {
       const s = toS(e.x, e.y - 30, 130);
-      if (shown(s)) labels.push({ x: s.x, y: s.y, text: e.label, sub: e.sub, kind: 'exit' });
+      // open: its own line; locked: a padlock and what opens it; the Ghost Train is still to come (D-71)
+      const map = HUB_GATE_MAP[e.id], open = !!map && this.save.mapAvailable(map);
+      const sub = open ? e.sub : map ? `Locked: ${MAP_LOCK[map].replace('Locked \u2014 ', '')}` : e.sub;
+      if (shown(s)) labels.push({ x: s.x, y: s.y, text: open ? e.label : `\u{1F512} ${e.label}`, sub, kind: 'exit' });
       consider('exit', i, e.x, e.y, e.r);
     });
+    this.renderer.hubOpen = new Set(HUB_EXITS.filter((e) => HUB_GATE_MAP[e.id] && this.save.mapAvailable(HUB_GATE_MAP[e.id])).map((e) => e.id));
     if (g.players.length > 1) {
       g.players.forEach((p, i) => {
         if (i === this.localIndex) return;
@@ -1622,7 +1629,7 @@ export class App {
         return this.go('charselect');
       case 'exit':
         // the Fun House's gate opens once the first night has been survived (D-63)
-        for (const [gate, map] of [['funhouse', 'fun_house'], ['boardwalk', 'boardwalk']] as const) {
+        for (const [gate, map] of Object.entries(HUB_GATE_MAP)) {
           if (HUB_EXITS[t.i].id === gate && this.save.mapAvailable(map) && this.net?.role !== 'guest') {
             this.audio.play('select', { vol: 0.6 });
             if (this.net?.role === 'host') {
@@ -1864,7 +1871,10 @@ export class App {
       });
       return;
     }
-    this.go('lobby');
+    // someone picked, readied or changed a setting: update the open lobby in place (D-71). Rebuilding it
+    // replayed the screen's entrance, so the whole menu flashed for everyone at every click
+    if (this.screenEl?.isConnected && this.screenEl.classList.contains('lobby')) morph(this.screenEl, this.lobbyEl());
+    else this.go('lobby');
   }
 
   private netToast(text: string, tone: 'info' | 'warn' = 'info'): void {
@@ -1938,6 +1948,22 @@ export class App {
   }
 
   /** Guest frame: predict our own fool, interpolate everything else, render the mirror. */
+  /**
+   * The Boardwalk's per-frame presentation, solo, host and guest alike: the ambience beds follow where this
+   * player stands (D-68; until D-71 only a guest's did), and the tide's turns are announced a few seconds
+   * ahead (D-71).
+   */
+  private boardwalkFrame(g: Game): void {
+    if (g.mapId !== 'boardwalk') return;
+    this.audio.setShoreMix(...shoreMix(g.player.x, g.player.y));
+    const turn = nextTideTurn(g.time), at = Math.round(g.time + turn.in);
+    if (g.phase === 'play' && turn.in <= TIDE.warn && at !== this.tideSaid) {
+      this.tideSaid = at;
+      this.hud.tide(turn.going);
+      this.audio.play('surge', { vol: 0.3 });
+    }
+  }
+
   private guestFrame(dt: number, now: number, cssW: number, cssH: number): void {
     const gs = (this.net as Extract<NetCtx, { role: 'guest' }>).guest;
     const g = this.game!;
@@ -1976,7 +2002,7 @@ export class App {
       this.updateCoopHud();
       this.hud.padKeys = this.input.usingGamepad;
       this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
-      if (g.mapId === 'boardwalk') this.audio.setShoreMix(...shoreMix(g.player.x, g.player.y));
+      this.boardwalkFrame(g);
     } else if (g.hub) this.updateHubHud(cssW, cssH);
   }
 

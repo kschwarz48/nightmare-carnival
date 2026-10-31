@@ -11,6 +11,8 @@ export interface WaveDef {
   batch: number;
   swarm?: { enemy: string; interval: number; size: number };
   eliteBurst?: number;
+  /** a wave's crowd can come a little sturdier than its enemies' own health (D-71) */
+  hpMult?: number;
 }
 
 /** The Carnival Core's night. (`WAVES` below is the active map's; see maps.ts.) */
@@ -104,18 +106,20 @@ export const BOARDWALK_WAVES: WaveDef[] = [
   { id: 'b_0300', start: 180, enemies: [['drowned', 50], ['living_balloon', 15], ['shore_crawler', 25], ['possessed_stuffie', 10]], minAlive: 30, maxAlive: 150, interval: 0.9, batch: 3, swarm: { enemy: 'swarm_balloon', interval: 7.5, size: 32 } },
   { id: 'b_0400', start: 240, enemies: [['drowned', 46], ['shore_crawler', 22], ['evil_clown', 24], ['possessed_stuffie', 8]], minAlive: 42, maxAlive: 200, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 40 } },
   { id: 'b_0500', start: 300, enemies: [['drowned', 44], ['evil_clown', 34], ['shore_crawler', 22]], minAlive: 54, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 46 }, eliteBurst: 4 },
-  // Act II — The Midway
-  { id: 'b_0600', start: 360, enemies: [['drowned', 32], ['evil_clown', 25], ['taffy_horror', 18], ['ticket_taker', 13], ['arcade_automaton', 12]], minAlive: 60, maxAlive: 220, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 30 } },
-  { id: 'b_0800', start: 480, enemies: [['drowned', 26], ['evil_clown', 24], ['taffy_horror', 16], ['arcade_automaton', 14], ['ticket_taker', 20]], minAlive: 68, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 5.5, size: 34 } },
-  { id: 'b_1000', start: 600, enemies: [['evil_clown', 26], ['drowned', 22], ['ticket_taker', 20], ['shore_crawler', 16], ['arcade_automaton', 12], ['taffy_horror', 4]], minAlive: 78, maxAlive: 260, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 38 }, eliteBurst: 3 },
-  // Act III — The Undertow
-  { id: 'b_1200', start: 720, enemies: [['coaster_wraith', 24], ['barnacle_brute', 24], ['evil_clown', 22], ['lantern_angler', 18], ['prize_collector', 12]], minAlive: 80, maxAlive: 270, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 40 } },
-  { id: 'b_1400', start: 840, enemies: [['lantern_angler', 24], ['coaster_wraith', 22], ['drowned', 22], ['barnacle_brute', 14], ['ticket_taker', 18]], minAlive: 86, maxAlive: 280, interval: 0.7, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 44 } },
-  { id: 'b_1600', start: 960, enemies: [['barnacle_brute', 24], ['coaster_wraith', 22], ['evil_clown', 22], ['lantern_angler', 20], ['prize_collector', 12]], minAlive: 92, maxAlive: 280, interval: 0.68, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 48 }, eliteBurst: 4 },
+  // Act II — The Midway. D-71: the crowd is mostly things that run at you; shooters and snares are a
+  // noticeable few (each capped for the whole party, and sturdier for it)
+  { id: 'b_0600', start: 360, enemies: [['drowned', 36], ['evil_clown', 26], ['possessed_stuffie', 14], ['shore_crawler', 8], ['taffy_horror', 6], ['ticket_taker', 6], ['arcade_automaton', 4]], minAlive: 60, maxAlive: 220, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 30 } },
+  { id: 'b_0800', start: 480, enemies: [['drowned', 32], ['evil_clown', 26], ['possessed_stuffie', 14], ['shore_crawler', 8], ['ticket_taker', 8], ['taffy_horror', 6], ['arcade_automaton', 6]], minAlive: 68, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 5.5, size: 34 } },
+  { id: 'b_1000', start: 600, enemies: [['evil_clown', 28], ['drowned', 24], ['shore_crawler', 18], ['possessed_stuffie', 12], ['wind_up_monkey', 6], ['ticket_taker', 6], ['arcade_automaton', 4], ['taffy_horror', 2]], minAlive: 78, maxAlive: 260, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 38 }, eliteBurst: 3 },
+  // Act III — The Undertow. D-71: it eases in after the Captain (the heavies arrive over its six minutes
+  // instead of all at once), and the rail chargers and lure anglers stay a few at a time
+  { id: 'b_1200', start: 720, enemies: [['drowned', 32], ['evil_clown', 26], ['possessed_stuffie', 12], ['barnacle_brute', 12], ['shore_crawler', 8], ['coaster_wraith', 4], ['lantern_angler', 3], ['prize_collector', 3]], minAlive: 80, maxAlive: 270, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 40 }, hpMult: 1.1 },
+  { id: 'b_1400', start: 840, enemies: [['drowned', 28], ['evil_clown', 24], ['barnacle_brute', 18], ['possessed_stuffie', 10], ['prize_collector', 6], ['coaster_wraith', 6], ['lantern_angler', 5], ['ticket_taker', 3]], minAlive: 86, maxAlive: 280, interval: 0.7, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 44 }, hpMult: 1.15 },
+  { id: 'b_1600', start: 960, enemies: [['drowned', 26], ['evil_clown', 22], ['barnacle_brute', 22], ['prize_collector', 9], ['possessed_stuffie', 8], ['coaster_wraith', 6], ['lantern_angler', 5], ['ticket_taker', 2]], minAlive: 92, maxAlive: 280, interval: 0.68, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 48 }, eliteBurst: 4, hpMult: 1.15 },
   // Act IV — High Water
-  { id: 'b_1800', start: 1080, enemies: [['tidecaller', 14], ['coaster_wraith', 22], ['lantern_angler', 22], ['evil_clown', 22], ['drowned', 20]], minAlive: 96, maxAlive: 280, interval: 0.66, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 52 } },
-  { id: 'b_2000', start: 1260, enemies: [['tidecaller', 18], ['barnacle_brute', 22], ['lantern_angler', 20], ['evil_clown', 20], ['coaster_wraith', 14], ['arcade_automaton', 6]], minAlive: 100, maxAlive: 280, interval: 0.62, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 3.5, size: 56 }, eliteBurst: 4 },
-  { id: 'b_2200', start: 1380, enemies: [['tidecaller', 20], ['coaster_wraith', 22], ['barnacle_brute', 22], ['lantern_angler', 18], ['evil_clown', 18]], minAlive: 108, maxAlive: 280, interval: 0.6, batch: 7, swarm: { enemy: 'swarm_balloon', interval: 3, size: 60 }, eliteBurst: 5 },
+  { id: 'b_1800', start: 1080, enemies: [['drowned', 26], ['evil_clown', 22], ['barnacle_brute', 22], ['prize_collector', 8], ['coaster_wraith', 6], ['tidecaller', 6], ['lantern_angler', 5], ['possessed_stuffie', 5]], minAlive: 96, maxAlive: 280, interval: 0.66, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 52 }, hpMult: 1.15 },
+  { id: 'b_2000', start: 1260, enemies: [['drowned', 26], ['barnacle_brute', 22], ['evil_clown', 20], ['prize_collector', 8], ['coaster_wraith', 6], ['tidecaller', 6], ['lantern_angler', 5], ['possessed_stuffie', 4], ['taffy_horror', 3]], minAlive: 100, maxAlive: 280, interval: 0.62, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 3.5, size: 56 }, eliteBurst: 4, hpMult: 1.15 },
+  { id: 'b_2200', start: 1380, enemies: [['drowned', 26], ['barnacle_brute', 24], ['evil_clown', 20], ['prize_collector', 8], ['coaster_wraith', 6], ['tidecaller', 6], ['lantern_angler', 5], ['arcade_automaton', 3], ['possessed_stuffie', 2]], minAlive: 108, maxAlive: 280, interval: 0.6, batch: 7, swarm: { enemy: 'swarm_balloon', interval: 3, size: 60 }, eliteBurst: 5, hpMult: 1.15 },
   { id: 'b_2400', start: 1440, enemies: [['living_balloon', 60], ['drowned', 22], ['evil_clown', 10], ['shore_crawler', 8]], minAlive: 140, maxAlive: 280, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 2.5, size: 70 } },
 ];
 export const BOARDWALK_VICTORY: WaveDef = {
@@ -124,7 +128,7 @@ export const BOARDWALK_VICTORY: WaveDef = {
 };
 export const BOARDWALK_ENDLESS: WaveDef = {
   id: 'b_endless', start: 0,
-  enemies: [['coaster_wraith', 16], ['barnacle_brute', 16], ['lantern_angler', 16], ['drowned', 14], ['ticket_taker', 12], ['taffy_horror', 8], ['tidecaller', 6], ['evil_clown', 8], ['prize_collector', 4]],
+  enemies: [['drowned', 24], ['barnacle_brute', 22], ['evil_clown', 18], ['possessed_stuffie', 8], ['prize_collector', 6], ['coaster_wraith', 6], ['lantern_angler', 5], ['tidecaller', 4], ['ticket_taker', 4], ['taffy_horror', 3]],
   minAlive: 130, maxAlive: 400, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 3, size: 64 }, eliteBurst: 6,
 };
 export const BOARDWALK_ACTS = ['Act I — Low Tide', 'Act II — The Midway', 'Act III — The Undertow', 'Act IV — High Water'];
