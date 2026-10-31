@@ -115,6 +115,106 @@ understate that character.
 
 ---
 
+## The Boardwalk, a third map — 2026-10-31 (D-68)
+
+**Added:** Penhallow's Boardwalk, with:
+- **The map:** promenade, Arcade and Gift Shop interiors, beach, pier and ocean; the tide and the
+  coaster crossing; sea creatures that come up out of the water.
+- **The fights:** ten new enemies plus a miniboss and a boss add; four bosses and a secret one; six
+  events.
+- **The quest:** Summer's End (thirteen steps).
+- **Sound:** three ambiences and a seaside waltz.
+- **Integration:** the Midway gate, map pickers and PROTO 10.
+
+Design: `BOARDWALK.md`; quest solution: `EASTER_EGG_BOARDWALK.md`; decision: D-68.
+
+**Automated:** 292 tests pass in 19 files (54 new), and the production build passes.
+- **`boardwalk.test.ts`** (19):
+  - The registry swaps everything for the third map and back; the same gates and run length; Acts I–II
+    at 1.0–1.4× the first map's crowd health by weight; 10 of 15 enemy types new.
+  - Availability (the Proprietor or the tester flag), and an older save with no Boardwalk fields still
+    loads.
+  - The shore: the tide's amplitude and low water's draw; wading stops at the wade line and the pier's
+    decks carry you; the ambience mix sums to one and lands on the right bed in each region.
+  - The coaster's car hits a player under it at the crossing.
+  - Spawning and reachability: sea things come up in the surf near a player and land things never start
+    in deep water; a ticket dropped offshore drifts in; helpful spots are never at sea.
+  - Enemy mechanics: a barnacle's crust soaks then cracks (3 of 10 damage, then 12.5); a stub marks and
+    the crowd speeds up by exactly the haste factor; a Prize Collector swallows tickets and pays back
+    ≥1.4×; a Tidecaller raises the drowned. Every new creature fights a bot for a minute without
+    non-finite positions, and the attackers are seen winding up.
+  - A Boardwalk night: every event starts and plays out; the player never leaves the map or walks into
+    deep water; and a whole god-mode bot night plays all four acts, beats Barker → Captain → Last Ride →
+    Leviathan in order, reaches dawn and pays out.
+- **`boardwalkBosses.test.ts`** (10):
+  - Each scheduled boss warns, wakes inside a stage drawn round the party, telegraphs, stays on the map
+    (land bosses out of deep water), reaches every phase, pays out, earns its achievement and leaves no
+    hazards behind.
+  - The Last Ride's cars ride its path a car-length apart, and a hit on a car hurts the train.
+  - The Captain's ship stays in deep water.
+  - A cut tentacle costs the Leviathan 2.5% of its health.
+  - The Leviathan holds the dawn and its defeat wins the night.
+  - The Commodore runs three phases.
+  - Every boss fights a bot with a real loadout without faults.
+- **`summersEnd.test.ts`** (7):
+  - The quest is walked from the conch to the True Dawn by real interact presses, timed to the tide, the
+    claw, the wheel and the train. It also takes a wrong souvenir, a missed drop, an early pull and a
+    wrong call on the way.
+  - The Leviathan can't be killed while the account is open, and three bell strokes bind it.
+  - Per-seed puzzles are well formed: one keepsake per game, every porthole unsolved, a mixed call
+    sign.
+  - The gallery can be lost and replayed, and a guttered flame keeps its lit lamps.
+  - Without the bell, the Leviathan's fall is an ordinary dawn.
+  - In co-op, a guest acts alone; the bell passes on when its carrier falls; and the snapshot mirrors
+    the chain into a guest.
+- **`content.test.ts`:** every new enemy has a 3D model and 2D Pedia art; every new SFX recipe renders
+  non-silent audio.
+
+**Balance (measured):**
+- `scripts/maphp.ts 1 carnival_core,boardwalk` (god-mode bot, one seed), crowd health per spawn against
+  the first map: Act I 1.2×, Act II 1.4× (1.25× by roster weights), Act III 1.5×, Act IV 1.0×.
+- One seed is noisy after Act I, because the crowd thins during boss fights that end at different
+  times; that run also had the Fun House's bosses as placeholders. Re-measure with three seeds.
+- The barnacle brutes' crusts make them tankier than their health says (about 1.18× effective). Their
+  health was cut to 190 and 960 to keep them near the 1.2× target.
+
+**In the browser (dev build, 1600×900):**
+- **Captures:** every region and both interiors, active combat, the creature line-up at 3× zoom,
+  rising out of the surf and the sand, every boss and the ghost ship, the quest's stages, and quality
+  tiers. Inspected; metrics and findings are in `VISUAL_QA.md`.
+- **Fixed after looking:**
+  - the tidecaller's staff lay horizontal (it got its own bone);
+  - the Last Ride's riders were blown out;
+  - the ocean's light streaks ended on hard lines;
+  - the wreck's engravings were unreadable;
+  - the moored ship overlapped the trawler;
+  - the crane's claw was hidden in its cabinet;
+  - the beach had almost no light (tower lanterns, the fire pit, stair lanterns and wrack lines were
+    added).
+- **Frame time** (vsync-capped at 165 Hz on this machine):
+  - Plaza, shore, beach combat (51 alive) and the Leviathan fight hold 165 fps (p95 6.2 ms) on High and
+    on Low.
+  - At the 280 cap (269 alive), after re-meshing the sculpts:
+
+    | Quality | Avg fps | p95 | Draw calls | Triangles |
+    |---|---|---|---|---|
+    | High | 131 | 12.2 ms | 328 | 8.67M |
+    | Medium | 148 | 12.1 ms | 247 | 7.65M |
+    | Low | 163 | 6.2 ms | 134 | 4.59M |
+
+    Before the re-mesh, High was 112 fps with 12.9M triangles.
+
+**Not verified:**
+- A person playing a night on the Boardwalk, or the quest end to end by hand (bots and scripted presses
+  only).
+- A co-op night on two machines with PROTO 10 (loopback tests only).
+- Audio by ear: the new SFX render non-silent in tests, and the ambience crossfade and the waltz were
+  built but not listened to.
+- Weaker GPUs and mobile viewports: frame times are from one fast desktop GPU, capped by vsync.
+- Boss balance against real players; Acts III–IV crowd balance with more seeds.
+
+---
+
 ## Fun House lighting, readable walls, E to interact, neon prize wheel — 2026-10-31 (D-67)
 
 **Changed:**

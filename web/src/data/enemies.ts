@@ -22,12 +22,25 @@ export type BehaviorId =
   | 'marionette'
   | 'splitter'
   | 'crooked'
-  | 'thief';
+  | 'thief'
+  // the Boardwalk (D-68)
+  | 'drowned'
+  | 'crab'
+  | 'usher'
+  | 'taffy'
+  | 'automaton'
+  | 'wraith'
+  | 'barnacle'
+  | 'angler'
+  | 'collector'
+  | 'tidecaller'
+  | 'duckline';
 
 export type DeathFx =
   | 'pop' | 'springs' | 'stuffing' | 'sugar' | 'bonk' | 'deflate' | 'confetti' | 'splash'
   | 'wood' | 'ceramic' | 'boards' | 'derail' | 'crumple' | 'brute'
-  | 'porcelain' | 'glass' | 'strings' | 'goo';
+  | 'porcelain' | 'glass' | 'strings' | 'goo'
+  | 'brine' | 'shell' | 'taffy' | 'tokens' | 'ecto' | 'ink' | 'prizes';
 
 export interface EnemyDef {
   id: string;
@@ -62,6 +75,15 @@ export interface EnemyDef {
   /** the Fun House's Splitter: what it breaks into on death, and how many (D-63) */
   splitInto?: string;
   splitCount?: number;
+  /** a sea creature (D-68): swims fast in water, comes up out of it, a little slower on land */
+  aquatic?: boolean;
+  /** claws its way up out of the sand or the surf when it appears, whether or not it's a swimmer (D-68) */
+  rises?: boolean;
+  /**
+   * a crust (D-68): damage is scaled by `mult` until the shell has soaked up `soak` x max HP of raw
+   * damage; then it cracks, and the soft thing inside takes `cracked` x and moves `haste` x faster
+   */
+  shell?: { mult: number; soak: number; cracked: number; haste: number };
 }
 
 const E = (d: EnemyDef) => d;
@@ -269,6 +291,107 @@ export const ENEMIES: Record<string, EnemyDef> = {
     deathFx: 'glass', hitSfx: 'glass_hit', deathSfx: 'shatter', drawScale: 3.5, act: 4, role: 'Illusionist',
     lore: 'It sells you your own face back, one decoy at a time.',
     tell: 'Raises a hand mirror: shimmering copies of nearby monsters appear. They\'re harmless — it isn\'t. Blinks away when cornered.',
+  }),
+  // ================================================================ the Boardwalk (D-68)
+  drowned: E({
+    id: 'drowned', name: 'The Drowned', hp: 38, speed: 95, contact: 6, tickets: 3,
+    behavior: 'drowned', radius: 13, sep: 17, knockbackTaken: 0.8, canElite: true, eliteName: 'Drowned Lifeguard', aquatic: true, rises: true,
+    params: { drag: 0.55, lurch: 1.65 },
+    deathFx: 'brine', hitSfx: 'gurgle', deathSfx: 'gurgle', drawScale: 3.3, act: 1, role: 'Shambler',
+    lore: 'A bather from the summer of \'33, still in the striped suit. The sea gave back what it didn\'t want.',
+    tell: 'Claws up out of the surf or the sand; drags itself a few steps, then lurches.',
+  }),
+  shore_crawler: E({
+    id: 'shore_crawler', name: 'Shore Crawler', hp: 15, speed: 175, contact: 4, tickets: 2,
+    behavior: 'crab', radius: 13, sep: 16, knockbackTaken: 1, canElite: true, eliteName: 'King Crawler', aquatic: true,
+    params: { range: 230, windup: 0.35, dash: 540, dashTime: 0.3, recover: 0.45 },
+    deathFx: 'shell', hitSfx: 'clatter', deathSfx: 'clatter', drawScale: 2.6, act: 1, role: 'Scuttling charger',
+    lore: 'A crab as big as a dog, its shell crusted with bottle caps and a pennant from the Sea Wheel.',
+    tell: 'Scuttles sideways in a zig-zag; raises both claws — then darts straight at you.',
+  }),
+  ticket_taker: E({
+    id: 'ticket_taker', name: 'Ticket Taker', hp: 40, speed: 120, contact: 6, tickets: 4,
+    behavior: 'usher', radius: 13, sep: 16, knockbackTaken: 1, canElite: true, eliteName: 'Head Usher',
+    params: { keep: 300, fire: 3.2, windup: 0.55, projSpeed: 300, projDmg: 7, projLife: 3.2, mark: 5 },
+    deathFx: 'confetti', hitSfx: 'punch', deathSfx: 'punch', drawScale: 3.4, act: 2, role: 'Ranged (marks you)',
+    lore: 'Still on duty at the gate. Every guest gets a stub. Every stub gets collected.',
+    tell: 'Raises its punch and flicks a ticket stub. If it catches you, you are marked: everything nearby comes for you faster.',
+  }),
+  taffy_horror: E({
+    id: 'taffy_horror', name: 'Taffy Horror', hp: 72, speed: 40, contact: 8, tickets: 4,
+    behavior: 'taffy', radius: 17, sep: 20, knockbackTaken: 0.3, canElite: true, eliteName: 'Saltwater Twist',
+    contactSlow: 0.35, contactSlowTime: 1,
+    params: { range: 270, windup: 0.8, lash: 300, lashW: 24, lashDmg: 11, slow: 0.6, slowT: 1.4, yank: 420 },
+    deathFx: 'taffy', hitSfx: 'stretch', deathSfx: 'splat', drawScale: 2.8, act: 2, role: 'Snare (lash & yank)',
+    lore: 'Forty pounds of saltwater taffy left on the pulling hooks since the night the power failed.',
+    tell: 'Draws back a strand — a sticky line marks where it will lash. Caught, you are slowed and reeled in.',
+  }),
+  arcade_automaton: E({
+    id: 'arcade_automaton', name: 'Arcade Automaton', hp: 36, speed: 60, contact: 6, tickets: 3,
+    behavior: 'automaton', radius: 14, sep: 18, knockbackTaken: 0.7, canElite: true, eliteName: 'Grand Mechanical',
+    params: { keep: 320, fire: 4, windup: 0.9, coins: 5, spread: 0.9, projSpeed: 240, projDmg: 7, projLife: 3 },
+    deathFx: 'tokens', hitSfx: 'clank', deathSfx: 'tokens', drawScale: 3.3, act: 2, role: 'Ranged (volleys)',
+    lore: 'A penny-arcade cabinet that walked out on brass legs. The figure in the glass still smiles for a nickel.',
+    tell: 'Stops; its crank ratchets round — then it spits a fan of five arcade tokens.',
+  }),
+  coaster_wraith: E({
+    id: 'coaster_wraith', name: 'Coaster Wraith', hp: 180, speed: 70, contact: 18, tickets: 6,
+    behavior: 'wraith', radius: 16, sep: 20, knockbackTaken: 0.4, canElite: true, eliteName: 'Front-Car Rider',
+    params: { range: 520, tele: 1, charge: 620, kink: 170, over: 260, recover: 0.8 },
+    deathFx: 'ecto', hitSfx: 'clank', deathSfx: 'scream', drawScale: 2.9, act: 3, role: 'Rail charger',
+    lore: 'A rider who never got off the Undertow. It still screams on the drop.',
+    tell: 'A bent rail of light lays itself across the ground — then it rides it, around the bend, at full speed.',
+  }),
+  barnacle_brute: E({
+    id: 'barnacle_brute', name: 'Barnacle Brute', hp: 190, speed: 50, contact: 14, tickets: 6,
+    behavior: 'barnacle', radius: 19, sep: 24, knockbackTaken: 0.25, canElite: true, eliteName: 'Reef Wall', aquatic: true,
+    shell: { mult: 0.3, soak: 0.5, cracked: 1.25, haste: 1.35 },
+    params: { slamEvery: 4.2, slamTele: 0.9, slamR: 110, slamDmg: 16, range: 150 },
+    deathFx: 'shell', hitSfx: 'knock', deathSfx: 'crack', drawScale: 2.7, act: 3, role: 'Armored tank',
+    lore: 'A pier diver who went down to free a fouled piling in 1931 and stayed. The reef grew over him.',
+    tell: 'Shrugs off hits until its crust cracks — then it is soft, angry and faster. Raises both arms for a slam.',
+  }),
+  lantern_angler: E({
+    id: 'lantern_angler', name: 'Lantern Angler', hp: 150, speed: 85, contact: 16, tickets: 6,
+    behavior: 'angler', radius: 16, sep: 20, knockbackTaken: 0.5, canElite: true, eliteName: 'Abyssal Lamplighter', aquatic: true,
+    params: { lure: 1.6, pull: 130, pullR: 340, range: 260, biteTele: 0.45, biteR: 150, biteDmg: 22, lunge: 520, cool: 3 },
+    deathFx: 'ink', hitSfx: 'squelch', deathSfx: 'bite', drawScale: 2.8, act: 3, role: 'Lure & lunge',
+    lore: 'It hangs a carnival lantern from its brow. Out on the pier at night, that light looks like help.',
+    tell: 'Holds still while its lantern brightens and draws you in — a wedge marks the bite, then it lunges.',
+  }),
+  prize_collector: E({
+    id: 'prize_collector', name: 'Prize Collector', hp: 520, speed: 70, contact: 12, tickets: 18,
+    behavior: 'collector', radius: 22, sep: 28, knockbackTaken: 0.2, canElite: false, maxAlive: 3,
+    params: { sniff: 520, grabTele: 0.6, grabR: 130, grabDmg: 14, payback: 1.5 },
+    deathFx: 'prizes', hitSfx: 'thump', deathSfx: 'jingle', drawScale: 2.9, act: 3, role: 'Ticket thief',
+    lore: 'The man from the prize counter, sack over his shoulder. Every ticket on the boards belongs to him now.',
+    tell: 'Hoovers up the tickets on the ground and grows with them. Bring it down and it pays them all back, with interest.',
+  }),
+  tidecaller: E({
+    id: 'tidecaller', name: 'Tidecaller', hp: 330, speed: 65, contact: 8, tickets: 12,
+    behavior: 'tidecaller', radius: 15, sep: 20, knockbackTaken: 0.4, canElite: true, eliteName: 'Herald of the Tide', aquatic: true, maxAlive: 3,
+    params: { keep: 440, call: 7, callTele: 1.2, raise: 3, surge: 9, surgeTele: 0.8, surgeSpeed: 270, surgeLen: 380, surgeDmg: 10 },
+    deathFx: 'brine', hitSfx: 'gurgle', deathSfx: 'conch', drawScale: 3.6, act: 4, role: 'Summoner',
+    lore: 'Old Mother Tide\'s bell-ringer, crowned in shells, draped in the kelp of the drowned pier.',
+    tell: 'Rings its bell: the drowned claw up around you. Lifts its staff: a wave line rolls across the boards.',
+  }),
+  // the Barker's shooting gallery (boss add, never in waves)
+  tin_duck: E({
+    id: 'tin_duck', name: 'Tin Duck', hp: 22, speed: 150, contact: 10, tickets: 1,
+    behavior: 'duckline', radius: 13, sep: 6, knockbackTaken: 0, canElite: false,
+    params: { life: 9 },
+    deathFx: 'tokens', hitSfx: 'clank', deathSfx: 'ding', drawScale: 2.6, act: 1, role: 'Boss add',
+    lore: 'Shot ten thousand times a summer. They kept score.',
+    tell: 'March in a row along a lit lane. Knock them down or step aside.',
+  }),
+  great_barnacle: E({
+    id: 'great_barnacle', name: 'The Great Barnacle', hp: 960, speed: 75, contact: 14, tickets: 15,
+    behavior: 'barnacle', radius: 30, sep: 34, knockbackTaken: 0.1, canElite: false, dropsChest: true, chestMin: 1, chestMax: 2, aquatic: true,
+    shell: { mult: 0.35, soak: 0.45, cracked: 1.2, haste: 1.3 },
+    params: { slamEvery: 4.6, slamTele: 1, slamR: 150, slamDmg: 20, range: 200, ring: 1 },
+    deathFx: 'shell', hitSfx: 'knock', deathSfx: 'crack', drawScale: 2.8, act: 2, role: 'Miniboss',
+    lore: 'Whatever the barnacles grew on first is long gone. They kept the shape.',
+    tell: 'Its slam sends a ring of seawater outward — find the gap. Crack its crust and it speeds up.',
   }),
 };
 

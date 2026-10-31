@@ -28,6 +28,7 @@ import type { LookingGlassBoss } from '../sim/bosses/lookingGlass';
 import type { StringmistressBoss } from '../sim/bosses/stringmistress';
 import type { ProprietorBoss } from '../sim/bosses/proprietor';
 import type { UnreflectedBoss } from '../sim/bosses/unreflected';
+import { BarkerRig, CaptainRig, CommodoreRig, LastRideRig, LeviathanRig, boardwalkGlow, updateBoardwalkRigs, type BoardwalkRigs } from './boardwalkBosses';
 
 
 // ======================================================================= the Carnival Tent
@@ -669,6 +670,8 @@ export class BossRigs {
   private calliope: CalliopeRig;
   // the Fun House's (D-63): built the first time one appears
   private fh: { twins: TwinsRig; glass: GlassRig; strings: StringmistressRig; prop: ProprietorRig; unref: UnreflectedRig } | null = null;
+  // the Boardwalk's (D-68): built the first time one appears
+  private bw: BoardwalkRigs | null = null;
   private wrecks = new Map<string, THREE.Mesh>();
   private wreckMat = actorMaterial({});
   /** The tent's fallen tarp: both faces (folds), nudged toward the camera so it never fights the ground. */
@@ -686,9 +689,14 @@ export class BossRigs {
     const seen = new Set<string>();
     r.spot.intensity = 0;
     r.moonTint = 0;
+    const shore: BossBase[] = [];
     for (const b of g.bosses) {
       const x = lerp(b.px, b.x, alpha), y = lerp(b.py, b.y, alpha);
       seen.add(b.def.id);
+      if (BW_IDS.has(b.def.id)) {
+        shore.push(b);
+        continue;
+      }
       switch (b.def.id) {
         case 'carnival_tent': this.tent.update(b as TentBoss, g, r, x, y, dt); break;
         case 'ferris_wheel': this.ferris.update(b as FerrisBoss, g, r, x, y, dt); break;
@@ -704,6 +712,10 @@ export class BossRigs {
           else if (b.def.id === 'unreflected') fh.unref.update(b as UnreflectedBoss, g, r, alpha, dt);
         }
       }
+    }
+    if (shore.length || this.bw) {
+      const bw = (this.bw ??= { barker: new BarkerRig(this.scene), captain: new CaptainRig(this.scene), ride: new LastRideRig(this.scene), leviathan: new LeviathanRig(this.scene), commodore: new CommodoreRig(this.scene) });
+      updateBoardwalkRigs(bw, shore, g, r, alpha, dt);
     }
     if (this.fh) {
       if (!seen.has('crooked_twins')) this.fh.twins.group.visible = false;
@@ -747,7 +759,7 @@ export class BossRigs {
       case 'ferris_wheel': return [1, 0.3, 0.3];
       case 'puppet_king': return [0.75, 0.5, 1];
       case 'calliope': return [0.45, 1, 0.7];
-      default: return funhouseGlow(b.def.id) ?? [1, 0.6, 0.35];
+      default: return funhouseGlow(b.def.id) ?? boardwalkGlow(b.def.id) ?? [1, 0.6, 0.35];
     }
   }
 
@@ -803,6 +815,78 @@ export class BossRigs {
         r.teleLine.line(h.x, h.y, h.x2, h.y2, 2.2, 1, 0.3, 0.2, 0.85 * pulse);
         return true;
       }
+      // the Boardwalk's (D-68)
+      case 'ring_toss':
+      case 'shell':
+      case 'wreckage':
+      case 'firework': {
+        // something coming down out of the dark onto the marked spot: a falling glint over the telegraph
+        if (h.tele <= 0) return false;
+        const prog = 1 - h.tele / Math.max(0.001, h.teleMax);
+        const hgt = (1 - prog) * 420;
+        const col: [number, number, number] = h.style === 'ring_toss' ? [1, 0.85, 0.4] : h.style === 'shell' ? [1, 0.6, 0.3] : h.style === 'firework' ? [1, 0.5, 0.8] : [0.8, 0.7, 0.55];
+        r.glow.draw(r.assets.atlas.get('fx_glow_0'), h.x, h.y + hgt * COT, hgt + 10, 0.5, 0.5, 0, col[0], col[1], col[2], 0.5 + 0.5 * prog);
+        return false;
+      }
+      case 'tidal': {
+        if (h.tele > 0) return false;
+        // a wall of black water with white water riding its crest
+        const w = Math.max(4, h.r2);
+        r.teleFill.line(h.x, h.y, h.x2, h.y2, w, 0.05, 0.12, 0.16, 0.75, 0.75);
+        r.addShapes.line(h.x, h.y, h.x2, h.y2, w + 22, 0.7, 0.9, 1, 0.45, 0);
+        r.addShapes.line(h.x, h.y - w * 0.5, h.x2, h.y2 - w * 0.5, w * 0.5, 1, 1, 1, 0.65, 0);
+        r.teleLine.line(h.x, h.y + w, h.x2, h.y2 + w, 2.2, 1, 0.3, 0.2, 0.8 * pulse);
+        return true;
+      }
+      case 'whirlpool': {
+        // a spiral of foam turning in on itself, the core marked in danger red
+        const tele = h.tele > 0;
+        const k = tele ? 1 - h.tele / Math.max(0.001, h.teleMax) : 1;
+        for (let i = 0; i < 4; i++) {
+          const rr = (1 - ((t * 0.6 + i / 4) % 1)) * 420;
+          r.addShapes.ring(h.x, h.y, Math.max(0, rr - 6), rr, 0.7, 0.9, 1, (tele ? 0.12 : 0.25) * k, 0.03);
+        }
+        r.teleFill.circle(h.x, h.y, h.r, 1, 0.25, 0.15, tele ? 0.2 * k : 0.5, 0.3);
+        r.teleLine.ring(h.x, h.y, h.r - 3, h.r, 1, 0.3, 0.2, 0.9 * pulse, 0.9 * pulse);
+        return true;
+      }
+      case 'track':
+      case 'track_loop': {
+        // the Last Ride lays its own track: two glowing rails and the ties between them
+        if (h.tele <= 0) return true;
+        const k = 1 - h.tele / Math.max(0.001, h.teleMax);
+        if (h.shape === 'annulus') {
+          for (const rr of [h.r2 + 6, h.r - 6]) r.addShapes.ring(h.x, h.y, rr - 3, rr + 3, 1, 0.55, 0.3, 0.5 + 0.4 * k, 0.5 + 0.4 * k);
+          r.teleFill.ring(h.x, h.y, h.r2, h.r, 1, 0.25, 0.12, 0.12 + 0.2 * k, 0.12 + 0.2 * k);
+          return true;
+        }
+        const dx = h.x2 - h.x, dy = h.y2 - h.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, w = h.r2 * 0.55;
+        const reach = Math.min(1, k * 2.2);
+        const ex = h.x + dx * reach, ey = h.y + dy * reach;
+        for (const s of [-1, 1]) r.addShapes.line(h.x + nx * w * s, h.y + ny * w * s, ex + nx * w * s, ey + ny * w * s, 5, 1, 0.55, 0.3, 0.7 + 0.3 * pulse, 0);
+        for (let d = 0; d < L * reach; d += 34) {
+          const cx = h.x + (dx / L) * d, cy = h.y + (dy / L) * d;
+          r.teleLine.line(cx - nx * w * 1.2, cy - ny * w * 1.2, cx + nx * w * 1.2, cy + ny * w * 1.2, 3, 1, 0.3, 0.15, 0.6);
+        }
+        r.teleFill.line(h.x, h.y, h.x2, h.y2, h.r2, 1, 0.25, 0.12, 0.1 + 0.15 * k, 0.05);
+        return true;
+      }
+      case 'duck_lane': {
+        if (h.tele <= 0) return true;
+        const k = 1 - h.tele / Math.max(0.001, h.teleMax);
+        r.teleFill.line(h.x, h.y, h.x2, h.y2, h.r2, 1, 0.8, 0.3, 0.12 + 0.2 * k, 0.05);
+        r.laneEdges(h, h.r2, 1, 0.75, 0.3, 0.7 * pulse);
+        return true;
+      }
+      case 'debt': {
+        // red ink ruled across the stage
+        const tele = h.tele > 0;
+        const k = tele ? 1 - h.tele / Math.max(0.001, h.teleMax) : 1;
+        r.teleFill.line(h.x, h.y, h.x2, h.y2, h.r2, 0.75, 0.08, 0.06, tele ? 0.15 + 0.3 * k : 0.85, tele ? 0.05 : 0.6);
+        if (!tele) r.addShapes.line(h.x, h.y, h.x2, h.y2, h.r2 + 10, 1, 0.3, 0.2, 0.5, 0);
+        else r.teleLine.line(h.x, h.y, h.x2, h.y2, 2, 1, 0.25, 0.2, 0.8 * pulse);
+        return true;
+      }
       case 'steam': {
         if (h.tele > 0) return false;
         if (Math.random() < 0.5) r.fx.handle([{ type: 'spark', x: h.x + (Math.random() - 0.5) * h.r, y: h.y + (Math.random() - 0.5) * h.r, a: 1, b: 0, c: 0, style: 'frost' }]);
@@ -814,6 +898,9 @@ export class BossRigs {
     return false;
   }
 }
+
+/** The Boardwalk's bosses (D-68), drawn by render3d/boardwalkBosses.ts. */
+const BW_IDS = new Set(['barker', 'drowned_captain', 'last_ride', 'leviathan', 'commodore']);
 
 /** Ghost-light tints for the four soul lamps (moon, key, eye, crown). */
 const LAMP_COLS: [number, number, number][] = [[0.6, 0.75, 1], [1, 0.85, 0.4], [0.45, 1, 0.7], [1, 0.45, 0.7]];

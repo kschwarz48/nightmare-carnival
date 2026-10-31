@@ -3,7 +3,7 @@
 // pickups glow softly and bob.
 
 import * as THREE from 'three';
-import { C, cone, cyl, ellipsoid, extrude, lathe, rbox, smoothShape, sphere, starShape, torus, tube, weather, stripes, type V3 } from '../core/geo';
+import { C, box, cone, cyl, ellipsoid, extrude, lathe, rbox, smoothShape, sphere, starShape, torus, tube, weather, stripes, type V3 } from '../core/geo';
 import { ModelBuilder, PAL, PART, SURF, body, bulb, eyes, glove, limb, ruff, shoe, stitches } from './kit';
 import type { ModelDef } from './index';
 
@@ -380,6 +380,43 @@ function mirrorShard(): THREE.BufferGeometry {
   return m.build({ ao: 0 });
 }
 
+/** A Ticket Taker's stub (D-68): torn off at one end, punched through, a red band across it. */
+function ticketStub(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  m.add(extrude(ticketShape(11, 7), 0.9, 0.15, 4, 1), { col: 0xfff0d0, emit: 1.3, surf: SURF.paint, rot: [Math.PI / 2, 0, 0] });
+  m.add(box(11.4, 1.2, 2.2), { col: 0xff3b2a, pos: [0, 0.2, 0], emit: 1.8, surf: SURF.paint });
+  m.add(cyl(1.3, 1.3, 1.4, 10), { col: 0x200808, pos: [2.6, 0.2, 0], surf: SURF.paint });
+  return m.build({ ao: 0 });
+}
+
+/** An Arcade Automaton's token (D-68): a brass coin with a milled rim and a punched star. */
+function arcadeToken(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  m.add(cyl(5.2, 5.2, 1.4, 18), { col: 0xffcf6a, rot: [Math.PI / 2, 0, 0], emit: 1.4, surf: SURF.gold });
+  m.add(torus(5.2, 0.6, 4, 18), { col: 0xffe39a, emit: 1.6, surf: SURF.gold });
+  m.add(extrude(starShape(5, 2.4, 1), 0.4, 0, 1), { col: 0x8a5a1a, pos: [0, 0, 0.8], surf: SURF.gold });
+  return m.build({ ao: 0 });
+}
+
+/** One of the Last Ride's cars, uncoupled and thrown (D-68): a rounded tub, a gold rim, iron wheels. */
+function coasterCarBullet(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  m.add(rbox(26, 14, 34, 5), { col: weather(0x6a1414, 0.4), pos: [0, 10, 0], surf: SURF.paint });
+  m.add(rbox(20, 6, 22, 2.5), { col: 0x1a0a0a, pos: [0, 15, -2], surf: SURF.paint });
+  m.add(rbox(27, 1.4, 35, 0.6), { col: PAL.gold, pos: [0, 16.6, 0], surf: SURF.gold, emit: 0.4 });
+  for (const x of [-13.5, 13.5]) for (const z of [-11, 11]) m.add(cyl(3.6, 3.6, 2.4, 10), { col: PAL.iron, pos: [x, 3.6, z], rot: [0, 0, Math.PI / 2], surf: SURF.iron });
+  for (const x of [-9, 9]) m.add(sphere(1.6, 8, 6), { col: 0xffd27a, pos: [x, 12, 17.4], emit: 2, surf: SURF.bulb });
+  return m.build({ ao: 0.3 });
+}
+
+/** A page torn from the Commodore's ledger (D-68), ruled in faded red. */
+function ledgerPage(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  m.add(box(10, 0.6, 13), { col: 0xf0e4c4, emit: 1.1, surf: SURF.paint });
+  for (let i = 0; i < 4; i++) m.add(box(8, 0.7, 0.5), { col: 0xc83a2a, pos: [0, 0.1, -4.5 + i * 3], emit: 1.4, surf: SURF.paint });
+  return m.build({ ao: 0 });
+}
+
 export const ITEM_MODELS: Record<string, ModelDef> = {
   // pickups
   ticket0: { build: () => ticket(0x1f8fff, 0.95), rim: NO_RIM, emitBoost: 2.6 },
@@ -426,6 +463,10 @@ export const ITEM_MODELS: Record<string, ModelDef> = {
   // the Fun House (D-63): a Crooked Clown's bent juggling pin, a shard of mirror
   b_pin: { build: bentPin, rim: NO_RIM, emitBoost: 1.8 },
   b_shard: { build: mirrorShard, rim: NO_RIM, emitBoost: 2.2 },
+  b_stub: { build: ticketStub, rim: NO_RIM, emitBoost: 2.2 },
+  b_coin: { build: arcadeToken, rim: NO_RIM, emitBoost: 2 },
+  b_car: { build: coasterCarBullet, rim: NO_RIM, emitBoost: 1.6 },
+  b_page: { build: ledgerPage, rim: NO_RIM, emitBoost: 2 },
   // summons
   s_plush: { build: plush, anim: { a: [2.4, 0.06, 0.6, 0.6], b: [0.15, 0, 0.2, 0.8] }, rim: [0.9, 0.75, 0.55, 0.5], shadow: true },
   s_rabbit: { build: rabbit, anim: { a: [5, 0.12, 0.8, 0], b: [0.2, 0, 0, 0] }, rim: [0.9, 0.85, 0.75, 0.5], shadow: true },

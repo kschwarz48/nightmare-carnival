@@ -23,7 +23,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 const UNIT_CYL = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true);
 
 /** A run of thin cylinders strung through points (ropes, strings, lines): drawn fresh each frame. */
-class Strand {
+export class Strand {
   segs: THREE.Mesh[] = [];
   private a = new THREE.Vector3();
   private b = new THREE.Vector3();

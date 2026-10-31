@@ -5,6 +5,7 @@ import { dist2 } from '../core/math';
 import { BOSSES } from '../data/bosses';
 import { EVENT_POOL, EVENTS, SCHEDULED_EVENTS, type EventId } from '../data/events';
 import { ROTUNDA } from '../data/funhouse';
+import { BW_LAMP_SPOTS, PROMENADE, TRACK, WADE, shoreY, waterDepth } from '../data/boardwalk';
 import { PROPS } from '../data/map';
 import type { Enemy } from './entities';
 import type { Game } from './game';
@@ -43,7 +44,7 @@ export class CarnivalEvents {
     for (const r of this.running) {
       r.t += dt;
       this.tickEvent(r, dt);
-      if (r.id === 'lights_out' || r.id === 'house_lights') {
+      if (r.id === 'lights_out' || r.id === 'house_lights' || r.id === 'fog_bank') {
         darknessTarget = r.t < r.dur - 1 ? 1 : 0;
         this.spawnRateMult *= 1.3;
       }
@@ -222,6 +223,86 @@ export class CarnivalEvents {
         }
         break;
       }
+      // ---------------------------------------------------------------- the Boardwalk (D-68)
+      case 'rogue_wave': {
+        // a wall of water runs up the beach from the waterline below the player; it breaks in two places
+        const sy = shoreY(g.player.x) + 60, top = PROMENADE.y1 + 40, sp = 380;
+        const life = Math.max(0.6, (sy - top) / sp);
+        const G = 110, gaps = [g.player.x + g.rng.range(-420, -140), g.player.x + g.rng.range(140, 420)];
+        const edges = [g.player.x - 1300, gaps[0] - G, gaps[0] + G, gaps[1] - G, gaps[1] + G, g.player.x + 1300];
+        for (let i = 0; i < edges.length; i += 2) {
+          const h = g.spawnHazard('line', 'tidal', edges[i], sy, { x2: edges[i + 1], y2: sy, r2: 34, tele: 1.6, active: life, dmg: 12 * g.diff.dmgMult, slow: 0.4 });
+          h.onActivate = () => {
+            h.vy = -sp;
+          };
+        }
+        for (const gx of gaps) {
+          const s = g.spawnHazard('circle', 'safe_pocket', gx, sy, { r: G * 0.85, tele: 1.6, active: life, safe: true });
+          s.onActivate = () => {
+            s.vy = -sp;
+          };
+        }
+        g.bus.emit('sfx', { id: 'surge', vol: 1 });
+        break;
+      }
+      case 'undertow_runs': {
+        // riders spill off the track wherever it passes nearest
+        let bx = TRACK[0][0], by = TRACK[0][1], bd = Infinity;
+        for (const [tx, ty] of TRACK) {
+          const d = dist2(tx, ty, g.player.x, g.player.y);
+          if (d < bd) {
+            bd = d;
+            bx = tx;
+            by = ty;
+          }
+        }
+        if (bd > 900 * 900) {
+          const s = g.nearbyOpenSpot(380, 520);
+          bx = s.x;
+          by = s.y;
+        }
+        r.x = bx;
+        r.y = by;
+        const n = 3 + g.act;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          const e = g.spawnEnemy('coaster_wraith', bx + Math.cos(a) * 90, by + Math.sin(a) * 90, { elite: i === 0 && g.act >= 3 });
+          if (e) e.leashExempt = true;
+        }
+        g.bus.emit('sfx', { id: 'railwarn', vol: 0.9 });
+        break;
+      }
+      case 'washed_ashore': {
+        // a sea-chest on the wet sand below the player, and what came ashore with it
+        const x = g.player.x + g.rng.range(-380, 380);
+        const s = { x, y: Math.min(shoreY(x) + WADE - 70, Math.max(PROMENADE.y1 + 140, shoreY(x) - 60)) };
+        if (dist2(s.x, s.y, g.player.x, g.player.y) > 1300 * 1300) Object.assign(s, g.nearbyOpenSpot(520, 760));
+        r.x = s.x;
+        r.y = s.y;
+        g.spawnPickup('chest', s.x, s.y, 0).rolls = 2;
+        g.spawnHazard('circle', 'chest_marker', s.x, s.y, { r: 60, tele: 0.01, active: EVENTS[id].duration, dmg: 0, safe: true });
+        const guard = g.act >= 3 ? 'barnacle_brute' : g.act >= 2 ? 'drowned' : 'shore_crawler';
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          const e = g.spawnEnemy(guard, s.x + Math.cos(a) * 120, s.y + Math.sin(a) * 120, { elite: i === 0, exact: true });
+          if (e) e.leashExempt = true;
+        }
+        g.bus.emit('sfx', { id: 'splash', vol: 0.8 });
+        break;
+      }
+      case 'ships_light': {
+        // the searchlight comes in off the water toward the nearest player, and keeps hunting
+        const p = g.player;
+        r.x = p.x + g.rng.range(-200, 200);
+        r.y = Math.max(p.y + 380, shoreY(p.x) + 200);
+        g.spawnHazard('circle', 'searchlight', r.x, r.y, { r: 120, tele: 1.4, active: EVENTS[id].duration - 1.4, dmg: 7 * g.diff.dmgMult, tick: 0.5, slow: 0.25 });
+        g.bus.emit('sfx', { id: 'toll', vol: 0.7 });
+        break;
+      }
+      case 'short_circuit':
+      case 'fog_bank':
+        g.bus.emit('sfx', { id: id === 'fog_bank' ? 'surge' : 'zap', vol: 0.8 });
+        break;
       case 'lights_out':
       case 'calliope':
         break;
@@ -232,6 +313,58 @@ export class CarnivalEvents {
   private tickEvent(r: Running, dt: number): void {
     const g = this.g;
     if (r.done) return;
+    // ---- the Boardwalk (D-68)
+    if (r.id === 'fog_bank') {
+      // the Drowned walk in out of the fog
+      r.acc += dt;
+      if (r.acc >= 2.2 && r.t < r.dur - 2) {
+        r.acc = 0;
+        for (let i = 0; i < 2 + Math.min(2, g.act - 1); i++) {
+          const a = g.rng.angle();
+          g.spawnEnemy('drowned', g.player.x + Math.cos(a) * 420, g.player.y + Math.sin(a) * 420);
+        }
+      }
+      return;
+    }
+    if (r.id === 'short_circuit') {
+      // every couple of seconds, arcs leap between pairs of lamps near the player (telegraphed first)
+      r.acc -= dt;
+      if (r.acc <= 0 && r.t < r.dur - 1) {
+        r.acc = 2.1;
+        const near = BW_LAMP_SPOTS.filter(([x, y]) => dist2(x, y, g.player.x, g.player.y) < 760 * 760);
+        let arcs = 0;
+        for (let i = 0; i < near.length && arcs < 5; i++) {
+          for (let j = i + 1; j < near.length && arcs < 5; j++) {
+            const [ax, ay] = near[i], [bx, by] = near[j];
+            const d2 = dist2(ax, ay, bx, by);
+            if (d2 > 520 * 520 || g.rng.next() < 0.35) continue;
+            g.spawnHazard('line', 'arc', ax, ay, { x2: bx, y2: by, r2: 18, tele: 1.1, active: 0.45, dmg: 12 * g.diff.dmgMult });
+            arcs++;
+          }
+        }
+        if (arcs === 0) {
+          // nowhere near the lamps: the arc comes for the player between two sparks
+          const a = g.rng.angle();
+          const cx = g.player.x, cy = g.player.y;
+          g.spawnHazard('line', 'arc', cx - Math.cos(a) * 260, cy - Math.sin(a) * 260, { x2: cx + Math.cos(a) * 260, y2: cy + Math.sin(a) * 260, r2: 18, tele: 1.1, active: 0.45, dmg: 12 * g.diff.dmgMult });
+        }
+        g.bus.emit('sfx', { id: 'zap', vol: 0.6 });
+      }
+      return;
+    }
+    if (r.id === 'ships_light') {
+      // the beam hunts the nearest player, a little slower than a walk
+      const h = g.hazards.find((q) => q.alive && q.style === 'searchlight');
+      if (h) {
+        const p = g.nearestLiving(h.x, h.y);
+        const dx = p.x - h.x, dy = p.y - h.y, d = Math.hypot(dx, dy) || 1;
+        const sp = h.tele > 0 ? 260 : 150;
+        h.x += (dx / d) * Math.min(d, sp * dt);
+        h.y += (dy / d) * Math.min(d, sp * dt);
+        if (waterDepth(h.x, h.y) > WADE) h.y = Math.min(h.y, shoreY(h.x) + WADE);
+      }
+      return;
+    }
     if (r.id === 'funnel_cake') {
       r.acc += dt;
       if (r.acc >= 1.1) {
@@ -267,7 +400,7 @@ export class CarnivalEvents {
 
   private finish(r: Running): void {
     const g = this.g;
-    if (r.id === 'lights_out' && !g.player.dead) {
+    if ((r.id === 'lights_out' || r.id === 'fog_bank') && !g.player.dead) {
       g.bus.emit('banner', { text: 'YOU SURVIVED THE DARK', sub: 'Bonus Tickets!', style: 'gold' });
       const pk = g.spawnPickup('bank', g.player.x + 60, g.player.y, 12 * g.act);
       pk.magnet = true;

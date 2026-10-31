@@ -12,6 +12,7 @@ import { Rig, type BoneDef, type ClipDef, type Pose, ease, mix, pulse, sin, cos,
 import { ADULT, GAIT_WALK, type Gait, type Proportions, eyeDetails, gaitPose, head, humanBody, humanBones, scaleP } from '../sculpt/humanoid';
 import type { SculptModel } from './characters';
 import { FUNHOUSE_BUILDERS } from './funhouseCreatures';
+import { BOARDWALK_BUILDERS } from './boardwalkCreatures';
 
 type Clips = Record<string, ClipDef>;
 const bi = (bones: BoneDef[]) => (n: string) => {
@@ -604,6 +605,7 @@ const BUILDERS: Record<string, () => SculptModel> = {
   jack_in_the_box: () => jackBox(false),
   jack_open: () => jackBox(true),
   ...FUNHOUSE_BUILDERS,
+  ...BOARDWALK_BUILDERS,
 };
 
 export function creatureModel(id: string): SculptModel {

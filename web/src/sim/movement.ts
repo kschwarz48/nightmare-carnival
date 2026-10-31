@@ -3,7 +3,7 @@
 // the map's solid props, solid boss bodies and the play bounds. Pure: no events, no randomness.
 
 import { clamp, dist2 } from '../core/math';
-import { DYNAMIC_WALLS, GREASE_SLICKS, PLAYER_BOUNDS, PROPS, type Prop } from '../data/map';
+import { DYNAMIC_WALLS, GREASE_SLICKS, PLAYER_BOUNDS, PROPS, WALK_CLAMP, type Prop } from '../data/map';
 import type { Player } from './player';
 
 export interface SolidBody { x: number; y: number; solid: boolean; solidR: number }
@@ -103,6 +103,8 @@ export function collideBody(p: Player, bodies: readonly SolidBody[]): void {
       p.y = b.y + (dy / d) * rr;
     }
   }
+  // the map's own ground (the Boardwalk: no walking out into deep water, except along the pier)
+  if (WALK_CLAMP) WALK_CLAMP(p);
   p.x = clamp(p.x, PLAYER_BOUNDS.minX, PLAYER_BOUNDS.maxX);
   p.y = clamp(p.y, PLAYER_BOUNDS.minY, PLAYER_BOUNDS.maxY);
 }

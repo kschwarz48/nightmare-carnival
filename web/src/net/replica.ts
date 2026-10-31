@@ -14,6 +14,7 @@ import { BossPart, Enemy, EnemyBullet, Hazard, Pickup, PlayerProjectile, Summon,
 import type { Game } from '../sim/game';
 import { addHazardPull, addRingPull, moveBody, steer } from '../sim/movement';
 import { addConveyorPush, refreshFunhouseWalls } from '../sim/funhouse';
+import { refreshSea } from '../sim/boardwalk';
 import { PlayerStats } from '../sim/stats';
 import { WeaponInst } from '../sim/weapons';
 import { TICK } from '../sim/constants';
@@ -283,6 +284,7 @@ export class Replica {
       p.downed = !!(d.flags & PF.downed);
       p.shieldReady = !!(d.flags & PF.shieldReady);
       p.reviveAssist = !!(d.flags & PF.reviveAssist);
+      p.markedT = d.flags & PF.marked ? 1 : 0;
       p.iframes = d.iframes;
       p.hurtFlash = d.hurtFlash;
       p.reviveT = d.reviveT;
@@ -335,6 +337,7 @@ export class Replica {
         e.stickyT = T.flags & ET.sticky ? 1 : 0;
         e.burnT = T.flags & ET.burn ? 1 : 0;
         e.shield = T.flags & ET.shield ? 1 : 0;
+        e.cracked = !!(T.flags & ET.cracked);
         e.flash = T.flash;
         e.windup = T.windup;
         e.spawnT = T.spawnT;
@@ -452,6 +455,8 @@ export class Replica {
       refreshFunhouseWalls(this.g);
       addConveyorPush(p);
     }
+    // the Boardwalk's water: the same tide and low water as the host (D-68)
+    if (this.g.mapId === 'boardwalk') refreshSea(this.g);
     moveBody(p, mx, my, p.stats.moveSpeed() * this.slowF, TICK, this.g.bosses, false);
     if (p.moving) p.animT += TICK * ((p.stats.moveSpeed() * this.slowF) / 220);
     else p.animT += TICK * 0.4;

@@ -11,7 +11,7 @@ import { Reader, Writer } from './codec';
 import { isMapId, type MapId } from '../data/maps';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 9;
+export const PROTO = 10;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;

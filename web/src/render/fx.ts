@@ -308,6 +308,44 @@ export class FxSystem {
         this.burst('smoke', x, y, 10, 140, { max: 0.8, s0: 1, s1: 2, r: 0.8, g: 0.7, b: 0.6 });
         this.ephem('ring', x, y, 120, 0.4, [1, 0.8, 0.5], { width: 10 });
         break;
+      // the Boardwalk (D-68)
+      case 'brine':
+        // seawater and weed: the drowned come apart into what they were made of
+        this.burst('droplet', x, y, 16 * n, 220 * s, { vz: 280, grav: 700, max: 0.9, s0: 1.3, s1: 0.8, r: 0.6, g: 0.8, b: 0.75 });
+        this.burst('smoke', x, y, 4, 70, { max: 0.7, s0: 0.6, s1: 1.4, r: 0.45, g: 0.55, b: 0.5 });
+        this.burst('splinter', x, y, 4 * n, 160, { vz: 180, grav: 600, max: 0.9, vr: 6, s0: 1.2, s1: 1, r: 0.25, g: 0.35, b: 0.15 });
+        break;
+      case 'shell':
+        this.burst('shard', x, y, 12 * n, 240 * s, { vz: 260, grav: 700, max: 0.9, vr: 14, s0: 1.3 * s, s1: 1.1 * s, r: 0.75, g: 0.68, b: 0.58 });
+        this.burst('droplet', x, y, 8 * n, 180, { vz: 220, grav: 700, max: 0.7, r: 0.6, g: 0.8, b: 0.75 });
+        break;
+      case 'taffy':
+        this.burst('sugar', x, y, 14 * n, 170 * s, { vz: 160, grav: 500, max: 0.9, s0: 1.5, s1: 0.7, r: 1, g: 0.62, b: 0.75 });
+        this.burst('stuffing', x, y, 6 * n, 140 * s, { vz: 120, grav: 400, max: 0.9, drag: 2.5, s0: 1.2 * s, s1: 1.5 * s, r: 1, g: 0.8, b: 0.85 });
+        break;
+      case 'tokens':
+        this.burst('gear', x, y, 5 * n, 220, { vz: 240, grav: 700, max: 0.9, vr: 14, s0: 1.2 * s, s1: 1 * s });
+        this.burst('star', x, y, 8 * n, 240, { vz: 260, grav: 700, max: 0.9, vr: 10, s0: 0.9, s1: 0.7, r: 1, g: 0.8, b: 0.35 });
+        this.burst('splinter', x, y, 5, 200, { vz: 200, grav: 700, max: 0.8, vr: 12, r: 0.45, g: 0.25, b: 0.15 });
+        break;
+      case 'ecto':
+        this.burst('spark', x, y, 18 * n, 260, { max: 0.6, add: true, r: 0.55, g: 0.95, b: 1 });
+        this.burst('smoke', x, y, 6, 90, { max: 1, s0: 0.8, s1: 2, r: 0.7, g: 0.9, b: 1 });
+        this.burst('gear', x, y, 3, 220, { vz: 240, grav: 700, max: 0.9, vr: 12 });
+        this.flashLight(x, y, 200, 0.35, [0.55, 0.95, 1]);
+        break;
+      case 'ink':
+        this.burst('smoke', x, y, 8, 110, { max: 1, s0: 0.9, s1: 2.2, r: 0.1, g: 0.1, b: 0.14 });
+        this.burst('droplet', x, y, 10 * n, 200, { vz: 220, grav: 700, max: 0.8, r: 0.15, g: 0.15, b: 0.2 });
+        this.burst('spark', x, y - 20, 10, 160, { max: 0.5, add: true, r: 0.75, g: 1, b: 0.7 });
+        this.flashLight(x, y, 180, 0.3, [0.7, 1, 0.7]);
+        break;
+      case 'prizes':
+        this.burst('confetti', x, y - 20, 36, 320, { vz: 300, grav: 600, max: 1.3 });
+        this.burst('board', x, y, 6, 240, { vz: 260, grav: 700, max: 1, vr: 10, s0: 1.2, s1: 1.1, r: 0.6, g: 0.5, b: 0.35 });
+        this.burst('star', x, y - 20, 12, 260, { vz: 280, grav: 600, max: 1, vr: 8, r: 1, g: 0.85, b: 0.35 });
+        this.ephem('ring', x, y, 110, 0.4, [1, 0.85, 0.4], { width: 8 });
+        break;
       case 'confetti':
       default:
         this.burst('confetti', x, y, 8, 200, { vz: 200, grav: 500, max: 0.8 });
@@ -364,6 +402,7 @@ export class FxSystem {
       case 'string': this.burst('spark', e.x, e.y, n * 2, 200, { max: 0.4, add: true, r: 1, g: 1, b: 0.9 }); break;
       case 'shield': this.burst('spark', e.x, e.y, 4, 120, { max: 0.25, add: true, r: 0.6, g: 0.8, b: 1 }); break;
       case 'wind': this.spawn('smoke', e.x, e.y, { max: 0.6, s0: 0.3, s1: 0.6, r: 0.8, g: 0.85, b: 1 }); break;
+      case 'splash': this.burst('droplet', e.x, e.y, n * 2, 140, { vz: 200, grav: 700, max: 0.6, s0: 0.9, s1: 0.6, r: 0.75, g: 0.88, b: 0.92 }); break;
       default: this.burst('spark', e.x, e.y, n, 120, { max: 0.3, add: true });
     }
   }

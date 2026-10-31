@@ -4,7 +4,7 @@
 
 import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
 import { DIFFICULTIES, CURSE } from '../data/difficulty';
-import { MAP_IDS, MAPS, type MapId } from '../data/maps';
+import { MAP_IDS, MAP_LOCK, MAPS, type MapId } from '../data/maps';
 import { WEAPONS } from '../data/weapons';
 import type { LobbyState } from '../net/protocol';
 import type { Reach } from '../net/peer';
@@ -134,7 +134,7 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
   const mapRow = host && o.actions.map
     ? h('div', { class: 'diff-row map-row' }, ...MAP_IDS.map((id) => {
         const ok = s.mapAvailable(id);
-        return h('button', { class: `diff-btn${id === lobby.map ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? MAPS[id].tagline : 'Locked — survive the first night', onclick: () => { c.click(); o.actions.map!(id); } }, ok ? MAPS[id].name : `🔒 ${MAPS[id].name}`);
+        return h('button', { class: `diff-btn${id === lobby.map ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? MAPS[id].tagline : MAP_LOCK[id], onclick: () => { c.click(); o.actions.map!(id); } }, ok ? MAPS[id].name : `🔒 ${MAPS[id].name}`);
       }))
     : h('div', { class: 'muted' }, `Tonight: ${MAPS[lobby.map]?.name ?? lobby.map}${host ? '' : ' (the host chooses)'}`);
   const diffRow = host

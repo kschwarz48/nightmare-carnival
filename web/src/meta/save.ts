@@ -64,6 +64,8 @@ export interface SaveData {
   midwayTester?: boolean;
   /** alpha testing aid: `?unlock=funhouse` opens the Fun House on this save (D-63) */
   funhouseTester?: boolean;
+  /** alpha testing aid: `?unlock=boardwalk` opens the Boardwalk on this save (D-68) */
+  boardwalkTester?: boolean;
 }
 
 export const DEFAULT_BINDINGS: Record<string, string[]> = {
@@ -318,6 +320,8 @@ export class SaveManager {
   mapAvailable(id: string): boolean {
     if (id === 'carnival_core') return true;
     if (id === 'fun_house') return this.hasAchievement('beat_ringmaster') || this.hubUnlocked() || !!this.data.funhouseTester;
+    // the Boardwalk (D-68): once the Fun House has been survived (the Proprietor beaten), or the alpha tester flag
+    if (id === 'boardwalk') return this.hasAchievement('beat_proprietor') || !!this.data.boardwalkTester;
     return false;
   }
   dailyAvailable(): boolean {

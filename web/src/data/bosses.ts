@@ -2,7 +2,8 @@
 
 export interface BossDef {
   id: 'carnival_tent' | 'ferris_wheel' | 'puppet_king' | 'ringmaster' | 'calliope'
-    | 'crooked_twins' | 'looking_glass' | 'stringmistress' | 'proprietor' | 'unreflected';
+    | 'crooked_twins' | 'looking_glass' | 'stringmistress' | 'proprietor' | 'unreflected'
+    | 'barker' | 'drowned_captain' | 'last_ride' | 'leviathan' | 'commodore';
   name: string;
   title: string;
   gate: number;
@@ -100,11 +101,52 @@ export const UNREFLECTED_DEF: BossDef = {
   lore: 'What the mirrors kept: every stolen face, worn at once by the reflection Grinwell traded his own for.', barColor: '#b8fff0',
 };
 
+// ---------------------------------------------------------------- the Boardwalk (D-68): same gates
+export const BOARDWALK_BOSSES: BossDef[] = [
+  {
+    id: 'barker', name: 'The Boardwalk Barker', title: 'Step Right Up!', gate: 360, hp: 7400, contact: 16, radius: 70, enrage: 100,
+    phases: [{ at: 1, name: 'The Pitch' }, { at: 0.6, name: 'The Hard Sell' }, { at: 0.25, name: 'Last Call' }],
+    intro: '"Hurry, hurry, hurry! One night only, every night, forever! Step right up!"',
+    defeat: 'The megaphone howls with feedback. He topples off his soapbox and his boater rolls away down the boards.', unlocks: '—',
+    lore: 'He talked the crowds in off the trolley for forty summers. The crowds stopped coming. He never stopped talking.', barColor: '#e8b04a',
+  },
+  {
+    id: 'drowned_captain', name: 'The Drowned Captain', title: 'All Hands Lost', gate: 720, hp: 20500, contact: 20, radius: 80, enrage: 100,
+    phases: [{ at: 1, name: 'Making Landfall' }, { at: 0.66, name: 'The Ghost Fleet' }, { at: 0.33, name: 'Davy Jones' }],
+    intro: 'A ship\'s bell rings out over the water. Out past the breakers, a steamer that sank in 1933 shows her lights.',
+    defeat: 'He salutes, and goes down with her. Out at sea, the Gala Queen\'s lights go out one porthole at a time.', unlocks: '—',
+    lore: 'Captain Josiah Harrow took the Gala Queen out at 11:59 with two hundred and thirteen souls aboard. He has been trying to bring her in ever since.', barColor: '#5ab8c8',
+  },
+  {
+    id: 'last_ride', name: 'The Last Ride', title: 'The Ride Never Ends', gate: 1080, hp: 33500, contact: 22, radius: 60, enrage: 100,
+    phases: [{ at: 1, name: 'Boarding' }, { at: 0.66, name: 'Full Speed' }, { at: 0.33, name: 'Derailed' }],
+    intro: 'Every light on the Undertow comes on at once. The train leaves the station without its track.',
+    defeat: 'The lead car screams down one last drop that isn\'t there, and the whole train comes apart in sparks.', unlocks: '—',
+    lore: 'The Undertow ran its last lap the night the Gala Queen went down. The riders are still in their seats.', barColor: '#ff6a4a',
+  },
+  {
+    id: 'leviathan', name: 'The Leviathan', title: 'From Below', gate: 1440, hp: 59000, contact: 24, radius: 95, enrage: 120,
+    phases: [{ at: 1, name: 'Stirring' }, { at: 0.66, name: 'The Deep Rises' }, { at: 0.33, name: 'Leviathan' }],
+    intro: 'The sea draws back from the beach all at once. Something under the boards has been listening.',
+    defeat: 'It goes down slowly, the way a ship goes down. The tide comes back gentle. Out on the water, the sky is getting light.', unlocks: 'Endless',
+    lore: 'Old Mother Tide. Commodore Penhallow promised her a summer that would never end, and a share of everyone who came to enjoy it.', barColor: '#3ad8b0',
+  },
+];
+
+/** Secret boss — only reachable through Summer's End (the Boardwalk's hidden quest). */
+export const COMMODORE_DEF: BossDef = {
+  id: 'commodore', name: 'The Commodore', title: 'The Founder\'s Bargain', gate: 99999, hp: 66000, contact: 24, radius: 85, enrage: 130,
+  phases: [{ at: 1, name: 'The Founder' }, { at: 0.66, name: 'The Bargain' }, { at: 0.33, name: 'Summer\'s End' }],
+  intro: 'The ledger closes itself. Down the pier, in a white suit gone green, the man who sold the summer comes to collect.',
+  defeat: 'The account is settled. Ezra Penhallow lets go of the ledger, and the tide takes it out with him.', unlocks: 'True Dawn',
+  lore: 'He built Penhallow\'s Boardwalk in 1904 and bargained with the sea to keep it full. He paid with other people.', barColor: '#e8e0c0',
+};
+
 // The active map's schedule (maps.ts `useMap`); the Carnival Core by default.
 export let BOSSES: BossDef[] = CARNIVAL_BOSSES;
 export function applyBossSchedule(list: BossDef[]): void {
   BOSSES = list;
 }
 
-export const ALL_BOSSES: BossDef[] = [...CARNIVAL_BOSSES, CALLIOPE_DEF, ...FUNHOUSE_BOSSES, UNREFLECTED_DEF];
+export const ALL_BOSSES: BossDef[] = [...CARNIVAL_BOSSES, CALLIOPE_DEF, ...FUNHOUSE_BOSSES, UNREFLECTED_DEF, ...BOARDWALK_BOSSES, COMMODORE_DEF];
 export const BOSS_MAP = Object.fromEntries(ALL_BOSSES.map((b) => [b.id, b])) as Record<BossDef['id'], BossDef>;

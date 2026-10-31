@@ -5,6 +5,7 @@ import { clamp, dist2, TAU } from '../core/math';
 import { PROPS } from '../data/map';
 import type { Enemy } from './entities';
 import { crooked, doppel, glasswalker, mannequin, marionette, splitter, thief } from './funhouseAI';
+import { angler, automaton, barnacle, collector, crab, drowned, duckline, taffy, tidecaller, usher, wraith } from './boardwalkAI';
 import type { Game } from './game';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
@@ -48,6 +49,14 @@ export function updateEnemy(g: Game, e: Enemy, dt: number): void {
     return;
   }
   if (e.frozenT > 0) return;
+  // the Boardwalk (D-68): climbing up out of the sand or the surf — still, and harmless, until it's up
+  if (e.emerge > 0) {
+    e.emerge -= dt;
+    e.vx = e.vy = 0;
+    e.noContact = e.emerge > 0;
+    if (e.emerge <= 0) g.fx.push('dust', e.x, e.y, 0.6);
+    return;
+  }
   switch (e.def.behavior) {
     case 'chaser': chaser(g, e, dt); break;
     case 'erratic': erratic(g, e, dt); break;
@@ -70,6 +79,18 @@ export function updateEnemy(g: Game, e: Enemy, dt: number): void {
     case 'splitter': splitter(g, e, dt); break;
     case 'crooked': crooked(g, e, dt); break;
     case 'thief': thief(g, e, dt); break;
+    // the Boardwalk (D-68)
+    case 'drowned': drowned(g, e, dt); break;
+    case 'crab': crab(g, e, dt); break;
+    case 'usher': usher(g, e, dt); break;
+    case 'taffy': taffy(g, e, dt); break;
+    case 'automaton': automaton(g, e, dt); break;
+    case 'wraith': wraith(g, e, dt); break;
+    case 'barnacle': barnacle(g, e, dt); break;
+    case 'angler': angler(g, e, dt); break;
+    case 'collector': collector(g, e, dt); break;
+    case 'tidecaller': tidecaller(g, e, dt); break;
+    case 'duckline': duckline(g, e, dt); break;
   }
   // a Reflection Thief's decoy fades after a while
   if (e.illusion && e.spawnT > 12) g.despawnEnemy(e);

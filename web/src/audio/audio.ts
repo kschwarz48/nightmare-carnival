@@ -2,8 +2,10 @@
 // ("Freaky Funk Circus" by Bradley Schwarz) plays on the title menus and through every boss fight; the
 // night between bosses gets a quieter procedural music-box waltz that darkens with each Act (D-55), and
 // the Midway hub a hushed, broken carousel waltz of its own (D-61), and the Fun House a waltz that runs
-// backwards over glass harmonics, with an indoor ambience of its own (D-63). Quest chimes dip the music
-// so they always carry. SFX are synthesized at boot.
+// backwards over glass harmonics, with an indoor ambience of its own (D-63), and the Boardwalk a slow
+// detuned seaside waltz with a bell buoy tolling under it, over three ambiences that crossfade with where
+// the listener stands: the promenade, the beach, the pier (D-68). Quest chimes dip the music so they
+// always carry. SFX are synthesized at boot.
 
 import { RECIPES, SR } from './synth';
 
@@ -23,6 +25,8 @@ interface NightTheme {
   vol: number;
   /** 0..1: glass harmonics ringing high over the chords (the Fun House) */
   glass?: number;
+  /** 0..1: a bell buoy tolling low every few bars, and the sea breathing under the chords (the Boardwalk) */
+  buoy?: number;
 }
 
 const MINOR = [0, 2, 3, 5, 7, 8, 11, 12, 14, 15];
@@ -36,6 +40,10 @@ const MIDWAY_BASS = [0, 5, 7, 0, 8, 5, 7, 0];
 const BACKWARDS = [...WALTZ].reverse();
 const BACKWARDS_LOW = [...WALTZ_LOW].reverse();
 const HOUSE_BASS = [0, 8, 5, 1, 0, 8, 6, 7];
+/** The Boardwalk (D-68): a seaside waltz that rises like a swell and falls back, never quite landing. */
+const SEASIDE = [0, -1, 2, 4, -1, 3, 2, -1, 1, 0, -1, -1, 4, -1, 5, 7, -1, 6, 4, 3, 2, 1, -1, -1];
+const SEASIDE_LOW = [0, -1, 1, 2, -1, 0, 6, -1, 4, 3, -1, -1, 2, -1, 3, 4, -1, 2, 1, 0, 6, 4, -1, -1];
+const SHORE_BASS = [0, 5, 3, 7, 0, 8, 5, 7];
 const NIGHT: Record<string, NightTheme> = {
   act1: { bpm: 72, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0, pulse: 0, warp: 0.002, vol: 0.9 },
   act2: { bpm: 76, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0.5, pulse: 0.25, warp: 0.004, vol: 0.95 },
@@ -51,6 +59,12 @@ const NIGHT: Record<string, NightTheme> = {
   fh_act3: { bpm: 74, root: 55, melody: BACKWARDS_LOW, bass: HOUSE_BASS, counter: 0.8, pulse: 0.5, warp: 0.013, vol: 0.95, glass: 0.9 },
   fh_act4: { bpm: 80, root: 54, melody: BACKWARDS_LOW, bass: [0, 1, 8, 7, 0, 1, 6, 7], counter: 1, pulse: 0.8, warp: 0.018, vol: 1, glass: 1 },
   fh_endless: { bpm: 84, root: 54, melody: BACKWARDS_LOW, bass: [0, 1, 8, 7, 0, 1, 6, 7], counter: 1, pulse: 1, warp: 0.02, vol: 1, glass: 1 },
+  // the Boardwalk (D-68): slow, low, further out of tune than the first night; the buoy tolls under it
+  bw_act1: { bpm: 64, root: 55, melody: SEASIDE, bass: SHORE_BASS, counter: 0.2, pulse: 0, warp: 0.007, vol: 0.85, buoy: 0.7 },
+  bw_act2: { bpm: 68, root: 55, melody: SEASIDE, bass: SHORE_BASS, counter: 0.5, pulse: 0.2, warp: 0.01, vol: 0.9, buoy: 0.8 },
+  bw_act3: { bpm: 72, root: 54, melody: SEASIDE_LOW, bass: SHORE_BASS, counter: 0.8, pulse: 0.5, warp: 0.014, vol: 0.95, buoy: 0.9 },
+  bw_act4: { bpm: 78, root: 53, melody: SEASIDE_LOW, bass: [0, 1, 3, 7, 0, 1, 6, 7], counter: 1, pulse: 0.8, warp: 0.018, vol: 1, buoy: 1 },
+  bw_endless: { bpm: 82, root: 53, melody: SEASIDE_LOW, bass: [0, 1, 3, 7, 0, 1, 6, 7], counter: 1, pulse: 1, warp: 0.02, vol: 1, buoy: 1 },
 };
 /** Bradley's song (one file since his 2026-10-30 mix): menus play it from the top, then loop from the groove. */
 const SONG = 'freaky_funky_circus.mp3';
@@ -247,7 +261,7 @@ export class AudioEngine {
     else if (night) this.fadeOutTrack(2);
     else if (c === 'silence') this.duckTrack(0);
     // dread drone grows with the Act (doc 02 §9: motifs bent darker as the night deepens)
-    const act = c.replace('fh_', '');
+    const act = c.replace('fh_', '').replace('bw_', '');
     const dread = act === 'act2' ? 0.15 : act === 'act3' ? 0.28 : act === 'act4' ? 0.38 : act === 'endless' ? 0.4 : 0;
     this.setDrone(dread);
     void t;
@@ -427,6 +441,12 @@ export class AudioEngine {
       this.chime(f, t, beat * 2.4, 0.09 * th.vol);
       if (th.counter) this.note(f * 0.502, t, beat * 0.95, 'square', 0.018 * th.counter * th.vol, 1500, 0.006 + th.warp);
     }
+    // the Boardwalk: a bell buoy far out, tolling low on the first beat of every fourth bar
+    if (th.buoy && inBar === 0 && bar % 4 === 0) {
+      const b = mtof(chord - 12) * (1 + (Math.random() - 0.5) * 0.004);
+      this.chime(b, t, beat * 5, 0.07 * th.buoy * th.vol);
+      this.chime(b * 2.76, t + 0.01, beat * 2, 0.02 * th.buoy * th.vol);
+    }
     // the Fun House: a wet finger round a glass rim, two octaves up, on the off-bars
     if (th.glass && inBar === 2 && bar % 2 === 1) {
       const g = mtof(chord + 31) * (1 + (Math.random() - 0.5) * th.warp * 0.5);
@@ -436,11 +456,13 @@ export class AudioEngine {
   }
 
   // ---------------------------------------------------------------- ambience & dread drone
-  private ambKind: 'carnival' | 'funhouse' = 'carnival';
+  private ambKind: 'carnival' | 'funhouse' | 'boardwalk' = 'carnival';
   private ambBufs = new Map<string, AudioBuffer>();
+  /** the Boardwalk's three beds (promenade, beach, pier) and their crossfade gains (D-68) */
+  private shore: { src: AudioBufferSourceNode; gain: GainNode }[] = [];
 
   /** Which place's ambience plays (D-63). Built the first time it is needed, crossfaded in. */
-  setAmbience(kind: 'carnival' | 'funhouse'): void {
+  setAmbience(kind: 'carnival' | 'funhouse' | 'boardwalk'): void {
     if (kind === this.ambKind) return;
     this.ambKind = kind;
     if (!this.unlocked || !this.ctx) return;
@@ -453,7 +475,162 @@ export class AudioEngine {
       }
     }
     this.ambSrc = null;
+    this.stopShore();
     this.startAmbience();
+  }
+
+  /**
+   * Where the listener stands on the Boardwalk (D-68), as weights for its three beds: the promenade and
+   * the park (louder: the calliope, the arcade, the rides), the beach (surf and wind) and the pier (the sea
+   * against the pilings, timber, the bell buoy, the foghorn far out). Called every frame; cheap.
+   */
+  setShoreMix(promenade: number, beach: number, pier: number): void {
+    if (this.ambKind !== 'boardwalk' || !this.ctx || this.shore.length < 3) return;
+    const t = this.ctx.currentTime;
+    const w = [promenade * 1.0, beach * 0.85, pier * 0.95];
+    this.shore.forEach((b, i) => b.gain.gain.setTargetAtTime(w[i], t, 0.6));
+  }
+
+  private stopShore(): void {
+    if (!this.ctx) return;
+    for (const b of this.shore) {
+      try {
+        b.src.stop(this.ctx.currentTime + 0.05);
+      } catch {
+        /* already stopped */
+      }
+    }
+    this.shore = [];
+  }
+
+  /** A bed of `sec` seconds, both channels drawn by `draw(data, channel, length)`. */
+  private bed(sec: number, draw: (d: Float32Array, ch: number, len: number) => void): AudioBuffer {
+    const ctx = this.ctx!;
+    const len = Math.floor(sec * SR);
+    const buf = ctx.createBuffer(2, len, SR);
+    for (let ch = 0; ch < 2; ch++) draw(buf.getChannelData(ch), ch, len);
+    return buf;
+  }
+
+  /** The promenade: a warped calliope from the Pavilion, arcade chimes, the coaster's lift chain, canvas, laughter. */
+  private promenadeBed(): AudioBuffer {
+    return this.bed(14, (d, ch, len) => {
+      let lp = 0;
+      for (let i = 0; i < len; i++) {
+        lp += 0.012 * ((Math.random() * 2 - 1) - lp);
+        d[i] = lp * 0.32;
+      }
+      // the calliope, far and slipping
+      const cal = [62, 66, 69, 74, 69, 66, 64, 62, 61, 62];
+      cal.forEach((m, k) => {
+        const st = Math.floor((1 + k * 0.48) * SR);
+        const f0 = 440 * Math.pow(2, (m - 69) / 12);
+        for (let i = 0; i < SR * 0.44 && st + i < len; i++) {
+          const wow = 1 + 0.014 * Math.sin((i / SR) * 2 * Math.PI * 0.8 + k) - k * 0.003;
+          const ph = (f0 * wow * i) / SR;
+          d[st + i] += ((ph % 1) < 0.5 ? 1 : -1) * Math.min(1, i / (SR * 0.02)) * Math.exp(-i / (SR * 0.32)) * 0.014 * (ch ? 0.7 : 1);
+        }
+      });
+      // arcade chimes: little bright blips, now and then
+      for (const [at, f] of [[0.4, 1568], [3.2, 2093], [7.7, 1760], [11.1, 2349]] as [number, number][]) {
+        for (let r = 0; r < 3; r++) {
+          const st = Math.floor((at + r * 0.09 + ch * 0.01) * SR);
+          for (let i = 0; i < SR * 0.08 && st + i < len; i++) d[st + i] += ((((f * (1 + r * 0.25) * i) / SR) % 1) < 0.3 ? 1 : -1) * Math.exp(-i / (SR * 0.025)) * 0.012;
+        }
+      }
+      // the lift hill's chain dogs clacking, and the train's far roar
+      for (let k = 0; k < 18; k++) {
+        const st = Math.floor((6 + k * 0.16) * SR);
+        for (let i = 0; i < SR * 0.03 && st + i < len; i++) d[st + i] += (Math.random() * 2 - 1) * Math.exp(-i / (SR * 0.006)) * 0.05 * (ch ? 0.7 : 1);
+      }
+      const rs = Math.floor(9.2 * SR);
+      let rl = 0;
+      for (let i = 0; i < SR * 2.6 && rs + i < len; i++) {
+        rl += 0.01 * ((Math.random() * 2 - 1) - rl);
+        d[rs + i] += rl * Math.sin((Math.PI * i) / (SR * 2.6)) * 0.9;
+      }
+      // canvas flapping in the wind
+      for (const at of [2.4, 12.5]) {
+        for (let k = 0; k < 4; k++) {
+          const st = Math.floor((at + k * 0.13) * SR);
+          for (let i = 0; i < SR * 0.07 && st + i < len; i++) d[st + i] += (Math.random() * 2 - 1) * Math.exp(-i / (SR * 0.02)) * 0.04;
+        }
+      }
+      // laughter, far off, pitched down
+      for (let k = 0; k < 5; k++) {
+        const st = Math.floor((4.6 + k * 0.18) * SR);
+        const f0 = 200 - k * 8;
+        for (let i = 0; i < SR * 0.14 && st + i < len; i++) d[st + i] += ((((f0 * (1 + 0.04 * Math.sin(i / 480)) * i) / SR) % 1) * 2 - 1) * Math.sin((Math.PI * i) / (SR * 0.14)) * 0.01 * (ch ? 0.6 : 1);
+      }
+    });
+  }
+
+  /** The beach: surf (each breaker a swell, a crash and a long hiss), wind, one far gull. */
+  private beachBed(): AudioBuffer {
+    return this.bed(12, (d, ch, len) => {
+      let lp = 0, lp2 = 0;
+      for (let i = 0; i < len; i++) {
+        const t = i / SR;
+        const n = Math.random() * 2 - 1;
+        lp += 0.05 * (n - lp);
+        lp2 += 0.006 * (n - lp2);
+        // breakers every ~6 s, slightly out of step between the ears
+        const ph = ((t + ch * 0.35) % 6) / 6;
+        const crash = ph < 0.12 ? ph / 0.12 : Math.exp(-(ph - 0.12) * 4.5);
+        const wind = 0.5 + 0.5 * Math.sin(t * 0.37 + ch) * Math.sin(t * 0.13);
+        d[i] = lp * (0.12 + 0.6 * crash) + lp2 * 1.4 * (0.6 + 0.4 * wind);
+      }
+      const st = Math.floor(8.4 * SR);
+      for (let i = 0; i < SR * 0.5 && st + i < len; i++) {
+        const f = 1600 - 500 * (i / (SR * 0.5)) + 120 * Math.sin(i / 120);
+        d[st + i] += Math.sin((2 * Math.PI * f * i) / SR) * Math.sin((Math.PI * i) / (SR * 0.5)) * 0.008 * (ch ? 0.5 : 1);
+      }
+    });
+  }
+
+  /** The pier: water slapping the pilings, timber creaking, rigging, the bell buoy, the foghorn far out. */
+  private pierBed(): AudioBuffer {
+    return this.bed(13, (d, ch, len) => {
+      let lp = 0;
+      for (let i = 0; i < len; i++) {
+        lp += 0.008 * ((Math.random() * 2 - 1) - lp);
+        d[i] = lp * 1.2 * (0.7 + 0.3 * Math.sin(i / SR * 0.9 + ch));
+      }
+      // slaps against the pilings: short, wet, irregular
+      for (let k = 0; k < 14; k++) {
+        const st = Math.floor(((k * 0.93 + (k % 3) * 0.21 + ch * 0.07) % 13) * SR);
+        let l = 0;
+        for (let i = 0; i < SR * 0.18 && st + i < len; i++) {
+          l += 0.08 * ((Math.random() * 2 - 1) - l);
+          d[st + i] += l * Math.exp(-i / (SR * 0.05)) * 0.5;
+        }
+      }
+      // the timber groaning under the swell
+      for (const at of [1.6, 7.2]) {
+        const st = Math.floor(at * SR);
+        for (let i = 0; i < SR * 1.1 && st + i < len; i++) {
+          const f = 70 + 25 * Math.sin(i / 1500) + 6 * Math.sin(i / 160);
+          d[st + i] += ((((f * i) / SR) % 1) * 2 - 1) * Math.sin((Math.PI * i) / (SR * 1.1)) * 0.03;
+        }
+      }
+      // wind singing in the rigging
+      for (let i = 0; i < len; i++) d[i] += Math.sin((2 * Math.PI * (880 + 30 * Math.sin(i / SR * 0.6)) * i) / SR) * 0.0025 * (0.5 + 0.5 * Math.sin(i / SR * 0.4 + ch));
+      // the bell buoy, rolling: two strikes, then one
+      for (const at of [3.1, 3.9, 10.2]) {
+        const st = Math.floor(at * SR);
+        for (let i = 0; i < SR * 2.2 && st + i < len; i++) {
+          const e = Math.exp(-i / (SR * 0.7));
+          d[st + i] += (Math.sin((2 * Math.PI * 392 * i) / SR) + 0.4 * Math.sin((2 * Math.PI * 392 * 2.76 * i) / SR)) * e * 0.02 * (ch ? 0.8 : 1);
+        }
+      }
+      // the foghorn, very far out
+      const fs = Math.floor(5.4 * SR);
+      for (let i = 0; i < SR * 2.4 && fs + i < len; i++) {
+        const env = Math.min(1, i / (SR * 0.4)) * Math.min(1, (SR * 2.4 - i) / (SR * 0.6));
+        const ph = (98 * i) / SR;
+        d[fs + i] += ((ph % 1) * 2 - 1) * env * 0.022 * (ch ? 0.9 : 1);
+      }
+    });
   }
 
   /** The Fun House's insides: no wind; boards settling, a drip, glass ringing, a broken music box, far laughter. */
@@ -512,6 +689,23 @@ export class AudioEngine {
 
   private startAmbience(): void {
     const ctx = this.ctx!;
+    if (this.ambKind === 'boardwalk') {
+      this.stopShore();
+      const beds: [string, () => AudioBuffer][] = [['bw_prom', () => this.promenadeBed()], ['bw_beach', () => this.beachBed()], ['bw_pier', () => this.pierBed()]];
+      for (const [key, make] of beds) {
+        const b = this.ambBufs.get(key) ?? make();
+        this.ambBufs.set(key, b);
+        const src = ctx.createBufferSource();
+        src.buffer = b;
+        src.loop = true;
+        const gain = ctx.createGain();
+        gain.gain.value = key === 'bw_prom' ? 1 : 0;
+        src.connect(gain).connect(this.amb);
+        src.start();
+        this.shore.push({ src, gain });
+      }
+      return;
+    }
     if (this.ambKind === 'funhouse') {
       const hb = this.ambBufs.get('funhouse') ?? this.houseAmbience();
       this.ambBufs.set('funhouse', hb);

@@ -428,6 +428,7 @@ export const PASSIVES: Record<string, PassiveDef> = {
   season_pass: P({ id: 'season_pass', name: 'Season Pass', desc: '+10% XP gain', effects: [{ axis: 'xp', perLevel: flat(0.1) }], maxLevel: 5, unlock: 'p_season_pass', weight: 0.9, lore: 'Valid every night. Every single night.' }),
   coin_purse: P({ id: 'coin_purse', name: 'Coin Purse', desc: '+15% Greed (more Lost Tickets)', effects: [{ axis: 'greed', perLevel: flat(0.15) }], maxLevel: 5, unlock: 'p_coin_purse', weight: 0.8, lore: 'It jingles even when empty.' }),
   hand_mirror: P({ id: 'hand_mirror', name: "Mira's Hand Mirror", desc: '+6% Might and +6% Area', effects: [{ axis: 'might', perLevel: flat(0.06) }, { axis: 'area', perLevel: flat(0.06) }], maxLevel: 5, unlock: 'p_hand_mirror', weight: 0.8, lore: 'Cracked across the middle. In it, a girl stands just behind your shoulder.' }),
+  ada_conch: P({ id: 'ada_conch', name: "Ada's Conch", desc: '+12% Pickup radius and +0.25 HP regen per second', effects: [{ axis: 'pickup', perLevel: flat(0.12) }, { axis: 'regen', perLevel: flat(0.25) }], maxLevel: 5, unlock: 'p_ada_conch', weight: 0.8, lore: 'Hold it to your ear. Somebody on the other side is humming a song from 1933.' }),
   rabbits_foot: P({ id: 'rabbits_foot', name: "Rabbit's Foot", desc: '+1 Revive', effects: [{ axis: 'revive', perLevel: [1, 1] }], maxLevel: 2, unlock: 'p_rabbits_foot', weight: 0.35, lore: 'Lucky for you. Less so for the rabbit from the hat.' }),
 };
 

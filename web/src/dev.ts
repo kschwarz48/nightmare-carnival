@@ -9,6 +9,9 @@ import { createBoss } from './sim/bosses';
 import { BOSS_MAP } from './data/bosses';
 import { pool } from './render3d/core/materials';
 import { SEARCHLIGHTS } from './render3d/renderer3d';
+import { isLowTide, shoreY } from './data/boardwalk';
+import type { SummersEndChain } from './sim/quest/summersEnd';
+import { refreshSea } from './sim/boardwalk';
 
 /**
  * The threejs-qa-release canvas inspector's pixel metrics, ported to run in-page on the live
@@ -277,6 +280,7 @@ export function installDevTools(app: App): void {
       app.renderer.zoom = 1;
       app.renderer.inspect = null;
       if (map === 'fun_house') app.save.data.funhouseTester = true;
+      if (map === 'boardwalk') app.save.data.boardwalkTester = true;
       app.startRun({ character: char, difficulty: 'midway', curse: false, seed, map });
       app.game!.cfg.godMode = true;
       return app.game!;
@@ -288,6 +292,59 @@ export function installDevTools(app: App): void {
       g.player.x = g.player.px = x;
       g.player.y = g.player.py = y;
       api.advance(0.5);
+    };
+    /** a Boardwalk night (D-68) a minute in, the player placed at (x, y) */
+    const shore = (x: number, y: number, t = 60) => { const g = run('carny', 'boardwalk'); api.advance(t); g.player.x = g.player.px = x; g.player.y = g.player.py = y; api.advance(0.5); return g; };
+    /** the Boardwalk's new crowd (D-68), one of each in two rows on the wet sand, held mid-stride */
+    const bestiary = () => {
+      const g = shore(300, 700, 20);
+      for (const e of g.active) g.despawnEnemy(e);
+      const ids = ['drowned', 'shore_crawler', 'ticket_taker', 'taffy_horror', 'arcade_automaton', 'coaster_wraith', 'barnacle_brute', 'lantern_angler', 'prize_collector', 'tidecaller', 'great_barnacle'];
+      ids.forEach((id, i) => {
+        const e = g.spawnEnemy(id, 300 + ((i % 6) - 2.5) * 105, 640 + Math.floor(i / 6) * 150, { exact: true, noScale: true });
+        if (e) {
+          e.spawnT = 3;
+          e.emerge = 0;
+        }
+      });
+    };
+    /** Summer's End set to a stage by `set`, the player at (x, y), at low tide if asked, the crowd cleared */
+    const egg = (x: number, y: number, set: (c: SummersEndChain) => void, lowTide = false) => {
+      const g = shore(x, y, 20);
+      for (const e of g.active) g.despawnEnemy(e);
+      if (lowTide) while (!isLowTide(g.time)) g.time += 0.5;
+      const c = g.quests.get<SummersEndChain>('summers_end')!;
+      set(c);
+      refreshSea(g);
+      api.advance(0.2);
+    };
+    /** a crowd of the given creatures closing on a player at (x, y), a few seconds into the fight */
+    const melee = (x: number, y: number, crowd: Record<string, number>, secs = 5) => {
+      const g = shore(x, y, 45);
+      let i = 0;
+      for (const [id, n] of Object.entries(crowd)) {
+        for (let k = 0; k < n; k++, i++) {
+          const a = i * 2.39996, r = 260 + (i % 4) * 70;
+          g.spawnEnemy(id, x + Math.cos(a) * r, y + Math.sin(a) * r * 0.75, { exact: true });
+        }
+      }
+      api.advance(secs);
+    };
+    /** the drowned coming up out of the surf and the sand around a player at the waterline, caught mid-climb;
+     *  further out, sea things swimming in with their heads above the swell */
+    const rising = () => {
+      const g = shore(500, 0, 200);
+      for (const e of g.active) g.despawnEnemy(e);
+      const sy = shoreY(500);
+      g.player.x = g.player.px = 500;
+      g.player.y = g.player.py = sy - 70;
+      for (let i = 0; i < 6; i++) g.spawnEnemy('drowned', 500 + (i - 2.5) * 70, sy - 150 + (i % 3) * 110, { exact: true });
+      for (let i = 0; i < 3; i++) g.spawnEnemy('shore_crawler', 330 + i * 160, sy + 120, { exact: true });
+      for (const [id, dx, d] of [['drowned', -250, 330], ['lantern_angler', 230, 300], ['barnacle_brute', 20, 380]] as [string, number, number][]) {
+        const e = g.spawnEnemy(id, 500 + dx, shoreY(500 + dx) + d, { exact: true });
+        if (e) e.emerge = 0, e.spawnT = 3;
+      }
+      api.advance(0.45);
     };
     /** a chest opened at the player, the prize wheel stepped `frames` into its show */
     const wheel = (frames: number) => {
@@ -315,6 +372,36 @@ export function installDevTools(app: App): void {
       'fh-corridor': () => house(1450, -420),
       'fh-gallery': () => house(-1300, -1780),
       'fh-chamber': () => house(950, -1640),
+      // the Boardwalk, region by region (D-68)
+      'bw-plaza': () => shore(0, -470),
+      'bw-arcade-row': () => shore(-1300, -560),
+      'bw-coaster': () => shore(3300, -420),
+      'bw-wharf-gate': () => shore(-2900, -420),
+      'bw-beach': () => shore(300, 420),
+      'bw-shore': () => shore(1200, 980),
+      'bw-pier': () => shore(-2900, 1700),
+      'bw-pier-end': () => shore(-2900, 2650),
+      'bw-arcade': () => shore(-1300, -1150),
+      'bw-giftshop': () => shore(1900, -1120),
+      'bw-wheel': () => shore(300, -1650),
+      // the Boardwalk's bosses (D-68), woken next to the player and a few seconds into the fight
+      'bw-boss-barker': () => { shore(-400, -500, 20); api.spawnBoss('barker', 0, -300); api.advance(7); },
+      'bw-boss-captain': () => { const g = shore(600, 0, 20); g.player.y = g.player.py = shoreY(600) - 180; api.spawnBoss('drowned_captain', 0, 260); api.advance(8); },
+      'bw-boss-ride': () => { shore(1100, 400, 20); api.spawnBoss('last_ride', 0, -380); api.advance(8); },
+      'bw-boss-leviathan': () => { const g = shore(-600, 0, 20); g.player.y = g.player.py = shoreY(-600) - 220; api.spawnBoss('leviathan', 0, 300); api.advance(7); },
+      'bw-boss-commodore': () => { shore(-2900, 2500, 20); api.spawnBoss('commodore', 0, -320); api.advance(7); },
+      'bw-bestiary': bestiary,
+      // Summer's End in the world (D-68): the chain set to a stage, the player stood where it happens
+      'bw-egg-shop': () => egg(1900, -1180, (c) => { c.stage = 2; c.photoSeen = true; }),
+      'bw-egg-games': () => egg(-1150, -1300, (c) => { c.stage = 3; }),
+      'bw-egg-wheel': () => egg(300, -1700, (c) => { c.stage = 3; }),
+      'bw-egg-wreck': () => egg(1300, 1180, (c) => { c.stage = 4; }, true),
+      'bw-egg-pier': () => egg(-2600, 2600, (c) => { c.stage = 7; c.lit = 1; }),
+      'bw-egg-bell': () => egg(-2200, 1700, (c) => { c.stage = 9; c.retreat = 1; c.bellT = 12; }),
+      'bw-rising': rising,
+      /** the midway's crowd on the promenade, the undertow's on the beach: the new enemies fighting */
+      'bw-midway-combat': () => melee(-600, -480, { drowned: 8, ticket_taker: 4, taffy_horror: 3, arcade_automaton: 4, evil_clown: 4, shore_crawler: 5 }),
+      'bw-beach-combat': () => melee(1200, 700, { coaster_wraith: 3, barnacle_brute: 3, lantern_angler: 3, prize_collector: 2, tidecaller: 2, drowned: 6 }),
       /** the prize wheel mid-spin, and as it lands */
       'prize-wheel': () => wheel(80),
       'prize-wheel-landed': () => wheel(330),

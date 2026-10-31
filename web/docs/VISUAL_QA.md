@@ -158,3 +158,94 @@ authored fixtures rather than left to darkness and fog.
 Not captured: mobile viewports (the game's QA has been desktop-only), and an unpaused motion sequence
 of the wheel (only stills at two moments of the spin).
 
+
+## The Boardwalk, 2026-10-31 (D-68) — evidence
+
+Runs captured (all inspected), in `artifacts/visual/`:
+- `bw-iter3`, `bw-iter4`: the world's first passes.
+- `bw-enemies`: line-ups at 3× zoom before and after the re-mesh, rising out of the surf and the sand,
+  and midway and beach combat.
+- `bw-bosses`: every boss, the Leviathan's head up, the Gala Queen offshore, the Last Ride close up.
+- `bw-egg`: the quest's world changes, before and after the fixes.
+- `bw-qa`: every region and interior at High, the plaza, shore and combat at Medium and Low, and the
+  cap stress test.
+
+### Measured (1600×900; High unless marked)
+
+| Capture | entropy (bits) | edge density | mean | contrast | calls | triangles |
+|---|---|---|---|---|---|---|
+| bw-plaza | 5.29 | 0.348 | 66.9 | 121.7 | 290 | 1.60 M |
+| bw-arcade-row | 5.14 | 0.298 | 67.3 | 136.4 | 291 | 1.19 M |
+| bw-coaster | 5.06 | 0.320 | 67.9 | 106.1 | 290 | 1.45 M |
+| bw-wharf-gate | 4.72 | 0.297 | 58.8 | 102.4 | 297 | 1.35 M |
+| bw-beach (after the beach lights) | 3.32 | 0.105 | 36.3 | 41.6 | 287 | 1.67 M |
+| bw-shore | 3.37 | 0.101 | 33.6 | 38.9 | 282 | 1.31 M |
+| bw-pier | 4.41 | 0.324 | 40.7 | 84.7 | 280 | 1.35 M |
+| bw-pier-end | 4.93 | 0.421 | 51.7 | 110.3 | 280 | 1.33 M |
+| bw-arcade (interior) | 5.51 | 0.352 | 65.6 | 140.6 | 293 | 1.20 M |
+| bw-giftshop (interior) | 5.07 | 0.276 | 59.7 | 119.7 | 291 | 1.22 M |
+| bw-wheel | 5.18 | 0.188 | 73.1 | 151.2 | 301 | 1.28 M |
+| bw-midway-combat | 4.31 | 0.219 | 45.4 | 80.0 | 311 | 2.19 M |
+| bw-beach-combat | 4.00 | 0.225 | 43.0 | 60.7 | 315 | 2.74 M |
+| bw-plaza · Medium / Low | 5.31 / 5.05 | 0.351 / 0.339 | 67.7 / 50.7 | 121.7 / 105.5 | 214 / 116 | 1.31 / 0.84 M |
+| bw-shore · Medium / Low | 3.36 / 3.22 | 0.098 / 0.073 | 33.3 / 32.3 | 38.5 / 35.4 | 207 / 112 | 1.02 / 0.64 M |
+| bw-beach-combat · Medium / Low | 4.04 / 3.80 | 0.225 / 0.188 | 43.2 / 39.7 | 60.8 / 55.2 | 234 / 126 | 2.23 / 1.31 M |
+| 280-cap stress (269 alive) · High / Medium / Low | — | — | — | — | 328 / 247 / 134 | 8.67 / 7.65 / 4.59 M |
+
+Frame time (rAF deltas over 3–4 s, dev build, this machine's GPU, vsync at 165 Hz):
+- Every view above holds 165 fps (p95 6.2 ms) on High and Low with up to ~50 alive.
+- At the cap (269 alive):
+
+  | Quality | Avg fps | p95 |
+  |---|---|---|
+  | High | 131 | 12.2 ms |
+  | Medium | 148 | 12.1 ms |
+  | Low | 163 | 6.2 ms |
+
+- Draw calls run 280–315 on High: about the 300-call budget, as on the other maps. Medium cuts about
+  25% and Low about 60%.
+
+### Found by looking, and fixed
+
+- **The tidecaller's staff swung near-horizontal** as its arm walked. It got its own bone, which the
+  clips keep upright.
+- **The Last Ride's riders, bulbs and halos were blown out to a white blob.** Emission and glow were cut
+  to about a third.
+- **The ocean's light streaks stopped on hard horizontal lines** (the loop's range checks). Both ends
+  now fade.
+- **The wreck's engravings and porthole keepsakes were too small and dark to read**, and the puzzle
+  depends on reading them. They are now 2.4× on brass plates, the keepsakes sit in front of the glass,
+  and the wreck catches a moonlit pool while the step is open.
+- **The moored Gala Queen overlapped the pier's trawler** (moved out). **The Crane's claw was inside its
+  cabinet** (raised, enlarged, with a glint).
+- **The beach was a dark, empty plain** (entropy 3.07, contrast 35). It now has a lantern on each
+  lifeguard tower, the fire pit's embers, lanterns at the stair landings, and high-tide wrack lines in
+  the floor shader (3.32 / 41.6). It is still the weakest view.
+- **The new sculpts were 9–28k triangles**, heavier than the existing crowd. They were re-meshed to
+  4–11k; the line-up at 3× zoom still reads.
+
+### Scorecard (the Boardwalk as shipped)
+
+| Category | Score | Evidence |
+|---|---|---|
+| Art direction | 2.5 | a 1930s seaside park with its own forms: colonnade, domed pavilion, white lattice coaster, wheel, pier, lighthouse, wreck; dark and cold, scale over clutter |
+| Hero | 2 | unchanged (the existing cast) |
+| Obstacles/enemies | 2.5 | ten distinct rigged sculpts (striped bather, bottle-capped crab, usher, taffy twist, cabinet automaton, coaster wraith, barnacle diver, lantern angler, prize-counter man, tidecaller) with state clips, risers, swimmers and foam rings |
+| Bosses | 2.5 | the Barker and his prize wheel, the Captain with anchor and chain and the Gala Queen offshore, the coaster train with riders, the Leviathan's head, coils and tentacles, the Commodore |
+| Rewards/interactables | 2 | the quest's world changes read (photograph, keepsakes, claw, green lantern, engraved portholes, moored ship, fire, lamps, bell) |
+| World | 2 | rich on the promenade, interiors and pier; the beach is sparse and dark |
+| Materials | 2 | weathered paint, brass, barnacle crust, wet sand, timber; no texture authoring beyond procedural |
+| Lighting/render | 2.5 | the ocean (Gerstner and normals, moon glitter path, light streaks, breakers, swash, low water), practical light pools with halos, lighthouse beam, interiors |
+| VFX/motion | 2 | new death bursts, splashes, arcs, foam waves, whirlpools, rails; no screen-space water effects |
+| Performance evidence | 2.5 | per-region metrics at three tiers, a cap stress test, the re-mesh and its gain measured |
+
+Average ≈ 2.3. Every category is at 2 or above; the premium bar is met only just.
+
+What would raise it:
+- denser beach dressing (snow fences, debris, footprints, more light);
+- authored textures for the façades;
+- screen-space spray and mist where breakers hit the pilings;
+- a human read of a crowded night on the shore.
+
+Not captured: mobile viewports; an unpaused motion sequence of the creatures' clips (stills only, with
+the clips seen in-game during the combat captures).

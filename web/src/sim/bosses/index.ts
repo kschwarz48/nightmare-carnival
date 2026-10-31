@@ -11,6 +11,11 @@ import { LookingGlassBoss } from './lookingGlass';
 import { StringmistressBoss } from './stringmistress';
 import { ProprietorBoss } from './proprietor';
 import { UnreflectedBoss } from './unreflected';
+import { BarkerBoss } from './barker';
+import { DrownedCaptainBoss } from './captain';
+import { LastRideBoss } from './lastRide';
+import { LeviathanBoss } from './leviathan';
+import { CommodoreBoss } from './commodore';
 
 export function createBoss(g: Game, def: BossDef, opts?: BossOpts): BossBase {
   switch (def.id) {
@@ -25,5 +30,11 @@ export function createBoss(g: Game, def: BossDef, opts?: BossOpts): BossBase {
     case 'stringmistress': return new StringmistressBoss(g, def, opts);
     case 'proprietor': return new ProprietorBoss(g, def, opts);
     case 'unreflected': return new UnreflectedBoss(g, def, opts);
+    // the Boardwalk (D-68)
+    case 'barker': return new BarkerBoss(g, def, opts);
+    case 'drowned_captain': return new DrownedCaptainBoss(g, def, opts);
+    case 'last_ride': return new LastRideBoss(g, def, opts);
+    case 'leviathan': return new LeviathanBoss(g, def, opts);
+    case 'commodore': return new CommodoreBoss(g, def, opts);
   }
 }

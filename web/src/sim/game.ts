@@ -24,7 +24,16 @@ import { CarnivalEvents } from './carnivalEvents';
 import { QuestSystem, type QuestCue } from './quest';
 import { activeMapId, MAPS, useMap, type MapDef, type MapId } from '../data/maps';
 import { refreshFunhouseWalls, updateFunhouseHazards } from './funhouse';
+import { placeSpawn, refreshSea, updateBoardwalk, wadeFactor } from './boardwalk';
+import { crackShell, EMERGE, MARKED_HASTE, payBack } from './boardwalkAI';
+import { WADE, waterDepth } from '../data/boardwalk';
 import { dispelDecoys } from './funhouseAI';
+import type { BehaviorId } from '../data/enemies';
+
+/** Behaviours that lay down telegraphed hazards of their own: those go when the enemy does (D-68). */
+const TELEGRAPHERS = new Set<BehaviorId>(['taffy', 'wraith', 'barnacle', 'angler', 'collector', 'tidecaller']);
+/** How long a Ticket Taker's stub marks a player (D-68). */
+const MARK_TIME = 5;
 import { HUB_NPCS } from '../data/hub';
 import { CHESTS, COOP, HEALING, TICKETS, voucherValue, xpToNext } from '../data/progression';
 import { FxQueue } from './fx';
@@ -325,6 +334,7 @@ export class Game {
     this.director.init();
     this.quests = new QuestSystem(this, this.mapId);
     if (this.mapId === 'fun_house') refreshFunhouseWalls(this);
+    if (this.mapId === 'boardwalk') refreshSea(this);
   }
 
   // ------------------------------------------------------------------ party
@@ -481,6 +491,7 @@ export class Game {
     }
     this.setCtx(p0);
     if (this.mapId === 'fun_house') this.updateFunhouse(dt);
+    if (this.mapId === 'boardwalk') updateBoardwalk(this, dt);
     this.updateTimers(dt);
     this.cleanupDead();
 
@@ -528,6 +539,7 @@ export class Game {
       p.slowT -= dt;
       slow = p.slowF;
     } else p.slowF = 1;
+    if (p.markedT > 0) p.markedT = Math.max(0, p.markedT - dt);
     for (const z of this.zones) {
       if (z.alive && z.harmful && z.slow > 0 && dist2(z.x, z.y, p.x, p.y) < z.r * z.r) slow = Math.min(slow, 1 - z.slow);
     }
@@ -670,7 +682,7 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ enemies
-  spawnEnemy(defId: string, x: number, y: number, opts: { elite?: boolean; noScale?: boolean; hpMult?: number } = {}): Enemy | null {
+  spawnEnemy(defId: string, x: number, y: number, opts: { elite?: boolean; noScale?: boolean; hpMult?: number; exact?: boolean } = {}): Enemy | null {
     const def = ENEMIES[defId];
     if (!def) return null;
     if (this.active.length >= this.enemies.length) return null;
@@ -692,6 +704,7 @@ export class Game {
     e.alive = true;
     e.uid = this.nextUid++;
     e.def = def;
+    if (this.mapId === 'boardwalk' && !opts.exact) ({ x, y } = placeSpawn(this, def, x, y));
     e.x = e.px = clamp(x, -MAP_HALF + 10, MAP_HALF - 10);
     e.y = e.py = clamp(y, -MAP_HALF + 10, MAP_HALF - 10);
     e.vx = e.vy = 0;
@@ -735,6 +748,11 @@ export class Game {
     e.spawnT = 0;
     e.windup = 0;
     e.trail = null;
+    // the Boardwalk (D-68): risers climb up out of the sand, sea things up out of the surf; crusts; loot
+    e.emerge = this.mapId === 'boardwalk' && (def.rises || (def.aquatic && waterDepth(e.x, e.y) > 30)) ? EMERGE : 0;
+    e.cracked = false;
+    e.shellLeft = def.shell ? def.shell.soak * e.maxHp : 0;
+    e.loot = 0;
     if (elite && this.diff.eliteAffixes > 0) {
       const pool = ELITE_AFFIXES.slice();
       this.rng.shuffle(pool);
@@ -774,7 +792,7 @@ export class Game {
       return;
     }
     this.kills++;
-    if (d.behavior === 'ambusher' || d.behavior === 'brute' || d.behavior === 'line_charger' || d.behavior === 'rail_strafer') this.clearHazardsOf(e.uid);
+    if (d.behavior === 'ambusher' || d.behavior === 'brute' || d.behavior === 'line_charger' || d.behavior === 'rail_strafer' || TELEGRAPHERS.has(d.behavior)) this.clearHazardsOf(e.uid);
     this.dropTickets(e.x, e.y, e.tickets);
     this.fx.push('death', e.x, e.y, e.scale * (d.drawScale * d.radius) / 34, e.elite ? 1 : 0, 0, d.deathFx);
     this.bus.emit('sfx', { id: d.deathSfx, x: e.x, y: e.y, vol: e.elite ? 1 : 0.55 });
@@ -806,6 +824,7 @@ export class Game {
       this.forEachTargetInCircle(e.x, e.y, 70, (t) => this.damageTarget(t, dmg, false, 0.5, e.x, e.y, w.def.id));
     }
     if (d.behavior === 'thief') dispelDecoys(this, e.uid);
+    if (e.loot > 0) payBack(this, e);
     // the Splitter comes apart into smaller ones (D-63)
     if (d.splitInto) {
       for (let i = 0; i < (d.splitCount ?? 2); i++) {
@@ -833,6 +852,15 @@ export class Game {
     }
     let dmg = amount;
     if (e.frozenT > 0) dmg *= 1.25;
+    // a crust (D-68) soaks most of each hit until it has taken its share, then cracks
+    const sh = e.def.shell;
+    if (sh) {
+      if (!e.cracked) {
+        e.shellLeft -= dmg;
+        dmg *= sh.mult;
+        if (e.shellLeft <= 0) crackShell(this, e);
+      } else dmg *= sh.cracked;
+    }
     e.hp -= dmg;
     e.flash = 1;
     this.damageDealt += dmg;
@@ -915,6 +943,9 @@ export class Game {
     let f = e.slowF;
     if (e.chill > 0) f *= Math.max(0.5, 1 - e.chill * 0.08);
     if (e.stickyT > 0) f *= 0.6;
+    // the Boardwalk's water (D-68): land things wade slowly, sea things swim fast
+    // and a player marked by a Ticket Taker's stub draws the crowd faster
+    if (this.mapId === 'boardwalk' && !e.isBoss) f *= wadeFactor(e) * (this.player.markedT > 0 ? MARKED_HASTE : 1);
     return f;
   }
 
@@ -1247,6 +1278,11 @@ export class Game {
         if (dist2(b.x, b.y, p.x, p.y) < rr * rr) {
           this.setCtx(p);
           if (this.hurtPlayer(b.dmg, b.x, b.y)) {
+            // a Ticket Taker's stub (D-68): marked, and the crowd knows it
+            if (b.kind === 'stub') {
+              if (p.markedT <= 0) this.fx.push('text', p.x, p.y - 70, 0, 0, 0, 'gold', 'MARKED');
+              p.markedT = MARK_TIME;
+            }
             if (b.kind !== 'ring' && b.kind !== 'spoke' && b.kind !== 'crown') {
               b.alive = false;
               break;
@@ -1544,6 +1580,11 @@ export class Game {
         if (pk.kind === 'ticket') this.gemsOnGround--;
         continue;
       }
+      // the Boardwalk (D-68): whatever falls in deep water, the tide carries back in to where it can be reached
+      if (this.mapId === 'boardwalk') {
+        const d = waterDepth(pk.x, pk.y);
+        if (d > WADE - 40) pk.y -= Math.min(d - (WADE - 40), 70 * dt);
+      }
       if (pk.vx !== 0 || pk.vy !== 0) {
         pk.x += pk.vx * dt;
         pk.y += pk.vy * dt;
@@ -1786,7 +1827,8 @@ export class Game {
       const d = this.rng.range(minD, maxD);
       const x = clamp(p.x + Math.cos(a) * d, PLAYER_BOUNDS.minX + 40, PLAYER_BOUNDS.maxX - 40);
       const y = clamp(p.y + Math.sin(a) * d, PLAYER_BOUNDS.minY + 40, PLAYER_BOUNDS.maxY - 40);
-      let ok = true;
+      // the Boardwalk (D-68): never out in water deeper than a wade
+      let ok = this.mapId !== 'boardwalk' || waterDepth(x, y) < WADE - 50;
       for (const pr of PROPS) {
         if (pr.r && dist2(pr.x, pr.y, x, y) < (pr.r + 30) ** 2) ok = false;
         else if (pr.hw && pr.hh && Math.abs(x - pr.x) < pr.hw + 30 && Math.abs(y - pr.y) < pr.hh + 30) ok = false;

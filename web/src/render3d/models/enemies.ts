@@ -468,7 +468,8 @@ function carnivalBrute(): THREE.BufferGeometry {
 import { CREATURE_IDS, creatureModel } from './creatures';
 
 /** Enemies big enough to cast real shadows; the crowd gets soft blob shadows (performance). */
-const BIG = new Set(['carousel_horse', 'walking_ticket_booth', 'carnival_brute', 'bumper_car', 'jack_in_the_box', 'jack_open', 'grand_mannequin', 'splitter', 'glasswalker']);
+const BIG = new Set(['carousel_horse', 'walking_ticket_booth', 'carnival_brute', 'bumper_car', 'jack_in_the_box', 'jack_open', 'grand_mannequin', 'splitter', 'glasswalker',
+  'barnacle_brute', 'great_barnacle', 'prize_collector', 'coaster_wraith', 'lantern_angler', 'tidecaller']);
 
 const LEGACY_MODELS: Record<string, ModelDef> = {
   living_balloon: { build: livingBalloon, anim: { a: [0, 0.03, 0, 0], b: [0.1, 0, 0, 0] }, rim: [0.9, 0.5, 0.35, 0.3], hover: 34, shadow: true },
@@ -501,6 +502,19 @@ const LEGACY_MODELS: Record<string, ModelDef> = {
   splitter_small: { build: () => new THREE.BufferGeometry(), rim: [1, 0.5, 0.6, 0.55], shadow: true },
   crooked_clown: { build: () => new THREE.BufferGeometry(), rim: RIM_SICK, shadow: true },
   reflection_thief: { build: () => new THREE.BufferGeometry(), rim: [0.7, 0.6, 1, 0.6], shadow: true },
+  // the Boardwalk (D-68): moonlight-cold rims for the things out of the sea, warm for the park's own
+  drowned: { build: () => new THREE.BufferGeometry(), rim: [0.55, 0.8, 0.85, 0.55], shadow: true },
+  shore_crawler: { build: () => new THREE.BufferGeometry(), rim: [1, 0.55, 0.4, 0.55], shadow: true },
+  ticket_taker: { build: () => new THREE.BufferGeometry(), rim: [1, 0.45, 0.4, 0.55], shadow: true },
+  taffy_horror: { build: () => new THREE.BufferGeometry(), rim: [1, 0.6, 0.75, 0.55], shadow: true },
+  arcade_automaton: { build: () => new THREE.BufferGeometry(), rim: [1, 0.8, 0.45, 0.55], shadow: true },
+  coaster_wraith: { build: () => new THREE.BufferGeometry(), rim: [0.6, 0.95, 1, 0.65], shadow: true, hover: 6 },
+  barnacle_brute: { build: () => new THREE.BufferGeometry(), rim: [0.6, 0.85, 0.75, 0.55], shadow: true },
+  great_barnacle: { build: () => new THREE.BufferGeometry(), rim: [0.6, 0.85, 0.75, 0.6], shadow: true },
+  lantern_angler: { build: () => new THREE.BufferGeometry(), rim: [0.6, 1, 0.7, 0.6], shadow: true },
+  prize_collector: { build: () => new THREE.BufferGeometry(), rim: [1, 0.8, 0.4, 0.55], shadow: true },
+  tidecaller: { build: () => new THREE.BufferGeometry(), rim: [0.45, 1, 0.85, 0.6], shadow: true },
+  tin_duck: { build: () => new THREE.BufferGeometry(), rim: [1, 0.85, 0.4, 0.5], shadow: true },
 };
 
 /** Sculpted, skeletal creatures replace the primitive builds; the coaster snake and mole hole stay rigid. */

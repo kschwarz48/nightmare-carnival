@@ -32,6 +32,8 @@ export abstract class QuestChain {
   get complete(): boolean {
     return false;
   }
+  /** Something the player at (x, y) could use with interact right now (the HUD's prompt; D-67). */
+  interaction?(x: number, y: number, who?: number): { kind: string; i: number; x: number; y: number; label: string } | null;
   /** Co-op: this chain's shared state as bytes (0..255) for guests (the Last Song has its own block). */
   netState?(): number[];
   applyNet?(v: number[]): void;

@@ -91,6 +91,13 @@ export class Enemy implements Target {
   illusion = false;
   /** the thief that made this decoy (its uid) */
   illusionOf = -1;
+  /** the Boardwalk (D-68): seconds left of climbing up out of the sand or the surf (no contact while rising) */
+  emerge = 0;
+  /** raw damage its shell will still soak before it cracks; whether it has */
+  shellLeft = 0;
+  cracked = false;
+  /** tickets a Prize Collector has swallowed off the ground (paid back when it falls) */
+  loot = 0;
   noSep = false;
   leashExempt = false;
   // knockback
@@ -165,7 +172,7 @@ export class PlayerProjectile {
   flag = 0;
 }
 
-export type BulletKind = 'pie' | 'musket' | 'ticket' | 'popcorn' | 'spiral' | 'spark' | 'bolt' | 'ring' | 'hellfire' | 'star' | 'crown' | 'spoke' | 'gondola' | 'kernel_big' | 'note' | 'pin' | 'shard';
+export type BulletKind = 'pie' | 'musket' | 'ticket' | 'popcorn' | 'spiral' | 'spark' | 'bolt' | 'ring' | 'hellfire' | 'star' | 'crown' | 'spoke' | 'gondola' | 'kernel_big' | 'note' | 'pin' | 'shard' | 'stub' | 'coin' | 'car' | 'page';
 
 export class EnemyBullet {
   alive = false;

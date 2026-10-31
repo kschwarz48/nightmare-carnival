@@ -1,7 +1,7 @@
 // Menu screens: title, character select (+difficulty/curse), daily run, pause, results, Lost &
 // Found, Carnival-pedia, settings. Every interactive element carries data-nav for controller play.
 
-import { MAP_IDS, MAPS, isMapId, type MapId } from '../data/maps';
+import { MAP_IDS, MAP_LOCK, MAPS, isMapId, type MapId } from '../data/maps';
 import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
 import { DIFFICULTIES, CURSE } from '../data/difficulty';
 import { ACHIEVEMENTS, PERKS, UNLOCKS } from '../data/meta';
@@ -97,7 +97,7 @@ export function charSelectScreen(c: UICtx): HTMLElement {
       h('div', { class: 'section-title', style: { margin: '0.4em 0 0' } }, 'Tonight'),
       h('div', { class: 'diff-row map-row' }, ...MAP_IDS.map((id) => {
         const ok = s.mapAvailable(id);
-        return h('button', { class: `diff-btn${id === selMap ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? MAPS[id].tagline : 'Locked — survive the first night', onclick: () => { c.click(); selMap = id; render(); } }, ok ? MAPS[id].name : `🔒 ${MAPS[id].name}`);
+        return h('button', { class: `diff-btn${id === selMap ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? MAPS[id].tagline : MAP_LOCK[id], onclick: () => { c.click(); selMap = id; render(); } }, ok ? MAPS[id].name : `🔒 ${MAPS[id].name}`);
       })),
       h('div', { class: 'muted' }, MAPS[selMap].tagline),
       h('div', { class: 'section-title', style: { margin: '0.4em 0 0' } }, 'Difficulty'),
@@ -162,7 +162,9 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
   const ch = CHARACTER_MAP[st.character];
   const won = st.won;
   const house = st.map === 'fun_house';
-  const flavor = st.trueEnding ? (house ? 'The last mirror breaks. Mira steps out into the first light, and the house finally stops laughing.' : 'The last note fades. The Calliope falls silent, and for one night the carnival truly sleeps.') : st.endless ? `Locked in for ${fmtTime(st.endlessTime)} past dawn.` : won ? 'The sun crests the sea. The rides fall silent — until tomorrow night.' : st.time >= 1440 ? 'So close to dawn… the Ringmaster takes a bow over you.' : st.time >= 720 ? 'The carnival claims another fool. Your ticket stubs scatter in the wind.' : 'Lights out. The calliope plays on without you.';
+  const shore = st.map === 'boardwalk';
+  const flavor = st.trueEnding ? (house ? 'The last mirror breaks. Mira steps out into the first light, and the house finally stops laughing.' : shore ? "The bell's last note goes out over the water. Ada walks up out of the surf and onto the beach, into the morning." : 'The last note fades. The Calliope falls silent, and for one night the carnival truly sleeps.')
+    : shore && !st.endless && !won && st.time >= 1440 ? 'So close to dawn… the tide comes in over you.' : st.endless ? `Locked in for ${fmtTime(st.endlessTime)} past dawn.` : won ? 'The sun crests the sea. The rides fall silent — until tomorrow night.' : st.time >= 1440 ? 'So close to dawn… the Ringmaster takes a bow over you.' : st.time >= 720 ? 'The carnival claims another fool. Your ticket stubs scatter in the wind.' : 'Lights out. The calliope plays on without you.';
   const payout = h('div', { class: 'payout' }, '+0');
   let shown = 0;
   const step = () => {

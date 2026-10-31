@@ -242,4 +242,16 @@ export const RECIPES: Record<string, () => Float32Array> = {
   grind: () => render([V('saw', 70, 64, 0.9, { vol: 0.25, lp: 500, vib: 0.2, vibRate: 22, attack: 0.08, decay: 2 }), V('noise', 1, 1, 0.9, { vol: 0.2, attack: 0.08, decay: 2, lp: 900, hp: 150 })]),
   wail: () => render([V('saw', 520, 340, 1.1, { vol: 0.22, lp: 1800, vib: 0.06, vibRate: 5, attack: 0.15, decay: 1.6, curve: 0.6 }), V('saw', 780, 500, 1.1, { vol: 0.12, lp: 2000, vib: 0.07, vibRate: 5.5, attack: 0.15, decay: 1.6 })]),
   thud: () => render([V('sine', 110, 40, 0.3, { vol: 0.8, decay: 10 }), V('noise', 1, 1, 0.12, { vol: 0.35, decay: 25, lp: 900 })]),
+  // ---- the Boardwalk (D-68): seawater, chitin, a ticket punch, taffy, clockwork, the drop, the tide
+  gurgle: () => render([...Array.from({ length: 6 }, (_, i) => V('sine', 180 + ((i * 53) % 90), 90 + ((i * 31) % 40), 0.09, { vol: 0.2, decay: 30, delay: i * 0.06, vib: 0.3, vibRate: 30 })), V('noise', 1, 1, 0.45, { vol: 0.12, lp: 500, decay: 5 })]),
+  clatter: () => render([...Array.from({ length: 5 }, (_, i) => V('square', 1800 + (i % 3) * 400, 1500, 0.02, { vol: 0.1, decay: 120, delay: i * 0.035, lp: 4000 })), V('noise', 1, 1, 0.05, { vol: 0.15, decay: 60, hp: 3000 })]),
+  punch: () => render([V('noise', 1, 1, 0.03, { vol: 0.4, decay: 90, hp: 2500 }), V('sine', 900, 400, 0.05, { vol: 0.3, decay: 60, delay: 0.04 }), V('square', 220, 160, 0.06, { vol: 0.12, decay: 50, delay: 0.05, lp: 1500 })]),
+  stretch: () => render([V('saw', 200, 520, 0.5, { vol: 0.18, lp: 1200, vib: 0.08, vibRate: 14, curve: 0.7, decay: 2.5 }), V('sine', 300, 780, 0.5, { vol: 0.1, vib: 0.1, vibRate: 11, decay: 2.5 })]),
+  crank: () => render([...Array.from({ length: 10 }, (_, i) => V('noise', 1, 1, 0.015, { vol: 0.22, decay: 150, hp: 1800, delay: 0.8 * Math.sqrt(i / 10) })), V('saw', 80, 120, 0.85, { vol: 0.08, lp: 500, decay: 1.5 })]),
+  scream: () => render([V('saw', 900, 520, 1.0, { vol: 0.18, lp: 2400, vib: 0.05, vibRate: 7, attack: 0.05, decay: 1.4, curve: 0.8 }), V('saw', 1350, 780, 1.0, { vol: 0.09, lp: 2600, vib: 0.06, vibRate: 7.5, decay: 1.4 }), V('noise', 1, 1, 0.9, { vol: 0.07, hp: 1200, lp: 4000, decay: 2 })]),
+  crack: () => render([V('noise', 1, 1, 0.12, { vol: 0.6, decay: 30, hp: 1500 }), V('sine', 160, 60, 0.25, { vol: 0.5, decay: 14 }), V('noise', 1, 1, 0.3, { vol: 0.2, decay: 10, lp: 900, delay: 0.05 })]),
+  lure: () => render([V('sine', 660, 660, 1.4, { vol: 0.12, attack: 0.3, decay: 1.4, vib: 0.01, vibRate: 5 }), V('sine', 990, 985, 1.4, { vol: 0.07, attack: 0.4, decay: 1.6 }), V('sine', 1320, 1310, 1.0, { vol: 0.04, attack: 0.5, decay: 2 })]),
+  jingle: () => render([...Array.from({ length: 10 }, (_, i) => V('sine', 3000 + ((i * 211) % 1200), 2900, 0.1, { vol: 0.06, decay: 30, delay: i * 0.03 + ((i * 7) % 4) * 0.01 })), V('sine', 120, 50, 0.25, { vol: 0.5, decay: 12 })]),
+  conch: () => render([V('saw', 110, 104, 1.6, { vol: 0.22, lp: 700, attack: 0.25, decay: 1.2, vib: 0.015, vibRate: 4 }), V('saw', 165, 158, 1.6, { vol: 0.1, lp: 900, attack: 0.3, decay: 1.3 }), V('noise', 1, 1, 1.4, { vol: 0.05, lp: 500, attack: 0.3, decay: 1.5 })]),
+  surge: () => render([V('noise', 1, 1, 1.2, { vol: 0.32, lp: 1400, hp: 150, attack: 0.25, decay: 2 }), V('noise', 1, 1, 0.6, { vol: 0.18, hp: 2500, delay: 0.5, decay: 4 })]),
 };

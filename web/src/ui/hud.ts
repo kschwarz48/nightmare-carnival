@@ -27,6 +27,7 @@ export interface HudScreen {
 const BAR_H: Record<string, number> = {
   carnival_tent: 330, ferris_wheel: 300, puppet_king: 320, ringmaster: 250, calliope: 330,
   crooked_twins: 360, looking_glass: 330, stringmistress: 300, proprietor: 300, unreflected: 330,
+  barker: 300, drowned_captain: 320, last_ride: 200, leviathan: 380, commodore: 300,
 };
 /** A chest arrow (points along +x; rotated toward its chest). */
 const ARROW_SVG = '<svg viewBox="0 0 24 24"><path d="M3 4 L21 12 L3 20 L8 12 Z" fill="#f2c14e" stroke="#17110e" stroke-width="2.4" stroke-linejoin="round"/></svg>';
@@ -261,7 +262,8 @@ export class Hud {
   /** "E  Turn the mirror": floats over whatever the local player could use right now (D-67). */
   private updatePrompt(g: Game, screen: HudScreen): void {
     const p = g.player;
-    const it = g.phase === 'play' && g.isUp(p) ? g.quests?.get<UnreflectedChain>('unreflected')?.interaction(p.x, p.y) ?? null : null;
+    let it: { kind: string; i: number; x: number; y: number; label: string } | null = null;
+    if (g.phase === 'play' && g.isUp(p)) for (const c of g.quests?.chains ?? []) it ??= c.interaction?.(p.x, p.y, p.index) ?? null;
     const key = it ? `${it.kind}${it.i}|${it.label}|${this.padKeys}` : '';
     if (key !== this.promptKey) {
       this.promptKey = key;

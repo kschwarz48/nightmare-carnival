@@ -6,12 +6,13 @@
 
 import { applyLayout, CARNIVAL_LAYOUT, type MapLayout } from './map';
 import { FUNHOUSE_LAYOUT } from './funhouse';
-import { applyWaves, CARNIVAL_ACTS, CARNIVAL_ENDLESS, CARNIVAL_VICTORY, CARNIVAL_WAVES, FUNHOUSE_ACTS, FUNHOUSE_ENDLESS, FUNHOUSE_VICTORY, FUNHOUSE_WAVES, type WaveDef } from './waves';
-import { applyBossSchedule, CARNIVAL_BOSSES, FUNHOUSE_BOSSES, type BossDef } from './bosses';
-import { applyEvents, CARNIVAL_EVENTS, CARNIVAL_SCHEDULE, FUNHOUSE_EVENTS, FUNHOUSE_SCHEDULE, type EventId } from './events';
+import { BOARDWALK_LAYOUT } from './boardwalk';
+import { applyWaves, CARNIVAL_ACTS, CARNIVAL_ENDLESS, CARNIVAL_VICTORY, CARNIVAL_WAVES, FUNHOUSE_ACTS, FUNHOUSE_ENDLESS, FUNHOUSE_VICTORY, FUNHOUSE_WAVES, BOARDWALK_ACTS, BOARDWALK_ENDLESS, BOARDWALK_VICTORY, BOARDWALK_WAVES, type WaveDef } from './waves';
+import { applyBossSchedule, BOARDWALK_BOSSES, CARNIVAL_BOSSES, FUNHOUSE_BOSSES, type BossDef } from './bosses';
+import { applyEvents, BOARDWALK_EVENTS, BOARDWALK_SCHEDULE, CARNIVAL_EVENTS, CARNIVAL_SCHEDULE, FUNHOUSE_EVENTS, FUNHOUSE_SCHEDULE, type EventId } from './events';
 
-export type MapId = 'carnival_core' | 'fun_house';
-export const MAP_IDS: MapId[] = ['carnival_core', 'fun_house'];
+export type MapId = 'carnival_core' | 'fun_house' | 'boardwalk';
+export const MAP_IDS: MapId[] = ['carnival_core', 'fun_house', 'boardwalk'];
 
 export interface MapDef {
   id: MapId;
@@ -34,7 +35,7 @@ export interface MapDef {
   events: EventId[];
   scheduledEvents: { time: number; id: EventId }[];
   /** the renderer's world builder */
-  world: 'carnival' | 'funhouse';
+  world: 'carnival' | 'funhouse' | 'boardwalk';
   /** title card when a night starts */
   intro: { title: string; sub: string };
   /** the hidden quest whose progress the save remembers, and the banner while its finale holds the dawn */
@@ -80,6 +81,32 @@ export const MAPS: Record<MapId, MapDef> = {
     intro: { title: 'ADMIT ONE', sub: 'The doors swing shut. Somewhere, the house is laughing.' },
     quest: { id: 'unreflected', hold: { text: 'THE GLASS HOLDS THE DAWN…', sub: 'Nothing leaves the house while the Unreflected stands' } },
   },
+  boardwalk: {
+    id: 'boardwalk',
+    name: 'The Boardwalk',
+    tagline: "Penhallow's Boardwalk, the beach and the pier. Something lives in the water.",
+    layout: BOARDWALK_LAYOUT,
+    waves: BOARDWALK_WAVES,
+    victoryLap: BOARDWALK_VICTORY,
+    endless: BOARDWALK_ENDLESS,
+    acts: BOARDWALK_ACTS,
+    bosses: BOARDWALK_BOSSES,
+    scenery: [],
+    finalBoss: 'leviathan',
+    miniboss: 'great_barnacle',
+    events: BOARDWALK_EVENTS,
+    scheduledEvents: BOARDWALK_SCHEDULE,
+    world: 'boardwalk',
+    intro: { title: 'LAST CALL AT THE SHORE', sub: 'The rides are still running. Nobody is running them.' },
+    quest: { id: 'summers_end', hold: { text: 'THE TIDE HOLDS THE DAWN…', sub: 'The sea will not give back the morning until the account is closed' } },
+  },
+};
+
+/** What a locked map's button says it takes to open it (the solo picker and the co-op lobby). */
+export const MAP_LOCK: Record<MapId, string> = {
+  carnival_core: '',
+  fun_house: 'Locked — survive the first night',
+  boardwalk: 'Locked — survive the Fun House',
 };
 
 let active: MapId = 'carnival_core';

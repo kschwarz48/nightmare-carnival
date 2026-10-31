@@ -25,6 +25,7 @@ import { LAST_SONG } from './data/quests';
 import { QUEST_UNLOCKS } from './data/meta';
 import { MIRA, PERFORMER_NAMES, PERFORMER_NOTES } from './data/funhouse';
 import type { UnreflectedChain } from './sim/quest/unreflected';
+import { ADA, GAME_NAMES, KEEPSAKES, shoreMix } from './data/boardwalk';
 import type { QuestCue } from './sim/quest';
 import { FocusNav, h } from './ui/dom';
 import * as S from './ui/screens';
@@ -209,6 +210,11 @@ export class App {
     // alpha testing aid: ?unlock=funhouse opens the Fun House on this save (D-63)
     if (new URLSearchParams(location.search).get('unlock') === 'funhouse') {
       this.save.data.funhouseTester = true;
+      this.save.save();
+    }
+    // alpha testing aid: ?unlock=boardwalk opens the Boardwalk on this save (D-68)
+    if (new URLSearchParams(location.search).get('unlock') === 'boardwalk') {
+      this.save.data.boardwalkTester = true;
       this.save.save();
     }
     // alpha testing aid: ?unlock=midway opens the hub on this save without finishing the Last Song
@@ -449,7 +455,7 @@ export class App {
     this.runStart = performance.now();
     this.go('playing');
     this.prewarmPrize();
-    this.audio.setCue(this.game?.mapId === 'fun_house' ? 'fh_act1' : 'act1');
+    this.audio.setCue(this.game?.mapId === 'fun_house' ? 'fh_act1' : this.game?.mapId === 'boardwalk' ? 'bw_act1' : 'act1');
     this.hud.banner(title, sub, 'gold', 3);
     this.tutorial('move', 'Move with <b>WASD</b>, the <b>arrow keys</b> or the <b>left stick</b>. Your weapons fire on their own.');
   }
@@ -526,8 +532,9 @@ export class App {
       // first-ever kill unlocks are awarded at run end via achievements
     });
     // a Fun House night has its own score between bosses (D-63); boss fights keep Bradley's song
-    const houseCue = (c: string) => (g.mapId === 'fun_house' && /^(act[1-4]|endless)$/.test(c) ? `fh_${c}` : c);
-    a.setAmbience(g.mapId === 'fun_house' ? 'funhouse' : 'carnival');
+    const prefix = g.mapId === 'fun_house' ? 'fh_' : g.mapId === 'boardwalk' ? 'bw_' : '';
+    const houseCue = (c: string) => (prefix && /^(act[1-4]|endless)$/.test(c) ? `${prefix}${c}` : c);
+    a.setAmbience(g.mapId === 'fun_house' ? 'funhouse' : g.mapId === 'boardwalk' ? 'boardwalk' : 'carnival');
     g.bus.on('music', (e) => a.setCue(houseCue(e.cue)));
     g.bus.on('act', (e) => {
       a.setCue(houseCue(`act${e.act}`));
@@ -629,6 +636,10 @@ export class App {
   private onQuest(g: Game, q: QuestCue): void {
     if (q.chain === 'unreflected') {
       this.onUnreflected(g, q);
+      return;
+    }
+    if (q.chain === 'summers_end') {
+      this.onSummersEnd(g, q);
       return;
     }
     const a = this.audio;
@@ -861,6 +872,217 @@ export class App {
     }
   }
 
+  /**
+   * Summer's End (D-68): Ada answers through the shells, the machines and bells answer for themselves,
+   * and nothing ever reads like a checklist. The lighthouse flashes the call sign as the horn sounds it.
+   */
+  private onSummersEnd(g: Game, q: QuestCue): void {
+    const a = this.audio;
+    const pan = (x?: number) => (x === undefined ? 0 : Math.max(-1, Math.min(1, (x - this.renderer.camX) / (this.renderer.viewWidth * 0.6))));
+    const fx = (type: string, style: string, aa = 1) => {
+      if (q.x !== undefined && q.y !== undefined) this.renderer.fx.handle([{ type: type as never, x: q.x, y: q.y, a: aa, b: 0, c: 0, style }]);
+    };
+    const say = (line: string[], dur = 5) => {
+      a.duckMusic(Math.min(3, dur * 0.5));
+      this.hud.whisper(line[0], line[1] || undefined, dur);
+    };
+    const flash = (r: number, gg: number, b: number, k = 0.3) => {
+      this.renderer.fx.screenFlash = Math.max(this.renderer.fx.screenFlash, k);
+      this.renderer.fx.screenFlashCol = [r, gg, b];
+    };
+    const bell = (pitch: number, vol = 0.5) => a.play('bellnote', { vol, pitch, pan: pan(q.x) });
+    /** the call sign on the horn (and the lighthouse's lens), from far out on the water */
+    const call = () => {
+      const bits = q.a ?? 0, len = q.b ?? 4;
+      this.renderer.playCallSign(bits, len);
+      let t = 400;
+      for (let k = 0; k < len; k++) {
+        const long = (bits >> k) & 1;
+        setTimeout(() => a.play(long ? 'conch' : 'horn', { vol: 0.7, pitch: long ? 0.8 : 0.6 }), t);
+        t += (long ? 900 : 350) + 350;
+      }
+    };
+    switch (q.event) {
+      case 'se_conch':
+        say(ADA.conch, 7);
+        a.play('ripple', { vol: 0.8, pan: pan(q.x) });
+        a.play('surge', { vol: 0.35 });
+        fx('spark', 'splash', 6);
+        break;
+      case 'se_marina':
+        a.play('fortune', { vol: 0.8, pan: pan(q.x) });
+        this.fortune.show(`${ADA.marina[0]} ${ADA.marina[1]}`, 10);
+        this.chat.add({ kind: 'fortune', who: 'Madame Marina', text: ADA.marina[1] });
+        a.duckMusic(3);
+        break;
+      case 'se_photo':
+        say(ADA.photo, 8);
+        a.play('glint', { vol: 0.6, pan: pan(q.x) });
+        break;
+      case 'se_shelf':
+        say(ADA.shelfTrue(q.b ?? 1), 3);
+        bell(1 + (q.b ?? 1) * 0.12, 0.55);
+        fx('ring', 'gravity', 70);
+        break;
+      case 'se_shelf_false':
+        say(ADA.shelfFalse, 3);
+        a.play('sour', { vol: 0.5, pan: pan(q.x) });
+        break;
+      case 'se_games':
+        say(ADA.gamesOpen, 6);
+        a.play('slot_spin', { vol: 0.6 });
+        break;
+      case 'se_gallery':
+        say(ADA.galleryStart, 3);
+        a.play('whistle', { vol: 0.8, pan: pan(q.x) });
+        break;
+      case 'se_duck':
+        a.play('ding', { vol: 0.6, pan: pan(q.x), pitch: 0.9 + (q.a ?? 0) * 0.05 });
+        break;
+      case 'se_gallery_lost':
+        say(ADA.galleryLost, 3);
+        a.play('sour', { vol: 0.5, pan: pan(q.x) });
+        break;
+      case 'se_won':
+        say(ADA.gameWon(GAME_NAMES[q.a ?? 0], q.b ?? 1), 4);
+        a.play('slot_win', { vol: 0.7, pan: pan(q.x) });
+        fx('ring', 'gold', 110);
+        this.input.rumble(0.3, 160);
+        break;
+      case 'se_miss':
+        say(q.a === 1 ? ADA.craneMiss : q.a === 2 ? ADA.wheelMiss : ADA.brakeMiss, 3);
+        a.play('clunk', { vol: 0.6, pan: pan(q.x) });
+        break;
+      case 'se_wreck':
+        say(ADA.wreck, 7);
+        a.play('toll', { vol: 0.5, pitch: 0.8 });
+        break;
+      case 'se_wreck_high':
+        say(ADA.wreckHigh, 3);
+        break;
+      case 'se_porthole':
+        a.play('clank', { vol: 0.5, pan: pan(q.x) });
+        a.play('glint', { vol: 0.3, pan: pan(q.x), pitch: 0.8 + (q.b ?? 0) * 0.1 });
+        break;
+      case 'se_wreck_done':
+        say(ADA.wreckDone, 7);
+        for (let k = 0; k < 2; k++) setTimeout(() => a.play('toll', { vol: 0.55, pitch: 0.7 }), 300 + k * 800);
+        flash(0.5, 0.9, 1, 0.25);
+        break;
+      case 'se_rod':
+        say(ADA.rod, 5);
+        break;
+      case 'se_cast':
+        say(ADA.cast, 2.5);
+        a.play('whoosh', { vol: 0.5, pan: pan(q.x) });
+        setTimeout(() => a.play('splash', { vol: 0.4, pan: pan(q.x) }), 300);
+        break;
+      case 'se_bite':
+        this.hud.whisper(ADA.bite[0], undefined, 1.2);
+        a.play('splash', { vol: 0.9, pan: pan(q.x) });
+        this.input.rumble(0.5, 200);
+        break;
+      case 'se_missed':
+        say(ADA.missed, 2.5);
+        a.play('splash', { vol: 0.5, pan: pan(q.x) });
+        break;
+      case 'se_key':
+        say(ADA.key, 6);
+        a.play('ding', { vol: 0.8, pan: pan(q.x) });
+        fx('ring', 'gold', 90);
+        break;
+      case 'se_call':
+        say(ADA.callSign, 5);
+        a.play('clunk', { vol: 0.7, pan: pan(q.x) });
+        call();
+        break;
+      case 'se_chain':
+        a.play(q.a ? 'conch' : 'horn', { vol: 0.5, pan: pan(q.x), pitch: q.a ? 0.9 : 0.75 });
+        break;
+      case 'se_wrong_call':
+        say(ADA.wrongCall, 3);
+        a.play('sour', { vol: 0.5, pan: pan(q.x) });
+        setTimeout(call, 1400);
+        break;
+      case 'se_moored':
+        say(ADA.moored, 7);
+        for (let k = 0; k < 3; k++) setTimeout(() => a.play('toll', { vol: 0.6 }), 300 + k * 700);
+        a.play('ghost_ticket', { vol: 0.7 });
+        flash(0.5, 1, 0.95, 0.3);
+        break;
+      case 'se_fire':
+        say(ADA.fire, 5);
+        a.play('lamp_lit', { vol: 0.6, pan: pan(q.x) });
+        break;
+      case 'se_lamp':
+        say(ADA.lamp(q.b ?? 1), 3);
+        a.play('lamp_lit', { vol: 0.8, pan: pan(q.x) });
+        bell(0.8 + (q.b ?? 1) * 0.15, 0.6);
+        fx('ring', 'frost', 140);
+        this.input.rumble(0.3, 160);
+        break;
+      case 'se_guttered':
+        say(ADA.guttered, 4);
+        a.play('poof', { vol: 0.6 });
+        break;
+      case 'se_low_water':
+        say(ADA.lowWater, 7);
+        a.play('surge', { vol: 1 });
+        a.play('rumble', { vol: 0.6 });
+        this.renderer.fx.shake = Math.max(this.renderer.fx.shake, 0.5);
+        break;
+      case 'se_bell_seen':
+        say(ADA.bell, 6);
+        a.play('toll', { vol: 0.4, pitch: 0.6 });
+        break;
+      case 'se_bell_up':
+        say(ADA.bellUp, 6);
+        a.play('toll', { vol: 0.8, pitch: 0.7 });
+        flash(1, 0.9, 0.6, 0.2);
+        break;
+      case 'se_ledger':
+        a.play('fortune', { vol: 0.7, pan: pan(q.x) });
+        say(ADA.ledger, 10);
+        this.chat.add({ kind: 'fortune', who: 'The Ledger', text: ADA.ledger[1] });
+        setTimeout(() => say(ADA.ledger2, 7), 9000);
+        break;
+      case 'se_strike':
+        say(ADA.strike(q.a ?? 1), 3);
+        a.play('toll', { vol: 1, pitch: 0.65 });
+        flash(0.9, 0.95, 1, 0.35);
+        this.renderer.fx.shake = Math.max(this.renderer.fx.shake, 0.5);
+        fx('ring', 'bell', 260);
+        break;
+      case 'se_bound':
+        this.hud.banner(ADA.bound[0], ADA.bound[1], 'danger', 3.5);
+        a.play('roar', { vol: 1, pitch: 0.5 });
+        a.play('surge', { vol: 1 });
+        flash(0.6, 1, 0.9, 0.5);
+        break;
+      case 'se_finale':
+        this.hud.banner(ADA.finale[0], ADA.finale[1], 'danger', 3.5);
+        a.play('toll', { vol: 1, pitch: 0.55 });
+        break;
+      case 'se_rises':
+        a.play('rumble', { vol: 0.9 });
+        a.play('demon', { vol: 0.5 });
+        break;
+      case 'se_complete': {
+        // permanent: Ada's Conch joins the draft pool for good
+        const s = this.save;
+        for (const id of QUEST_UNLOCKS.summers_end) if (!s.data.unlocks.includes(id)) s.data.unlocks.push(id);
+        const rec = (s.data.quests[q.chain] ??= { completions: 0, bestStage: 0 });
+        rec.completions++;
+        rec.bestStage = Math.max(rec.bestStage, 13);
+        s.save();
+        this.hud.banner(ADA.complete[0], ADA.complete[1], 'gold', 5);
+        a.play('fanfare', { vol: 0.8 });
+        break;
+      }
+    }
+    void KEEPSAKES;
+  }
+
   private resume(): void {
     this.screenEl?.remove();
     this.screenEl = null;
@@ -931,7 +1153,7 @@ export class App {
       this.screenEl?.remove();
       this.state = 'results';
       this.hud.root.classList.add('under');
-      if (st.trueEnding) notes.unshift(st.map === 'fun_house' ? "Mira's Hand Mirror now appears in the draft pool." : 'The Steam Calliope now plays in the draft pool.');
+      if (st.trueEnding) notes.unshift(st.map === 'fun_house' ? "Mira's Hand Mirror now appears in the draft pool." : st.map === 'boardwalk' ? "Ada's Conch now appears in the draft pool." : 'The Steam Calliope now plays in the draft pool.');
       if (this.hubJustUnlocked) {
         notes.unshift('THE MIDWAY IS YOURS: from now on the carnival opens as your hub. Walk the grounds, visit the cast, and enter the Big Top for another night.');
         this.hubJustUnlocked = false;
@@ -1344,7 +1566,9 @@ export class App {
       else if (t.kind === 'bigtop') prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Big Top', sub: 'the host starts the night here' } : { key, text: 'Enter the Big Top', sub: 'begin the First Night' };
       else if (HUB_EXITS[t.i].id === 'funhouse' && this.save.mapAvailable('fun_house')) {
         prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Fun House', sub: 'the host leads the way in' } : { key, text: 'Enter the Fun House', sub: 'a night in the Palace of Illusions' };
-      } else prompt = { key: '✕', text: HUB_EXITS[t.i].label, sub: HUB_EXITS[t.i].id === 'funhouse' ? 'chained shut — survive the first night to open it' : 'coming soon: the gates are chained shut' };
+      } else if (HUB_EXITS[t.i].id === 'boardwalk' && this.save.mapAvailable('boardwalk')) {
+        prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Boardwalk', sub: 'the host leads the way down to the shore' } : { key, text: 'Go down to the Boardwalk', sub: "a night on Penhallow's Boardwalk" };
+      } else prompt = { key: '✕', text: HUB_EXITS[t.i].label, sub: HUB_EXITS[t.i].id === 'funhouse' ? 'chained shut — survive the first night to open it' : HUB_EXITS[t.i].id === 'boardwalk' ? 'chained shut — survive the Fun House to open it' : 'coming soon: the gates are chained shut' };
     }
     const hs = this.net?.role === 'host' ? this.net.host : null;
     this.hubHud.root.classList.toggle('under', this.state !== 'hub');
@@ -1389,14 +1613,16 @@ export class App {
         return this.go('charselect');
       case 'exit':
         // the Fun House's gate opens once the first night has been survived (D-63)
-        if (HUB_EXITS[t.i].id === 'funhouse' && this.save.mapAvailable('fun_house') && this.net?.role !== 'guest') {
-          this.audio.play('select', { vol: 0.6 });
-          if (this.net?.role === 'host') {
-            this.net.host.setMap('fun_house');
-            return this.hubToRunLobby();
+        for (const [gate, map] of [['funhouse', 'fun_house'], ['boardwalk', 'boardwalk']] as const) {
+          if (HUB_EXITS[t.i].id === gate && this.save.mapAvailable(map) && this.net?.role !== 'guest') {
+            this.audio.play('select', { vol: 0.6 });
+            if (this.net?.role === 'host') {
+              this.net.host.setMap(map);
+              return this.hubToRunLobby();
+            }
+            this.save.data.last.map = map;
+            return this.go('charselect');
           }
-          this.save.data.last.map = 'fun_house';
-          return this.go('charselect');
         }
         this.audio.play('clunk', { vol: 0.5 });
         return;
@@ -1741,6 +1967,7 @@ export class App {
       this.updateCoopHud();
       this.hud.padKeys = this.input.usingGamepad;
       this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
+      if (g.mapId === 'boardwalk') this.audio.setShoreMix(...shoreMix(g.player.x, g.player.y));
     } else if (g.hub) this.updateHubHud(cssW, cssH);
   }
 

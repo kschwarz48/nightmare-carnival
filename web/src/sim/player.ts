@@ -41,6 +41,8 @@ export class Player {
   animT = 0;
   slowT = 0;
   slowF = 1;
+  /** a Ticket Taker's stub (D-68): while it lasts, the crowd comes for this player faster */
+  markedT = 0;
   pullX = 0;
   pullY = 0;
   dashT = 0; // bumper-car surge remaining

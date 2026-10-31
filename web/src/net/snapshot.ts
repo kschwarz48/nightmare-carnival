@@ -97,10 +97,10 @@ export interface Snapshot {
 /** Game-wide flags packed in one byte. */
 export const GF = { stalled: 1, victoryLap: 2, endless: 4, finaleActive: 8, trueEnding: 16, ringmasterDefeated: 32, frozen: 64, doorOpen: 128 };
 /** Player flags. */
-export const PF = { moving: 1, dead: 2, downed: 4, shieldReady: 8, reviveAssist: 16 };
+export const PF = { moving: 1, dead: 2, downed: 4, shieldReady: 8, reviveAssist: 16, marked: 32 };
 /** Enemy flags: identity (static part) and status (state part). */
 export const EF = { elite: 1, hidden: 2, invuln: 4, illusion: 8 };
-export const ET = { frozen: 1, sticky: 2, burn: 4, shield: 8 };
+export const ET = { frozen: 1, sticky: 2, burn: 4, shield: 8, cracked: 16 };
 
 const inside = (v: View, x: number, y: number, k: number) => Math.abs(x - v.x) < v.hx * k && Math.abs(y - v.y) < v.hy * k;
 
@@ -155,7 +155,7 @@ const POOLS = {
         w.i8(e.vy / 4);
       },
       (w, e) => {
-        w.u8((e.frozenT > 0 ? ET.frozen : 0) | (e.stickyT > 0 ? ET.sticky : 0) | (e.burnT > 0 ? ET.burn : 0) | (e.shield > 0 ? ET.shield : 0));
+        w.u8((e.frozenT > 0 ? ET.frozen : 0) | (e.stickyT > 0 ? ET.sticky : 0) | (e.burnT > 0 ? ET.burn : 0) | (e.shield > 0 ? ET.shield : 0) | (e.cracked ? ET.cracked : 0));
         w.frac(e.flash);
         w.frac(e.windup);
         w.u8(Math.min(255, e.spawnT * 100));
@@ -499,7 +499,7 @@ export class SnapshotEncoder {
       w.i8(p.faceX * 127);
       w.i8(p.faceY * 127);
       w.i8(p.facing);
-      w.u8((p.moving ? PF.moving : 0) | (p.dead ? PF.dead : 0) | (p.downed ? PF.downed : 0) | (p.shieldReady ? PF.shieldReady : 0) | (p.reviveAssist ? PF.reviveAssist : 0));
+      w.u8((p.moving ? PF.moving : 0) | (p.dead ? PF.dead : 0) | (p.downed ? PF.downed : 0) | (p.shieldReady ? PF.shieldReady : 0) | (p.reviveAssist ? PF.reviveAssist : 0) | (p.markedT > 0 ? PF.marked : 0));
       w.u8(Math.min(255, p.iframes * 50));
       w.u8(Math.min(255, p.hurtFlash * 255));
       w.frac(p.reviveT);

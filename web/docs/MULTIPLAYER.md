@@ -243,6 +243,26 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### The Boardwalk (D-68, PROTO 10)
+
+- **The map.** `boardwalk` is a third map id the host can pick in the lobby; guests load the same
+  world.
+- **The sea is computed on every machine.**
+  - The tide, the coaster and the Sea Wheel are pure functions of sim time.
+  - The quest's low water rides in its bytes.
+  - `refreshSea` runs in the guest's mirror every step, so wading, the waterline and the shaders agree
+    with the host.
+  - A guest's prediction uses the same `walkClamp`, so it is never corrected for wading or the pier's
+    edges.
+- **New bits on the wire:**
+  - `PF.marked`: a player marked by a Ticket Taker's stub (every screen draws the mark);
+  - `ET.cracked`: a barnacle's crust has cracked;
+  - the Summer's End chain's 24 bytes in `questExtra`;
+  - the new bullet kinds travel as strings in the snapshot dictionary.
+- **Interiors.** Each screen cuts away the building its own player is in. Positions replicate as
+  anywhere else, so partners can be in different buildings at once.
+- **PROTO 10.** Old builds can't join new lobbies; everyone reloads.
+
 ### Interact presses (D-67, PROTO 9)
 
 - **What.** The Fun House quest's hands-on steps are presses of interact (E, or A on a pad). A guest's

@@ -48,9 +48,9 @@ export const UNLOCKS: UnlockDef[] = [
 ];
 
 /** Unlocks that are never sold — earned only through discovery (each map's hidden quest). */
-export const SECRET_UNLOCKS = ['w_calliope', 'p_hand_mirror'];
+export const SECRET_UNLOCKS = ['w_calliope', 'p_hand_mirror', 'p_ada_conch'];
 /** Which hidden quest grants which of them. */
-export const QUEST_UNLOCKS: Record<string, string[]> = { last_song: ['w_calliope'], unreflected: ['p_hand_mirror'] };
+export const QUEST_UNLOCKS: Record<string, string[]> = { last_song: ['w_calliope'], unreflected: ['p_hand_mirror'], summers_end: ['p_ada_conch'] };
 
 export interface AchievementDef {
   id: string;
@@ -85,6 +85,12 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'beat_stringmistress', name: 'Cut the Cradle', desc: 'Defeat the Stringmistress.', reward: 80 },
   { id: 'beat_proprietor', name: 'The House Loses', desc: "Defeat the Proprietor and see the Fun House's dawn.", reward: 150 },
   { id: 'unreflected', name: 'Through the Looking Glass', desc: 'Bring Mira home.', reward: 400 },
+  // the Boardwalk (D-68)
+  { id: 'beat_barker', name: 'No Sale', desc: 'Defeat the Boardwalk Barker.', reward: 40 },
+  { id: 'beat_drowned_captain', name: 'Abandon Ship', desc: 'Defeat the Drowned Captain.', reward: 60 },
+  { id: 'beat_last_ride', name: 'End of the Line', desc: 'Defeat the Last Ride.', reward: 80 },
+  { id: 'beat_leviathan', name: 'Low Tide', desc: "Defeat the Leviathan and see the Boardwalk's dawn.", reward: 150 },
+  { id: 'summers_end', name: "Summer's End", desc: 'Close the Commodore\'s account.', reward: 400 },
 ];
 
 /** End-of-run payout (doc 01 §8). */

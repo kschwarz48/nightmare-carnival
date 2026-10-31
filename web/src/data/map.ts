@@ -28,7 +28,9 @@ export type PropKind =
   | 'fh_wall' | 'fh_mirror' | 'fh_column' | 'fh_booth' | 'fh_counter' | 'fh_face' | 'fh_poster' | 'fh_barker'
   | 'fh_kaleidoscope' | 'fh_mannequin' | 'fh_plinth' | 'fh_marionette_rack' | 'fh_musicbox' | 'fh_projector'
   | 'fh_curtain' | 'fh_stage' | 'fh_clock' | 'fh_vanity' | 'fh_crystal' | 'fh_mark' | 'fh_mural' | 'fh_bench'
-  | 'fh_piston' | 'fh_pivot' | 'fh_lamp' | 'fh_rope' | 'fh_trunk' | 'fh_chandelier';
+  | 'fh_piston' | 'fh_pivot' | 'fh_lamp' | 'fh_rope' | 'fh_trunk' | 'fh_chandelier'
+  // the Boardwalk (D-68): buildings, the entered interiors' fixtures, the promenade, the rides, beach and pier
+  | `bw_${string}`;
 
 export interface Prop {
   kind: PropKind;
@@ -203,6 +205,17 @@ export function setDynamicWalls(w: Prop[]): void {
   DYNAMIC_WALLS = w;
 }
 
+/**
+ * Where the camera may look (D-68): maps that aren't a square around the origin (the Boardwalk is 8000
+ * wide) bound it themselves; otherwise it follows `half` and the sea wall as before.
+ */
+export let CAMERA_BOUNDS: { minX: number; maxX: number; minY: number; maxY: number } | null = null;
+/**
+ * The ground a player may stand on beyond props and bounds (D-68): the Boardwalk keeps players out of
+ * deep water except on the pier. Pure (movement and a guest's prediction both call it); null elsewhere.
+ */
+export let WALK_CLAMP: ((p: { x: number; y: number }) => void) | null = null;
+
 /** Everything a map's floor plan defines (D-63). */
 export interface MapLayout {
   half: number;
@@ -217,6 +230,9 @@ export interface MapLayout {
   promenade: { y0: number; y1: number };
   tiltAWhirl: { x: number; y: number; armLen: number; period: number } | null;
   greaseSlicks: { x: number; y: number; r: number }[];
+  /** optional camera bounds and walkable-ground clamp (D-68) */
+  camera?: { minX: number; maxX: number; minY: number; maxY: number };
+  walkClamp?: (p: { x: number; y: number }) => void;
 }
 
 /** The Carnival Core's layout, as declared above. */
@@ -241,5 +257,7 @@ export function applyLayout(l: MapLayout): void {
   PROMENADE = { ...l.promenade };
   TILT_A_WHIRL = l.tiltAWhirl;
   GREASE_SLICKS = l.greaseSlicks;
+  CAMERA_BOUNDS = l.camera ?? null;
+  WALK_CLAMP = l.walkClamp ?? null;
   DYNAMIC_WALLS = [];
 }

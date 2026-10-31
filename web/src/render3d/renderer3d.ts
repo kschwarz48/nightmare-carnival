@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { clamp, lerp } from '../core/math';
-import { LIGHTS, MAP_HALF, PROPS, SEA_Y } from '../data/map';
+import { CAMERA_BOUNDS, LIGHTS, MAP_HALF, PROPS, SEA_Y } from '../data/map';
 import type { Assets } from '../render/assets';
 import type { Frame } from '../render/atlas';
 import { FxSystem } from '../render/fx';
@@ -20,6 +20,9 @@ import { CHARACTERS, ENEMY_MODELS, ITEM_MODELS, geometryFor, type ModelDef } fro
 import { Ground3D } from './world/ground';
 import { LightShafts, Motes } from './world/atmosphere';
 import { FunhouseWorld } from './world/funhouse/world';
+import { BoardwalkWorld } from './world/boardwalk/world';
+import { seaSurfaceHeight, seabedHeight, waterDepth } from '../data/boardwalk';
+import { EMERGE } from '../sim/boardwalkAI';
 import type { MapId } from '../data/maps';
 import { LAST_SONG } from '../data/quests';
 import { HUB_EXITS } from '../data/hub';
@@ -60,6 +63,8 @@ export interface RenderSettings {
 /** Ambient settings outdoors (the night) and indoors (the Fun House, D-67). */
 const OUTDOOR = { sky: 0x34477a, ground: 0x2a1a10, hemiK: 1, fill: [0.045, 0.06, 0.13], mist: [0.05, 0.07, 0.115], edge: [2200, 1960], mistK: 1 };
 const INDOOR = { sky: 0x3d3052, ground: 0x1e1412, hemiK: 0.62, fill: [0.046, 0.036, 0.074], mist: [0.062, 0.046, 0.074], edge: [1e5, 1e5], mistK: 0.7 };
+/** The Boardwalk (D-68): a colder sea air, no thickening toward the map's far edges, the haze gathering over the water instead. */
+const COASTAL = { sky: 0x2c3a5a, ground: 0x1c1712, hemiK: 0.85, fill: [0.04, 0.055, 0.105], mist: [0.045, 0.06, 0.085], edge: [1e5, 1450], mistK: 0.78 };
 
 /** Theatre searchlights (D-46): mounted on the gate towers, their discs wander over the plaza and midway. */
 export const SEARCHLIGHTS = [
@@ -81,6 +86,9 @@ interface WorldParts {
   clutter?: Clutter;
   indoor: boolean;
   funhouse?: FunhouseWorld;
+  boardwalk?: BoardwalkWorld;
+  /** the world's own ambient settings (the Boardwalk's sea air), instead of outdoors/indoors */
+  ambient?: typeof OUTDOOR;
 }
 
 export class GameRenderer3D {
@@ -214,6 +222,10 @@ export class GameRenderer3D {
 
   private worlds = new Map<MapId, WorldParts>();
   private world!: WorldParts;
+  /** Summer's End's lighthouse call sign (D-68): flashed on the lens while the horn sounds it. */
+  playCallSign(bits: number, len: number): void {
+    this.world.boardwalk?.quest.playCall(bits, len, this.time);
+  }
   private worldId: MapId | null = null;
 
   /** The world for `id` (built the first time), swapped into the scene in place of the current one. */
@@ -225,6 +237,10 @@ export class GameRenderer3D {
       if (id === 'fun_house') {
         const fw = new FunhouseWorld();
         w = { root: fw.root, ground: fw.ground, shafts: fw.shafts, motes: fw.motes, props: fw, indoor: true, funhouse: fw };
+      } else if (id === 'boardwalk') {
+        const bw = new BoardwalkWorld();
+        bw.setQuality(this.settings?.quality ?? 'high');
+        w = { root: bw.root, ground: bw.ground, shafts: bw.shafts, motes: bw.motes, props: bw, indoor: false, boardwalk: bw, ambient: COASTAL };
       } else {
         const root = new THREE.Group();
         const ground = new Ground3D(this.renderer);
@@ -308,7 +324,10 @@ export class GameRenderer3D {
   private applyQuality(): void {
     const q = this.settings.quality;
     this.post.setQuality(q);
-    for (const w of this.worlds.values()) w.clutter?.setQuality(q);
+    for (const w of this.worlds.values()) {
+      w.clutter?.setQuality(q);
+      w.boardwalk?.setQuality(q);
+    }
     if (q === this.shadowQuality) return;
     this.shadowQuality = q;
     const ms = q === 'high' ? 2048 : 1024;
@@ -417,9 +436,16 @@ export class GameRenderer3D {
       this.camY = this.inspect.y;
     }
     const halfGroundH = this.viewH / 2 / SIN_EL;
-    const mx = MAP_HALF + 140 - this.viewW / 2;
-    this.camX = clamp(this.camX, -mx, mx);
-    this.camY = clamp(this.camY, -MAP_HALF - 60 + halfGroundH * 0.7, SEA_Y + 320 - halfGroundH * 0.75);
+    const CB = CAMERA_BOUNDS;
+    if (CB) {
+      // a map that bounds its own camera (the Boardwalk, D-68)
+      this.camX = clamp(this.camX, CB.minX + this.viewW / 2, CB.maxX - this.viewW / 2);
+      this.camY = clamp(this.camY, CB.minY + halfGroundH * 0.7, CB.maxY - halfGroundH * 0.75);
+    } else {
+      const mx = MAP_HALF + 140 - this.viewW / 2;
+      this.camX = clamp(this.camX, -mx, mx);
+      this.camY = clamp(this.camY, -MAP_HALF - 60 + halfGroundH * 0.7, SEA_Y + 320 - halfGroundH * 0.75);
+    }
     const cx = this.camX + fx.shakeX, cy = this.camY + fx.shakeY;
     const D = 3000;
     this.camera.position.set(cx, SIN_EL * D, cy + COS_EL * D);
@@ -553,7 +579,7 @@ export class GameRenderer3D {
     // indoors (D-67): a plum ceiling instead of the night sky, shadows that stay the house's colours, and a
     // low haze that lies evenly through the rooms (outdoors the mist thickens toward the woods and the sea)
     const ind = this.world.indoor;
-    const A = ind ? INDOOR : OUTDOOR;
+    const A = this.world.ambient ?? (ind ? INDOOR : OUTDOOR);
     this.hemi.color.setHex(A.sky);
     this.hemi.groundColor.setHex(A.ground);
     shared.uShadowFill.value.set(A.fill[0], A.fill[1], A.fill[2]);
@@ -662,7 +688,7 @@ export class GameRenderer3D {
             break;
           }
           if (h.style === 'roll' || h.style === 'lunge' || h.style === 'phantom_wheel' && !tele) break;
-          if (h.style === 'spotlight') {
+          if (h.style === 'spotlight' || h.style === 'searchlight') {
             A.circle(h.x, h.y, h.r, 1, 0.95, 0.7, tele ? 0.2 + prog * 0.3 : 0.7, 0.05);
             L.ring(h.x, h.y, h.r - 3, h.r, r, gg, b, lineA, lineA);
             break;
@@ -694,6 +720,13 @@ export class GameRenderer3D {
         }
         case 'ring': {
           if (tele) break;
+          if (h.style === 'tide_ring') {
+            // the Great Barnacle's ring of seawater (D-68): foam riding the danger band, the gap left dark
+            const a0 = h.angle + h.gapHalf, a1 = h.angle - h.gapHalf + Math.PI * 2;
+            F.ring(h.x, h.y, Math.max(0, h.r2), h.r, r, gg, b, 0.55, 0.55, a0, a1);
+            A.ring(h.x, h.y, Math.max(0, h.r2), h.r, 0.8, 0.95, 1, 0.5, 0.5, a0, a1);
+            break;
+          }
           if (h.gapHalf > 0) {
             const a0 = h.angle + h.gapHalf, a1 = h.angle - h.gapHalf + Math.PI * 2;
             F.ring(h.x, h.y, Math.max(0, h.r2), h.r, r, gg, b, 0.7, 0.7, a0, a1);
@@ -732,6 +765,19 @@ export class GameRenderer3D {
             } else if (h.style === 'spot_beam') {
               A.line(h.x, h.y, h.x2, h.y2, w, 1, 0.92, 0.6, 0.5, 0);
               L.line(h.x, h.y, h.x2, h.y2, 2.5, r, gg, b, 0.8);
+            } else if (h.style === 'arc') {
+              // the promenade's lamps arcing (D-68): a jittering blue-white bolt
+              const jx = (Math.random() - 0.5) * 16, jy = (Math.random() - 0.5) * 16;
+              const mx = (h.x + h.x2) / 2 + jx, my = (h.y + h.y2) / 2 + jy;
+              A.line(h.x, h.y, mx, my, w + 10, 0.55, 0.85, 1, 0.75, 0);
+              A.line(mx, my, h.x2, h.y2, w + 10, 0.55, 0.85, 1, 0.75, 0);
+              F.line(h.x, h.y, h.x2, h.y2, w * 0.35, 0.9, 0.97, 1, 0.9);
+              if (Math.random() < 0.3) this.fx.handle([{ type: 'spark', x: mx, y: my, a: 2, b: 0, c: 0, style: 'electric' }]);
+            } else if (h.style === 'surge') {
+              // a line of seawater rolling across the boards (D-68): danger underneath, foam on top
+              F.line(h.x, h.y, h.x2, h.y2, w, r, gg, b, 0.55);
+              A.line(h.x, h.y, h.x2, h.y2, w + 14, 0.8, 0.92, 1, 0.55, 0);
+              A.line(h.x, h.y, h.x2, h.y2, w * 0.45, 1, 1, 1, 0.5, 0);
             } else if (h.style === 'string_sweep' || h.style === 'tangle') {
               A.line(h.x, h.y, h.x2, h.y2, w + 4, 1, 0.95, 0.85, 0.85, 0);
               L.line(h.x, h.y, h.x2, h.y2, 2, r, gg, b, 1);
@@ -885,6 +931,10 @@ export class GameRenderer3D {
           if (k < 0.35) continue;
         }
       }
+      // the Boardwalk (D-68): wading, swimming and climbing up out of the sand or the surf
+      const bw = !!this.world.boardwalk;
+      const depth = bw ? waterDepth(x, y) : 0;
+      const rising = bw && e.spawnT < EMERGE && (!!e.def.rises || (!!e.def.aquatic && depth > 30));
       let key = id;
       if (id === 'whack_a_mole' && e.hidden) key = 'mole_hole';
       if (id === 'jack_in_the_box' && e.state === 2) key = 'jack_open';
@@ -895,11 +945,13 @@ export class GameRenderer3D {
       const moving = Math.hypot(e.vx, e.vy) > 6;
       const flyer = e.def.behavior === 'flyby' || id === 'living_balloon';
       // face the direction of travel (smoothed); idle enemies keep their last heading
-      const target = moving ? Math.atan2(e.vx, e.vy) : flyer ? 0 : this.yaw.get(e.uid) ?? 0;
+      const target = FACES_PLAYER.has(e.def.behavior) || (e.def.behavior === 'angler' && (e.state === 1 || e.state === 2)) ? Math.atan2(e.dirX, e.dirY)
+        : moving ? Math.atan2(e.vx, e.vy) : flyer ? 0 : this.yaw.get(e.uid) ?? 0;
       const yaw = flyer ? Math.sin(this.time * 0.8 + e.idx) * 0.4 : this.smoothYaw(e.uid, target, dt, 9);
-      const pop = Math.min(1, e.spawnT * 4);
+      const pop = rising ? 1 : Math.min(1, e.spawnT * 4);
       let s = e.scale * (0.35 + 0.65 * pop) * (e.elite ? 1.18 : 1);
       let h = (def.hover ?? 0) + (flyer ? Math.sin(this.time * 2 + e.idx) * 5 : 0);
+      if (bw) h += this.seaLift(e, x, y, depth, s, rising);
       if (id === 'jack_in_the_box' && e.state === 2) h += Math.sin(Math.min(1, 1 - e.t / 0.45) * Math.PI) * 30;
       if (id === 'whack_a_mole' && !e.hidden) h -= (1 - Math.min(1, e.t * 6)) * 20;
       if (e.def.behavior === 'marionette' && e.state === 1) h += Math.sin(Math.max(0, Math.min(1, 1 - e.t / 0.55)) * Math.PI) * 55;
@@ -927,9 +979,10 @@ export class GameRenderer3D {
         const rate = flyer ? 0.55 : Math.max(0.7, Math.min(2.4, e.speed / 85));
         // a watched mannequin is a statue: one stride, held (D-63)
         const statue = e.def.behavior === 'mannequin' && e.state === 1;
-        const ra = rig.row('move', statue ? 0.21 + e.idx * 0.37 : (moving || flyer ? e.animT * rate : this.time * 0.25) + e.idx * 0.37);
-        if (telegraph > 0.02 && rig.has('attack')) b.anim(i, ra, rig.row('attack', telegraph), flash, Math.min(1, telegraph * 2.5));
-        else b.anim(i, ra, ra, flash, 0);
+        const special = bw ? boardwalkRow(e, rig, rising, this.time) : null;
+        const rowA = special ?? rig.row('move', statue ? 0.21 + e.idx * 0.37 : (moving || flyer ? e.animT * rate : this.time * 0.25) + e.idx * 0.37);
+        if (telegraph > 0.02 && rig.has('attack')) b.anim(i, rowA, rig.row('attack', telegraph), flash, Math.min(1, telegraph * 2.5));
+        else b.anim(i, rowA, rowA, flash, 0);
         if (!def.shadow) this.zoneShapes.circle(x, y, e.r * s * 1.25 + 6, 0, 0, 0, flyer ? 0.18 : 0.42, 0);
       } else b.anim(i, e.animT * 9 + e.idx, telegraph, flash, moving || flyer ? 1 : 0.15);
       // statuses tint the model; elites wear a gold rim and a crown spark
@@ -938,6 +991,8 @@ export class GameRenderer3D {
       else if (e.illusion && Math.sin(this.time * 3.1 + e.idx * 1.7) > 0.9) b.tint(i, 1.35, 1.45, 1.7, 1.6);
       else if (e.stickyT > 0) b.tint(i, 1.2, 0.7, 0.95);
       else if (e.burnT > 0 && Math.sin(this.time * 30 + e.idx) > 0.4) b.tint(i, 1.4, 0.7, 0.4);
+      // a cracked crust shows the raw thing underneath (D-68)
+      else if (e.cracked) b.tint(i, 1.3, 0.8, 0.78);
       if (id === 'living_balloon' || id === 'swarm_balloon') {
         const c = BALLOON_TINTS[e.idx % BALLOON_TINTS.length];
         b.tint(i, c[0], c[1], c[2]);
@@ -949,6 +1004,66 @@ export class GameRenderer3D {
       }
       if (telegraph > 0.05) b.rimLight(i, 1, 0.3, 0.12, 0.8 + telegraph * 1.6);
       if (e.shield > 0) this.addShapes.ring(x, y, e.r + 10, e.r + 14, 0.5, 0.8, 1, 0.6, 0.3);
+      if (bw) this.boardwalkExtras(e, x, y, h, yaw, s, depth);
+    }
+  }
+
+  /**
+   * How far a Boardwalk creature stands below the boards (D-68): land things walk the sea floor in the
+   * shallows, sea things swim with their heads above the swell, and a riser comes up out of the sand or
+   * the water over its first second.
+   */
+  private seaLift(e: Enemy, x: number, y: number, d: number, s: number, rising: boolean): number {
+    let base = 0;
+    if (d > 0) {
+      const bed = seabedHeight(d);
+      base = e.def.aquatic ? Math.max(bed, seaSurfaceHeight(d) - (SWIM[e.def.id] ?? 40) * s * ACTOR_SCALE) : bed;
+      // a ring of foam where it breaks the surface
+      if (d > 20 && base > -140) {
+        const r0 = e.r * s * 1.3 + 6, w = 0.5 + 0.5 * Math.sin(this.time * 3 + e.idx);
+        this.addShapes.ring(x, y, r0, r0 + 4 + 3 * w, 0.75, 0.85, 0.9, 0.22, 0.04);
+      }
+    }
+    if (rising) {
+      const k = Math.min(1, e.spawnT / EMERGE);
+      base -= (1 - k * k * (3 - 2 * k)) * (RISE[e.def.id] ?? 80) * s * ACTOR_SCALE * ACTOR_STRETCH;
+      // sand or spray thrown up round it as it comes
+      const col = d > 30 ? [0.7, 0.85, 0.9] : [0.55, 0.48, 0.38];
+      const rr = e.r * s * (1.4 + 0.8 * k);
+      this.addShapes.ring(x, y, rr, rr + 6, col[0], col[1], col[2], 0.35 * (1 - k), 0.02);
+      if (Math.random() < 0.3) this.fx.handle([{ type: 'spark', x: x + (Math.random() - 0.5) * e.r * 2, y: y + (Math.random() - 0.5) * e.r, a: 1, b: 0, c: 0, style: d > 30 ? 'splash' : 'dust' }]);
+    }
+    return base;
+  }
+
+  /** The Boardwalk crowd's own tells: the angler's lantern, the taffy's strand, the wraith's wake. */
+  private boardwalkExtras(e: Enemy, x: number, y: number, h: number, yaw: number, s: number, d: number): void {
+    const glowF = this.f('fx_glow_0');
+    const S = s * ACTOR_SCALE;
+    switch (e.def.behavior) {
+      case 'angler': {
+        // the lantern hangs ahead of its face; while it lures, it burns bright and breathes
+        const lx = x + Math.sin(yaw) * 27.5 * S, ly = y + Math.cos(yaw) * 27.5 * S, lh = h + 45.5 * S * ACTOR_STRETCH;
+        const k = e.state === 1 ? 0.95 + 0.3 * Math.sin(this.time * 5 + e.idx) : 0.5 + 0.08 * Math.sin(this.time * 2 + e.idx);
+        this.glow.draw(glowF, lx, ly, lh, 0.8 * k, 0.8 * k, 0, 0.75, 1, 0.7, 0.85 * k);
+        if (e.state === 1) this.addShapes.ring(x, y, 120, 340, 0.55, 1, 0.65, 0.0, 0.07 * k);
+        break;
+      }
+      case 'taffy':
+        // the lash: a pink strand flung along the line, sagging back in
+        if (e.state === 2) {
+          const L = 300 * Math.max(0, Math.min(1, e.t / 0.4));
+          this.zoneShapes.line(x, y, x + e.dirX * L, y + e.dirY * L, 10, 0.85, 0.5, 0.6, 0.85, 0.85);
+          this.addShapes.line(x, y, x + e.dirX * L, y + e.dirY * L, 16, 1, 0.75, 0.85, 0.18, 0);
+        }
+        break;
+      case 'wraith':
+        // a cold wake behind it on the rail
+        if (e.state === 2 || e.state === 3) {
+          this.addShapes.line(x - e.vx * 0.16, y - e.vy * 0.16, x, y, 30, 0.5, 0.9, 1, 0.3, 0);
+          this.glow.draw(glowF, x, y, h + 40 * S, 0.9, 0.9, 0, 0.55, 0.95, 1, 0.45);
+        }
+        break;
     }
   }
 
@@ -1244,7 +1359,22 @@ export class GameRenderer3D {
         b.rimLight(j, 1, 0.6, 0.3, 1.2);
       }
     }
-    const i = b.add(px, py, 0, yaw, s * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
+    // the Boardwalk's shallows (D-68): a player wading stands on the sea floor, the water round their knees
+    let ph = 0;
+    if (this.world.boardwalk && !npc) {
+      const d = waterDepth(px, py);
+      ph = seabedHeight(d);
+      if (d > 20) this.addShapes.ring(px, py, 22, 27 + 3 * Math.sin(this.time * 3 + p.index), 0.75, 0.85, 0.9, 0.25, 0.04);
+    }
+    const i = b.add(px, py, ph, yaw, s * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
+    // marked by a Ticket Taker's stub (D-68): a red ring at their feet, the stub turning over their head
+    if (p.markedT > 0) {
+      const pu = 0.5 + 0.5 * Math.sin(this.time * 8);
+      this.teleLine.ring(px, py, 30, 34, 1, 0.35, 0.2, 0.45 + 0.4 * pu, 0.45 + 0.4 * pu);
+      const sb = this.batch('b_stub', ITEM_MODELS.b_stub ?? ITEM_MODELS.b_ticket, 700, XRAY_BULLET);
+      sb.add(px, py, ph + 150 + 4 * Math.sin(this.time * 3), this.time * 2.5, 1.6);
+      this.glow.draw(this.f('fx_glow_0'), px, py, ph + 150, 0.5, 0.5, 0, 1, 0.45, 0.25, 0.55 + 0.25 * pu);
+    }
     const strobe = p.hurtFlash > 0 ? (Math.floor(this.time * 30) & 1 ? 0.6 : 0) : 0;
     const iBlink = p.iframes > 0 && p.hurtFlash <= 0 && p.iframes < 5 ? (Math.floor(this.time * 20) & 1 ? 0.3 : 0) : 0;
     b.anim(i, ra, rb, Math.max(strobe, iBlink), bl);
@@ -1321,13 +1451,32 @@ export class GameRenderer3D {
       const b = this.batch(key, def, 700, XRAY_BULLET);
       const s = bl.r / 8;
       const h = 18 + bl.z;
-      const spin = bl.kind === 'pie' || bl.kind === 'popcorn' || bl.kind === 'crown' || bl.kind === 'spoke' || bl.kind === 'ticket' ? bl.rot : Math.atan2(bl.vx, bl.vy);
+      const spin = bl.kind === 'pie' || bl.kind === 'popcorn' || bl.kind === 'crown' || bl.kind === 'spoke' || bl.kind === 'ticket' || bl.kind === 'stub' || bl.kind === 'coin' || bl.kind === 'page' ? bl.rot : Math.atan2(bl.vx, bl.vy);
       b.add(x, y, h, spin, s);
       // a hot halo on the ground and in the air: enemy fire must always read
       this.glow.draw(glowF, x, y, h, s * 0.6, s * 0.6, 0, 1, 0.35, 0.15, 0.75);
       this.addShapes.circle(x, y, bl.r * 1.4, 1, 0.3, 0.1, 0.25, 0);
     }
   }
+}
+
+// ---------------------------------------------------------------- the Boardwalk's crowd (D-68)
+/** Behaviours whose bodies keep facing their player (the sim points dirX/dirY at them every tick). */
+const FACES_PLAYER = new Set(['crab', 'usher', 'automaton', 'tidecaller']);
+/** How deep a sea creature swims below the surface (model units): what's left showing is the menace. */
+const SWIM: Record<string, number> = { drowned: 52, shore_crawler: 24, barnacle_brute: 70, great_barnacle: 104, lantern_angler: 26, tidecaller: 82 };
+/** How far below the boards a riser starts (model units: about its height). */
+const RISE: Record<string, number> = { drowned: 90, shore_crawler: 36, barnacle_brute: 100, great_barnacle: 150, lantern_angler: 52, tidecaller: 140 };
+
+/** A Boardwalk creature's own clip for the state it's in (null: the ordinary locomotion). */
+function boardwalkRow(e: Enemy, rig: NonNullable<ReturnType<NonNullable<ModelDef['rig']>>>, rising: boolean, time: number): number | null {
+  if (rising && rig.has('rise')) return rig.row('rise', Math.min(1, e.spawnT / EMERGE));
+  switch (e.def.behavior) {
+    case 'wraith': return (e.state === 2 || e.state === 3) && rig.has('charge') ? rig.row('charge', time * 1.6 + e.idx * 0.37) : null;
+    case 'angler': return e.state === 1 && rig.has('lure') ? rig.row('lure', time * 0.6 + e.idx * 0.37) : null;
+    case 'taffy': return e.state === 2 && rig.has('lash') ? rig.row('lash', 1 - Math.max(0, Math.min(1, e.t / 0.4))) : null;
+  }
+  return null;
 }
 
 /** Co-op player colours: Player 1 lamp-gold, Player 2 ghost-teal. */

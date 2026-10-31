@@ -608,3 +608,59 @@ and teleports, and the prize wheel dull and see-through.
   mesh is drawn again per mirror pass. The soft layers stay out of the reflections. Medium and Low
   quality cut the mirror passes. Measured in `VISUAL_QA.md`.
 
+
+### D-68 · The Boardwalk: a third map on the sea
+- **The brief.** Map 3, Penhallow's Boardwalk: a corrupted 1930s seaside park whose horror is scale,
+  isolation and the ocean. Three connected regions (the promenade with its attractions, the beach, the
+  pier). Explorable Arcade and Gift Shop interiors. At least 60% new enemies, a new boss roster with a
+  sea boss, and a hidden quest about one and a half times the Fun House's. The ocean is the graphics
+  priority. Design: `BOARDWALK.md`; quest solution: `EASTER_EGG_BOARDWALK.md`.
+- **A map that isn't a square.**
+  - `MapLayout` gained camera bounds and a `walkClamp` hook (`data/map.ts`).
+  - Movement calls the hook after props, so the host and a guest's prediction agree. It keeps a player
+    out of water deeper than a wade (150), or on the pier's decks.
+  - The map is 8000 wide and runs from the hills (y −2200) out past the pier's end (y 2920).
+- **The sea is a pure function of sim time and replicated state.**
+  - `shoreY(x)` = the mean waterline − the tide (±60 every 75 s) + the quest's low water × 650.
+  - The floor shader, the ocean shader, wading, spawning and the renderer all read that one curve.
+  - `refreshSea` runs on the host and in a guest's mirror alike.
+  - Entities stay on the sim plane. The renderer stands waders on the sea floor and swims sea creatures
+    with their heads above the swell (`seabedHeight` / `seaSurfaceHeight` mirror the shaders).
+- **Interiors are a per-screen cutaway.**
+  - When the local player steps inside, that building's roof fades and its front sinks on their screen
+    only, so partners can be in different buildings.
+  - Enemies walk through walls as everywhere, so interiors are never safe rooms.
+- **Sea creatures** (`EnemyDef.aquatic`; `rises` for the drowned):
+  - **Speed:** they swim 30% faster and are 15% slower on land; land creatures wade at 62%.
+  - **Spawning:** `placeSpawn` puts sea things out past the breakers when a player is by the water, and
+    never starts a land thing in deep water.
+  - **Rising:** a riser has no contact for its first second, while the renderer draws it climbing out
+    (derived from replicated `spawnT`, so guests see it too).
+- **New mechanics that touched shared code**, each guarded or generic:
+  - `EnemyDef.shell` (crusts that crack), handled in `damageEnemy`, with `ET.cracked` on the wire.
+  - `Player.markedT` (a Ticket Taker's stub), which speeds the crowd toward that player in
+    `slowFactor` on the Boardwalk only, with `PF.marked` on the wire.
+  - `Enemy.loot` (a Prize Collector's swallowed tickets, paid back on death).
+  - `spawnEnemy({ exact })` for summons placed precisely.
+  - Bullet kinds `stub`, `coin`, `car` and `page`.
+- **Reachability on an open map.**
+  - `nearbyOpenSpot` never picks deep water on the Boardwalk.
+  - Pickups that land in deep water drift back in to where they can be reached.
+  - Found while writing the events: food, golden tickets and event chests could otherwise have landed
+    out of reach.
+- **Bosses on an open map.** `BoardwalkBoss` draws a stage ring round everyone standing when a fight
+  begins (at least the boss's size, never with anyone outside it). A fight stays contained without
+  dragging anyone through a wall, and the land bosses keep out of deep water.
+- **Summer's End.**
+  - Thirteen steps, all presses of interact except one hold.
+  - Every per-night choice comes from the quest's own seeded stream.
+  - Nothing is lost for good: misses retry, a guttered flame leaves lit lamps lit, and while the account
+    is open the Leviathan can't die until the bell binds it.
+  - 24 bytes of `netState`; carried things pass to the nearest standing player.
+- **Performance.**
+  - The new sculpts first came out 9–28k triangles. They were re-meshed coarser to 4–11k, in line with
+    the existing crowd (the first map's miniboss is 11.5k).
+  - At the 280-enemy cap on High, the scene dropped from 12.9M to 8.7M triangles.
+  - The ocean is two draw calls with a camera-following grid of 220×170 / 150×116 / 96×74 cells by
+    quality.
+- **PROTO 10.** A new map id, two status bits and the quest's bytes on the wire.
