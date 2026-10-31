@@ -6,7 +6,7 @@
 // water, which slopes away offshore. Lit by the practical-light pool like every other surface.
 
 import * as THREE from 'three';
-import { ARCADE, BUILDINGS, FACADE_Y, GIFTSHOP, PROMENADE, STAIRS } from '../../../data/boardwalk';
+import { ARCADE, BUILDINGS, FACADE_Y, GIFTSHOP, PIER_DECKS, PROMENADE, STAIRS } from '../../../data/boardwalk';
 import { POOL_GLSL } from '../../core/pool';
 import { MIST_GLSL, pool, shared } from '../../core/materials';
 import { SHORE_GLSL } from './ocean';
@@ -35,13 +35,15 @@ export class BoardwalkFloor {
       uSolid: { value: solid },
       uProm: { value: new THREE.Vector4(PROMENADE.x0, PROMENADE.y0, PROMENADE.x1, PROMENADE.y1) },
       uStairs: { value: STAIRS.map(([c, w]) => new THREE.Vector2(c, w)) },
+      uDeck: { value: PIER_DECKS.map((r) => new THREE.Vector4(r.x0, r.y0, r.x1, r.y1)) },
     };
-    this.material = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0, envMapIntensity: 0.6 });
+    // the floor gives way to anything lying flush on it (the pier's planks above all), never the reverse
+    this.material = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0, envMapIntensity: 0.6, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
     const u = this.u;
     this.material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, u, pool.uniforms, shared);
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', `#include <common>\nvarying vec3 vGW;\n${SHORE_GLSL}`)
+        .replace('#include <common>', `#include <common>\nvarying vec3 vGW;\nuniform vec4 uDeck[${PIER_DECKS.length}];\n${SHORE_GLSL}`)
         .replace(
           '#include <begin_vertex>',
           `#include <begin_vertex>
@@ -49,7 +51,14 @@ export class BoardwalkFloor {
             // the sea floor falls away offshore (the beach where anyone walks stays level)
             vec4 bw = modelMatrix * vec4(transformed, 1.0);
             float d = bw.z - shoreAt(bw.x);
-            transformed.y -= clamp((d - 40.0) * 0.2, 0.0, 90.0);
+            // and the sand (or the low water's mud) drops away under the pier's decks, so the planks stand
+            // clear of it instead of fighting it; the slope stays under the deck's edges
+            float inDeck = -1e5;
+            for (int i = 0; i < ${PIER_DECKS.length}; i++) {
+              vec4 r = uDeck[i];
+              inDeck = max(inDeck, min(min(bw.x - r.x, r.z - bw.x), min(bw.z - r.y, r.w - bw.z)));
+            }
+            transformed.y -= max(clamp((d - 40.0) * 0.2, 0.0, 90.0), 46.0 * smoothstep(-10.0, 40.0, inDeck));
           }`,
         )
         .replace('#include <project_vertex>', '#include <project_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -217,7 +226,7 @@ export class BoardwalkFloor {
           }`,
         );
     };
-    this.material.customProgramCacheKey = () => 'nc-boardwalk-floor-v1';
+    this.material.customProgramCacheKey = () => 'nc-boardwalk-floor-v2';
     // tessellated along the shore so the sea floor can slope away (finer across the beach band)
     const geo = new THREE.PlaneGeometry(10400, 7600, 208, 190);
     geo.rotateX(-Math.PI / 2);

@@ -36,14 +36,14 @@ export const CARNIVAL_BOSSES: BossDef[] = [
     lore: 'Forty gondolas. Forty screaming faces. It always wanted to see the rest of the carnival.', barColor: '#ff8a3d',
   },
   {
-    id: 'puppet_king', name: 'The Puppet King', title: 'Dancing on Strings', gate: 1080, hp: 32000, contact: 22, radius: 105, enrage: 100,
+    id: 'puppet_king', name: 'The Puppet King', title: 'Dancing on Strings', gate: 1080, hp: 96000, contact: 22, radius: 105, enrage: 200,
     phases: [{ at: 1, name: 'The Performance' }, { at: 0.6, name: 'Cut the Strings' }, { at: 0.3, name: 'No Strings on Me' }],
     intro: 'Strings descend from the dark. A king-sized marionette is lowered into the ring.',
     defeat: 'He clatters apart into painted wood and tangled string.', unlocks: 'The Lost Child',
     lore: 'Someone is working the crossbar. You never see their hand.', barColor: '#a76ad6',
   },
   {
-    id: 'ringmaster', name: 'The Ringmaster', title: 'The Grand Finale', gate: 1440, hp: 56000, contact: 24, radius: 70, enrage: 120,
+    id: 'ringmaster', name: 'The Ringmaster', title: 'The Grand Finale', gate: 1440, hp: 154000, contact: 24, radius: 70, enrage: 240,
     phases: [{ at: 1, name: 'Step Right Up' }, { at: 0.66, name: 'The Greatest Show' }, { at: 0.33, name: "The Devil's Own" }],
     intro: '"Ladies and gentlemen… for the grand finale… YOU."',
     defeat: 'The demon shatters in a column of light. The gates groan open.', unlocks: 'The Ringleader · Endless',
@@ -53,7 +53,7 @@ export const CARNIVAL_BOSSES: BossDef[] = [
 
 /** Secret boss — only reachable through the Last Song Easter egg. Not part of the gate timeline. */
 export const CALLIOPE_DEF: BossDef = {
-  id: 'calliope', name: 'The Calliope', title: 'The Last Song', gate: 99999, hp: 62000, contact: 24, radius: 120, enrage: 130,
+  id: 'calliope', name: 'The Calliope', title: 'The Last Song', gate: 99999, hp: 155000, contact: 24, radius: 120, enrage: 260,
   phases: [{ at: 1, name: 'Overture' }, { at: 0.66, name: 'Fugue' }, { at: 0.33, name: 'Requiem' }],
   intro: 'The Big Top ruins split. Brass pipes rise out of the dark, wheezing a song no one finished.',
   defeat: 'The last note rings out. Somewhere, a carousel finally stops.', unlocks: 'True Dawn',
@@ -77,14 +77,14 @@ export const FUNHOUSE_BOSSES: BossDef[] = [
     lore: 'Grinwell\'s first mirror. It has been looking at people for a hundred years and learned to want things.', barColor: '#9ad8ff',
   },
   {
-    id: 'stringmistress', name: 'The Stringmistress', title: 'Everyone Dances', gate: 1080, hp: 33000, contact: 22, radius: 85, enrage: 100,
+    id: 'stringmistress', name: 'The Stringmistress', title: 'Everyone Dances', gate: 1080, hp: 99000, contact: 22, radius: 85, enrage: 200,
     phases: [{ at: 1, name: 'The Cradle' }, { at: 0.66, name: 'The Web' }, { at: 0.33, name: 'Cut Loose' }],
     intro: 'Something long-fingered lowers itself from the dark above the house, humming.',
     defeat: 'Her strings snap one by one, and everything she was holding falls down.', unlocks: '—',
     lore: 'Every marionette in the gallery was strung by her hands. Some of them were people first.', barColor: '#c79bff',
   },
   {
-    id: 'proprietor', name: 'The Proprietor', title: 'The House Always Wins', gate: 1440, hp: 58000, contact: 24, radius: 75, enrage: 120,
+    id: 'proprietor', name: 'The Proprietor', title: 'The House Always Wins', gate: 1440, hp: 159500, contact: 24, radius: 75, enrage: 240,
     phases: [{ at: 1, name: 'The Illusionist' }, { at: 0.66, name: 'The House Itself' }, { at: 0.33, name: 'The Grin' }],
     intro: '"Welcome, welcome! Professor Ignatius Grinwell — at your service. Forever."',
     defeat: 'The grin cracks from ear to ear. The doors of the Fun House swing open on the dawn.', unlocks: 'Endless',
@@ -94,7 +94,7 @@ export const FUNHOUSE_BOSSES: BossDef[] = [
 
 /** Secret boss — only reachable through the Unreflected (the Fun House's hidden quest). */
 export const UNREFLECTED_DEF: BossDef = {
-  id: 'unreflected', name: 'The Unreflected', title: 'Through the Looking Glass', gate: 99999, hp: 64000, contact: 24, radius: 110, enrage: 130,
+  id: 'unreflected', name: 'The Unreflected', title: 'Through the Looking Glass', gate: 99999, hp: 160000, contact: 24, radius: 110, enrage: 260,
   phases: [{ at: 1, name: 'The Other Side' }, { at: 0.66, name: 'Every Face' }, { at: 0.33, name: 'No Reflection' }],
   intro: 'The house shatters inward. On the other side of the glass, something wearing Grinwell\'s smile has been waiting.',
   defeat: 'The last mirror breaks with a sound like a sigh. Mira steps out of the glass and into the morning.', unlocks: 'True Dawn',
@@ -118,14 +118,14 @@ export const BOARDWALK_BOSSES: BossDef[] = [
     lore: 'Captain Josiah Harrow took the Gala Queen out at 11:59 with two hundred and thirteen souls aboard. He has been trying to bring her in ever since.', barColor: '#5ab8c8',
   },
   {
-    id: 'last_ride', name: 'The Last Ride', title: 'The Ride Never Ends', gate: 1080, hp: 33500, contact: 22, radius: 60, enrage: 100,
+    id: 'last_ride', name: 'The Last Ride', title: 'The Ride Never Ends', gate: 1080, hp: 100500, contact: 22, radius: 60, enrage: 200,
     phases: [{ at: 1, name: 'Boarding' }, { at: 0.66, name: 'Full Speed' }, { at: 0.33, name: 'Derailed' }],
     intro: 'Every light on the Undertow comes on at once. The train leaves the station without its track.',
     defeat: 'The lead car screams down one last drop that isn\'t there, and the whole train comes apart in sparks.', unlocks: '—',
     lore: 'The Undertow ran its last lap the night the Gala Queen went down. The riders are still in their seats.', barColor: '#ff6a4a',
   },
   {
-    id: 'leviathan', name: 'The Leviathan', title: 'From Below', gate: 1440, hp: 59000, contact: 24, radius: 95, enrage: 120,
+    id: 'leviathan', name: 'The Leviathan', title: 'From Below', gate: 1440, hp: 162250, contact: 24, radius: 95, enrage: 240,
     phases: [{ at: 1, name: 'Stirring' }, { at: 0.66, name: 'The Deep Rises' }, { at: 0.33, name: 'Leviathan' }],
     intro: 'The sea draws back from the beach all at once. Something under the boards has been listening.',
     defeat: 'It goes down slowly, the way a ship goes down. The tide comes back gentle. Out on the water, the sky is getting light.', unlocks: 'Endless',
@@ -135,7 +135,7 @@ export const BOARDWALK_BOSSES: BossDef[] = [
 
 /** Secret boss — only reachable through Summer's End (the Boardwalk's hidden quest). */
 export const COMMODORE_DEF: BossDef = {
-  id: 'commodore', name: 'The Commodore', title: 'The Founder\'s Bargain', gate: 99999, hp: 66000, contact: 24, radius: 85, enrage: 130,
+  id: 'commodore', name: 'The Commodore', title: 'The Founder\'s Bargain', gate: 99999, hp: 165000, contact: 24, radius: 85, enrage: 260,
   phases: [{ at: 1, name: 'The Founder' }, { at: 0.66, name: 'The Bargain' }, { at: 0.33, name: 'Summer\'s End' }],
   intro: 'The ledger closes itself. Down the pier, in a white suit gone green, the man who sold the summer comes to collect.',
   defeat: 'The account is settled. Ezra Penhallow lets go of the ledger, and the tide takes it out with him.', unlocks: 'True Dawn',

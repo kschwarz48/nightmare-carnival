@@ -70,6 +70,18 @@ prompt naming the action. The one exception is the bell, where the party stays c
 
 Reaches are in sim units (`SE_REACH` in the chain): the prompt appears when a player stands within reach.
 
+### Before step 0 · Madame Marina's hint (D-69)
+- **Where:** Madame Marina, the fortune booth in the Arcade's north-west corner, named on her marquee.
+- **Solve:** before the conch is found, pressing at her ("Ask Madame Marina") prints a fortune card that
+  tells how the night begins, plainer each time she's asked, then repeating the plainest:
+  1. *"When the tide runs out, the sea leaves a voice on the sand. Find it at the water's edge, and bring
+     it to me."*
+  2. *"A shell that holds the sea. It shows at the waterline only while the tide is out."*
+  3. *"The tide turns every minute or so. When the water draws back, walk the shore and look for the
+     conch."*
+- **State:** nothing changes; the quest is still at step 0. Her crystal glows faintly while the
+  question is unasked. A press answers every 2.5 s at most.
+
 ### 0 · CONCH — the beach, at low tide
 - **Where:** the conch washes up at one of four places along the waterline each night
   (`conchXs` = −1500, −300, 900, 2700; y = the mean waterline + 30), chosen by the quest's own seeded
@@ -88,7 +100,7 @@ Reaches are in sim units (`SE_REACH` in the chain): the prompt appears when a pl
 - **Response:** Madame Marina prints a card: *"Four small things went down to the water with her. The
   photograph remembers."* It shows as a fortune card and is kept in the chat log.
 
-### 2 · PHOTOGRAPH — the Gift Shop (photo 1900, −1358; shelves at y −1250 and −1070)
+### 2 · PHOTOGRAPH — the Gift Shop (the photograph's easel at 1925, −1372; press from 1925, −1272; stands at y −1270 and −1110)
 - **Per run:** Ada's four keepsakes, one for each of the park's four games, each picked from that game's
   pair (`KEEPSAKES` / `KEEPSAKE_GAME`):
 
@@ -99,11 +111,16 @@ Reaches are in sim units (`SE_REACH` in the chain): the prompt appears when a pl
   | the Sea Wheel | pinwheel · kite |
   | the Undertow | silk ribbon · jacks |
 
-  The shelves always hold all eight as souvenirs.
+  The stands always hold all eight as souvenirs, on their front tiers.
+- **The photograph** (D-69) is painted from the night's own keepsake mask, so every screen in a party
+  shows the same picture. It stands on an easel at the back of the shop, under a picture lamp, and
+  shows Ada at nine with the Gala Queen behind her. Her four things lie on the boards in front of her,
+  drawn large enough to match against the stands from the shop floor. A caption plate on the easel
+  reads "THE GALA QUEEN · LABOR DAY 1933".
 - **Solve:**
-  1. Press at the photograph: her four things float in front of it ("That was me, the summer I was
-     nine…").
-  2. Take each of the four from the shelves.
+  1. Press at the photograph: her four things float in front of the easel ("That was me, the summer I
+     was nine…").
+  2. Take each of the four from the stands.
 - **Look-alikes:** pressing on one that isn't hers just says "That isn't mine" and takes nothing. There
   is no penalty, so the shelves can't be emptied by guessing wrong.
 - **Advance:** the fourth correct take opens GAMES ("The games kept the real ones…").
@@ -165,7 +182,7 @@ Each game shows its keepsake floating at the prize spot.
   - the bait platform (−2650, 1900);
   - beside the second lifeguard tower (300, 610);
   - at the Pavilion stairs (250, −170);
-  - at the foot of the coaster's lift hill (2160, −1700).
+  - at the foot of the coaster's lift hill (2290, −1700; moved with the track in D-69).
 - **Light them:** press at each while carrying the fire.
 - **If it burns out:** lit lamps stay lit; take fresh fire from the ship and carry on.
 - **Advance:** the fourth lamp.

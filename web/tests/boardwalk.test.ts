@@ -11,7 +11,7 @@ import { BOARDWALK_WAVES, CARNIVAL_WAVES, DAWN_TIME, WAVES, type WaveDef } from 
 import { BOARDWALK_BOSSES, BOSSES } from '../src/data/bosses';
 import { ENEMIES } from '../src/data/enemies';
 import { BOARDWALK_EVENTS, EVENT_POOL } from '../src/data/events';
-import { CROSSING, PIER, RETREAT, SEA, TIDE, WADE, onDeck, shoreBase, shoreMix, shoreY, tideRise, trainU, waterDepth, walkClamp, BW_BOUNDS } from '../src/data/boardwalk';
+import { BENTS, BUILDINGS, CROSSING, PIER, RETREAT, SEA, SUMMERS_END, TIDE, WADE, insideBuilding, onDeck, shoreBase, shoreMix, shoreY, tideRise, trackAt, trainU, waterDepth, walkClamp, BW_BOUNDS } from '../src/data/boardwalk';
 import { trainCars } from '../src/sim/boardwalk';
 import { MARKED_HASTE } from '../src/sim/boardwalkAI';
 import { SaveManager, type StorageLike } from '../src/meta/save';
@@ -183,6 +183,31 @@ describe('the shore (D-68)', () => {
       const s = g.nearbyOpenSpot(300, 700);
       expect(waterDepth(s.x, s.y)).toBeLessThan(WADE);
     }
+  });
+});
+
+describe('the park keeps its shape (D-69)', () => {
+  it('the coaster and its bents pass through no building but their own station', () => {
+    useMap('boardwalk');
+    const near = (x: number, y: number, m: number) => BUILDINGS.find((b) => b.id !== 'station' && x > b.x0 - m && x < b.x1 + m && y > b.y0 - m && y < b.y1 + m);
+    for (let i = 0; i < 4000; i++) {
+      const [x, y] = trackAt(i / 4000);
+      expect(near(x, y, 50)?.id ?? null).toBeNull();
+    }
+    for (const b of BENTS) expect(near(b.x, b.y, 50)?.id ?? null).toBeNull();
+    // and nothing the promenade puts up stands inside a bent
+    for (const p of PROPS) if (p.kind === 'bw_lamp' || p.kind === 'bw_palm') for (const b of BENTS) expect(Math.hypot(p.x - b.x, p.y - b.y)).toBeGreaterThan(100);
+    useMap('carnival_core');
+  });
+
+  it("the Gift Shop's quest spots stand on its open floor, and its photograph inside its walls", () => {
+    useMap('boardwalk');
+    for (const [x, y] of [...SUMMERS_END.shelf, [SUMMERS_END.photo.x, SUMMERS_END.photo.y]] as [number, number][]) {
+      expect(insideBuilding(x, y)?.id).toBe('giftshop');
+      const blocked = PROPS.some((p) => p.hw !== undefined && p.hh !== undefined && Math.abs(p.x - x) < p.hw && Math.abs(p.y - y) < p.hh);
+      expect(blocked).toBe(false);
+    }
+    useMap('carnival_core');
   });
 });
 

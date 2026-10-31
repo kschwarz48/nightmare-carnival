@@ -118,7 +118,7 @@ export const BUILDINGS: Building[] = [
   { id: 'taffy', x0: 1000, x1: 1400, y0: -1100, y1: FACADE_Y, name: 'Salt & Sugar Taffy Works' },
   { id: 'giftshop', x0: 1450, x1: 2350, y0: -1460, y1: FACADE_Y, name: 'Seashell Souvenirs & Curiosities', open: true },
   { id: 'station', x0: 2500, x1: 3100, y0: -1250, y1: FACADE_Y, name: 'The Undertow' },
-  { id: 'ballroom', x0: 3150, x1: 3900, y0: -1150, y1: FACADE_Y, name: 'The Starlight Ballroom' },
+  { id: 'ballroom', x0: 3290, x1: 3740, y0: -1150, y1: FACADE_Y, name: 'The Starlight Ballroom' },
 ];
 export const BUILDING = Object.fromEntries(BUILDINGS.map((b) => [b.id, b])) as Record<string, Building>;
 export const ARCADE = BUILDING.arcade;
@@ -158,16 +158,17 @@ export const KRAKEN = { x: -2600, y: -1660, arms: 6, armLen: 230, period: 9 };
 // ---------------------------------------------------------------- the Undertow (the coaster)
 /**
  * The track's control points (x, y, height), a closed loop: west out of the station, up the lift hill to
- * the north, the first drop east, a speed hill, south over the promenade high on its trestle, a low dip
- * over the beach (the crossing), a turnaround on the sand, back north over the promenade, the brake run
- * into the station.
+ * the north (through the gap between the Gift Shop and the station), the first drop east, a speed hill,
+ * south past the Ballroom's east end and over the promenade high on its trestle, a low dip over the beach
+ * (the crossing), a turnaround on the sand, back north over the promenade, between the Ballroom and the
+ * station, and the brake run into the station. It never passes through a building but its own station.
  */
 export const TRACK: [number, number, number][] = [
-  [2560, -1040, 40], [2340, -1120, 34], [2250, -1320, 60], [2240, -1600, 210], [2250, -1900, 400], [2290, -2120, 545],
-  [2420, -2190, 560], [2620, -2120, 330], [2800, -2010, 120], [3020, -1930, 250], [3220, -1880, 320], [3420, -1800, 190],
-  [3620, -1660, 90], [3770, -1470, 180], [3800, -1180, 250], [3790, -860, 270], [3770, -520, 250], [3730, -220, 170],
-  [3680, 60, 60], [3650, 240, 26], [3560, 420, 70], [3400, 520, 130], [3230, 480, 160], [3140, 320, 190],
-  [3150, 40, 230], [3200, -300, 250], [3240, -640, 230], [3260, -900, 150], [3200, -1050, 80], [3000, -1060, 45],
+  [2560, -1040, 40], [2440, -1150, 36], [2425, -1380, 70], [2410, -1640, 220], [2400, -1900, 400], [2430, -2100, 540],
+  [2560, -2190, 560], [2720, -2120, 330], [2860, -2010, 120], [3040, -1930, 250], [3230, -1880, 320], [3420, -1800, 190],
+  [3620, -1680, 100], [3790, -1500, 180], [3840, -1200, 250], [3835, -880, 270], [3810, -540, 250], [3760, -220, 170],
+  [3700, 60, 60], [3650, 240, 26], [3560, 420, 70], [3400, 520, 130], [3230, 480, 160], [3150, 320, 190],
+  [3160, 40, 230], [3185, -300, 250], [3195, -640, 230], [3195, -930, 150], [3180, -1060, 80], [3000, -1060, 45],
   [2800, -1050, 40],
 ];
 /** The crossing: where the track dips low over the beach and anything under it gets hit. */
@@ -313,22 +314,24 @@ add({ kind: 'bw_changebooth', x: ARCADE_FIX.booth.x, y: ARCADE_FIX.booth.y, hw: 
 for (const [y, xs] of [[-1240, [-1700, -1560, -1420, -1180, -1040]], [-1060, [-1720, -1580, -1440, -1160]]] as [number, number[]][]) {
   xs.forEach((x, i) => add({ kind: 'bw_cabinet', x, y, hw: 40, hh: 26, variant: (i + (y > -1100 ? 2 : 0)) % 4 }));
 }
-for (let k = 0; k < 3; k++) add({ kind: 'bw_skeeball', x: -1855, y: -1300 + k * 120, hw: 26, hh: 50 });
+// three skee-ball alleys side by side along the west wall, their ring boards at the wall
+for (let k = 0; k < 3; k++) add({ kind: 'bw_skeeball', x: -1815, y: -1300 + k * 120, hw: 45, hh: 26, yaw: Math.PI / 2 });
 
-// ---- the Gift Shop: shelves, cases, the counter and register, the photograph on the north wall
+// ---- the Gift Shop: souvenir stands, cases, the counter and register, the photograph on its easel
 export const SHOP_FIX = {
-  photo: { x: 1900, y: -1438 },
+  photo: { x: 1925, y: -1372 },
   register: { x: 2200, y: -960 },
   cabinet: { x: 2290, y: -1410 },
   spinner: { x: 1640, y: -930 },
 };
-for (const [x, y, w] of [[1700, -1290, 280], [2120, -1290, 220], [1660, -1110, 240], [2080, -1110, 260]] as [number, number, number][]) {
-  add({ kind: 'bw_shelf', x, y, hw: w / 2, hh: 22 });
+// each stand is built to its own length (the variant carries it), so nothing on it is stretched
+for (const [x, y, w] of [[1700, -1270, 280], [2120, -1270, 220], [1660, -1110, 240], [2080, -1110, 260]] as [number, number, number][]) {
+  add({ kind: 'bw_shelf', x, y, hw: w / 2, hh: 22, variant: w });
 }
 add({ kind: 'bw_counter', x: 2200, y: -990, hw: 110, hh: 30 });
 add({ kind: 'bw_case', x: 1980, y: -930, hw: 60, hh: 24 });
 add({ kind: 'bw_spinner', x: SHOP_FIX.spinner.x, y: SHOP_FIX.spinner.y, r: 24 });
-add({ kind: 'bw_photo', x: SHOP_FIX.photo.x, y: SHOP_FIX.photo.y });
+add({ kind: 'bw_photo', x: SHOP_FIX.photo.x, y: SHOP_FIX.photo.y, hw: 64, hh: 52 });
 add({ kind: 'bw_cabinet_tall', x: SHOP_FIX.cabinet.x, y: SHOP_FIX.cabinet.y, hw: 40, hh: 22 });
 
 // ---- the promenade: lamps along both edges, palms on the sea side, benches, bins, telescopes, carts
@@ -342,12 +345,14 @@ export const STAIRS: [number, number][] = [[-2900, 330], [-2000, 300], [-1100, 3
     a = c + w / 2;
   }
 }
+/** Is (x, y) clear of the coaster's support posts (lamps and palms never stand inside a bent)? */
+const clearOfBents = (x: number, y: number) => !BENTS.some((b) => Math.hypot(b.x - x, b.y - y) < 110);
 for (let x = -3800; x <= 3800; x += 400) {
-  add({ kind: 'bw_lamp', x, y: FACADE_Y + 40 });
-  if (!STAIRS.some(([c, w]) => Math.abs(x - c) < w / 2 + 40)) add({ kind: 'bw_lamp', x, y: PROMENADE.y1 - 34, variant: 1 });
+  if (clearOfBents(x, FACADE_Y + 40)) add({ kind: 'bw_lamp', x, y: FACADE_Y + 40 });
+  if (!STAIRS.some(([c, w]) => Math.abs(x - c) < w / 2 + 40) && clearOfBents(x, PROMENADE.y1 - 34)) add({ kind: 'bw_lamp', x, y: PROMENADE.y1 - 34, variant: 1 });
 }
 for (let x = -3600; x <= 3600; x += 400) {
-  if (STAIRS.some(([c, w]) => Math.abs(x + 200 - c) < w / 2 + 70)) continue;
+  if (STAIRS.some(([c, w]) => Math.abs(x + 200 - c) < w / 2 + 70) || !clearOfBents(x + 200, PROMENADE.y1 - 70)) continue;
   add({ kind: 'bw_palm', x: x + 200, y: PROMENADE.y1 - 70, r: 16, variant: Math.abs(Math.round(x / 400)) % 3 });
 }
 for (const [x, y, k] of [
@@ -460,9 +465,9 @@ export const SUMMERS_END = {
   /** where the conch can wash up (one per night), at the low-tide waterline */
   conchXs: [-1500, -300, 900, 2700],
   marina: { x: ARCADE_FIX.marina.x, y: ARCADE_FIX.marina.y + 70 },
-  photo: { x: SHOP_FIX.photo.x, y: SHOP_FIX.photo.y + 80 },
-  /** the eight souvenirs on the Gift Shop's shelves (where a player stands to take each one) */
-  shelf: [[1600, -1250], [1700, -1250], [1800, -1250], [2060, -1250], [2180, -1250], [1610, -1070], [1720, -1070], [2080, -1070]] as [number, number][],
+  photo: { x: SHOP_FIX.photo.x, y: SHOP_FIX.photo.y + 100 },
+  /** the eight souvenirs on the Gift Shop's stands (where a player stands to take each one) */
+  shelf: [[1600, -1230], [1700, -1230], [1800, -1230], [2060, -1230], [2180, -1230], [1610, -1070], [1720, -1070], [2080, -1070]] as [number, number][],
   gallery: { x: (ARCADE_FIX.gallery.x0 + ARCADE_FIX.gallery.x1) / 2, y: ARCADE_FIX.gallery.counterY + 50 },
   galleryDucks: 6,
   galleryTime: 25,
@@ -479,7 +484,7 @@ export const SUMMERS_END = {
   berth: { x: PIER_FIX.berth.x - 50, y: PIER_FIX.berth.y },
   fireTime: 120,
   /** the four tide lamps: the bait platform, the second lifeguard tower, the Pavilion stairs, the lift hill */
-  lamps: [{ x: -2650, y: 1900 }, { x: 300, y: 610 }, { x: 250, y: -170 }, { x: 2160, y: -1700 }],
+  lamps: [{ x: -2650, y: 1900 }, { x: 300, y: 610 }, { x: 250, y: -170 }, { x: 2290, y: -1700 }],
   retreatTime: 8,
   bell: { x: -2160, y: 1870, r: 170, hold: 28, decay: 0.5 },
   cabinet: { x: SHOP_FIX.cabinet.x, y: SHOP_FIX.cabinet.y + 70 },
@@ -492,6 +497,12 @@ export const SUMMERS_END = {
 export const ADA = {
   conch: ['Is someone there? I can hear the sea in you.', 'hold me to something that tells fortunes'],
   marina: ['THE FORTUNE READS:', '"Four small things went down to the water with her. The photograph remembers."'],
+  /** asked before the conch is found: how to begin, a little plainer each time she's asked */
+  hint: [
+    ['THE FORTUNE READS:', '"When the tide runs out, the sea leaves a voice on the sand. Find it at the water\'s edge, and bring it to me."'],
+    ['THE FORTUNE READS:', '"A shell that holds the sea. It shows at the waterline only while the tide is out."'],
+    ['THE FORTUNE READS:', '"The tide turns every minute or so. When the water draws back, walk the shore and look for the conch."'],
+  ] as [string, string][],
   photo: ['That was me, the summer I was nine.', 'I had my things with me. Those ones, not the others.'],
   shelfTrue: (n: number): [string, string] => ['Yes… that one was mine.', `${n} of four`],
   shelfFalse: ['That isn\'t mine.', 'mine is in the photograph'],

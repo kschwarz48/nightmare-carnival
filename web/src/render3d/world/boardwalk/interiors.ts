@@ -63,6 +63,19 @@ export class Interiors {
     const wallMesh = new THREE.Mesh(walls.build({ ao: 0.3 }), actorMaterial({ dither: true, detail: true, emitBoost: 2.2 }));
     wallMesh.castShadow = wallMesh.receiveShadow = true;
     root.add(wallMesh);
+    // the machines' and the shop's own lettering: Marina named on her marquee like Zoltana on hers, the
+    // Crane and the Sailor on theirs (tipped back toward the camera), the booth, the gallery's valance
+    const tipped = (text: string, w: number, h: number, x: number, y: number, z: number, color: string) => {
+      this.sign(text, w, h, x, y, z, { glow: 0.85, color }).rotation.x = -0.35;
+    };
+    for (const p of PROPS) {
+      if (p.kind === 'bw_fortune') tipped('MADAME MARINA', 90, 21, p.x, 227.2, p.y + 23.3, '#9af0e0');
+      if (p.kind === 'bw_crane') tipped('THE CRANE', 94, 21, p.x, 227.2, p.y + 33.3, '#ffc0a8');
+      if (p.kind === 'bw_sailor') tipped('LAUGHING SAILOR', 78, 17, p.x, 221.2, p.y + 33.3, '#c8dcff');
+      if (p.kind === 'bw_changebooth') this.sign('CHANGE', 56, 12, p.x, 130, p.y + 41.2, { glow: 0.8, color: '#ffe0a0' });
+      if (p.kind === 'bw_gallery') this.sign('SHOOTING GALLERY', 220, 26, p.x, 212, p.y - 62.6, { glow: 0.85, color: '#ffd890' });
+      if (p.kind === 'bw_photo') this.sign('THE GALA QUEEN  ·  LABOR DAY 1933', 140, 7, p.x, 44, p.y + 52.6, { glow: 0.5, color: '#e8d8b0' });
+    }
   }
 
   private sign(text: string, w: number, h: number, x: number, y: number, z: number, o: { color?: string; glow?: number } = {}): THREE.Mesh {

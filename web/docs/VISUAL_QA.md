@@ -249,3 +249,28 @@ What would raise it:
 
 Not captured: mobile viewports; an unpaused motion sequence of the creatures' clips (stills only, with
 the clips seen in-game during the combat captures).
+
+## Playtest round on the Boardwalk, 2026-10-31 (D-69) — evidence
+
+Captures in `artifacts/visual/pt1`…`pt7` (dev build, 1600×900, High unless noted). All were inspected.
+
+| What | Before | After |
+|---|---|---|
+| Pier neck over the sand | `pt1/neck_zoom.png`: sand flecks and banding through the planks | `pt1/neck_zoom_fixed.png`, `neck_fixed.png`, `neck_shore_fixed.png`: solid boards to the sea |
+| Gift Shop | `pt1/giftshop.png`: coaster inside, specks on dark shelves, no photograph | `pt2/shop.png`, `pt5/photo_seen.png`: stands with souvenirs and lamps, the eight look-alikes, the easel photograph |
+| Arcade | `pt1/bw-arcade.png`: paired boxes, opaque glass | `pt2/arcade.png`, `arcade_west_zoom.png`, `arcade_east_zoom.png`: real machines, figures behind glass, marquees |
+| Coaster and Ballroom | (track through the shop and the Ballroom) | `pt1/coaster_after.png`, `shop_after.png` |
+| Late-game flashing | `pt3/royal_before.png`: a Big Top blown out white | `pt3/royal_after.png` |
+| Telegraphs | (hatch stripes, chevrons, pulsing edges) | `pt4/*`, `pt5/lane_front.png`: spot, edge, timer, "now" |
+| Other maps after the global changes | | `pt7/late-combat.png`, `pt7/fh-rotunda.png` |
+| Quality tiers | | `pt6/bw-arcade_{low,medium,high}.png`, `pt6/bw-giftshop_{…}.png` |
+
+- **Renderer budget,** Arcade / Gift Shop: Low 119–121 calls and 0.50–0.52M triangles; Medium 220–224
+  and 0.85–0.88M; High 299–303 and 1.20–1.23M. The new furnishings add about 20 draw calls: the signs,
+  the glass mesh and the photograph.
+- **Metrics,** High: Arcade mean luminance 62, colour entropy 5.36 bits; Gift Shop 64 and 5.28.
+- **Scorecard notes:**
+  - The Arcade and the Gift Shop move from the weakest interior views to among the most detailed. Every
+    machine has its own silhouette, readable from the gameplay camera.
+  - Still weakest on the map: the beach (unchanged this round).
+

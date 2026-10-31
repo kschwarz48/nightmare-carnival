@@ -190,6 +190,11 @@ void main() {
   // the water's edge runs up the sand with each breaker and drains back
   float edge = vDepth + swash * 70.0 - 20.0;
   if (edge < -30.0) discard;
+  // the pier's decks are solid: a crest never washes up through the planks (below them it shows in the gaps)
+  for (int i = 0; i < 5; i++) {
+    vec4 r = uDeck[i];
+    if (min(min(xz.x - r.x, r.z - xz.x), min(xz.y - r.y, r.w - xz.y)) > 1.0 && vW.y > -6.0) discard;
+  }
   // ---- normals: the Gerstner sum, then three scales of baked chop in crossing directions
   vec3 tA = texture2D(uTex, xz * 0.0019 + uSeaTime * vec2(0.0035, -0.0085)).xyz;
   vec3 tB = texture2D(uTex, mat2(0.8, -0.6, 0.6, 0.8) * xz * 0.0051 + uSeaTime * vec2(-0.0105, -0.0062)).xyz;

@@ -7,13 +7,14 @@
 import * as THREE from 'three';
 import type { Game } from '../../../sim/game';
 import type { GameRenderer3D } from '../../renderer3d';
-import { ARCADE_FIX, GIFTSHOP, PIER_FIX, STAIRS, PROMENADE, TOWERS, WHEEL } from '../../../data/boardwalk';
+import { ARCADE_FIX, PIER_FIX, STAIRS, PROMENADE, TOWERS, WHEEL } from '../../../data/boardwalk';
 import { PROPS } from '../../../data/map';
 import { pool } from '../../core/materials';
 import { LightShafts, Motes, type Shaft } from '../atmosphere';
 import { dyingNeon, lampFlicker } from '../props';
 import type { Frame } from '../../../render/atlas';
 import { BW_LAMP_H, PIER_LAMP_H } from './props';
+import { PHOTO_BULB, SHELF_LAMP, shelfLampXs } from './furnishings';
 import { Rides } from './rides';
 import type { Bulb } from './structures';
 
@@ -44,6 +45,10 @@ export class BoardwalkLighting {
   readonly motes: Motes;
   private lamps: { x: number; y: number; v: number }[] = [];
   private lanterns: { x: number; y: number }[] = [];
+  /** the Gift Shop's lamps: the souvenir stands' banker's lamps and the photograph's picture lamp */
+  private shopLamps: { x: number; y: number; h: number }[] = [];
+  private stands: { x: number; y: number }[] = [];
+  private photoLamp: { x: number; y: number; h: number } | null = null;
   /** the beach's own few lights: a lantern on each lifeguard tower, the fire pit's embers, the stair landings */
   private beach: { x: number; y: number; h: number; col: RGB; r: number; k: number; fire?: boolean }[] = [];
   private bulbs: Bulb[];
@@ -63,6 +68,11 @@ export class BoardwalkLighting {
     for (const p of PROPS) {
       if (p.kind === 'bw_lamp') this.lamps.push({ x: p.x, y: p.y, v: p.variant ?? 0 });
       if (p.kind === 'bw_pierlamp') this.lanterns.push({ x: p.x + 32, y: p.y });
+      if (p.kind === 'bw_shelf') {
+        this.stands.push({ x: p.x, y: p.y });
+        for (const lx of shelfLampXs(p.variant ?? 200)) this.shopLamps.push({ x: p.x + lx, y: p.y + SHELF_LAMP.z, h: SHELF_LAMP.h });
+      }
+      if (p.kind === 'bw_photo') this.shopLamps.push((this.photoLamp = { x: p.x, y: p.y + PHOTO_BULB[2], h: PHOTO_BULB[1] }));
     }
     for (const t of TOWERS) this.beach.push({ x: t.x + 30, y: t.y + 20, h: 150, col: [1, 0.7, 0.4], r: 300, k: 0.9 });
     for (const p of PROPS) if (p.kind === 'bw_firepit') this.beach.push({ x: p.x, y: p.y, h: 30, col: [1, 0.45, 0.18], r: 260, k: 1.1, fire: true });
@@ -119,6 +129,8 @@ export class BoardwalkLighting {
       G.draw(glow, b.x, b.y, b.h, b.fire ? 0.9 : 0.5, b.fire ? 0.6 : 0.5, 0, b.col[0], b.col[1], b.col[2], 0.55 * fl * on);
       if (b.fire && Math.random() < 0.15) r.fx.handle([{ type: 'spark', x: b.x + (Math.random() - 0.5) * 20, y: b.y, a: 1, b: 0, c: 0, style: 'fire' }]);
     }
+    // the Gift Shop's lamps
+    for (const l of this.shopLamps) if (inView(l.x, l.y)) G.draw(glow, l.x, l.y, l.h, 0.32, 0.32, 0, 1, 0.78, 0.5, 0.55 * on);
     // marquee bulbs chase along their rows; the coaster's lights race the same way
     for (let i = 0; i < this.bulbs.length; i++) {
       const b = this.bulbs[i];
@@ -166,8 +178,10 @@ export class BoardwalkLighting {
     for (const [x, y] of [[-1600, -1180], [-1000, -1180], [-1300, -1400]] as [number, number][]) pool.add(x, y, 300, 0.85 * on, 0.55, 0.9, 1, 200);
     pool.add(ARCADE_FIX.marina.x, ARCADE_FIX.marina.y + 60, 200, 0.9 * on, 0.4, 1, 0.9, 120, 1.3);
     pool.add(ARCADE_FIX.crane.x, ARCADE_FIX.crane.y + 60, 180, 0.8 * on, 1, 0.6, 0.6, 120);
-    // inside the Gift Shop: three warm lamps over the shelves
-    for (const x of [GIFTSHOP.x0 + 220, (GIFTSHOP.x0 + GIFTSHOP.x1) / 2, GIFTSHOP.x1 - 200]) pool.add(x, -1150, 280, 0.9 * on, 1, 0.72, 0.45, 190);
+    // inside the Gift Shop: each stand under its own lamps, the photograph under its picture lamp
+    for (const s of this.stands) pool.add(s.x, s.y + 30, 240, 0.9 * on, 1, 0.74, 0.46, SHELF_LAMP.h);
+    const ph = this.photoLamp;
+    if (ph) pool.add(ph.x, ph.y + 10, 170, 0.95 * on, 1, 0.8, 0.52, ph.h, 1.4);
     // the lighthouse's spot sweeping the water and the pier
     pool.add(this.beamSpot.x, this.beamSpot.y, 150, 1.1 * on, 1, 0.94, 0.8, 500, 2, 0.3);
     pool.add(PIER_FIX.lighthouse.x, PIER_FIX.lighthouse.y, 260, 0.9 * on, 1, 0.9, 0.7, 236, 1.5);

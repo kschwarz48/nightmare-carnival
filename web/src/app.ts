@@ -911,10 +911,18 @@ export class App {
         break;
       case 'se_marina':
         a.play('fortune', { vol: 0.8, pan: pan(q.x) });
-        this.fortune.show(`${ADA.marina[0]} ${ADA.marina[1]}`, 10);
+        this.fortune.show(`${ADA.marina[0]} ${ADA.marina[1]}`, 10, 'MADAME MARINA');
         this.chat.add({ kind: 'fortune', who: 'Madame Marina', text: ADA.marina[1] });
         a.duckMusic(3);
         break;
+      case 'se_hint': {
+        const [head, text] = ADA.hint[q.a ?? 0] ?? ADA.hint[0];
+        a.play('fortune', { vol: 0.8, pan: pan(q.x) });
+        this.fortune.show(`${head} ${text}`, 11, 'MADAME MARINA');
+        this.chat.add({ kind: 'fortune', who: 'Madame Marina', text });
+        a.duckMusic(3);
+        break;
+      }
       case 'se_photo':
         say(ADA.photo, 8);
         a.play('glint', { vol: 0.6, pan: pan(q.x) });

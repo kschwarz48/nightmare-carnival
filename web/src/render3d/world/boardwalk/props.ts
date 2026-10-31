@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { C, SURF, box, cone, cyl, ellipsoid, extrude, lathe, rbox, sphere, torus, tube, vnoise, weather, type ColorFn } from '../../core/geo';
 import { ModelBuilder, PAL, bulb } from '../../models/kit';
 import * as P from '../../models/props';
+import { FURNISHINGS } from './furnishings';
 
 const B = (fn: (m: ModelBuilder) => void, ao = 0.35) => {
   const m = new ModelBuilder();
@@ -133,121 +134,8 @@ export const BW_PROPS: Record<string, (variant: number) => THREE.BufferGeometry>
     m.add(box(100, 4, 4), { col: greyWood, pos: [0, 24, 0], surf: SURF.wood });
   }),
 
-  // ---------------------------------------------------------------- the Arcade's floor
-  bw_fortune: () => B((m) => {
-    // Madame Marina: a drowned fortune machine; a glass case with a crowned figure, a shell crest
-    m.add(rbox(80, 80, 60, 6, 2), { col: weather(0x2a3a40, 0.45, 0.04, 0x5a6a60), pos: [0, 40, 0], surf: SURF.wood });
-    m.add(box(78, 110, 58), { col: glass(0x7aa8a0), pos: [0, 135, 0], surf: SURF.glass, emit: 0.18 });
-    for (const [x, z] of [[-39, 29], [39, 29], [-39, -29], [39, -29]] as [number, number][]) m.add(box(6, 112, 6), { col: brass, pos: [x, 135, z], surf: SURF.brass });
-    m.add(rbox(90, 22, 70, 6, 2), { col: weather(0x2a3a40, 0.45), pos: [0, 200, 0], surf: SURF.wood });
-    for (let k = 0; k < 9; k++) {
-      const a = (k / 8) * Math.PI;
-      m.add(box(7, 34, 4), { col: weather(0xd8c0a0, 0.4), pos: [Math.cos(a) * 16, 222 + Math.sin(a) * 16, 30], rot: [0, 0, a - Math.PI / 2], surf: SURF.porcelain });
-    }
-    // the figure inside: a pale drowned woman in a turban of kelp, one hand over a crystal
-    m.add(ellipsoid(20, 30, 14, 12, 10), { col: weather(0x3a5a5a, 0.4), pos: [0, 112, 0], surf: SURF.cloth });
-    m.add(sphere(12, 12, 10), { col: weather(0xa8b8b0, 0.3), pos: [0, 150, 0], surf: SURF.porcelain });
-    m.add(ellipsoid(16, 10, 15, 10, 6), { col: weather(0x2a4a3a, 0.4), pos: [0, 160, 0], surf: SURF.cloth });
-    m.add(sphere(8, 12, 10), { col: glass(0x9af0e0), pos: [0, 104, 16], surf: SURF.glass, emit: 0.7 });
-    m.add(box(20, 4, 3), { col: brass, pos: [0, 30, 31], surf: SURF.brass });
-  }),
-  bw_crane: () => B((m) => {
-    // the Crane: a claw machine, its glass box heaped with plush prizes, a little brass gantry
-    m.add(rbox(100, 70, 76, 6, 2), { col: weather(0x6a1a2a, 0.45, 0.04), pos: [0, 35, 0], surf: SURF.paint });
-    m.add(box(98, 120, 74), { col: glass(0x9ab0c0), pos: [0, 132, 0], surf: SURF.glass, emit: 0.12 });
-    m.add(rbox(106, 22, 82, 6, 2), { col: weather(0x6a1a2a, 0.45), pos: [0, 202, 0], surf: SURF.paint });
-    for (let k = 0; k < 12; k++) m.add(sphere(9 + (k % 3) * 2, 8, 6), { col: C([0xc87a7a, 0x7a9ac8, 0xd8c878, 0x9ac87a][k % 4]), pos: [-36 + (k % 6) * 14, 80 + Math.floor(k / 6) * 12, -16 + (k % 4) * 10], surf: SURF.plush });
-    m.add(box(90, 4, 4), { col: brass, pos: [0, 186, 0], surf: SURF.brass });
-    m.add(box(20, 6, 3), { col: cream, pos: [0, 60, 39], surf: SURF.paint, emit: 0.4 });
-  }),
-  bw_gallery: () => B((m) => {
-    // the shooting gallery's counter (the targets ride a track along the back wall, drawn by the quest)
-    m.add(box(440, 60, 40), { col: weather(0x3a1a14, 0.45), pos: [0, 30, 0], surf: SURF.wood });
-    m.add(box(450, 6, 50), { col: weather(0x8a6a3a, 0.4), pos: [0, 62, 0], surf: SURF.wood });
-    for (let i = 0; i < 4; i++) {
-      m.add(box(60, 6, 8), { col: wood, pos: [-150 + i * 100, 70, 6], rot: [0, 0.1 * (i - 1.5), 0], surf: SURF.wood });
-      m.add(cyl(2, 2, 70, 6), { col: iron, pos: [-150 + i * 100, 72, -24], rot: [Math.PI / 2, 0, 0], surf: SURF.iron });
-    }
-    // the backdrop: painted waves in rows, the track rail, the top-prize shelf
-    for (let r = 0; r < 3; r++) m.add(box(430, 26, 4), { col: weather(r % 2 ? 0x1e3a5a : 0x2a5a7a, 0.4), pos: [0, 110 + r * 40, -70], surf: SURF.paint });
-    m.add(box(430, 4, 6), { col: brass, pos: [0, 150, -66], surf: SURF.brass });
-    m.add(box(120, 6, 20), { col: wood, pos: [0, 236, -70], surf: SURF.wood });
-  }),
-  bw_sailor: () => B((m) => {
-    // the Laughing Sailor in his glass booth: a grinning automaton in a striped jersey
-    m.add(rbox(76, 40, 76, 6, 2), { col: wood, pos: [0, 20, 0], surf: SURF.wood });
-    m.add(box(72, 150, 72), { col: glass(0x8aa0a8), pos: [0, 115, 0], surf: SURF.glass, emit: 0.1 });
-    m.add(rbox(80, 18, 80, 6, 2), { col: wood, pos: [0, 198, 0], surf: SURF.wood });
-    m.add(ellipsoid(18, 32, 14, 12, 10), { col: (p) => (Math.floor((p.y + 100) / 6) % 2 ? C(0x1a2a4a) : C(0xd8d0c0)), pos: [0, 90, 0], surf: SURF.cloth });
-    m.add(sphere(14, 12, 10), { col: weather(0xe0b8a0, 0.3), pos: [0, 132, 0], surf: SURF.porcelain });
-    m.add(ellipsoid(11, 4, 4, 10, 6), { col: C(0x5a0a0a), pos: [0, 126, 12], surf: SURF.latex });
-    m.add(cyl(14, 16, 6, 12), { col: C(0xe8e8e0), pos: [0, 146, 0], surf: SURF.cloth });
-    for (const s of [-1, 1]) m.add(cyl(3, 3, 30, 6), { col: (p) => C(0xd8d0c0), pos: [s * 22, 100, 6], rot: [0.4, 0, s * 0.9], surf: SURF.cloth });
-  }),
-  bw_changebooth: () => B((m) => {
-    m.add(box(100, 80, 80), { col: weather(0x2a2a20, 0.45), pos: [0, 40, 0], surf: SURF.wood });
-    m.add(box(90, 50, 3), { col: glass(0xd8b070), pos: [0, 110, 40], surf: SURF.glass, emit: 0.25 });
-    m.add(box(108, 10, 88), { col: brass, pos: [0, 140, 0], surf: SURF.brass });
-    m.add(box(60, 14, 3), { col: cream, pos: [0, 152, 41], surf: SURF.paint, emit: 0.3 });
-  }),
-  bw_cabinet: (v) => B((m) => {
-    // a row of penny machines: mutoscopes, pinball, a love tester, a strength tester
-    const col = [0x4a2a1e, 0x2a3a4a, 0x5a1a2a, 0x2a4a2a][v % 4];
-    for (const x of [-20, 20]) {
-      if (v % 2 === 0) {
-        // a mutoscope: a tall cast-iron flip-book on a pedestal, a hooded viewer
-        m.add(cyl(10, 14, 50, 8), { col: iron, pos: [x, 25, 0], surf: SURF.iron });
-        m.add(rbox(32, 60, 34, 8, 2), { col: weather(col, 0.45), pos: [x, 82, 0], surf: SURF.iron });
-        m.add(box(18, 10, 14), { col: PAL.ink, pos: [x, 112, 10], rot: [0.5, 0, 0], surf: SURF.paint });
-        m.add(box(20, 14, 2), { col: cream, pos: [x, 86, 17.5], surf: SURF.paint, emit: 0.35 });
-        m.add(cyl(2, 2, 16, 6), { col: brass, pos: [x + 18, 82, 6], rot: [0, 0, Math.PI / 2], surf: SURF.brass });
-      } else {
-        // a pinball cabinet: a glass playfield, a lit backbox
-        for (const [lx, lz] of [[-12, 20], [12, 20], [-12, -20], [12, -20]] as [number, number][]) m.add(cyl(2, 2, 40, 5), { col: iron, pos: [x + lx, 20, lz], surf: SURF.iron });
-        m.add(box(30, 14, 56), { col: weather(col, 0.45), pos: [x, 46, 0], rot: [0.12, 0, 0], surf: SURF.wood });
-        m.add(box(26, 1, 50), { col: glass(0x80c0d0), pos: [x, 54, 0], rot: [0.12, 0, 0], surf: SURF.glass, emit: 0.35 });
-        m.add(box(32, 42, 10), { col: weather(col, 0.45), pos: [x, 76, -26], surf: SURF.wood });
-        m.add(box(26, 32, 2), { col: glass(v % 4 === 1 ? 0xff8ab0 : 0x9af0a0), pos: [x, 78, -20.5], surf: SURF.glass, emit: 0.7 });
-      }
-    }
-  }),
-  bw_skeeball: () => B((m) => {
-    m.add(box(46, 30, 100), { col: weather(0x3a2a1a, 0.45), pos: [0, 15, 0], surf: SURF.wood });
-    m.add(box(40, 2, 90), { col: weather(0x8a6a3a, 0.4), pos: [0, 31, 4], rot: [0.08, 0, 0], surf: SURF.wood });
-    m.add(box(46, 70, 14), { col: weather(0x3a2a1a, 0.45), pos: [0, 50, -44], surf: SURF.wood });
-    for (const [y, r] of [[48, 14], [62, 9], [74, 5]] as [number, number][]) m.add(torus(r, 2, 6, 14), { col: glass(0xffb060), pos: [0, y, -36], surf: SURF.bulb, emit: 0.8 });
-  }),
-
-  // ---------------------------------------------------------------- the Gift Shop
-  bw_shelf: () => B((m) => {
-    // a run of souvenir shelving (stretched to its length): three shelves of little shapes
-    m.add(box(100, 110, 30), { col: weather(0x3a2418, 0.45), pos: [0, 55, 0], surf: SURF.wood });
-    for (let s = 0; s < 3; s++) {
-      m.add(box(100, 3, 34), { col: weather(0x5a3a24, 0.4), pos: [0, 30 + s * 34, 2], surf: SURF.wood });
-      for (let k = 0; k < 5; k++) {
-        const kind = (k + s * 2) % 4;
-        const x = -40 + k * 20;
-        if (kind === 0) m.add(sphere(6, 8, 6), { col: glass(0x9ac0d8), pos: [x, 38 + s * 34, 8], surf: SURF.glass, emit: 0.15 });
-        else if (kind === 1) m.add(cyl(3, 4, 12, 6), { col: glass(0x5a8a5a), pos: [x, 38 + s * 34, 8], rot: [0, 0, Math.PI / 2], surf: SURF.glass });
-        else if (kind === 2) m.add(ellipsoid(4, 7, 3, 8, 6), { col: weather(0xe0c8c0, 0.3), pos: [x, 39 + s * 34, 8], surf: SURF.porcelain });
-        else m.add(extrude([[-5, 0], [5, 0], [0, 8]], 2, 0.5, 1), { col: weather(0xe0c0a0, 0.35), pos: [x, 33 + s * 34, 8], surf: SURF.porcelain });
-      }
-    }
-  }),
-  bw_counter: () => B((m) => {
-    m.add(box(220, 70, 60), { col: weather(0x3a2418, 0.45), pos: [0, 35, 0], surf: SURF.wood });
-    m.add(box(230, 6, 66), { col: weather(0x6a4a2a, 0.35), pos: [0, 72, 0], surf: SURF.wood });
-    // the brass cash register (the quest's ledger is behind, in the tall cabinet)
-    m.add(rbox(44, 30, 34, 4, 2), { col: brass, pos: [40, 90, -4], surf: SURF.brass });
-    m.add(box(40, 14, 4), { col: brass, pos: [40, 110, -18], rot: [-0.3, 0, 0], surf: SURF.brass });
-    for (let k = 0; k < 6; k++) m.add(cyl(2.4, 2.4, 4, 6), { col: cream, pos: [28 + (k % 3) * 10, 107, 2 + Math.floor(k / 3) * 8], surf: SURF.porcelain });
-    m.add(box(30, 30, 30), { col: glass(0xc8e0e8), pos: [-60, 90, 0], surf: SURF.glass, emit: 0.1 });
-  }),
-  bw_case: () => B((m) => {
-    m.add(box(120, 50, 48), { col: weather(0x2a1a12, 0.45), pos: [0, 25, 0], surf: SURF.wood });
-    m.add(box(116, 34, 44), { col: glass(0xa8c8d0), pos: [0, 68, 0], surf: SURF.glass, emit: 0.12 });
-    for (let k = 0; k < 5; k++) m.add(torus(5, 1.2, 4, 10), { col: weather(0xe8d8b8, 0.3), pos: [-44 + k * 22, 58, 0], rot: [Math.PI / 2, 0, 0], surf: SURF.porcelain });
-  }),
+  // ---------------------------------------------------------------- the Arcade and the Gift Shop
+  // (their machines, stands and cases are in furnishings.ts; the postcard spinner stays here)
   bw_spinner: () => B((m) => {
     m.add(cyl(14, 16, 6, 10), { col: iron, pos: [0, 3, 0], surf: SURF.iron });
     m.add(cyl(2, 2, 120, 6), { col: iron, pos: [0, 62, 0], surf: SURF.iron });
@@ -256,18 +144,6 @@ export const BW_PROPS: Record<string, (variant: number) => THREE.BufferGeometry>
       m.add(box(12, 16, 1), { col: weather([0xd8c8a0, 0x9ab8c8, 0xc8a8a8][(r + k) % 3], 0.4), pos: [Math.cos(a) * 12, 40 + r * 20, Math.sin(a) * 12], rot: [0, -a + Math.PI / 2, 0], surf: SURF.paint });
     }
   }),
-  bw_photo: () => B((m) => {
-    // the frame on the north wall (the photograph itself is painted by the quest)
-    m.add(box(240, 160, 6), { col: weather(0x3a2414, 0.4), pos: [0, 140, 0], surf: SURF.wood });
-    m.add(box(250, 6, 10), { col: PAL.gold, pos: [0, 222, 2], surf: SURF.gold });
-    m.add(box(250, 6, 10), { col: PAL.gold, pos: [0, 58, 2], surf: SURF.gold });
-  }),
-  bw_cabinet_tall: () => B((m) => {
-    m.add(box(80, 180, 40), { col: weather(0x2a1810, 0.45), pos: [0, 90, 0], surf: SURF.wood });
-    m.add(box(70, 120, 2), { col: glass(0x6a5a40), pos: [0, 110, 21], surf: SURF.glass, emit: 0.06 });
-    m.add(box(6, 14, 4), { col: brass, pos: [24, 100, 23], surf: SURF.brass });
-  }),
-
   // ---------------------------------------------------------------- the beach
   bw_lifeguard: (v) => B((m) => {
     // a lifeguard tower: four splayed legs, a cabin with a slanted roof, a ladder, a life ring
@@ -449,5 +325,7 @@ export const BW_PROPS: Record<string, (variant: number) => THREE.BufferGeometry>
 };
 
 /** Kinds the world draws itself (walls, buildings, the coaster's posts) or that have no model. */
+Object.assign(BW_PROPS, FURNISHINGS);
+
 export const BW_SKIP = new Set(['bw_wall', 'bw_building', 'bw_bent_post', 'bw_wheel']);
 export const _unused = { bulb, rust };

@@ -53,7 +53,7 @@ angle (like the photo's long diagonal lines).
 | Arcade Row | −2500..−600 | the tintype studio, **the Arcade** (Neptune's Palace of Amusements, a long arched colonnade), ring & ball toss |
 | The Grand Plaza | −600..900 | **the Grand Pavilion** (domed casino & carousel hall, cupola, flagpole), the bandstand, the grand stairs to the sand, the Sea Wheel behind |
 | Sweets & Souvenirs | 900..2300 | the taffy works (pulling machine in the window), **the Gift Shop** (Seashell Souvenirs & Curiosities), lemonade, ticket booth |
-| Coaster Junction | 2300..3900 | **the Undertow**'s station; the coaster's trestle crosses over the promenade and dips toward the beach; the Starlight Ballroom under the track; the Plunge |
+| Coaster Junction | 2300..3900 | **the Undertow**'s station; the coaster climbs between the Gift Shop and the station, crosses over the promenade east of the Starlight Ballroom, dips toward the beach and comes home between the Ballroom and the station (it passes through no building but its own station, D-69); the Plunge |
 
 Hierarchy: **landmarks** (the coaster, the Sea Wheel, the Grand Pavilion's dome, the Plunge, the pier's
 lighthouse) → **secondary attractions** (façades with signage, the Kraken, the bandstand, the wreck) →
@@ -66,13 +66,28 @@ and lights. When the **local** player steps inside, that building's roof and fro
 their screen only, so partners can be in different buildings at once. Enemies follow (they walk through
 walls as everywhere), so interiors are never safe rooms. Positions replicate like anywhere else.
 
-- **The Arcade** (x −1900..−700, y −1520..−820): rows of mutoscopes and pinball cabinets, the Laughing
-  Sailor automaton, **Madame Marina** (a drowned fortune machine), the **Crane** claw machine, a
-  mechanical **shooting gallery** along the back wall, skee-ball lanes, the change booth; checker floor
-  with missing tiles; flickering machine light.
-- **The Gift Shop** (x 1450..2350, y −1460..−820): shelves of souvenirs, glass cases, a postcard
-  spinner, shells and ships in bottles, the brass cash register, the 1933 photograph on the north wall,
-  and the Commodore's back cabinet.
+- **The Arcade** (x −1900..−700, y −1520..−820), its machines built in D-69 to read as the real thing
+  from the high camera (`render3d/world/boardwalk/furnishings.ts`):
+  - mutoscopes on fluted iron pedestals, with hoods and cranks;
+  - pinball tables, their playfields lit under glass and their backglasses glowing;
+  - a love tester with a gauge of red light;
+  - a punching-bag strength tester with a big dial;
+  - three skee-ball alleys side by side with lit ring boards;
+  - the Laughing Sailor in his booth;
+  - **Madame Marina**, a drowned fortune teller in a gilt booth, named on her marquee like Zoltana;
+  - the **Crane**, its case heaped with plush prizes;
+  - the **shooting gallery** with chained rifles, under its valance sign;
+  - the caged change booth.
+
+  Glass is real glass (one translucent mesh), so the figures and the prizes behind it show. The floor
+  is checker tile with tiles missing, under flickering machine light.
+- **The Gift Shop** (x 1450..2350, y −1460..−820):
+  - stepped souvenir stands, each built to its own length: snow globes, ships in bottles, shells,
+    lighthouses, figurines and plates, with brass banker's lamps on their crests;
+  - the front tiers kept for the shop's best pieces (Ada's keepsakes and their look-alikes);
+  - the counter and its brass register, a jewellery case and a postcard spinner;
+  - the 1933 photograph on its easel under a picture lamp;
+  - the Commodore's glass-fronted back cabinet.
 
 ### 2.3 The Beach
 

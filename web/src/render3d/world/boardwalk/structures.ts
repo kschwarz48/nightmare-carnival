@@ -239,7 +239,10 @@ export function buildStructures(root: THREE.Object3D): { geo: THREE.BufferGeomet
     const deco = weather(0x3a3a4e, 0.45, 0.03);
     m.add(box(w, 180, d), { col: deco, pos: [cx, 90, cz], surf: SURF.paint });
     // stepped parapet towers and vertical fins
-    for (const [ox, hh] of [[-w / 2 + 40, 280], [w / 2 - 40, 280], [-w / 2 + 120, 240], [w / 2 - 120, 240]] as [number, number][]) {
+    // (the inner pair only where the front is wide enough to keep them clear of the great window)
+    const towers: [number, number][] = [[-w / 2 + 38, 280], [w / 2 - 38, 280]];
+    if (w > 620) towers.push([-w / 2 + 120, 240], [w / 2 - 120, 240]);
+    for (const [ox, hh] of towers) {
       m.add(box(70, hh, 40), { col: deco, pos: [cx + ox, hh / 2, z1 - 10], surf: SURF.paint });
       for (const f of [-22, 0, 22]) m.add(box(6, hh - 30, 6), { col: trimWhite, pos: [cx + ox + f, (hh - 30) / 2 + 20, z1 + 12], surf: SURF.paint });
     }

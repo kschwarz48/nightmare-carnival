@@ -60,7 +60,7 @@ export const SE_REACH: Record<SEKind, number> = {
   cast: 120, reel: 120, foghorn: 130, short: 70, long: 70, fire: 130, lamp: 120, cabinet: 110, strike: 1e9,
 };
 /** Seconds before the same thing answers another press (a held or mashed key never double-counts). */
-const COOLDOWN: Partial<Record<SEKind, number>> = { shelf: 0.3, porthole: 0.2, short: 0.25, long: 0.25, crane: 1.6, wheel: 1, brake: 1.2, cast: 0.6, foghorn: 2, strike: SUMMERS_END.strikeCool, gallery: 1 };
+const COOLDOWN: Partial<Record<SEKind, number>> = { marina: 2.5, shelf: 0.3, porthole: 0.2, short: 0.25, long: 0.25, crane: 1.6, wheel: 1, brake: 1.2, cast: 0.6, foghorn: 2, strike: SUMMERS_END.strikeCool, gallery: 1 };
 
 export class SummersEndChain extends QuestChain {
   readonly id = SUMMERS_END.id;
@@ -103,6 +103,8 @@ export class SummersEndChain extends QuestChain {
   finaleT = -1;
   private rng!: Rng;
   private cool = new Map<string, number>();
+  /** how many times Marina has been asked for a hint tonight (host-side; each answer is plainer) */
+  private hints = 0;
   private ducks = new Set<number>();
   private pressureT = 0;
 
@@ -166,6 +168,8 @@ export class SummersEndChain extends QuestChain {
           const c = this.conchSpot();
           list.push({ kind: 'conch', i: 0, x: c.x, y: c.y, label: 'Pick up the conch' });
         }
+        // before anything else, Madame Marina will tell a fortune: how the night's story begins
+        list.push({ kind: 'marina', i: 1, x: S.marina.x, y: S.marina.y, label: 'Ask Madame Marina' });
         break;
       case SE.Marina:
         list.push({ kind: 'marina', i: 0, x: S.marina.x, y: S.marina.y, label: 'Hold the conch to the glass' });
@@ -321,6 +325,10 @@ export class SummersEndChain extends QuestChain {
         this.cue('se_conch', { x: it.x, y: it.y, text: ADA.conch.join('|') });
         break;
       case 'marina':
+        if (this.stage === SE.Conch) {
+          this.cue('se_hint', { x: it.x, y: it.y, a: Math.min(this.hints++, ADA.hint.length - 1) });
+          break;
+        }
         this.stage = SE.Photograph;
         this.cue('se_marina', { x: it.x, y: it.y });
         break;

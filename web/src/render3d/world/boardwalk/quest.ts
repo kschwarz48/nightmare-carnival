@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import type { Game } from '../../../sim/game';
 import type { GameRenderer3D } from '../../renderer3d';
-import { KEEPSAKES, PIER_FIX, SHOP_FIX, SUMMERS_END, isLowTide, seabedHeight, trainU, waterDepth, wheelFromBottom } from '../../../data/boardwalk';
+import { ARCADE_FIX, KEEPSAKES, PIER_FIX, SHOP_FIX, SUMMERS_END, isLowTide, seabedHeight, trainU, waterDepth, wheelFromBottom } from '../../../data/boardwalk';
 import { SE, type SummersEndChain } from '../../../sim/quest/summersEnd';
 import { ModelBuilder, SURF, box, cone, cyl, ellipsoid, extrude, sphere, torus, tube, weather, type V3 } from '../../core/geo';
 import { ActorBatch, StaticBatch } from '../../core/batch';
@@ -18,8 +18,12 @@ import { Rides } from './rides';
 import { galaQueenGeometry } from '../../boardwalkBosses';
 import { Strand } from '../../funhouseBosses';
 import type { Frame } from '../../../render/atlas';
+import { PHOTO } from './furnishings';
+import { Photograph } from './photo';
 
 const S = SUMMERS_END;
+/** How each keepsake stands on the shelf: flat things face the camera, round ones turn a little. */
+const KEEP_YAW = [0, 0.5, 0.3, 0.15, 0, 0, 0.4, 0];
 
 /** One of Ada's eight keepsakes (and their look-alike souvenirs), about a hand high. */
 function keepsakeModel(i: number): THREE.BufferGeometry {
@@ -51,11 +55,13 @@ function keepsakeModel(i: number): THREE.BufferGeometry {
       m.add(torus(1.6, 0.4, 4, 8), { col: PAL.gold, pos: [0, 17, 0], surf: SURF.gold });
       break;
     case 'jacks':
-      for (let k = 0; k < 4; k++) {
-        const x = (k - 1.5) * 4;
-        for (const r of [[0, 0, 0], [Math.PI / 2, 0, 0], [0, 0, Math.PI / 2]] as V3[]) m.add(cyl(0.4, 0.4, 4, 4), { col: 0xd8d0c0, pos: [x, 2, (k % 2) * 3], rot: r, surf: SURF.iron });
+      for (let k = 0; k < 3; k++) {
+        const x = (k - 1) * 7;
+        for (const r of [[0, 0, 0], [Math.PI / 2, 0, 0], [0, 0, Math.PI / 2]] as V3[]) {
+          m.add(cyl(0.7, 0.7, 8, 5), { col: 0xd8d0c0, pos: [x, 4, (k % 2) * 4], rot: r, surf: SURF.iron });
+        }
       }
-      m.add(sphere(1.6, 8, 6), { col: 0xb8262a, pos: [7, 1.6, 2], surf: SURF.rubber });
+      m.add(sphere(3, 10, 8), { col: 0xb8262a, pos: [12, 3, 3], surf: SURF.rubber });
       break;
     case 'kite':
       m.add(extrude([[0, 0], [6, 9], [0, 22], [-6, 9]], 0.4, 0, 1), { col: 0xd8a830, pos: [0, 4, 0], surf: SURF.canvas });
@@ -80,6 +86,8 @@ export class BoardwalkQuest {
   private float: THREE.Mesh;
   private rod: THREE.Mesh;
   private chain: Strand;
+  /** the 1933 photograph on its easel in the Gift Shop, painted with tonight's four keepsakes */
+  private photo: Photograph;
   private glowF: Frame | null = null;
   /** the call sign the lighthouse is flashing: its pattern, length and when it began (render time) */
   private call: { bits: number; len: number; t0: number } | null = null;
@@ -154,6 +162,17 @@ export class BoardwalkQuest {
     rm.add(cyl(4, 4, 4, 10), { col: PAL.iron, pos: [0, 12, 3], rot: [0, 0, Math.PI / 2], surf: SURF.iron });
     this.rod = one(rm.build({ ao: 0 }));
     this.chain = new Strand(this.group, this.mat, 8, 1.8);
+    this.photo = new Photograph(PHOTO.w, PHOTO.h);
+    this.photo.mesh.position.set(SHOP_FIX.photo.x, PHOTO.cy + 0.4 * Math.sin(PHOTO.lean), SHOP_FIX.photo.y + PHOTO.cz + 0.4 * Math.cos(PHOTO.lean));
+    this.photo.mesh.rotation.x = -PHOTO.lean;
+    this.group.add(this.photo.mesh);
+  }
+
+  /** The Crane's claw at rest, up in its front corner over the prize chute. */
+  private parkClaw(): void {
+    this.claw.visible = true;
+    this.claw.scale.setScalar(1.8);
+    this.claw.position.set(ARCADE_FIX.crane.x + 30, 160, ARCADE_FIX.crane.y + 24);
   }
 
   /** The lighthouse flashes the call sign (and the app sounds it). */
@@ -194,21 +213,23 @@ export class BoardwalkQuest {
     // ---- the keepsakes: souvenirs on the shelves, prizes at the games, the portholes' contents
     for (const b of this.keep) b.begin();
     for (const b of this.engr) b.begin();
+    this.photo.show(ch.keepsakes);
     if (st <= SE.Photograph) {
+      // the eight look-alikes stand on the stands' front tier, each turned to show its shape
       S.shelf.forEach(([x, y], i) => {
         if (ch.taken & (1 << i)) return;
-        this.keep[i].add(x, y - 52, 42, 0.3 + i, 1.3);
+        this.keep[i].add(x, y - 27, 36.5, KEEP_YAW[i], 2.4);
       });
     }
     if (st === SE.Photograph && ch.photoSeen) {
-      // the photograph remembers: her four things float before it
+      // the photograph remembers: her four things float in front of the easel
       let k = 0;
       for (let i = 0; i < KEEPSAKES.length; i++) {
         if (!(ch.keepsakes & (1 << i))) continue;
-        this.keep[i].add(SHOP_FIX.photo.x - 66 + k * 44, SHOP_FIX.photo.y + 30, 110 + Math.sin(t * 1.5 + k) * 4, t * 0.6 + k, 1.6);
+        this.keep[i].add(SHOP_FIX.photo.x - 66 + k * 44, SHOP_FIX.photo.y + 112, 50 + Math.sin(t * 1.5 + k) * 4, Math.sin(t * 0.8 + k) * 0.5, 2.2);
         k++;
       }
-      halo(SHOP_FIX.photo.x, SHOP_FIX.photo.y, 110, 1.4, [1, 0.85, 0.6], 0.35);
+      halo(SHOP_FIX.photo.x, SHOP_FIX.photo.y + 20, PHOTO.cy, 1.6, [1, 0.85, 0.6], 0.3);
     }
     if (st === SE.Games) {
       const prizes: [number, number, number][] = [[S.gallery.x, S.gallery.y - 120, 60], [S.crane.x, S.crane.y - 70, 26], [0, 0, 0], [S.brake.x, S.brake.y - 30, 70]];
@@ -228,20 +249,22 @@ export class BoardwalkQuest {
         halo(px, py, ph + 10, 0.7, [1, 0.85, 0.5], 0.35);
       }
       // the Crane's claw swinging over its prize (it's over it twice a swing)
-      this.claw.visible = !(ch.won & 2);
-      if (this.claw.visible) {
+      if (!(ch.won & 2)) {
         const ph = (g.time / S.crane.period) * Math.PI * 2;
-        this.claw.position.set(S.crane.x + Math.sin(ph) * 34, 150, S.crane.y - 70);
+        this.claw.visible = true;
         this.claw.scale.setScalar(1.8);
+        this.claw.position.set(S.crane.x + Math.sin(ph) * 34, 150, S.crane.y - 70);
         halo(S.crane.x + Math.sin(ph) * 34, S.crane.y - 70, 140, 0.4, [1, 0.9, 0.6], 0.5);
-      }
+      } else this.parkClaw();
       // the brake lamp warms as the train comes home
       if (!(ch.won & 8)) {
         const tr = trainU(g.time);
         const k = tr.dwelling ? 0 : Math.max(0, (tr.u - 0.85) / 0.15);
         halo(S.brake.x, S.brake.y - 10, 60, 0.5 + 0.6 * k, [1, 0.4 + 0.5 * k, 0.3], 0.3 + 0.6 * k);
       }
-    } else this.claw.visible = false;
+    } else this.parkClaw();
+    // Madame Marina's crystal stirs while the night's first question is still unasked
+    if (st === SE.Conch) halo(ARCADE_FIX.marina.x, ARCADE_FIX.marina.y + 14, 90, 0.5 + 0.08 * Math.sin(t * 2.1), [0.55, 1, 0.9], 0.35);
     // the wreck: brass engravings over the portholes always; her keepsakes in them once the games are won
     S.portholes.forEach((h, k) => {
       // the engraving sits on a brass plate on the hull above the porthole, big enough to read from the sand

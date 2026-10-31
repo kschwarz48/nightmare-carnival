@@ -15,7 +15,7 @@ import type { Attack, BossOpts } from './boss';
 import { BoardwalkBoss } from './bwBoss';
 
 /** Tuning the tests read. */
-export const LAST_RIDE = { stage: 780, cars: 5, gap: 52, cruise: 230, run: 760, loopR: 280, loopSpeed: 620 };
+export const LAST_RIDE = { stage: 780, cars: 5, gap: 52, cruise: 230, run: 760, loopR: 280, loopSpeed: 620, carShare: 0.3 };
 const STEP = 4;
 
 export class LastRideBoss extends BoardwalkBoss {
@@ -44,6 +44,11 @@ export class LastRideBoss extends BoardwalkBoss {
     }
     this.resetTrain();
     this.pose = { mouth: 0, rock: 0 };
+  }
+
+  /** A car passes on its share of a hit (D-69): one sweep across the train isn't six hits on the boss. */
+  takeDamage(part: BossPart, amount: number, crit: boolean): number {
+    return super.takeDamage(part, this.carParts.includes(part) ? amount * LAST_RIDE.carShare : amount, crit);
   }
 
   /** Lay the cars out straight behind the lead car (arrival, after the drop). */

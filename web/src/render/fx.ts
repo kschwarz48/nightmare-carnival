@@ -75,6 +75,9 @@ export class FxSystem {
   shakeScale = 1;
   showNumbers = true;
   particleBudget = 1400;
+  /** how many hit sparks and crit stars may still go out (they refill over time; D-69) */
+  private hitBudget = 12;
+  private critBudget = 6;
   private frames: Record<string, Frame[]> = {};
   private digit: Record<string, Frame> = {};
   private digitC: Record<string, Frame> = {};
@@ -140,7 +143,7 @@ export class FxSystem {
   }
 
   private flashLight(x: number, y: number, r: number, life: number, col: [number, number, number], i = 1.4): void {
-    if (this.flashes.length > 14) this.flashes.shift();
+    if (this.flashes.length > 5) this.flashes.shift();
     this.flashes.push({ x, y, r, life, max: life, cr: col[0], cg: col[1], cb: col[2], i });
   }
 
@@ -152,11 +155,16 @@ export class FxSystem {
     switch (e.type) {
       case 'death': this.death(e); break;
       case 'hit':
-        if (this.activeParts < this.particleBudget * 0.7) this.spawn('spark', e.x + (this.rand() - 0.5) * 8, e.y - 14, { max: 0.16, s0: 0.5, s1: 0.2, add: true, r: 1, g: 0.95, b: 0.7 });
+        if (this.hitBudget >= 1 && this.activeParts < this.particleBudget * 0.7) {
+          this.hitBudget--;
+          this.spawn('spark', e.x + (this.rand() - 0.5) * 8, e.y - 14, { max: 0.14, s0: 0.42, s1: 0.18, add: true, r: 0.72, g: 0.64, b: 0.44 });
+        }
         break;
       case 'crit':
-        this.spawn('star', e.x, e.y - 30, { vy: -60, max: 0.45, s0: 1.4, s1: 0.4, vr: 6 });
-        this.spawn('spark', e.x, e.y - 20, { max: 0.22, s0: 1.3, s1: 0.4, add: true, r: 1, g: 0.9, b: 0.3 });
+        if (this.critBudget < 1) break;
+        this.critBudget--;
+        this.spawn('star', e.x, e.y - 30, { vy: -60, max: 0.4, s0: 0.95, s1: 0.35, vr: 6 });
+        this.spawn('spark', e.x, e.y - 20, { max: 0.18, s0: 0.85, s1: 0.3, add: true, r: 0.75, g: 0.62, b: 0.24 });
         break;
       case 'explosion': this.explosion(e); break;
       case 'ring': {
@@ -200,20 +208,20 @@ export class FxSystem {
       case 'levelup':
         this.ephem('ring', e.x, e.y, 160, 0.6, [1, 0.9, 0.4], { width: 10 });
         this.burst('star', e.x, e.y - 30, 14, 240, { max: 0.8, s0: 1.2, s1: 0.2, vr: 8 });
-        this.flashLight(e.x, e.y, 400, 0.6, [1, 0.9, 0.5], 1.6);
+        this.flashLight(e.x, e.y, 320, 0.5, [1, 0.9, 0.5], 0.9);
         break;
       case 'evolve':
         this.ephem('ring', e.x, e.y, 320, 0.9, [1, 0.85, 0.3], { width: 16 });
         this.ephem('ring', e.x, e.y, 200, 0.7, [1, 1, 1], { width: 8 });
         this.burst('star', e.x, e.y - 30, 30, 360, { max: 1.1, s0: 1.6, s1: 0.2, vr: 10 });
         this.burst('confetti', e.x, e.y - 30, 40, 300, { vz: 300, grav: 600, max: 1.4, drag: 1.2, s0: 1.2, s1: 1 });
-        this.flashLight(e.x, e.y, 700, 1.0, [1, 0.85, 0.4], 2.2);
-        this.flash(0.45, [1, 0.9, 0.5]);
+        this.flashLight(e.x, e.y, 520, 0.8, [1, 0.85, 0.4], 1.3);
+        this.flash(0.2, [1, 0.9, 0.5]);
         break;
       case 'chest':
         this.burst('confetti', e.x, e.y - 20, 36, 260, { vz: 320, grav: 650, max: 1.3, drag: 1.2 });
         this.burst('star', e.x, e.y - 20, 12, 200, { max: 0.8 });
-        this.flashLight(e.x, e.y, 360, 0.7, [1, 0.9, 0.6], 1.8);
+        this.flashLight(e.x, e.y, 300, 0.6, [1, 0.9, 0.6], 1.1);
         break;
       case 'shake':
         this.shake = Math.min(1.4, this.shake + e.a);
@@ -231,8 +239,8 @@ export class FxSystem {
         this.burst('confetti', e.x, e.y - 60, 80, 420, { vz: 380, grav: 600, max: 2, drag: 1 });
         this.burst('smoke', e.x, e.y - 40, 20, 200, { max: 1.4, s0: 1.2, s1: 2.4, r: 0.7, g: 0.65, b: 0.7 });
         this.ephem('ring', e.x, e.y, 520, 1.1, [1, 0.8, 0.4], { width: 18 });
-        this.flashLight(e.x, e.y, 900, 1.5, [1, 0.8, 0.5], 2.4);
-        this.flash(0.6, [1, 0.95, 0.8]);
+        this.flashLight(e.x, e.y, 900, 1.5, [1, 0.8, 0.5], 1.8);
+        this.flash(0.4, [1, 0.95, 0.8]);
         break;
       case 'confetti':
         this.burst('confetti', e.x, e.y, Math.round(24 * e.a), 240, { vz: 260, grav: 600, max: 1.2, drag: 1.2 });
@@ -359,10 +367,10 @@ export class FxSystem {
   private explosion(e: FxEvent): void {
     const col = COLORS[e.style] ?? [1, 0.7, 0.4];
     const r = e.a;
-    this.ephem('disk', e.x, e.y, r, 0.22, col);
+    this.ephem('disk', e.x, e.y, r, 0.2, col);
     this.ephem('ring', e.x, e.y, r * 1.1, 0.32, col, { width: 6 });
     const big = e.style === 'finale' || e.style === 'boss';
-    this.flashLight(e.x, e.y, r * 3, big ? 0.5 : 0.25, col, big ? 2 : 1.2);
+    this.flashLight(e.x, e.y, r * 2.2, big ? 0.45 : 0.2, col, big ? 1.4 : 0.55);
     if (e.style === 'firework' || e.style === 'finale' || e.style === 'finale_small') {
       // chrysanthemum: radial streaking sparks in random festival colours
       const palettes: [number, number, number][] = [[1, 0.4, 0.7], [0.4, 0.9, 1], [1, 0.9, 0.3], [0.6, 1, 0.4], [0.8, 0.5, 1]];
@@ -480,13 +488,15 @@ export class FxSystem {
     const s = this.shake * this.shake * 14 * this.shakeScale;
     this.shakeX = (this.rand() - 0.5) * s;
     this.shakeY = (this.rand() - 0.5) * s;
-    this.screenFlash = Math.max(0, this.screenFlash - dt * 2.2);
+    this.screenFlash = Math.max(0, this.screenFlash - dt * 3);
+    this.hitBudget = Math.min(12, this.hitBudget + dt * 45);
+    this.critBudget = Math.min(6, this.critBudget + dt * 14);
   }
 
   addLights(lights: LightSink): void {
     for (const f of this.flashes) {
       const t = f.life / f.max;
-      lights.add(f.x, f.y, f.r, f.i * t, f.cr, f.cg, f.cb);
+      lights.add(f.x, f.y, f.r, f.i * t * t, f.cr, f.cg, f.cb);
     }
   }
 
@@ -505,16 +515,16 @@ export class FxSystem {
       switch (e.kind) {
         case 'ring': {
           const r = e.r * (0.25 + 0.75 * Math.sqrt(t));
-          shapesAdd.ring(e.x, e.y, Math.max(0, r - e.width), r, e.cr, e.cg, e.cb, a * 0.9, a * 0.2);
+          shapesAdd.ring(e.x, e.y, Math.max(0, r - e.width), r, e.cr, e.cg, e.cb, a * 0.62, a * 0.12);
           break;
         }
         case 'disk':
-          shapesAdd.circle(e.x, e.y, e.r * (0.5 + 0.5 * t), e.cr, e.cg, e.cb, a * 0.55, 0);
+          shapesAdd.circle(e.x, e.y, e.r * (0.5 + 0.5 * t), e.cr, e.cg, e.cb, a * 0.26, 0);
           break;
         case 'slash': {
           const sweep = Math.min(1, t * 2.2);
           const a0 = e.a - e.half, a1 = e.a - e.half + e.half * 2 * sweep;
-          shapesAdd.ring(e.x, e.y, e.r * 0.45, e.r, e.cr, e.cg, e.cb, a * 0.15, a * 0.85, a0, a1);
+          shapesAdd.ring(e.x, e.y, e.r * 0.45, e.r, e.cr, e.cg, e.cb, a * 0.1, a * 0.6, a0, a1);
           break;
         }
         case 'beam':

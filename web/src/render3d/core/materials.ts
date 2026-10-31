@@ -374,7 +374,7 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
       {
         float ncRim = pow(1.0 - clamp(dot(normal, vec3(0.0, 0.0, 1.0)), 0.0, 1.0), 2.4);
         gl_FragColor.rgb += vRimC.rgb * ncRim * vRimC.a;
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.93, 0.86) * 1.6, clamp(vFlash, 0.0, 1.0));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * 0.6 + vec3(1.0, 0.93, 0.86) * 0.55, clamp(vFlash, 0.0, 1.0) * 0.6);
       }`,
     );
 }

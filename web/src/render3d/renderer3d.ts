@@ -49,6 +49,8 @@ export const ACTOR_STRETCH = 1.12;
 
 const DANGER: [number, number, number] = [1, 0.25, 0.12];
 const CAUTION: [number, number, number] = [1, 0.8, 0.25];
+/** In its last moments a telegraph's edge steps up once: the hit lands this many seconds later (D-69). */
+const TELE_NOW = 0.2;
 
 export interface RenderSettings {
   /** 0.15..1: opacity of the players' own attacks */
@@ -202,7 +204,7 @@ export class GameRenderer3D {
 
     const tex = assets.atlas.textures;
     this.f = (k: string) => assets.atlas.get(k);
-    this.teleFill = new DecalBatch(40000, false, 3, { lift: 1.2, hatch: 26, time: shared.uTime });
+    this.teleFill = new DecalBatch(40000, false, 3, { lift: 1.2 });
     this.zoneShapes = new DecalBatch(30000, false, 3, { lift: 1.0 });
     this.addShapes = new DecalBatch(60000, true, 6, { lift: 1.6 });
     this.teleLine = new DecalBatch(30000, false, 12, { lift: 2.0, depthTest: false });
@@ -661,11 +663,89 @@ export class GameRenderer3D {
     }
   }
 
+  // =================================================================== telegraphs (D-69)
+  // One plain language for every attack, enemy or boss: the spot (a quiet flat fill of exactly where it
+  // will hit), a crisp steady edge, and a timer: a fill growing out from the attacker's side that reaches
+  // the edge at the instant the damage lands. In the last fifth of a second the edge steps up once, the
+  // "now". No stripes, no chevrons, nothing strobing. When it lands the spot fills solid and fades.
+  private teleLook(left: number): { area: number; timer: number; edge: number; w: number } {
+    const hc = this.settings.highContrast;
+    const now = left > 0 && left < TELE_NOW;
+    return { area: hc ? 0.18 : 0.09, timer: hc ? 0.45 : 0.32, edge: now ? 1 : hc ? 0.95 : 0.72, w: now ? (hc ? 4.5 : 3.4) : hc ? 3 : 2 };
+  }
+
+  /** A round spot `rad` across: `prog` 0..1 through its wind-up, `left` seconds until it lands. */
+  teleCircle(x: number, y: number, rad: number, prog: number, left: number, col: [number, number, number] = DANGER): void {
+    const s = this.teleLook(left), [r, g, b] = col;
+    this.teleFill.circle(x, y, rad, r, g, b, s.area, s.area);
+    const k = Math.min(1, prog);
+    if (k > 0) {
+      this.teleFill.circle(x, y, rad * k, r, g, b, s.timer, s.timer);
+      if (k < 0.97) this.teleLine.ring(x, y, Math.max(0, rad * k - 1.2), rad * k, r, g, b, s.edge * 0.55, s.edge * 0.55);
+    }
+    this.teleLine.ring(x, y, Math.max(0, rad - s.w), rad, r, g, b, s.edge, s.edge);
+  }
+
+  /** A band from r0 to r1 (optionally an arc a0..a1): the timer fills it outward from the inner edge. */
+  teleBand(x: number, y: number, r0: number, r1: number, prog: number, left: number, col: [number, number, number] = DANGER, a0 = 0, a1 = Math.PI * 2): void {
+    const s = this.teleLook(left), [r, g, b] = col;
+    this.teleFill.ring(x, y, r0, r1, r, g, b, s.area, s.area, a0, a1);
+    const k = Math.min(1, prog), rk = r0 + (r1 - r0) * k;
+    if (k > 0) {
+      this.teleFill.ring(x, y, r0, rk, r, g, b, s.timer, s.timer, a0, a1);
+      if (k < 0.97) this.teleLine.ring(x, y, Math.max(0, rk - 1.2), rk, r, g, b, s.edge * 0.55, s.edge * 0.55, a0, a1);
+    }
+    this.teleLine.ring(x, y, Math.max(0, r1 - s.w), r1, r, g, b, s.edge, s.edge, a0, a1);
+    if (r0 > 4) this.teleLine.ring(x, y, r0, r0 + s.w, r, g, b, s.edge, s.edge, a0, a1);
+  }
+
+  /** A wedge from the attacker at (x, y): the timer grows out from its point. */
+  teleSector(x: number, y: number, r0: number, r1: number, ang: number, half: number, prog: number, left: number, col: [number, number, number] = DANGER): void {
+    const s = this.teleLook(left), [r, g, b] = col;
+    this.teleFill.sector(x, y, r0, r1, ang, half, r, g, b, s.area, s.area);
+    const k = Math.min(1, prog), rk = r0 + (r1 - r0) * k;
+    if (k > 0) {
+      this.teleFill.sector(x, y, r0, rk, ang, half, r, g, b, s.timer, s.timer);
+      if (k < 0.97) this.teleLine.ring(x, y, Math.max(0, rk - 1.2), rk, r, g, b, s.edge * 0.55, s.edge * 0.55, ang - half, ang + half);
+    }
+    this.teleLine.ring(x, y, Math.max(0, r1 - s.w), r1, r, g, b, s.edge, s.edge, ang - half, ang + half);
+    for (const k of [-1, 1]) {
+      const c = Math.cos(ang + k * half), sn = Math.sin(ang + k * half);
+      this.teleLine.line(x + c * r0, y + sn * r0, x + c * r1, y + sn * r1, s.w / 2, r, g, b, s.edge);
+    }
+  }
+
+  /** A lane `hw` either side of the line from (x1, y1) to (x2, y2): the timer sweeps from the first end. */
+  teleLane(x1: number, y1: number, x2: number, y2: number, hw: number, prog: number, left: number, col: [number, number, number] = DANGER): void {
+    const s = this.teleLook(left), [r, g, b] = col;
+    this.teleFill.line(x1, y1, x2, y2, hw, r, g, b, s.area, s.area);
+    const k = Math.min(1, prog);
+    if (k > 0) {
+      const fx = x1 + (x2 - x1) * k, fy = y1 + (y2 - y1) * k;
+      this.teleFill.line(x1, y1, fx, fy, hw, r, g, b, s.timer, s.timer);
+      if (k < 0.97) {
+        // the timer's front: a thin rule across the lane, closing on the far end
+        const len = Math.hypot(x2 - x1, y2 - y1) || 1, nx = (-(y2 - y1) / len) * hw, ny = ((x2 - x1) / len) * hw;
+        this.teleLine.line(fx + nx, fy + ny, fx - nx, fy - ny, 0.6, r, g, b, s.edge * 0.55);
+      }
+    }
+    this.laneEdges(x1, y1, x2, y2, hw, col, s.edge, s.w / 2);
+  }
+
+  /** A lane's outline: its two long edges and its ends, crisp and steady. */
+  laneEdges(x1: number, y1: number, x2: number, y2: number, hw: number, col: [number, number, number], a: number, w = 1): void {
+    const L = this.teleLine, [r, g, b] = col;
+    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / len) * hw, ny = (dx / len) * hw;
+    L.line(x1 + nx, y1 + ny, x2 + nx, y2 + ny, w, r, g, b, a);
+    L.line(x1 - nx, y1 - ny, x2 - nx, y2 - ny, w, r, g, b, a);
+    L.line(x1 + nx, y1 + ny, x1 - nx, y1 - ny, w, r, g, b, a);
+    L.line(x2 + nx, y2 + ny, x2 - nx, y2 - ny, w, r, g, b, a);
+  }
+
   private drawHazards(g: Game): void {
     this.zoneShapes.alphaScale = this.addShapes.alphaScale = 1;
     const F = this.teleFill, L = this.teleLine, A = this.addShapes;
-    const hc = this.settings.highContrast;
-    const pulse = 0.5 + 0.5 * Math.sin(this.time * 18);
     for (const h of g.hazards) {
       if (!h.alive) continue;
       if (this.bosses.drawHazard(h, this)) continue;
@@ -677,44 +757,44 @@ export class GameRenderer3D {
         continue;
       }
       if (h.dmg <= 0 && !tele && h.style !== 'lane' && h.style !== 'rail') continue;
-      const fillA = tele ? (hc ? 0.3 : 0.16) + prog * (hc ? 0.3 : 0.22) : 0.5;
-      const lineA = tele ? (hc ? 1 : 0.8) * (0.6 + 0.4 * pulse) : 1;
+      // landed: the spot fills solid, then fades over the hazard's active window
+      const live = Math.min(1, h.active / Math.max(0.001, h.activeMax));
       switch (h.shape) {
         case 'circle': {
           if (h.style === 'hellfire' || h.style === 'fire_trail') {
-            A.circle(h.x, h.y, h.r * 1.2, 1, 0.42, 0.08, 0.5, 0);
+            A.circle(h.x, h.y, h.r * 1.2, 1, 0.42, 0.08, 0.32, 0);
             if (Math.random() < 0.25) this.fx.handle([{ type: 'spark', x: h.x + (Math.random() - 0.5) * h.r, y: h.y + (Math.random() - 0.5) * h.r, a: 1, b: 0, c: 0, style: 'fire' }]);
             L.ring(h.x, h.y, h.r - 2, h.r, r, gg, b, 0.6, 0.6);
             break;
           }
           if (h.style === 'roll' || h.style === 'lunge' || h.style === 'phantom_wheel' && !tele) break;
           if (h.style === 'spotlight' || h.style === 'searchlight') {
-            A.circle(h.x, h.y, h.r, 1, 0.95, 0.7, tele ? 0.2 + prog * 0.3 : 0.7, 0.05);
-            L.ring(h.x, h.y, h.r - 3, h.r, r, gg, b, lineA, lineA);
+            A.circle(h.x, h.y, h.r, 1, 0.95, 0.7, tele ? 0.12 + prog * 0.2 : 0.45, 0.05);
+            if (tele) this.teleCircle(h.x, h.y, h.r, prog, h.tele);
+            else L.ring(h.x, h.y, h.r - 3, h.r, r, gg, b, 0.85, 0.85);
             break;
           }
           if (h.style === 'maw') {
             for (let k = 0; k < 3; k++) {
               const rr = ((this.time * 1.5 + k / 3) % 1) * 420;
-              A.ring(h.x, h.y, Math.max(0, 420 - rr - 4), 420 - rr, 0.8, 0.9, 1, 0.22, 0.04);
+              A.ring(h.x, h.y, Math.max(0, 420 - rr - 4), 420 - rr, 0.8, 0.9, 1, 0.18, 0.04);
             }
-            F.circle(h.x, h.y, h.r, r, gg, b, 0.45, 0.2);
+            F.circle(h.x, h.y, h.r, r, gg, b, 0.4, 0.4);
+            L.ring(h.x, h.y, h.r - 2, h.r, r, gg, b, 0.8, 0.8);
             break;
           }
           if (h.style === 'flail' && !tele) {
-            A.ring(h.x, h.y, h.r - 10, h.r, r, gg, b, 0.6, 0.2);
+            A.ring(h.x, h.y, h.r - 10, h.r, r, gg, b, 0.45, 0.15);
             for (let k = 0; k < 3; k++) {
               const a = this.time * 9 + (k * Math.PI * 2) / 3;
-              A.sector(h.x, h.y, h.r * 0.3, h.r, a, 0.3, r, gg, b, 0.35, 0.05);
+              A.sector(h.x, h.y, h.r * 0.3, h.r, a, 0.3, r, gg, b, 0.25, 0.04);
             }
             break;
           }
-          F.circle(h.x, h.y, h.r, r, gg, b, fillA, fillA * 0.7);
-          if (tele) {
-            F.circle(h.x, h.y, h.r * prog, r, gg, b, 0.25 + 0.2 * prog, 0.35);
-            L.ring(h.x, h.y, h.r - (hc ? 4 : 2.5), h.r, r, gg, b, lineA, lineA);
-          } else {
-            A.circle(h.x, h.y, h.r, 1, 0.6, 0.35, 0.55 * (h.active / Math.max(0.001, h.activeMax)), 0);
+          if (tele) this.teleCircle(h.x, h.y, h.r, prog, h.tele);
+          else {
+            F.circle(h.x, h.y, h.r, r, gg, b, 0.12 + 0.3 * live, 0.12 + 0.3 * live);
+            L.ring(h.x, h.y, h.r - 2, h.r, r, gg, b, 0.3 + 0.6 * live, 0.3 + 0.6 * live);
           }
           break;
         }
@@ -723,97 +803,73 @@ export class GameRenderer3D {
           if (h.style === 'tide_ring') {
             // the Great Barnacle's ring of seawater (D-68): foam riding the danger band, the gap left dark
             const a0 = h.angle + h.gapHalf, a1 = h.angle - h.gapHalf + Math.PI * 2;
-            F.ring(h.x, h.y, Math.max(0, h.r2), h.r, r, gg, b, 0.55, 0.55, a0, a1);
-            A.ring(h.x, h.y, Math.max(0, h.r2), h.r, 0.8, 0.95, 1, 0.5, 0.5, a0, a1);
+            F.ring(h.x, h.y, Math.max(0, h.r2), h.r, r, gg, b, 0.5, 0.5, a0, a1);
+            A.ring(h.x, h.y, Math.max(0, h.r2), h.r, 0.8, 0.95, 1, 0.32, 0.32, a0, a1);
             break;
           }
-          if (h.gapHalf > 0) {
-            const a0 = h.angle + h.gapHalf, a1 = h.angle - h.gapHalf + Math.PI * 2;
-            F.ring(h.x, h.y, Math.max(0, h.r2), h.r, r, gg, b, 0.7, 0.7, a0, a1);
-            A.ring(h.x, h.y, Math.max(0, h.r2), h.r, 1, 0.55, 0.35, 0.35, 0.35, a0, a1);
-          } else {
-            F.ring(h.x, h.y, Math.max(0, h.r2), h.r, r, gg, b, 0.7, 0.7);
-            A.ring(h.x, h.y, Math.max(0, h.r2), h.r, 1, 0.55, 0.35, 0.3, 0.3);
-          }
+          const a0 = h.gapHalf > 0 ? h.angle + h.gapHalf : 0, a1 = h.gapHalf > 0 ? h.angle - h.gapHalf + Math.PI * 2 : Math.PI * 2;
+          F.ring(h.x, h.y, Math.max(0, h.r2), h.r, r, gg, b, 0.6, 0.6, a0, a1);
+          L.ring(h.x, h.y, Math.max(0, h.r - 2.5), h.r, r, gg, b, 0.9, 0.9, a0, a1);
           break;
         }
         case 'annulus': {
           if (h.style === 'fire_ring' && !tele) {
-            A.ring(h.x, h.y, Math.max(0, h.r2), h.r, 1, 0.4, 0.06, 0.5, 0.1);
+            A.ring(h.x, h.y, Math.max(0, h.r2), h.r, 1, 0.4, 0.06, 0.35, 0.08);
             for (let k = 0; k < 6; k++) {
               const a = Math.random() * Math.PI * 2;
               const d = h.r2 + Math.random() * (h.r - h.r2) * 0.5;
               this.fx.handle([{ type: 'spark', x: h.x + Math.cos(a) * d, y: h.y + Math.sin(a) * d, a: 1, b: 0, c: 0, style: 'fire' }]);
             }
             L.ring(h.x, h.y, Math.max(0, h.r2 - 3), h.r2, r, gg, b, 1, 1);
-          } else {
-            F.ring(h.x, h.y, Math.max(0, h.r2), h.r, r, gg, b, fillA, fillA * 0.3);
-            L.ring(h.x, h.y, Math.max(0, h.r2 - 3), h.r2, r, gg, b, lineA, lineA);
+          } else if (tele) this.teleBand(h.x, h.y, Math.max(0, h.r2), h.r, prog, h.tele);
+          else {
+            F.ring(h.x, h.y, Math.max(0, h.r2), h.r, r, gg, b, 0.12 + 0.3 * live, 0.12 + 0.3 * live);
+            L.ring(h.x, h.y, Math.max(0, h.r2 - 2.5), h.r2, r, gg, b, 0.9, 0.9);
           }
           break;
         }
         case 'line': {
           const w = Math.max(4, h.r2);
-          if (tele) {
-            F.line(h.x, h.y, h.x2, h.y2, w, r, gg, b, fillA, fillA * 0.4);
-            this.laneEdges(h, w, r, gg, b, lineA);
-          } else if (h.dmg > 0) {
+          if (tele) this.teleLane(h.x, h.y, h.x2, h.y2, w, prog, h.tele);
+          else if (h.dmg > 0) {
             const isBar = h.style === 'pole' || h.style === 'crossbar' || h.style === 'spoke';
             if (isBar) {
               F.line(h.x, h.y, h.x2, h.y2, w, 0.25, 0.15, 0.1, 0.9);
               F.line(h.x, h.y, h.x2, h.y2, w * 0.6, r, gg, b, 0.85);
             } else if (h.style === 'spot_beam') {
-              A.line(h.x, h.y, h.x2, h.y2, w, 1, 0.92, 0.6, 0.5, 0);
+              A.line(h.x, h.y, h.x2, h.y2, w, 1, 0.92, 0.6, 0.35, 0);
               L.line(h.x, h.y, h.x2, h.y2, 2.5, r, gg, b, 0.8);
             } else if (h.style === 'arc') {
               // the promenade's lamps arcing (D-68): a jittering blue-white bolt
               const jx = (Math.random() - 0.5) * 16, jy = (Math.random() - 0.5) * 16;
               const mx = (h.x + h.x2) / 2 + jx, my = (h.y + h.y2) / 2 + jy;
-              A.line(h.x, h.y, mx, my, w + 10, 0.55, 0.85, 1, 0.75, 0);
-              A.line(mx, my, h.x2, h.y2, w + 10, 0.55, 0.85, 1, 0.75, 0);
+              A.line(h.x, h.y, mx, my, w + 10, 0.55, 0.85, 1, 0.5, 0);
+              A.line(mx, my, h.x2, h.y2, w + 10, 0.55, 0.85, 1, 0.5, 0);
               F.line(h.x, h.y, h.x2, h.y2, w * 0.35, 0.9, 0.97, 1, 0.9);
               if (Math.random() < 0.3) this.fx.handle([{ type: 'spark', x: mx, y: my, a: 2, b: 0, c: 0, style: 'electric' }]);
             } else if (h.style === 'surge') {
               // a line of seawater rolling across the boards (D-68): danger underneath, foam on top
-              F.line(h.x, h.y, h.x2, h.y2, w, r, gg, b, 0.55);
-              A.line(h.x, h.y, h.x2, h.y2, w + 14, 0.8, 0.92, 1, 0.55, 0);
-              A.line(h.x, h.y, h.x2, h.y2, w * 0.45, 1, 1, 1, 0.5, 0);
+              F.line(h.x, h.y, h.x2, h.y2, w, r, gg, b, 0.5);
+              A.line(h.x, h.y, h.x2, h.y2, w + 14, 0.8, 0.92, 1, 0.35, 0);
+              A.line(h.x, h.y, h.x2, h.y2, w * 0.45, 1, 1, 1, 0.3, 0);
             } else if (h.style === 'string_sweep' || h.style === 'tangle') {
-              A.line(h.x, h.y, h.x2, h.y2, w + 4, 1, 0.95, 0.85, 0.85, 0);
+              A.line(h.x, h.y, h.x2, h.y2, w + 4, 1, 0.95, 0.85, 0.55, 0);
               L.line(h.x, h.y, h.x2, h.y2, 2, r, gg, b, 1);
             } else {
-              const fade = h.active / Math.max(0.001, h.activeMax);
-              A.line(h.x, h.y, h.x2, h.y2, w + 6, 1, h.style === 'hellwhip' ? 0.45 : 0.75, 0.35, 0.85 * fade, 0);
-              F.line(h.x, h.y, h.x2, h.y2, w * 0.5, r, gg, b, fade);
+              F.line(h.x, h.y, h.x2, h.y2, w, r, gg, b, 0.15 + 0.4 * live);
+              this.laneEdges(h.x, h.y, h.x2, h.y2, w, DANGER, 0.35 + 0.55 * live);
             }
           }
           break;
         }
         case 'sector':
-          F.sector(h.x, h.y, h.r2, h.r, h.angle, h.half, r, gg, b, fillA, fillA * 0.5);
-          if (tele) L.ring(h.x, h.y, h.r - 2.5, h.r, r, gg, b, lineA, lineA, h.angle - h.half, h.angle + h.half);
+          if (tele) this.teleSector(h.x, h.y, h.r2, h.r, h.angle, h.half, prog, h.tele);
+          else {
+            F.sector(h.x, h.y, h.r2, h.r, h.angle, h.half, r, gg, b, 0.12 + 0.3 * live, 0.12 + 0.3 * live);
+            L.ring(h.x, h.y, h.r - 2, h.r, r, gg, b, 0.3 + 0.6 * live, 0.3 + 0.6 * live, h.angle - h.half, h.angle + h.half);
+          }
           break;
       }
-    }
-  }
-
-  laneEdges(h: Hazard, w: number, r: number, g: number, b: number, a: number): void {
-    const L = this.teleLine;
-    const dx = h.x2 - h.x, dy = h.y2 - h.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const ux = dx / len, uy = dy / len, nx = -uy * w, ny = ux * w;
-    L.line(h.x + nx, h.y + ny, h.x2 + nx, h.y2 + ny, 2.2, r, g, b, a);
-    L.line(h.x - nx, h.y - ny, h.x2 - nx, h.y2 - ny, 2.2, r, g, b, a);
-    // a soft glow bleeding off each edge so the lane reads as lit, not drawn
-    this.addShapes.line(h.x + nx, h.y + ny, h.x2 + nx, h.y2 + ny, 12, r, g, b, a * 0.16, 0);
-    this.addShapes.line(h.x - nx, h.y - ny, h.x2 - nx, h.y2 - ny, 12, r, g, b, a * 0.16, 0);
-    const step = 90;
-    const off = (this.time * 260) % step;
-    for (let d = off; d < len; d += step) {
-      const cx = h.x + ux * d, cy = h.y + uy * d;
-      const s = Math.min(w * 0.7, 26);
-      L.line(cx - ux * s * 0.6 + nx * 0.5, cy - uy * s * 0.6 + ny * 0.5, cx, cy, 2.4, r, g, b, a * 0.8);
-      L.line(cx - ux * s * 0.6 - nx * 0.5, cy - uy * s * 0.6 - ny * 0.5, cx, cy, 2.4, r, g, b, a * 0.8);
     }
   }
 
@@ -831,12 +887,9 @@ export class GameRenderer3D {
       case 'chest_marker':
         A.circle(h.x, h.y, h.r * 1.6, 1, 0.8, 0.3, 0.22 * pulse, 0);
         break;
-      case 'swarm_lane': {
-        const prog = 1 - h.tele / Math.max(0.001, h.teleMax);
-        this.teleFill.line(h.x, h.y, h.x2, h.y2, h.r2, CAUTION[0], CAUTION[1], CAUTION[2], 0.1 + prog * 0.12, 0.02);
-        this.laneEdges(h, h.r2, CAUTION[0], CAUTION[1], CAUTION[2], 0.55);
+      case 'swarm_lane':
+        this.teleLane(h.x, h.y, h.x2, h.y2, h.r2, 1 - h.tele / Math.max(0.001, h.teleMax), h.tele, CAUTION);
         break;
-      }
       case 'lane':
         this.teleFill.line(h.x, h.y, h.x2, h.y2, h.r2, DANGER[0], DANGER[1], DANGER[2], 0.2, 0.05);
         break;
@@ -972,7 +1025,7 @@ export class GameRenderer3D {
         c.tr = bt ? bt[0] : 1; c.tg = bt ? bt[1] : 1; c.tb = bt ? bt[2] : 1;
       }
       const telegraph = e.windup > 0 ? e.windup : 0;
-      const flash = Math.min(1, e.flash * 0.9 + (e.invuln ? 0.25 : 0));
+      const flash = Math.min(1, e.flash * 0.8 + (e.invuln ? 0.2 : 0));
       if (rig) {
         // locomotion at a stride rate matched to the enemy's speed, each on its own phase;
         // the wind-up clip is driven directly by the sim's telegraph
@@ -990,7 +1043,7 @@ export class GameRenderer3D {
       // a reflection thief's decoy catches the light now and then: the only tell it isn't flesh (D-63)
       else if (e.illusion && Math.sin(this.time * 3.1 + e.idx * 1.7) > 0.9) b.tint(i, 1.35, 1.45, 1.7, 1.6);
       else if (e.stickyT > 0) b.tint(i, 1.2, 0.7, 0.95);
-      else if (e.burnT > 0 && Math.sin(this.time * 30 + e.idx) > 0.4) b.tint(i, 1.4, 0.7, 0.4);
+      else if (e.burnT > 0) b.tint(i, 1.22 + 0.08 * Math.sin(this.time * 7 + e.idx), 0.76, 0.5);
       // a cracked crust shows the raw thing underneath (D-68)
       else if (e.cracked) b.tint(i, 1.3, 0.8, 0.78);
       if (id === 'living_balloon' || id === 'swarm_balloon') {
@@ -1002,7 +1055,8 @@ export class GameRenderer3D {
         b.rimLight(i, 1.0, 0.78, 0.25, 1.4 * pulse);
         this.fxAdd.draw(star, x, y, h + 60 * s + 30, 1.1, 1.1, this.time * 2, 1, 0.85, 0.3, 0.9);
       }
-      if (telegraph > 0.05) b.rimLight(i, 1, 0.3, 0.12, 0.8 + telegraph * 1.6);
+      // the attacker's own tell: a red rim that warms through the wind-up and steps up for the strike (D-69)
+      if (telegraph > 0.05) b.rimLight(i, 1, 0.3, 0.12, telegraph > 0.82 ? 2.6 : 0.6 + telegraph * 1.3);
       if (e.shield > 0) this.addShapes.ring(x, y, e.r + 10, e.r + 14, 0.5, 0.8, 1, 0.6, 0.3);
       if (bw) this.boardwalkExtras(e, x, y, h, yaw, s, depth);
     }
@@ -1413,7 +1467,7 @@ export class GameRenderer3D {
       let pitch = 0, roll = 0;
       let s = 1;
       switch (pr.kind) {
-        case 'card': case 'gold_card': s = Math.max(1, pr.r / 9); roll = this.time * 18; break;
+        case 'card': case 'gold_card': s = Math.max(1, pr.r / 9); roll = this.time * 7 + pr.ox * 0.01; break;
         case 'tarot': case 'death_card': s = pr.kind === 'death_card' ? pr.area : 1; yaw = pr.rot; break;
         case 'shrapnel': roll = g.realTime * 20; break;
         case 'ring': s = pr.r / 12; yaw = pr.rot; h = 14; break;

@@ -115,6 +115,87 @@ understate that character.
 
 ---
 
+## Playtest round on the Boardwalk — 2026-10-31 (D-69)
+
+**Changed:** the owner's first playtest list:
+- the pier over the sand; the coaster out of the Gift Shop and the Ballroom;
+- the Gift Shop's photograph and souvenirs; realistic Arcade machines with real glass;
+- Marina labelled, with a hint before step 0;
+- less flashing everywhere; one plain telegraph language for every attack;
+- bosses 3, 4 and the secret bosses ×3 / ×2.75 / ×2.5 on all maps.
+
+Decision: D-69.
+
+**Automated:** 295 tests pass in 19 files (3 new); typecheck clean; the production build passes.
+- `summersEnd.test.ts`: before the conch, Marina answers with hints 0, 1, 2, 2 by real presses, the
+  quest stays at step 0, and after the conch she reads the photograph's fortune as before.
+- `boardwalk.test.ts`:
+  - the coaster's track (sampled at 4000 points) and every bent keep 50 clear of every building but the
+    station;
+  - no lamp or palm stands within 100 of a bent;
+  - the Gift Shop's eight stand spots and the photograph's spot are inside the shop and on open floor.
+- The full Boardwalk bot night still plays all four acts, beats every boss and reaches dawn.
+
+**In the browser (dev build, 1600×900), captures inspected:**
+- **The pier's neck over the sand,** before and after (zoom 2.4): the sand bled through the planks in
+  bands; now the deck is solid boards from the promenade to the sea, and over the waterline.
+- **The Gift Shop,** before and after:
+  - before: the coaster ran inside; the souvenirs were specks; the photo frame was buried in the wall;
+  - after: no track inside; stepped stands with readable souvenirs; the eight look-alikes on the front
+    tiers; the easel photograph legible at default zoom (Ada, the Gala Queen, her four things, the
+    caption); the floating keepsakes below the caption.
+- **The Arcade** at default zoom and 2×: every machine type, the figures behind glass, the marquees.
+- **The coaster's new route,** the narrower Ballroom, and the station gap.
+- **Telegraphs mid-wind-up** (the sim paused with the timer at 45–60%):
+  - the Barker's shout cone and falling ring toss;
+  - the Ringmaster's lane;
+  - the coaster wraith's bent rail;
+  - the Fun House marionettes' slams;
+  - the first map's slams.
+- **Quality tiers** in the Arcade and Gift Shop:
+
+  | Quality | Draw calls | Triangles |
+  |---|---|---|
+  | Low | 119–121 | 0.50–0.52M |
+  | Medium | 220–224 | 0.85–0.88M |
+  | High | 299–303 | 1.20–1.23M |
+
+**Flashing, measured** (a late-game Royal Flush fight, the same scripted 150 frames before and after):
+
+| Measure | Before | After |
+|---|---|---|
+| Blown-out pixels (>235), peak | 0.84% | 0.15% |
+| Blown-out pixels, mean | 0.24% | 0.10% |
+| Frame-to-frame flicker (mean abs. luminance change) | 12.3 | 10.8 |
+| Pixels jumping >60 levels per frame | 3.4% | 3.2% |
+| Mean luminance | 66 | 58 |
+
+The biggest single fix was the hit flash: a Big Top under constant hits rendered as a white blob, and
+now reads as its striped tent.
+
+**Boss fight length,** with `scripts/bossttk.ts` (a bot with a strong build, two evolutions at 18:00
+and four at 24:00, god mode, timed in ticks; two builds × one seed each):
+
+| Map | 18:00 boss | 24:00 boss | Secret boss |
+|---|---|---|---|
+| Carnival Core | Puppet King 62 s | Ringmaster 68 s | Calliope 140 s |
+| Fun House | Stringmistress 74 s | Proprietor 49 s | Unreflected 64 s |
+| Boardwalk | Last Ride 53 s (was 13) | Leviathan 44 s (was 26) | Commodore 58 s (was 33) |
+
+- Before the change the same builds killed bosses 3–4 in roughly 13–26 s on every map.
+- The test suite's competent bot drafting for itself (`smartDraft` / `smartPilot`) is very noisy: on
+  weak seeds it already took 5–6 minutes over the unchanged early bosses, and its late fights now run
+  long. This matches the project's experience that bots lag human builds badly. Watch for slow builds
+  in real play.
+
+**Not verified:**
+- A person playing the changes, including whether the new boss lengths feel right.
+- Co-op on two machines (no network changes in this round; PROTO is still 10).
+- Mobile viewports.
+- Audio (unchanged).
+
+---
+
 ## The Boardwalk, a third map — 2026-10-31 (D-68)
 
 **Added:** Penhallow's Boardwalk, with:

@@ -77,6 +77,27 @@ describe("Summer's End: the night's puzzles (D-68)", () => {
   });
 });
 
+describe("Summer's End: Madame Marina before the first step (D-69)", () => {
+  it('tells how the night begins, plainer each time she is asked, without starting the quest', () => {
+    const g = bw();
+    const ch = chainOf(g);
+    const hints: number[] = [];
+    g.bus.on('quest', (q) => q.chain === 'summers_end' && q.event === 'se_hint' && hints.push(q.a ?? -1));
+    expect(ch.interaction(S.marina.x, S.marina.y)?.label).toBe('Ask Madame Marina');
+    for (let k = 0; k < 4; k++) {
+      pressWhen(g, S.marina.x, S.marina.y);
+      stand(g, S.marina.x, S.marina.y, 3);
+    }
+    expect(hints).toEqual([0, 1, 2, 2]);
+    expect(ch.stage).toBe(SE.Conch);
+    // once the conch is found she reads the photograph's fortune as before
+    pressWhen(g, ch.conchSpot().x, ch.conchSpot().y, () => isLowTide(g.time));
+    expect(ch.stage).toBe(SE.Marina);
+    pressWhen(g, S.marina.x, S.marina.y);
+    expect(ch.stage).toBe(SE.Photograph);
+  });
+});
+
 describe("Summer's End, solo (D-68)", () => {
   it('runs from the conch to the True Dawn', () => {
     const g = bw();

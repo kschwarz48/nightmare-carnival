@@ -68,13 +68,13 @@ export class PrizeOverlay implements PrizeUi {
   }
 }
 
-/** A fortune card slid out of Zoltana's machine. Fades on its own; never blocks play. */
+/** A fortune card slid out of a fortune machine (Zoltana's, or Madame Marina's). Fades on its own; never blocks play. */
 export class FortuneCard {
   root = h('div', { class: 'fortune hidden' });
   private timer = 0;
 
-  show(text: string, seconds = 9): void {
-    this.root.replaceChildren(h('div', { class: 'fortune-head' }, '❖ ZOLTANA SPEAKS ❖'), h('div', { class: 'fortune-text' }, text), h('div', { class: 'fortune-foot' }, '— your fortune —'));
+  show(text: string, seconds = 9, who = 'ZOLTANA'): void {
+    this.root.replaceChildren(h('div', { class: 'fortune-head' }, `❖ ${who} SPEAKS ❖`), h('div', { class: 'fortune-text' }, text), h('div', { class: 'fortune-foot' }, '— your fortune —'));
     this.root.classList.remove('hidden');
     this.root.style.animation = 'none';
     void this.root.offsetWidth;

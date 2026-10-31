@@ -115,10 +115,10 @@ function coffin(): THREE.BufferGeometry {
 }
 
 // ---------------------------------------------------------------- player projectiles
-function card(face: number, back: number, size = 1): THREE.BufferGeometry {
+function card(face: number, back: number, size = 1, glow = 1): THREE.BufferGeometry {
   const m = new ModelBuilder();
-  m.add(rbox(10 * size, 0.6, 14 * size, 1, 1), { col: back, surf: SURF.paint, emit: 0.3 });
-  m.add(rbox(7 * size, 0.7, 11 * size, 0.6, 1), { col: face, surf: SURF.paint, emit: 0.4 });
+  m.add(rbox(10 * size, 0.6, 14 * size, 1, 1), { col: back, surf: SURF.paint, emit: 0.3 * glow });
+  m.add(rbox(7 * size, 0.7, 11 * size, 0.6, 1), { col: face, surf: SURF.paint, emit: 0.4 * glow });
   return m.build({ ao: 0 });
 }
 
@@ -430,7 +430,7 @@ export const ITEM_MODELS: Record<string, ModelDef> = {
   coffin: { build: coffin, rim: [0.7, 0.8, 1, 0.35], shadow: true },
   // player projectiles
   card: { build: () => card(PAL.cream, PAL.blood), rim: NO_RIM },
-  gold_card: { build: () => card(0xfff0b0, PAL.gold, 1.2), rim: NO_RIM },
+  gold_card: { build: () => card(0xe8d4a0, PAL.gold, 1.2, 0.5), rim: NO_RIM },
   tarot: { build: () => card(PAL.lilac, PAL.velvet, 1.1), rim: NO_RIM },
   death_card: { build: () => card(PAL.bone, PAL.ink, 1.5), rim: NO_RIM },
   dart: { build: dart, rim: NO_RIM },

@@ -785,13 +785,16 @@ export class BossRigs {
         // the whole stage burns except the one lamp the song is singing about
         const tele = h.tele > 0;
         const prog = tele ? 1 - h.tele / Math.max(0.001, h.teleMax) : 1;
-        r.teleFill.circle(h.x, h.y, h.r, 1, 0.25, 0.12, tele ? 0.1 + prog * 0.22 : 0.45, tele ? 0.05 : 0.3);
+        if (tele) r.teleCircle(h.x, h.y, h.r, prog, h.tele);
+        else {
+          r.teleFill.circle(h.x, h.y, h.r, 1, 0.25, 0.12, 0.42, 0.42);
+          r.teleLine.ring(h.x, h.y, h.r - 3, h.r, 1, 0.25, 0.12, 0.9, 0.9);
+        }
         if (h.holeR > 0) {
           r.zoneShapes.circle(h.holeX, h.holeY, h.holeR, 0.05, 0.12, 0.08, 0.9, 0.9);
-          r.addShapes.circle(h.holeX, h.holeY, h.holeR, 0.4, 1, 0.65, 0.45 * pulse, 0.1);
+          r.addShapes.circle(h.holeX, h.holeY, h.holeR, 0.4, 1, 0.65, 0.3, 0.1);
           r.teleLine.ring(h.holeX, h.holeY, h.holeR - 4, h.holeR, 0.4, 1, 0.6, 1, 1);
         }
-        r.teleLine.ring(h.x, h.y, h.r - 4, h.r, 1, 0.25, 0.12, 0.8 * pulse, 0.8 * pulse);
         return true;
       }
       // the Fun House's (D-63): broken glass glitters, mirror walls and beams are cold light
@@ -810,9 +813,9 @@ export class BossRigs {
       case 'beam': {
         if (h.tele > 0) return false;
         const w = Math.max(4, h.r2);
-        r.addShapes.line(h.x, h.y, h.x2, h.y2, w + 10, 0.6, 0.9, 1, h.style === 'beam' ? 0.75 : 0.45, 0);
+        r.addShapes.line(h.x, h.y, h.x2, h.y2, w + 10, 0.6, 0.9, 1, h.style === 'beam' ? 0.5 : 0.3, 0);
         r.teleFill.line(h.x, h.y, h.x2, h.y2, w * 0.6, 0.85, 0.97, 1, 0.9, 0.9);
-        r.teleLine.line(h.x, h.y, h.x2, h.y2, 2.2, 1, 0.3, 0.2, 0.85 * pulse);
+        r.teleLine.line(h.x, h.y, h.x2, h.y2, 1.1, 1, 0.3, 0.2, 0.85);
         return true;
       }
       // the Boardwalk's (D-68)
@@ -833,9 +836,9 @@ export class BossRigs {
         // a wall of black water with white water riding its crest
         const w = Math.max(4, h.r2);
         r.teleFill.line(h.x, h.y, h.x2, h.y2, w, 0.05, 0.12, 0.16, 0.75, 0.75);
-        r.addShapes.line(h.x, h.y, h.x2, h.y2, w + 22, 0.7, 0.9, 1, 0.45, 0);
-        r.addShapes.line(h.x, h.y - w * 0.5, h.x2, h.y2 - w * 0.5, w * 0.5, 1, 1, 1, 0.65, 0);
-        r.teleLine.line(h.x, h.y + w, h.x2, h.y2 + w, 2.2, 1, 0.3, 0.2, 0.8 * pulse);
+        r.addShapes.line(h.x, h.y, h.x2, h.y2, w + 22, 0.7, 0.9, 1, 0.3, 0);
+        r.addShapes.line(h.x, h.y - w * 0.5, h.x2, h.y2 - w * 0.5, w * 0.5, 1, 1, 1, 0.42, 0);
+        r.teleLine.line(h.x, h.y + w, h.x2, h.y2 + w, 1.1, 1, 0.3, 0.2, 0.85);
         return true;
       }
       case 'whirlpool': {
@@ -844,10 +847,13 @@ export class BossRigs {
         const k = tele ? 1 - h.tele / Math.max(0.001, h.teleMax) : 1;
         for (let i = 0; i < 4; i++) {
           const rr = (1 - ((t * 0.6 + i / 4) % 1)) * 420;
-          r.addShapes.ring(h.x, h.y, Math.max(0, rr - 6), rr, 0.7, 0.9, 1, (tele ? 0.12 : 0.25) * k, 0.03);
+          r.addShapes.ring(h.x, h.y, Math.max(0, rr - 6), rr, 0.7, 0.9, 1, (tele ? 0.1 : 0.18) * k, 0.03);
         }
-        r.teleFill.circle(h.x, h.y, h.r, 1, 0.25, 0.15, tele ? 0.2 * k : 0.5, 0.3);
-        r.teleLine.ring(h.x, h.y, h.r - 3, h.r, 1, 0.3, 0.2, 0.9 * pulse, 0.9 * pulse);
+        if (tele) r.teleCircle(h.x, h.y, h.r, k, h.tele);
+        else {
+          r.teleFill.circle(h.x, h.y, h.r, 1, 0.25, 0.15, 0.42, 0.42);
+          r.teleLine.ring(h.x, h.y, h.r - 3, h.r, 1, 0.3, 0.2, 0.9, 0.9);
+        }
         return true;
       }
       case 'track':
@@ -855,36 +861,32 @@ export class BossRigs {
         // the Last Ride lays its own track: two glowing rails and the ties between them
         if (h.tele <= 0) return true;
         const k = 1 - h.tele / Math.max(0.001, h.teleMax);
+        // the telegraph is the track it's about to run: two thin rails inside the plain lane
         if (h.shape === 'annulus') {
-          for (const rr of [h.r2 + 6, h.r - 6]) r.addShapes.ring(h.x, h.y, rr - 3, rr + 3, 1, 0.55, 0.3, 0.5 + 0.4 * k, 0.5 + 0.4 * k);
-          r.teleFill.ring(h.x, h.y, h.r2, h.r, 1, 0.25, 0.12, 0.12 + 0.2 * k, 0.12 + 0.2 * k);
+          r.teleBand(h.x, h.y, h.r2, h.r, k, h.tele);
+          for (const rr of [h.r2 + 8, h.r - 8]) r.addShapes.ring(h.x, h.y, rr - 1.5, rr + 1.5, 1, 0.55, 0.3, 0.35, 0.35);
           return true;
         }
         const dx = h.x2 - h.x, dy = h.y2 - h.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, w = h.r2 * 0.55;
-        const reach = Math.min(1, k * 2.2);
-        const ex = h.x + dx * reach, ey = h.y + dy * reach;
-        for (const s of [-1, 1]) r.addShapes.line(h.x + nx * w * s, h.y + ny * w * s, ex + nx * w * s, ey + ny * w * s, 5, 1, 0.55, 0.3, 0.7 + 0.3 * pulse, 0);
-        for (let d = 0; d < L * reach; d += 34) {
-          const cx = h.x + (dx / L) * d, cy = h.y + (dy / L) * d;
-          r.teleLine.line(cx - nx * w * 1.2, cy - ny * w * 1.2, cx + nx * w * 1.2, cy + ny * w * 1.2, 3, 1, 0.3, 0.15, 0.6);
-        }
-        r.teleFill.line(h.x, h.y, h.x2, h.y2, h.r2, 1, 0.25, 0.12, 0.1 + 0.15 * k, 0.05);
+        r.teleLane(h.x, h.y, h.x2, h.y2, h.r2, k, h.tele);
+        for (const s of [-1, 1]) r.addShapes.line(h.x + nx * w * s, h.y + ny * w * s, h.x2 + nx * w * s, h.y2 + ny * w * s, 1.6, 1, 0.55, 0.3, 0.35, 0.35);
         return true;
       }
       case 'duck_lane': {
         if (h.tele <= 0) return true;
         const k = 1 - h.tele / Math.max(0.001, h.teleMax);
-        r.teleFill.line(h.x, h.y, h.x2, h.y2, h.r2, 1, 0.8, 0.3, 0.12 + 0.2 * k, 0.05);
-        r.laneEdges(h, h.r2, 1, 0.75, 0.3, 0.7 * pulse);
+        r.teleLane(h.x, h.y, h.x2, h.y2, h.r2, k, h.tele, [1, 0.78, 0.3]);
         return true;
       }
       case 'debt': {
         // red ink ruled across the stage
         const tele = h.tele > 0;
         const k = tele ? 1 - h.tele / Math.max(0.001, h.teleMax) : 1;
-        r.teleFill.line(h.x, h.y, h.x2, h.y2, h.r2, 0.75, 0.08, 0.06, tele ? 0.15 + 0.3 * k : 0.85, tele ? 0.05 : 0.6);
-        if (!tele) r.addShapes.line(h.x, h.y, h.x2, h.y2, h.r2 + 10, 1, 0.3, 0.2, 0.5, 0);
-        else r.teleLine.line(h.x, h.y, h.x2, h.y2, 2, 1, 0.25, 0.2, 0.8 * pulse);
+        if (tele) r.teleLane(h.x, h.y, h.x2, h.y2, h.r2, k, h.tele, [0.85, 0.12, 0.08]);
+        else {
+          r.teleFill.line(h.x, h.y, h.x2, h.y2, h.r2, 0.75, 0.08, 0.06, 0.85, 0.6);
+          r.addShapes.line(h.x, h.y, h.x2, h.y2, h.r2 + 10, 1, 0.3, 0.2, 0.3, 0);
+        }
         return true;
       }
       case 'steam': {

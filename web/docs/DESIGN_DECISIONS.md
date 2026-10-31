@@ -664,3 +664,104 @@ and teleports, and the prize wheel dull and see-through.
   - The ocean is two draw calls with a camera-following grid of 220×170 / 150×116 / 96×74 cells by
     quality.
 - **PROTO 10.** A new map id, two status bits and the quest's bytes on the wire.
+
+### D-69 · Playtest round on the Boardwalk: the pier, the coaster, a readable Gift Shop and Arcade, Marina's hint, less flashing, plain telegraphs, tankier late bosses
+- **The report** (the owner's first playtest of map 3):
+  - The pier's neck over the sand was bugged.
+  - The coaster ran through the Gift Shop, visible inside.
+  - Nothing in the Gift Shop showed, the photograph showed nothing, and the quest was confusing.
+  - The fortune machine wasn't labelled like Zoltana.
+  - The Arcade was "basically just rectangles" (keep the art style, but make things look real).
+  - Flashing was far too aggressive mid-late game with an evolution like Royal Flush: less overall
+    flash, especially from abilities, and softer enemy hit flashes.
+  - Iterate on the attack telegraphs: clean, not over-designed, the spot and an animation that say
+    exactly when damage lands.
+  - Marina should give a hint before step 0.
+  - Bosses 3 and on need significantly more health (players with evolutions shred them before their
+    mechanics show).
+- **The pier.** Its deck stood exactly at the sand's height, so the floor fought the planks
+  (z-fighting) along the whole neck. Three changes:
+  - the floor's vertex shader drops the sand (and the low water's mud) away under every deck, with the
+    slope kept under the deck's edges;
+  - the floor material has a polygon offset, so it loses depth ties to anything lying flush on it;
+  - the ocean discards crests that would rise through the planks.
+- **The coaster.** Three control points sat inside the Gift Shop, and both of its legs ran through the
+  Starlight Ballroom (track and bents alike).
+  - The track now climbs in the gap between the Gift Shop and the station, passes east of the
+    Ballroom, and comes home between the Ballroom and the station.
+  - The Ballroom is narrower (x 3290..3740) and drops its inner towers when narrow.
+  - Lamps and palms are skipped where a bent stands.
+  - The lift-hill tide lamp moved with the track, to (2290, −1700).
+  - A test keeps the track and its bents out of every building but the station.
+- **The Gift Shop.** Three bugs:
+  - The photograph's frame was modelled inside the north wall, and no picture was ever painted in it.
+  - The keepsakes were drawn inside the shelf units, at hand size, on shelving whose stretch also
+    squashed every souvenir.
+
+  Now:
+  - The photograph stands on an easel at the back of the shop, leaning back toward the camera under a
+    picture lamp. It is painted on a canvas from the quest's replicated keepsake mask: Ada at nine, the
+    Gala Queen behind her, her four things large on the boards in front of her.
+  - The stands are stepped and built to their own length (the variant carries it), with souvenirs on
+    the upper tiers and banker's lamps on their crests that are the shop's light sources.
+  - The eight look-alikes stand on the front tiers at 2.4×.
+  - The north row moved 20 south to open the aisle.
+- **The Arcade** (`furnishings.ts`). The machines were boxes, and every "glass" case was an opaque box
+  that hid what was inside. Now:
+  - mutoscopes on fluted pedestals with hoods and cranks; pinball tables with lit playfields and
+    backglasses; a love tester; a punching-bag strength tester; skee-ball alleys side by side; a real
+    claw machine with its prize heap; a caged change booth; the gallery with chained rifles and a
+    valance;
+  - Marina and the Laughing Sailor as visible figures;
+  - all glass in one translucent mesh;
+  - painted marquees (MADAME MARINA, THE CRANE, LAUGHING SAILOR, CHANGE, SHOOTING GALLERY).
+- **Madame Marina.**
+  - Her fortune card used to read "ZOLTANA SPEAKS" (hard-coded). Cards now name their machine.
+  - Before the conch is found, pressing at her prints a hint, plainer each time (three lines, the last
+    repeating). The quest doesn't advance, and her crystal glows faintly while the hint is unasked.
+  - The chain's interaction list offers it; it is host-side and replicated as a cue like every other
+    step.
+- **Flashing** (everything that fires per hit or per kill):
+  - **Hit flash:** blends 0.6 of the way to a warm light tone over the model's own colours, instead of
+    mixing fully to 1.6× white. That made big enemies blow out into white blobs under constant hits.
+  - **Hit sparks and crit stars:** dimmer, smaller, and rate-limited by refilling budgets (45/s and
+    14/s).
+  - **Light pulses:** at most six at once (was 15), squared fade, smaller and dimmer explosion lights.
+  - **Additive shapes:** rings, explosion fills and slashes softer.
+  - **Evolution, level-up and chest:** their flashes are smaller.
+  - **Gold cards:** half the glow, spinning at 7 rad/s instead of 18 (a fast-flipping bright face across
+    dozens of cards glittered like a strobe).
+  - **Boss phase change:** the 4.8 Hz strobe is now a slow breath.
+  - **Burning enemies:** smoulder instead of strobing.
+  - **Measured** (late-game Royal Flush fight, 150 frames): peak blown-out pixels 0.84% → 0.15%; mean
+    0.24% → 0.10%; frame-to-frame flicker 12.3 → 10.8; mean brightness 66 → 58.
+- **Telegraphs.** One plain language for every enemy and boss attack (`renderer3d.ts`: `teleCircle`,
+  `teleBand`, `teleSector`, `teleLane`):
+  - the spot, a quiet flat fill of exactly where it will hit;
+  - a crisp steady edge;
+  - a timer fill growing from the attacker's side, with a thin front, reaching the edge at the instant
+    the damage lands;
+  - in the last 0.2 s the edge steps up once ("now");
+  - when it lands, the spot fills solid and fades over the hazard's active window.
+
+  Removed: the crawling hatch stripes, the 2.9 Hz pulsing edges, the chevrons running along lanes and
+  the edge glow. The boss-specific warnings (crescendo, whirlpool, the Last Ride's track, duck lanes,
+  debt) use the same helpers. The attacker's own tell matches: its wind-up clip and red rim run on the
+  same timer, and the rim steps up for the strike.
+- **Late bosses**, on all three maps (they share one curve, and the reason holds everywhere):
+
+  | Gate | Change | Bosses (new health) |
+  |---|---|---|
+  | 18:00 | ×3.0 | Puppet King 96,000 · Stringmistress 99,000 · Last Ride 100,500 |
+  | 24:00 | ×2.75 | Ringmaster 154,000 · Proprietor 159,500 · Leviathan 162,250 |
+  | secret | ×2.5 | Calliope 155,000 · Unreflected 160,000 · Commodore 165,000 |
+
+  - Their Encore (enrage) timers doubled, to 200 / 240 / 260 s, so the longer fights don't routinely
+    meet it.
+  - The Last Ride's cars now pass on 30% of a hit (`carShare`). Every car used to count in full, so one
+    sweep across the train was six hits on the boss; it died twice as fast as the other 18:00 bosses.
+  - Measured with `scripts/bossttk.ts` (a bot with a strong build, two evolutions at 18:00 and four at
+    24:00, timed in ticks because the clock stalls at 24:59). The Boardwalk's three went from 13 / 26 /
+    33 s to 53 / 44 / 58 s. Across the maps, bosses 3–4 now last 44–74 s with that build, and the
+    secret bosses 58–140 s.
+  - The early bosses are unchanged.

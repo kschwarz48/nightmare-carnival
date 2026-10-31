@@ -16,12 +16,13 @@ import { pierGeometry } from './pier';
 import { buildStructures } from './structures';
 import { Interiors } from './interiors';
 import { BW_PROPS, BW_SKIP } from './props';
+import { glassGeometry } from './furnishings';
 import { Rides } from './rides';
 import { BoardwalkLighting } from './lighting';
 import { BoardwalkQuest } from './quest';
 
 /** Props stretched along their length (`w`) rather than placed at a fixed size. */
-const STRETCH: Record<string, number> = { bw_rail: 100, bw_shelf: 100 };
+const STRETCH: Record<string, number> = { bw_rail: 100 };
 
 export class BoardwalkWorld {
   readonly root = new THREE.Group();
@@ -77,6 +78,15 @@ export class BoardwalkWorld {
       b.freeze();
       this.root.add(b.mesh);
       this.statics.push(b);
+    }
+    // the glass of every case, booth and table: one translucent mesh, so what stands behind it shows
+    const glass = glassGeometry(PROPS);
+    if (glass) {
+      const mat = actorMaterial({ transparent: true, opacity: 0.16, envIntensity: 1.2 });
+      mat.depthWrite = false;
+      const mesh = new THREE.Mesh(glass, mat);
+      mesh.renderOrder = 4;
+      this.root.add(mesh);
     }
     this.lighting = new BoardwalkLighting(this.root, [...st.bulbs, ...this.interiors.bulbs, ...this.rides.bulbs], st.windows);
     this.shafts = this.lighting.shafts;

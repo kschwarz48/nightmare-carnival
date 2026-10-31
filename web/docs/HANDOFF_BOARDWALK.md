@@ -32,7 +32,8 @@ Design: `BOARDWALK.md`. Quest solution (developer-only): `EASTER_EGG_BOARDWALK.m
 | Sea, coaster, spawns | `src/sim/boardwalk.ts` |
 | Bosses | `src/sim/bosses/bwBoss.ts`, `barker.ts`, `captain.ts`, `lastRide.ts`, `leviathan.ts`, `commodore.ts`; rigs in `src/render3d/boardwalkBosses.ts`; portraits in `src/render/art/boardwalkBosses.ts` |
 | Quest | `src/sim/quest/summersEnd.ts`; world visuals in `src/render3d/world/boardwalk/quest.ts`; presentation in `src/app.ts` (`onSummersEnd`) |
-| World | `src/render3d/world/boardwalk/` (`world.ts` assembles `floor`, `ocean`, `pier`, `structures`, `interiors`, `props`, `rides`, `lighting`, `quest`) |
+| World | `src/render3d/world/boardwalk/` (`world.ts` assembles `floor`, `ocean`, `pier`, `structures`, `interiors`, `props`, `furnishings` (the Arcade's machines, the Gift Shop's stands and cases, the glass mesh), `rides`, `lighting`, `quest`, `photo` (the 1933 photograph's canvas)) |
+| Telegraphs (all maps) | `src/render3d/renderer3d.ts`: `teleCircle` / `teleBand` / `teleSector` / `teleLane` (D-69); boss-specific styles in `src/render3d/bosses.ts` use the same helpers |
 | Audio | `src/audio/audio.ts` (`bw_*` waltz themes, three ambience beds, `setShoreMix`), `src/audio/synth.ts` (new SFX) |
 | Tests | `tests/boardwalk.test.ts`, `tests/boardwalkBosses.test.ts`, `tests/summersEnd.test.ts` |
 
@@ -46,13 +47,21 @@ Design: `BOARDWALK.md`. Quest solution (developer-only): `EASTER_EGG_BOARDWALK.m
 - **Bosses:** HP in `data/bosses.ts`; per-attack timings and damage in each boss file; tuning exports
   (`BARKER`, `CAPTAIN`, `LAST_RIDE`, `LEVIATHAN`, `COMMODORE`) are what the tests read.
 - **Quest:** `SUMMERS_END` in `data/boardwalk.ts` (windows, fire time, bell hold, strike range).
-- **Measuring:** `npx vite-node scripts/maphp.ts 3 carnival_core,fun_house,boardwalk` compares crowd
-  health per spawn across the maps.
+- **Measuring:**
+  - `npx vite-node scripts/maphp.ts 3 carnival_core,fun_house,boardwalk` compares crowd health per spawn
+    across the maps.
+  - `npx vite-node scripts/bossttk.ts 2` times each late boss against strong builds (D-69). Add
+    `natural` as the fourth argument for ordinary bot nights.
+- **Late bosses** (D-69): ×3 / ×2.75 / ×2.5 health for 18:00 / 24:00 / secret; Encore timers 200 / 240 /
+  260 s; the Last Ride's `carShare` (0.3).
 
 Per the standing rule, tune from playtests in small steps (about 10–20%); bots only rule out extremes.
 
 ## Weak spots and next steps
 
+0. **D-69 playtest fixes** (the pier, the coaster, the Gift Shop, the Arcade, Marina's hint, flashing,
+   telegraphs, late-boss health) are in; see `QA_REPORT.md`. The new boss lengths are measured with
+   bots only; the owner's next playtest decides the next nudge.
 1. **The beach is the weakest view:** dark, sparse and low-contrast, even after the lantern and fire-pit
    pass. It needs more dressing (snow fences, washed-up debris, footprints into the surf) and maybe a
    touch more moonlight on wet sand.

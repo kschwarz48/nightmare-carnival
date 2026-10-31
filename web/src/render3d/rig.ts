@@ -29,7 +29,7 @@ export abstract class Rig {
     return n;
   }
   state(b: BossBase, time: number, tint: [number, number, number, number] = [1, 1, 1, 1], rim: [number, number, number, number] = [0.9, 0.5, 0.3, 0.5]): void {
-    const fl = b.flash * 0.6 + (b.transitioning ? 0.35 + 0.35 * Math.sin(time * 30) : 0);
+    const fl = b.flash * 0.7 + (b.transitioning ? 0.45 + 0.15 * Math.sin(time * 5) : 0);
     setObjectState(this.mat, time * 2, b.windup, Math.min(1, fl), 1, tint, b.windup > 0.05 ? [1, 0.3, 0.12, 0.8 + b.windup * 1.5] : rim);
   }
 }
