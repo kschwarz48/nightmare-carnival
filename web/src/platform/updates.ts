@@ -56,13 +56,14 @@ export class UpdateChecker {
       if (!r.ok) throw new Error(`version.json ${r.status}`);
       const m = (await r.json()) as Manifest;
       if (!m || typeof m.id !== 'string' || typeof m.time !== 'string') throw new Error('bad version.json');
+      // a new manifest is news too (the first one, or a deploy): it may carry a desktop download to show
+      const was = [this.available, this.incompatible, this.offline, this.latest?.id ?? ''].join();
       this.latest = m;
-      const was = [this.available, this.incompatible, this.offline].join();
       // only a newer build is an update (an older one live means this game is ahead, e.g. a local build)
       this.available = m.id !== this.build.id && Date.parse(m.time) > Date.parse(this.build.time);
       this.incompatible = this.available && (m.proto !== this.build.proto || m.sim !== this.build.sim);
       this.offline = false;
-      if ([this.available, this.incompatible, this.offline].join() !== was) this.onChange();
+      if ([this.available, this.incompatible, this.offline, m.id].join() !== was) this.onChange();
       return m;
     } catch {
       if (!this.offline) {

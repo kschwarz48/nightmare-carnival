@@ -106,6 +106,19 @@ describe('live update checks', () => {
     expect(changes).toBeGreaterThanOrEqual(3);
   });
 
+  it('reports the first manifest even when this game is the live build (it may carry the desktop download)', async () => {
+    const c = new UpdateChecker('https://example.test/version.json', build);
+    let changes = 0;
+    c.onChange = () => changes++;
+    serve({ ...live({}), id: build.id, time: build.time, desktop: { windows: { version: '0.1.0', url: 'https://example.test/setup.exe' } } });
+    await c.check(true);
+    expect(c.available).toBe(false);
+    expect(changes).toBe(1);
+    expect(c.latest?.desktop?.windows?.url).toBe('https://example.test/setup.exe');
+    await c.check(true);
+    expect(changes).toBe(1); // the same manifest again is no news
+  });
+
   it('checks at most once a minute unless forced, and never under the dev server', async () => {
     const c = new UpdateChecker('https://example.test/version.json', build);
     serve(live({}));
