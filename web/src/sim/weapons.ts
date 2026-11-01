@@ -149,7 +149,7 @@ export class Weapons {
   hit(w: WeaponInst, t: Target, base: number, ox: number, oy: number, kbMult = 1): void {
     const r = this.roll(w, base);
     this.g.damageTarget(t, r.dmg, r.crit, w.def.knockback * kbMult, ox, oy, w.def.id);
-    if (r.crit) this.g.fx.push('crit', t.x, t.y);
+    if (r.crit) this.g.fx.own('crit', t.x, t.y);
   }
 
   schedule(delay: number, fn: () => void): void {
@@ -309,10 +309,10 @@ export class Weapons {
       const pound = w.n % 4 === 0;
       this.cast(w, (ox, oy, mult) => {
         this.g.forEachTargetInCircle(ox, oy, R, (t) => this.hit(w, t, this.damage(w) * mult, ox, oy));
-        this.g.fx.push('slash', ox, oy, w.n * 1.7, Math.PI, R, 'frenzy');
+        this.g.fx.own('slash', ox, oy, w.n * 1.7, Math.PI, R, 'frenzy');
         if (pound) {
           this.g.forEachTargetInCircle(ox, oy, R * 1.5, (t) => this.hit(w, t, this.damage(w) * 1.5 * mult, ox, oy, 1.5));
-          this.g.fx.push('ring', ox, oy, R * 1.5, 0, 0, 'pound');
+          this.g.fx.own('ring', ox, oy, R * 1.5, 0, 0, 'pound');
           this.g.fx.push('shake', ox, oy, 0.3);
         }
       });
@@ -327,7 +327,7 @@ export class Weapons {
         this.g.forEachTargetInCircle(ox, oy, R, (t) => {
           if (inSector(t.x, t.y, ox, oy, ang, 1.15, R, t.r)) this.hit(w, t, this.damage(w) * mult, ox, oy);
         });
-        this.g.fx.push('slash', ox, oy, ang, 1.15, R, 'mallet');
+        this.g.fx.own('slash', ox, oy, ang, 1.15, R, 'mallet');
       };
       swing(a);
       if (n >= 2) this.schedule(0.14, () => swing(a + Math.PI));
@@ -335,7 +335,7 @@ export class Weapons {
         const p = this.g.player;
         const cx = mult === 1 ? p.x : ox, cy = mult === 1 ? p.y : oy;
         this.g.forEachTargetInCircle(cx, cy, R * 0.9, (t) => this.hit(w, t, this.damage(w) * 0.8 * mult, cx, cy, 1.4));
-        this.g.fx.push('ring', cx, cy, R * 0.9, 0, 0, 'pound');
+        this.g.fx.own('ring', cx, cy, R * 0.9, 0, 0, 'pound');
       });
     });
     this.sfx('whack', 0.45);
@@ -404,13 +404,13 @@ export class Weapons {
     const bumpR = 105 * this.area(w);
     this.cast(w, (ox, oy, mult) => {
       this.g.forEachTargetInCircle(ox, oy, bumpR, (t) => this.hit(w, t, this.damage(w) * 1.6 * mult, ox, oy, 0.8));
-      this.g.fx.push('ring', ox, oy, bumpR, 0, 0, 'pound');
+      this.g.fx.own('ring', ox, oy, bumpR, 0, 0, 'pound');
     });
     p.dashT = this.duration(w);
     p.dashX = p.faceX;
     p.dashY = p.faceY;
     p.dashSpeed = this.speed(w);
-    this.g.fx.push('dust', p.x, p.y, 1);
+    this.g.fx.own('dust', p.x, p.y, 1);
     this.sfx('coaster', 0.5);
     const escorts = this.amount(w) - 1;
     for (let i = 0; i < escorts; i++) {
@@ -493,7 +493,7 @@ export class Weapons {
       mine.push(s);
     }
     w.n += n;
-    this.g.fx.push('spark', p.x, p.y - 30, 6, 0, 0, 'magic');
+    this.g.fx.own('spark', p.x, p.y - 30, 6, 0, 0, 'magic');
     this.sfx('hatpop', 0.45);
   }
 
@@ -635,7 +635,7 @@ export class Weapons {
             });
           });
         }
-        this.g.fx.push('slash', ox, oy, a, 0.45, R, 'cotton');
+        this.g.fx.own('slash', ox, oy, a, 0.45, R, 'cotton');
       }
     });
     this.sfx('spray', 0.3);
@@ -695,7 +695,7 @@ export class Weapons {
           p.crit = w.def.critBonus ?? 0;
         }
       }
-      this.g.fx.push('spark', ox + aim.x * 20, oy + aim.y * 20, 6, base, 0, 'smoke');
+      this.g.fx.own('spark', ox + aim.x * 20, oy + aim.y * 20, 6, base, 0, 'smoke');
     });
     this.g.fx.push('shake', this.g.player.x, this.g.player.y, 0.15);
     this.sfx('cannon', 0.55);
@@ -711,7 +711,7 @@ export class Weapons {
         this.hit(w, t, this.damage(w) * (t.isBoss ? STORM_BITE : 1), p.x, p.y);
         if (!t.isBoss) this.g.applyChill(t as Enemy, 2, this.duration(w));
       });
-      this.g.fx.push('ring', p.x, p.y, R, 0, 0, 'blizzard');
+      this.g.fx.own('ring', p.x, p.y, R, 0, 0, 'blizzard');
       this.sfx('frost', 0.3);
       return;
     }
@@ -728,7 +728,7 @@ export class Weapons {
           this.hit(w, t, this.damage(w) * mult * (t.isBoss ? UNCHILLED : 1), ox, oy);
           if (!t.isBoss) this.g.applyChill(t as Enemy, 1, this.duration(w));
         });
-        this.g.fx.push('slash', ox, oy, a, 0.5, R, 'frost');
+        this.g.fx.own('slash', ox, oy, a, 0.5, R, 'frost');
       }
     });
     this.sfx('frost', 0.3);
@@ -756,7 +756,7 @@ export class Weapons {
           });
         });
       }
-      this.g.fx.push('ring', p0.x, p0.y, maxR, 0, 0, 'inferno');
+      this.g.fx.own('ring', p0.x, p0.y, maxR, 0, 0, 'inferno');
       for (let i = 0; i < 5; i++) {
         const a = this.g.rng.angle();
         const d = this.g.rng.range(40, maxR);
@@ -788,7 +788,7 @@ export class Weapons {
             });
           });
         }
-        this.g.fx.push('slash', ox, oy, a, 0.38, R, 'fire');
+        this.g.fx.own('slash', ox, oy, a, 0.38, R, 'fire');
       }
     });
     this.sfx('flame', 0.3);
@@ -888,7 +888,7 @@ export class Weapons {
             e.kbY = (dy / d) * 520;
           }
         });
-        this.g.fx.push('ring', p.x, p.y, ringR + 260, 1, 0, 'gravity');
+        this.g.fx.own('ring', p.x, p.y, ringR + 260, 1, 0, 'gravity');
         this.sfx('gravity', 0.4);
       }
     }
@@ -949,10 +949,10 @@ export class Weapons {
               this.g.damageTarget(tt, d, true, w.def.knockback * 1.5, x, y, w.def.id);
             } else this.hit(w, tt, this.damage(w), x, y);
           });
-          this.g.fx.push('ring', x, y, R, jackpot ? 1 : 0, 0, jackpot ? 'jackpot' : 'bell');
-          this.g.fx.push('spark', x, y, 8, 0, 0, jackpot ? 'gold' : 'dust');
+          this.g.fx.own('ring', x, y, R, jackpot ? 1 : 0, 0, jackpot ? 'jackpot' : 'bell');
+          this.g.fx.own('spark', x, y, 8, 0, 0, jackpot ? 'gold' : 'dust');
           if (jackpot) {
-            this.g.fx.push('text', x, y - 40, 0, 0, 0, 'gold', 'DING!');
+            this.g.fx.own('text', x, y - 40, 0, 0, 0, 'gold', 'DING!');
             this.sfx('ding', 0.7);
           }
           this.sfx('stomp', 0.35, 1.2);
@@ -965,7 +965,7 @@ export class Weapons {
     this.cast(w, (ox, oy, mult) => {
       const slam = (rr: number) => {
         this.g.forEachTargetInCircle(ox, oy, rr, (t) => this.hit(w, t, this.damage(w) * mult, ox, oy));
-        this.g.fx.push('ring', ox, oy, rr, 0, 0, 'bell');
+        this.g.fx.own('ring', ox, oy, rr, 0, 0, 'bell');
       };
       slam(R);
       if (n >= 2) this.schedule(0.28, () => slam(R * 1.25));
@@ -986,7 +986,7 @@ export class Weapons {
         const p = this.g.player;
         const R = 240 * this.area(w) / w.def.area;
         this.g.forEachTargetInCircle(p.x, p.y, R, (t) => this.hit(w, t, this.damage(w) * 2, p.x, p.y, 1.5));
-        this.g.fx.push('ring', p.x, p.y, R, 0, 0, 'gravity');
+        this.g.fx.own('ring', p.x, p.y, R, 0, 0, 'gravity');
         this.sfx('calliope', 0.35, 1.2);
       }
     }
@@ -1031,7 +1031,7 @@ export class Weapons {
       s.y = s.py = p.y + Math.sin(a) * 130;
       s.tx = Math.cos(a) * 130;
       s.ty = Math.sin(a) * 130;
-      this.g.fx.push('spark', s.x, s.y, 8, 0, 0, 'mirror');
+      this.g.fx.own('spark', s.x, s.y, 8, 0, 0, 'mirror');
     }
     this.sfx('mirror', 0.45);
   }
@@ -1179,9 +1179,9 @@ export class Weapons {
         const cm = st.critDamage + (w.def.id === 'death_card' ? DEATH_CRIT : 0);
         const dmg = p.dmg * (crit ? cm : 1);
         g.damageTarget(t, dmg, crit, p.kb, p.x - p.vx * 0.05, p.y - p.vy * 0.05, w.def.id);
-        if (crit) g.fx.push('crit', t.x, t.y);
+        if (crit) g.fx.own('crit', t.x, t.y);
       }
-      g.fx.push('hit', t.x, t.y, 0, 0, 0, p.kind);
+      g.fx.own('hit', t.x, t.y, 0, 0, 0, p.kind);
       if (p.kind === 'death_card') {
         this.burst(p, w, 60 * p.area, 0.3, 'deathcard');
         p.alive = false;
@@ -1240,13 +1240,13 @@ export class Weapons {
       s.area = p.area;
       s.hits.mark(-999, 0);
     }
-    this.g.fx.push('spark', p.x, p.y, 4, 0, 0, 'shrapnel');
+    this.g.fx.own('spark', p.x, p.y, 4, 0, 0, 'shrapnel');
   }
 
   private burst(p: PlayerProjectile, w: WeaponInst | undefined, r: number, frac: number, style: string): void {
     if (!w) return;
     this.g.forEachTargetInCircle(p.x, p.y, r, (t) => this.hit(w, t, p.dmg * frac, p.x, p.y));
-    this.g.fx.push('explosion', p.x, p.y, r, 0, 0, style);
+    this.g.fx.own('explosion', p.x, p.y, r, 0, 0, style);
   }
 
   private detonate(p: PlayerProjectile, w: WeaponInst | undefined): void {
@@ -1269,7 +1269,7 @@ export class Weapons {
     }
     const dmg = p.kind === 'shell' ? p.dmg * 2 : p.dmg;
     g.forEachTargetInCircle(p.tx, p.ty, r, (t) => this.hit(w, t, dmg, p.tx, p.ty));
-    g.fx.push('explosion', p.tx, p.ty, r, g.rng.next(), 0, style);
+    g.fx.own('explosion', p.tx, p.ty, r, g.rng.next(), 0, style);
     if (w.def.id === 'kettle_korn' && g.rng.chance(0.2)) {
       const a = g.rng.angle();
       const pk = this.lob(w, 'kernel', p.tx, p.ty, p.tx + Math.cos(a) * 70, p.ty + Math.sin(a) * 70, 0.25, p.mult);
@@ -1297,7 +1297,7 @@ export class Weapons {
       s.life -= dt;
       if (s.life <= 0) {
         s.alive = false;
-        g.fx.push('spark', s.x, s.y, 5, 0, 0, 'magic');
+        g.fx.own('spark', s.x, s.y, 5, 0, 0, 'magic');
         continue;
       }
       s.cd -= dt;
@@ -1342,7 +1342,7 @@ export class Weapons {
             const R = miraHaloRadius(pl);
             const dmg = (MIRA_HALO.dmg + MIRA_HALO.perLevel * (w.level - 1)) * pl.stats.might * (w.def.isEvolution ? MIRA_HALO.evo : 1);
             g.forEachTargetInCircle(s.x, s.y, R, (t) => this.hit(w, t, dmg, s.x, s.y, 0));
-            g.fx.push('ring', s.x, s.y, R, 0, 0, 'glass');
+            g.fx.own('ring', s.x, s.y, R, 0, 0, 'glass');
           }
           break;
         }
@@ -1378,7 +1378,7 @@ export class Weapons {
         this.hit(w, t, this.damage(w), s.x, s.y);
         // the Menagerie's pets maul (D-74): the bite tears into whatever crowds its target too
         if (roam) g.forEachTargetInCircle(t.x, t.y, MAUL_R * this.area(w) / w.def.area, (o) => o !== t && this.hit(w, o, this.damage(w) * 0.6, s.x, s.y, 0.4));
-        g.fx.push('hit', t.x, t.y, 0, 0, 0, 'bite');
+        g.fx.own('hit', t.x, t.y, 0, 0, 0, 'bite');
         s.state = 0;
         s.cd = this.cooldown(w);
         if (!roam) s.target = -1;
@@ -1437,13 +1437,13 @@ export class Weapons {
       s.cd = spec.cd;
       if (spec.r > 0) {
         g.forEachTargetInCircle(s.x, s.y, spec.r * this.area(w) / w.def.area, (tt) => this.hit(w, tt, this.damage(w) * spec.dmg, s.x, s.y, spec.kb));
-        g.fx.push('ring', s.x, s.y, spec.r, 0, 0, 'pound');
+        g.fx.own('ring', s.x, s.y, spec.r, 0, 0, 'pound');
         g.fx.push('shake', s.x, s.y, 0.12);
         g.bus.emit('sfx', { id: 'stomp', vol: 0.3, pitch: 0.7 });
       } else {
         this.hit(w, t, this.damage(w) * spec.dmg, s.x, s.y, spec.kb);
         if (spec.cleave) g.forEachTargetInCircle(t.x, t.y, spec.cleave, (o) => o !== t && this.hit(w, o, this.damage(w) * spec.dmg * 0.6, s.x, s.y, spec.kb * 0.5));
-        g.fx.push('hit', t.x, t.y, 0, 0, 0, s.kind);
+        g.fx.own('hit', t.x, t.y, 0, 0, 0, s.kind);
         if (s.kind === 'lion') g.bus.emit('sfx', { id: 'roar', vol: 0.3 });
         if (s.kind === 'dove') {
           // fly past after a peck

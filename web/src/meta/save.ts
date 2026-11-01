@@ -27,7 +27,7 @@ export interface Settings {
   bindings: Record<string, string[]>;
   tutorialsSeen: string[];
   dyslexiaFont: boolean;
-  /** 0.15..1: how solid the players' own attacks are drawn (fade them to read enemy shots in a crowd) */
+  /** 0..1: how solid the players' own attacks are drawn (fade them to read enemy shots in a crowd; 0 hides them, D-83) */
   abilityOpacity: number;
 }
 

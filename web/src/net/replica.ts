@@ -247,7 +247,7 @@ export class Replica {
         e.hp = b.frac;
       }
     }
-    for (const e of s.fx) g.fx.push(e.type, e.x, e.y, e.a, e.b, e.c, e.style, e.text);
+    for (const e of s.fx) g.fx.push(e.type, e.x, e.y, e.a, e.b, e.c, e.style, e.text, e.own);
     for (const e of s.sfx) g.bus.emit('sfx', { id: e.id, x: e.x, y: e.y, vol: e.vol, pitch: e.pitch });
     // only a fully applied snapshot counts (it is what the guest acknowledges as its baseline)
     this.received++;

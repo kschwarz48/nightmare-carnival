@@ -30,6 +30,7 @@ interface Particle {
   r: number; g: number; b: number;
   add: boolean;
   fade: number; // 0 linear, 1 late fade
+  own: boolean; // a player's attack (D-83)
 }
 
 interface Ephemeral {
@@ -40,6 +41,7 @@ interface Ephemeral {
   life: number; max: number;
   cr: number; cg: number; cb: number;
   width: number;
+  own: boolean;
 }
 
 interface Num {
@@ -49,9 +51,10 @@ interface Num {
   crit: boolean;
   life: number;
   scale: number;
+  own: boolean;
 }
 
-interface Flash { x: number; y: number; r: number; life: number; max: number; cr: number; cg: number; cb: number; i: number }
+interface Flash { x: number; y: number; r: number; life: number; max: number; cr: number; cg: number; cb: number; i: number; own: boolean }
 
 const COLORS: Record<string, [number, number, number]> = {
   firework: [1, 0.55, 0.85], finale: [1, 0.85, 0.35], finale_small: [1, 0.75, 0.4], popcorn: [1, 0.95, 0.75], cannon: [1, 0.6, 0.3],
@@ -74,6 +77,8 @@ export class FxSystem {
   reducedFlash = false;
   shakeScale = 1;
   showNumbers = true;
+  /** how solid the players' attacks are drawn (settings, D-83): their swings, rings, bursts and sparks; 0 hides them */
+  abilityOpacity = 1;
   particleBudget = 1400;
   /** how many hit sparks and crit stars may still go out (they refill over time; D-69) */
   private hitBudget = 12;
@@ -82,6 +87,8 @@ export class FxSystem {
   private digit: Record<string, Frame> = {};
   private digitC: Record<string, Frame> = {};
   private rand = Math.random;
+  /** the event being handled is a player's attack: whatever it spawns fades with `abilityOpacity` */
+  private own = false;
 
   constructor(private assets: Assets) {
     const A = assets.atlas;
@@ -121,6 +128,7 @@ export class FxSystem {
       p.r = o.r ?? 1; p.g = o.g ?? 1; p.b = o.b ?? 1;
       p.add = o.add ?? false;
       p.fade = o.fade ?? 0;
+      p.own = this.own;
       this.activeParts++;
       return;
     }
@@ -137,18 +145,22 @@ export class FxSystem {
   private ephem(kind: Ephemeral['kind'], x: number, y: number, r: number, life: number, col: [number, number, number], o: Partial<Ephemeral> = {}): void {
     for (const e of this.eph) {
       if (e.alive) continue;
-      Object.assign(e, { alive: true, kind, x, y, x2: o.x2 ?? x, y2: o.y2 ?? y, r, a: o.a ?? 0, half: o.half ?? 0, life, max: life, cr: col[0], cg: col[1], cb: col[2], width: o.width ?? 6 });
+      Object.assign(e, { alive: true, kind, x, y, x2: o.x2 ?? x, y2: o.y2 ?? y, r, a: o.a ?? 0, half: o.half ?? 0, life, max: life, cr: col[0], cg: col[1], cb: col[2], width: o.width ?? 6, own: this.own });
       return;
     }
   }
 
   private flashLight(x: number, y: number, r: number, life: number, col: [number, number, number], i = 1.4): void {
     if (this.flashes.length > 5) this.flashes.shift();
-    this.flashes.push({ x, y, r, life, max: life, cr: col[0], cg: col[1], cb: col[2], i });
+    this.flashes.push({ x, y, r, life, max: life, cr: col[0], cg: col[1], cb: col[2], i, own: this.own });
   }
 
   handle(events: FxEvent[]): void {
-    for (const e of events) this.one(e);
+    for (const e of events) {
+      this.own = !!e.own;
+      this.one(e);
+    }
+    this.own = false;
   }
 
   private one(e: FxEvent): void {
@@ -434,6 +446,7 @@ export class FxSystem {
     n.crit = crit || heal;
     n.life = crit ? 0.9 : 0.6;
     n.scale = crit ? 1.45 : 1;
+    n.own = this.own;
   }
 
   private textNum(x: number, y: number, text: string): void {
@@ -496,22 +509,23 @@ export class FxSystem {
   addLights(lights: LightSink): void {
     for (const f of this.flashes) {
       const t = f.life / f.max;
-      lights.add(f.x, f.y, f.r, f.i * t * t, f.cr, f.cg, f.cb);
+      lights.add(f.x, f.y, f.r, f.i * t * t * (f.own ? this.abilityOpacity : 1), f.cr, f.cg, f.cb);
     }
   }
 
   draw(normal: SpriteSink, add: SpriteSink, shapesAdd: ShapeBatch, numbers: SpriteSink): void {
+    const op = this.abilityOpacity;
     for (const p of this.parts) {
-      if (!p.alive) continue;
+      if (!p.alive || (p.own && op <= 0)) continue;
       const t = 1 - p.life / p.max;
       const sc = p.s0 + (p.s1 - p.s0) * t;
-      const a = p.fade ? Math.min(1, (p.life / p.max) * 3) : 1 - t * t;
+      const a = (p.fade ? Math.min(1, (p.life / p.max) * 3) : 1 - t * t) * (p.own ? op : 1);
       (p.add ? add : normal).draw(p.f, p.x, p.y, p.z + PART_LIFT, sc, sc, p.rot, p.r, p.g, p.b, a);
     }
     for (const e of this.eph) {
-      if (!e.alive) continue;
+      if (!e.alive || (e.own && op <= 0)) continue;
       const t = 1 - e.life / e.max;
-      const a = 1 - t;
+      const a = (1 - t) * (e.own ? op : 1);
       switch (e.kind) {
         case 'ring': {
           const r = e.r * (0.25 + 0.75 * Math.sqrt(t));
@@ -533,9 +547,9 @@ export class FxSystem {
       }
     }
     for (const n of this.nums) {
-      if (!n.alive) continue;
+      if (!n.alive || (n.own && op <= 0)) continue;
       const set = n.crit ? this.digitC : this.digit;
-      const a = Math.min(1, n.life * 4);
+      const a = Math.min(1, n.life * 4) * (n.own ? op : 1);
       const pop = n.crit ? 1 + Math.max(0, n.life - 0.7) * 3 : 1;
       const w = 10 * n.scale * pop;
       let x = n.x - (n.text.length - 1) * w * 0.5;

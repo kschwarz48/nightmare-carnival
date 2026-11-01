@@ -440,7 +440,8 @@ export function outlineMaterial(src: THREE.MeshStandardMaterial): THREE.ShaderMa
   const skin = src.defines?.NC_SKIN !== undefined;
   return new THREE.ShaderMaterial({
     defines: skin ? { NC_SKIN: '' } : {},
-    uniforms: { ...d, ...ink },
+    // (the ink's colour and thickness are shared by every outline; its alpha is this one's: a faded attack's, D-83)
+    uniforms: { ...d, ...ink, uInkA: { value: 1 } },
     vertexShader: /* glsl */ `
       ${V_HEAD}
       uniform float uInkThick;
@@ -463,7 +464,8 @@ export function outlineMaterial(src: THREE.MeshStandardMaterial): THREE.ShaderMa
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 uInkCol;
-      void main() { gl_FragColor = vec4(uInkCol, 1.0); }`,
+      uniform float uInkA;
+      void main() { gl_FragColor = vec4(uInkCol, uInkA); }`,
     side: THREE.BackSide,
   });
 }

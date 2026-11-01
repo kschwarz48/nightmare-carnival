@@ -891,7 +891,7 @@ export class Game {
     if (bzOwner) {
       const w = bzOwner.weapons.get('blizzard')!;
       const dmg = 80 * this.player.stats.might;
-      this.fx.push('explosion', e.x, e.y, 90, 0, 0, 'frost');
+      this.fx.own('explosion', e.x, e.y, 90, 0, 0, 'frost');
       this.forEachTargetInCircle(e.x, e.y, 90, (t) => this.damageTarget(t, dmg, false, 0.5, e.x, e.y, w.def.id));
     }
     if (d.behavior === 'thief') dispelDecoys(this, e.uid);

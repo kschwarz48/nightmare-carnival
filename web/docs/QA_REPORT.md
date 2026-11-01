@@ -115,6 +115,20 @@ understate that character.
 
 ---
 
+## The attacks' opacity reaching 0 — 2026-11-01 (D-83)
+
+- `npm test`: 26 files, 394 tests pass (3 new, `tests/opacity.test.ts`). A night with the mallet, bell, cannon
+  and fireworks tags swings, rings and explosions as attacks, and never a death, a damage number or a shake. The
+  tag reaches a co-op guest's mirror. The effects renderer draws tagged effects at half strength at 0.5 and not
+  at all at 0, and leaves the rest exactly as it was. The renderer and sim tests both fail with their change
+  taken out.
+- In the browser (dev server): a Carnival night frozen with cards, fireworks, crystal orbs, two mirror clones,
+  three plush companions and the cannon, captured at 1, 0.4 and 0 (`artifacts/visual/d83b/`). At 0 none of them
+  shows, and the player and everything else stay. At 0.4 they are faint, the clones pale see-through figures
+  with a faint rim. The renderer's state at 0: every attack batch at opacity 0, its ink at 0, no shadow; the
+  players' batch unchanged. The Settings slider runs 0–1 and stores 0.
+- Not checked over the network in co-op, or on the other maps (the setting doesn't depend on the map).
+
 ## Ghost Train co-op fixes — 2026-11-01 (D-82)
 
 - `npm test`: 25 files, 391 tests pass (4 new). Every map's extent round-trips the wire (net). Creatures and

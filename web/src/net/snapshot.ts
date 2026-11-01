@@ -421,7 +421,7 @@ export class SnapshotEncoder {
       w.u16(d.id(e.type));
       w.pos(e.x);
       w.pos(e.y);
-      const m = (e.a ? 1 : 0) | (e.b ? 2 : 0) | (e.c ? 4 : 0) | (e.style ? 8 : 0) | (e.text ? 16 : 0);
+      const m = (e.a ? 1 : 0) | (e.b ? 2 : 0) | (e.c ? 4 : 0) | (e.style ? 8 : 0) | (e.text ? 16 : 0) | (e.own ? 32 : 0);
       w.u8(m);
       if (m & 1) w.f32(e.a);
       if (m & 2) w.f32(e.b);
@@ -791,6 +791,7 @@ export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
     if (m & 4) e.c = r.f32();
     if (m & 8) S(e as unknown as Record<string, unknown>, 'style', r.u16());
     if (m & 16) S(e as unknown as Record<string, unknown>, 'text', r.u16());
+    if (m & 32) e.own = true;
     fx.push(e);
   }
   const sfx: SfxEvt[] = [];

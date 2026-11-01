@@ -1266,3 +1266,26 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   of the silence count, on both sides; a line that has really gone quiet is still dropped 10 s later. A guest
   whose build takes 10 s longer than the host's can still be dropped (then Rejoin). The real cure is not
   freezing: building the world ahead of the night or in pieces, not done here.
+
+### D-83 · The attacks' opacity reaches 0, and at 0 nothing of a player's attacks shows
+
+- **The ask.** The "Your attacks: opacity" slider stopped at 0.15, and even there the attacks still showed. It
+  should scale down to 0, where every player ability is hidden.
+- **The slider.** Now 0 to 1 (it was 0.15 to 1). A saved value needs no migration.
+- **What never followed it.** Most of an attack's look:
+  - its effects: the swings (mallet, frenzy, cotton candy, frost, fire), the rings (bell, jackpot, pound,
+    blizzard, inferno, gravity, glass), cannon and fireworks explosions, sparks, hit sparks, crit stars, the
+    bell's DING! and the jackpot's flash of light. The sim now tags them where it makes them (`FxQueue.own`:
+    31 places in `sim/weapons.ts`, and the Blizzard's shatter), and the effects renderer draws a tagged one at
+    the setting's strength, not at all at 0. The screen shake (its own setting), the evolution's fanfare, enemy
+    deaths, damage numbers (their own toggle) and enemies' burning and frozen looks are no attack's and stay.
+  - the ink outlines of summons and clones, always drawn at full strength: the dark silhouettes that showed at
+    the old minimum. The ink's alpha now follows the fade, and an inked body keeps writing depth while faded,
+    so its ink stays a rim instead of filling the see-through figure (at 0.4 the clones read as dark ghosts
+    without it).
+  - mirror clones, drawn with the players' own batch, which must never fade: now a batch of their own, sharing
+    the cached body.
+  - shots' silhouettes behind walls, the rockets' and shells' target rings, the laser's light on the ground,
+    the sparks over a player's own patch of fire, and the shadows of faded attacks.
+- **Co-op.** The tag travels with each effect (a spare bit of its header on the wire), PROTO 15. The setting fades
+  every player's attacks on your own screen, as it always has.

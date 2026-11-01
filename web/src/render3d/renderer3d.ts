@@ -515,6 +515,7 @@ export class GameRenderer3D {
     if (this.settings.quality !== this.shadowQuality) this.applyQuality();
     const fx = this.fx;
     fx.reducedFlash = this.settings.reducedFlash;
+    fx.abilityOpacity = this.settings.abilityOpacity ?? 1;
     fx.shakeScale = this.settings.shake;
     fx.showNumbers = this.settings.damageNumbers && !opts.menu;
     fx.particleBudget = this.settings.quality === 'low' ? 500 : this.settings.quality === 'medium' ? 1000 : 1700;
@@ -773,7 +774,7 @@ export class GameRenderer3D {
           break;
         case 'burn':
           A.circle(z.x, z.y, z.r, 1, 0.4, 0.08, 0.32 * fade, 0);
-          if (Math.random() < 0.15) this.fx.handle([{ type: 'spark', x: z.x + (Math.random() - 0.5) * z.r, y: z.y + (Math.random() - 0.5) * z.r, a: 1, b: 0, c: 0, style: 'fire' }]);
+          if (Math.random() < 0.15) this.fx.handle([{ type: 'spark', x: z.x + (Math.random() - 0.5) * z.r, y: z.y + (Math.random() - 0.5) * z.r, a: 1, b: 0, c: 0, style: 'fire', own: !z.harmful }]);
           break;
         case 'spark':
           A.circle(z.x, z.y, z.r, 0.4, 0.8, 1, 0.28 * fade, 0);
@@ -1370,7 +1371,9 @@ export class GameRenderer3D {
         const owner = g.players[s.owner] ?? g.player;
         const def = CHARACTERS[owner.char.id];
         const rig = def.rig!();
-        const b = this.batch(`char_${owner.char.id}`, def, CHAR_CAP);
+        // a batch of their own (the same cached body), so they fade with the attacks and the players never do (D-83)
+        const b = this.batch(`clone_${owner.char.id}`, def, CHAR_CAP);
+        this.abilityBatches.add(b);
         const i = b.add(x, y, 0, yaw, (def.scale ?? 1) * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
         const row = moving ? rig.row('move', s.animT * 1.1) : rig.row('idle', this.time / 2.8 + si * 0.3);
         b.anim(i, row, row, 0, 0);
@@ -1407,6 +1410,7 @@ export class GameRenderer3D {
   private drawWeaponVisuals(g: Game, px: number, py: number): void {
     const A = this.addShapes;
     const glowF = this.f('fx_glow_0');
+    const op = this.settings.abilityOpacity ?? 1;
     for (const w of g.weapons.list) {
       const k = w.def.kind;
       if (k === 'laser' && w.active) {
@@ -1423,7 +1427,7 @@ export class GameRenderer3D {
           A.line(sx, sy, ex, ey, 13, c[0], c[1], c[2], 0.3, 0);
           A.line(sx, sy, ex, ey, 3, 0.3 + 0.7 * c[0], 0.3 + 0.7 * c[1], 0.3 + 0.7 * c[2], 0.7, 0.25);
           this.fxAdd.draw(glowF, ex, ey, 18, 0.5, 0.5, 0, c[0], c[1], c[2], 0.5);
-          pool.add(ex, ey, 140, 0.32, c[0], c[1], c[2], 40, 1.5);
+          if (op > 0) pool.add(ex, ey, 140, 0.32 * op, c[0], c[1], c[2], 40, 1.5);
         }
       } else if (k === 'orbs' && w.active) {
         const n = g.weapons.amount(w);
@@ -1644,6 +1648,7 @@ export class GameRenderer3D {
 
   private drawProjectiles(g: Game, alpha: number, shotOffset?: { x: number; y: number }): void {
     const glowF = this.f('fx_glow_0');
+    const op = this.settings.abilityOpacity ?? 1;
     const me = g.player.index;
     for (let pi = 0; pi < g.projs.length; pi++) {
       const pr = g.projs[pi];
@@ -1684,7 +1689,7 @@ export class GameRenderer3D {
           if (pr.kind === 'kernel') roll = t * 12;
           else {
             this.fxAdd.draw(glowF, x - Math.sin(yaw) * 10, y - Math.cos(yaw) * 10, h, 0.35, 0.35, 0, 1, 0.6, 0.2, 0.9);
-            this.teleLine.ring(pr.tx, pr.ty, 6, 8, 1, 0.8, 0.4, 0.35 * t, 0.35 * t);
+            if (op > 0) this.teleLine.ring(pr.tx, pr.ty, 6, 8, 1, 0.8, 0.4, 0.35 * t * op, 0.35 * t * op);
           }
           break;
         }
@@ -1753,10 +1758,23 @@ function fadeBatch(b: ActorBatch, op: number): void {
     if (!m) continue;
     if (m.transparent !== faded) {
       m.transparent = faded;
-      m.depthWrite = !faded;
+      // an inked body (a summon, a clone) keeps writing depth, so its ink stays a rim instead of showing
+      // through the whole see-through figure as a dark ghost (D-83)
+      m.depthWrite = !faded || (m === b.mesh.material && !!b.outline);
       m.needsUpdate = true;
     }
     m.opacity = op;
+  }
+  // and so do its ink, its shadow and its silhouette behind walls (D-83: at 0 nothing of the attack shows)
+  const ink = (b.outline?.material as THREE.ShaderMaterial | undefined)?.uniforms.uInkA;
+  if (ink) ink.value = op;
+  const shadow = ((b.mesh.userData.castShadow as boolean | undefined) ??= b.mesh.castShadow);
+  b.mesh.castShadow = shadow && !faded;
+  if (b.xray) {
+    const m = b.xray.material as THREE.ShaderMaterial;
+    const base = ((m.userData.baseA as number | undefined) ??= m.uniforms.uXrayA.value as number);
+    m.uniforms.uXrayA.value = base * op;
+    if (op <= 0) b.xray.visible = false;
   }
 }
 
