@@ -9,9 +9,11 @@
 //                 train, and the signal-box route in its footnote.
 //   2 CLOCKS      Wind each station's clock while its train is standing in: Saint Vesper's, the Cinder Works and
 //                 Stillwater in any order, then the Junction's master clock.
-//   3 LANTERN     Take the guard's lantern from the lamp room under the Junction's signal box.
-//   4 SIGNALS     On each of the four legs a signal stands at danger. Its carrier shows it the lantern from the
-//                 tender while it is in sight ahead (a few seconds a journey).
+//   3 BATTERY     Take the signal battery from the lamp room under the Junction's signal box.
+//   4 SIGNALS     Fit it to the lamp box at the front of the tender: the train's own signal lamp (dark and
+//                 flickering all night until then) burns red. On each of the four legs a signal stands at danger;
+//                 a press at the lamp box shows green for 3 s, and a signal passed while the lamp is green
+//                 clears (D-84: it was a lantern shown from the tender).
 //   5 POINTS      Pull the Junction signal box's levers in the footnote's order: the End of the Line becomes a
 //                 stop (the next train from Stillwater calls there).
 //   6 BRIDGE      On the way there the train crosses the bridge over the drop: pull the whistle cord in the
@@ -31,14 +33,14 @@
 //  14 COMPLETE    …the true dawn, an achievement, the Conductor's Punch unlocked.
 //
 // Everything is a press of interact within reach. Co-op: one shared chain, any standing player can act, and
-// whatever is carried (the lantern, the punch, Ada's letter, a shovel of coal) passes to the nearest standing
+// whatever is carried (the battery, the punch, Ada's letter, a shovel of coal) passes to the nearest standing
 // player if its carrier falls. The host runs it; guests receive its state as bytes (`netState`), including
 // the one number the timetable needs (`eFrom`: when the End of the Line becomes a stop).
 
 import { dist2 } from '../../core/math';
 import { Rng } from '../../core/rng';
 import { CONDUCTOR_DEF } from '../../data/bosses';
-import { C, E, J, REGIONS, S, TRANSIT, V, inTrainLocal, regionAt, trainOrigin } from '../../data/ghosttrain';
+import { C, E, J, REGIONS, S, TRANSIT, V, inTrainLocal, legSpeed, regionAt, trainOrigin } from '../../data/ghosttrain';
 import { CINDER, END, JUNCTION, LT_TRAIN, PASSENGERS, STATION_CLOCK, STILLWATER, VESPER } from '../../data/gtStations';
 import { LAST_TRAIN } from '../../data/lastTrain';
 import { DAWN_TIME } from '../../data/waves';
@@ -47,9 +49,9 @@ import type { Game } from '../game';
 import { trainNow } from '../ghosttrain';
 import { QuestChain } from './quest';
 
-export const LT = { Ticket: 0, Pages: 1, Clocks: 2, Lantern: 3, Signals: 4, Points: 5, Bridge: 6, Punch: 7, Passengers: 8, Deliveries: 9, LastTicket: 10, Express: 11, Finale: 12, Homeward: 13, Complete: 14 } as const;
+export const LT = { Ticket: 0, Pages: 1, Clocks: 2, Battery: 3, Signals: 4, Points: 5, Bridge: 6, Punch: 7, Passengers: 8, Deliveries: 9, LastTicket: 10, Express: 11, Finale: 12, Homeward: 13, Complete: 14 } as const;
 
-export type LTKind = 'booking' | 'board' | 'page' | 'clock' | 'lamproom' | 'lantern' | 'lever' | 'whistle' | 'punch' | 'passenger' | 'letter' | 'postbox' | 'chute' | 'coal' | 'stoke' | 'church' | 'rope' | 'ticket';
+export type LTKind = 'booking' | 'board' | 'page' | 'clock' | 'lamproom' | 'lampbox' | 'lever' | 'whistle' | 'punch' | 'passenger' | 'letter' | 'postbox' | 'chute' | 'coal' | 'stoke' | 'church' | 'rope' | 'ticket';
 
 export interface LTInteraction {
   kind: LTKind;
@@ -60,7 +62,7 @@ export interface LTInteraction {
 }
 
 /** Seconds before the same thing answers another press. */
-const COOLDOWN: Partial<Record<LTKind, number>> = { booking: 2.5, board: 2, clock: 1, lantern: 0.8, lever: 0.35, whistle: 1.2, stoke: 0.4, church: 0.35, rope: 0.5, passenger: 0.5 };
+const COOLDOWN: Partial<Record<LTKind, number>> = { booking: 2.5, board: 2, clock: 1, lampbox: 0.4, lever: 0.35, whistle: 1.2, stoke: 0.4, church: 0.35, rope: 0.5, passenger: 0.5 };
 
 /** The boiler's needle (0..1, 1 at the top of its swing) at sim time t. */
 export function gaugeAt(t: number): number {
@@ -74,7 +76,10 @@ export class LastTrainChain extends QuestChain {
   pages = 0;
   /** the station clocks wound (bit per station J, V, C, S) */
   clocks = 0;
-  lanternBy = 255;
+  /** who carries the signal battery; whether it is in the train's lamp box; seconds the lamp still shows green */
+  batteryBy = 255;
+  batteryIn = 0;
+  greenT = 0;
   /** the signals cleared (bit per leg: J→V, V→C, C→S, Stillwater onward), and where each stands (0..1 of its leg) */
   signals = 0;
   sigAt = [0.5, 0.5, 0.5, 0.5];
@@ -104,6 +109,8 @@ export class LastTrainChain extends QuestChain {
   private cool = new Map<string, number>();
   /** the leg whose signal (or the bridge) has been called out this journey (host-side) */
   private called = new Set<string>();
+  /** the train's distance along the leg at the last tick, to see a signal passed (host-side) */
+  private lastDist = 0;
 
   init(): void {
     const r = (this.rng = new Rng((this.g.cfg.seed ^ 0x13181899) >>> 0));
@@ -150,13 +157,22 @@ export class LastTrainChain extends QuestChain {
     return st.phase === 'dwell' && st.at === r && st.doors;
   }
 
-  /** The leg the train is on (0 J→V, 1 V→C, 2 C→S, 3 Stillwater onward; -1 none) and whether its signal is in sight. */
-  signalInSight(): { leg: number; inSight: boolean } {
+  /** The leg the train is on (0 J→V, 1 V→C, 2 C→S, 3 Stillwater onward; -1 none) and seconds until it passes that
+   *  leg's signal (Infinity once past it, or off the legs with signals). */
+  signalAhead(): { leg: number; inS: number } {
     const st = trainNow(this.g);
-    if (st.phase !== 'travel' || st.at > S) return { leg: -1, inSight: false };
+    if (st.phase !== 'travel' || st.at > S) return { leg: -1, inS: Infinity };
     const leg = st.at;
-    const d = this.sigAt[leg] * st.legDist;
-    return { leg, inSight: st.dist >= d - LAST_TRAIN.sightAhead && st.dist <= d + LAST_TRAIN.sightPast };
+    const d = this.sigAt[leg] * st.legDist - st.dist;
+    if (d < 0) return { leg, inS: Infinity };
+    return { leg, inS: d / Math.max(60, legSpeed(st.t, st.len)) };
+  }
+
+  /** What the train's own signal lamp shows: 0 dark (flickering), 1 red, 2 green. */
+  lamp(): 0 | 1 | 2 {
+    if (this.stage > LT.Signals) return 2;
+    if (this.stage < LT.Signals || !this.batteryIn) return 0;
+    return this.greenT > 0 ? 2 : 1;
   }
 
   /** Is the train on the bridge over the drop (on the way from Stillwater to the End of the Line)? */
@@ -183,11 +199,14 @@ export class LastTrainChain extends QuestChain {
       case LT.Clocks:
         for (let r = 0; r < 4; r++) if (!(this.clocks & (1 << r)) && here === r) push('clock', r, STATION_CLOCK[r], 'Wind the station clock');
         break;
-      case LT.Lantern:
-        if (here === J) push('lamproom', 0, JUNCTION.lamproom, 'Take the guard\'s lantern');
+      case LT.Battery:
+        if (here === J) push('lamproom', 0, JUNCTION.lamproom, 'Take the signal battery');
         break;
       case LT.Signals:
-        if (this.lanternBy === who && this.inTender(x, y)) list.push({ kind: 'lantern', i: 0, x, y, label: 'Show the lantern' });
+        // the lamp box at the front of the tender, in whichever copy of the train the player stands in
+        if (!this.batteryIn) {
+          if (this.batteryBy === who) push('lampbox', 0, this.inTrain(x, y, LT_TRAIN.lampbox), 'Fit the battery to the signal lamp');
+        } else push('lampbox', 1, this.inTrain(x, y, LT_TRAIN.lampbox), 'Switch the signal lamp to green');
         break;
       case LT.Points:
         if (here === J) {
@@ -251,22 +270,37 @@ export class LastTrainChain extends QuestChain {
       if (c && g.isUp(c)) return by;
       return up.length ? g.nearestLiving(c?.x ?? 0, c?.y ?? 0).index : by;
     };
-    this.lanternBy = pass(this.lanternBy);
+    this.batteryBy = pass(this.batteryBy);
+    this.greenT = Math.max(0, this.greenT - dt);
     this.punchBy = pass(this.punchBy);
     this.letterBy = pass(this.letterBy);
     this.coalBy = pass(this.coalBy);
     // the calls: a signal in sight ahead (while someone carries the lantern), the bridge coming up
     const st = trainNow(g);
-    if (st.phase !== 'travel') this.called.clear();
-    else {
-      if (this.stage === LT.Signals && this.lanternBy !== 255) {
-        const s = this.signalInSight();
-        const key = `sig${st.loop}:${s.leg}`;
-        if (s.inSight && !(this.signals & (1 << s.leg)) && !this.called.has(key)) {
+    if (st.phase !== 'travel') {
+      this.called.clear();
+      this.lastDist = 0;
+    } else {
+      // the signals (with the battery in): called out a few seconds ahead, and judged as the engine passes each
+      if (this.stage === LT.Signals && this.batteryIn && st.at <= S && !(this.signals & (1 << st.at))) {
+        const leg = st.at, d = this.sigAt[leg] * st.legDist, s = this.signalAhead();
+        const key = `sig${st.loop}:${leg}`;
+        if (s.inS <= LAST_TRAIN.callAhead && !this.called.has(key)) {
           this.called.add(key);
-          this.cue('lt_signal_ahead', { a: s.leg });
+          this.cue('lt_signal_ahead', { a: leg });
+        }
+        if (this.lastDist < d && st.dist >= d) {
+          if (this.greenT > 0) {
+            this.signals |= 1 << leg;
+            this.cue('lt_signal', { a: leg, b: popcount(this.signals) });
+            if (this.signals === 15) {
+              this.stage = LT.Points;
+              this.cue('lt_signals', {});
+            }
+          } else this.cue('lt_signal_missed', { a: leg });
         }
       }
+      this.lastDist = st.dist;
       if (this.stage === LT.Bridge && this.onBridge() && !this.called.has(`bridge${st.loop}`)) {
         this.called.add(`bridge${st.loop}`);
         this.cue('lt_bridge_ahead', {});
@@ -322,31 +356,26 @@ export class LastTrainChain extends QuestChain {
         this.clocks |= 1 << r;
         this.cue('lt_clock', { ...at, a: r, b: popcount(this.clocks) });
         if (this.clocks === 15) {
-          this.stage = LT.Lantern;
+          this.stage = LT.Battery;
           this.cue('lt_clocks', {});
         }
         break;
       }
       case 'lamproom':
-        this.lanternBy = who;
+        this.batteryBy = who;
         this.stage = LT.Signals;
-        this.cue('lt_lantern', at);
+        this.cue('lt_battery', at);
         break;
-      case 'lantern': {
-        const s = this.signalInSight();
-        if (s.leg < 0 || !s.inSight || this.signals & (1 << s.leg)) {
-          this.cue('lt_signal_none', at);
-          break;
-        }
-        this.signals |= 1 << s.leg;
-        this.cue('lt_signal', { ...at, a: s.leg, b: popcount(this.signals) });
-        if (this.signals === 15) {
-          this.stage = LT.Points;
-          this.lanternBy = 255;
-          this.cue('lt_signals', {});
+      case 'lampbox':
+        if (it.i === 0) {
+          this.batteryIn = 1;
+          this.batteryBy = 255;
+          this.cue('lt_battery_in', at);
+        } else {
+          this.greenT = LAST_TRAIN.greenFor;
+          this.cue('lt_green', at);
         }
         break;
-      }
       case 'lever':
         if (this.levers[this.leverStep] === it.i) {
           this.leverStep++;
@@ -497,12 +526,13 @@ export class LastTrainChain extends QuestChain {
   netState(): number[] {
     const ef = Number.isFinite(this.eFrom) ? Math.min(0xfffe, this.eFrom) : 0xffff;
     return [
-      this.stage, this.pageAt, this.pages, this.clocks, this.lanternBy, this.signals,
+      this.stage, this.pageAt, this.pages, this.clocks, this.batteryBy, this.signals,
       ...this.sigAt.map((f) => Math.round(((f - 0.3) / 0.4) * 255)),
       this.levers[0] + this.levers[1] * 5 + this.levers[2] * 25, this.leverStep, ef >> 8, ef & 255,
       this.punchBy, this.boarded, this.tasks, this.letterBy, this.bellOrder[0] + this.bellOrder[1] * 3 + this.bellOrder[2] * 9, this.bellStep,
       this.coalBy, this.coal, this.stokes, this.hour, this.targetHour,
       Math.min(255, Math.max(0, Math.round(this.finaleT * 8))), Math.min(255, Math.max(0, Math.round(this.homewardT * 8))),
+      this.batteryIn, Math.min(255, Math.ceil(this.greenT * 40)),
     ];
   }
 
@@ -512,7 +542,7 @@ export class LastTrainChain extends QuestChain {
     this.pageAt = v[1];
     this.pages = v[2];
     this.clocks = v[3];
-    this.lanternBy = v[4];
+    this.batteryBy = v[4];
     this.signals = v[5];
     this.sigAt = [v[6], v[7], v[8], v[9]].map((b) => 0.3 + (b / 255) * 0.4);
     this.levers = [v[10] % 5, Math.floor(v[10] / 5) % 5, Math.floor(v[10] / 25) % 5];
@@ -532,6 +562,8 @@ export class LastTrainChain extends QuestChain {
     this.targetHour = v[24];
     this.finaleT = this.stage === LT.Finale && v[25] > 0 ? v[25] / 8 : -1;
     this.homewardT = this.stage === LT.Homeward ? v[26] / 8 : -1;
+    this.batteryIn = v[27] ?? 0;
+    this.greenT = (v[28] ?? 0) / 40;
   }
 }
 

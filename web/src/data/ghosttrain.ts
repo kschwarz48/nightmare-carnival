@@ -101,8 +101,9 @@ export const FINAL_ACT = 1500;
 export const TERMINUS_FROM = 1560;
 /** the phantom doors at the other stations open (straight to the End of the Line), and the final boss comes */
 export const PHANTOM_AT = 1740, FINAL_BOSS_AT = 1800;
-/** doors open this long after a stop, and close this long before departure */
-export const DOOR_OPEN_AFTER = 2, DOOR_CLOSE_BEFORE = 3;
+/** doors open this long after a stop, and close this long before departure (D-84: as its count reaches 0; they
+ *  shut 3 s early, which read as a train refusing anyone while its board still said it was waiting) */
+export const DOOR_OPEN_AFTER = 2, DOOR_CLOSE_BEFORE = 0;
 /** the speed profile: seconds pulling out (accelerating) and braking in; the cruise speed (units/s) */
 export const ACCEL = 7, BRAKE = 8, CRUISE = 720;
 
@@ -236,10 +237,14 @@ function shellPieces(withDoors: boolean): Piece[] {
       if (!open) out.push({ kind: 'gt_wall', x, y: 0, hw: T / 2, hh: W + T });
       else for (const s of [-1, 1]) out.push({ kind: 'gt_wall', x, y: s * (G + (W - G) / 2 + T / 2), hw: T / 2, hh: (W - G) / 2 + T / 2 });
     }
-    // the gangway to the next car west: its two sides
+    // the gangway to the next car west: its two sides, and the couplings filling the gap outside them (D-84: a
+    // shove from the platform wedged players into that 18-wide pocket, and the train carried them off in it)
     if (i < CARS.length - 1) {
       const n = CARS[i + 1];
-      for (const s of [-1, 1]) out.push({ kind: 'gt_wall', x: (n.x1 + c.x0) / 2, y: s * (G + T / 2), hw: (c.x0 - n.x1) / 2, hh: T / 2 });
+      for (const s of [-1, 1]) {
+        out.push({ kind: 'gt_wall', x: (n.x1 + c.x0) / 2, y: s * (G + T / 2), hw: (c.x0 - n.x1) / 2, hh: T / 2 });
+        out.push({ kind: 'gt_wall', x: (n.x1 + c.x0) / 2, y: s * ((G + W) / 2 + T), hw: (c.x0 - n.x1) / 2, hh: (W - G) / 2 });
+      }
     }
   }
   return out;

@@ -12,7 +12,8 @@ import { MAPS, MAP_IDS, useMap } from '../src/data/maps';
 import { ACT_GATES, DAWN_TIME, GHOST_ENDLESS, GHOST_VICTORY, GHOST_WAVES } from '../src/data/waves';
 import { CONDUCTOR_DEF, GHOST_BOSSES, BOSS_MAP } from '../src/data/bosses';
 import { ENEMIES } from '../src/data/enemies';
-import { C, CARS, E, FINAL_ACT, J, MOUTHS, PHANTOM_AT, REGIONS, S, TERMINUS_FROM, TRAIN, TRANSIT, V, inCopy, nextArrival, regionAt, trackY, trainAt, trainOrigin } from '../src/data/ghosttrain';
+import { C, CARS, DWELL, E, FINAL_ACT, J, MOUTHS, PHANTOM_AT, REGIONS, S, TERMINUS_FROM, TRAIN, TRANSIT, V, inCopy, nextArrival, regionAt, trackY, trainAt, trainOrigin } from '../src/data/ghosttrain';
+import { collideBody } from '../src/sim/movement';
 import { CINDER, END, JUNCTION, LT_TRAIN, PHANTOM_DOOR, STATION_CLOCK, STILLWATER, VESPER } from '../src/data/gtStations';
 import { LAST_TRAIN } from '../src/data/lastTrain';
 import { FOLLOW_AFTER, bossStation, eFromOf, homeOk, stationAnchor, trainNow } from '../src/sim/ghosttrain';
@@ -131,11 +132,14 @@ describe('the Midnight Line timetable (D-80)', () => {
     expect(s.passing).toBe(true);
   });
 
-  it('opens the doors 2 s after a stop and shuts them 3 s before it leaves', () => {
+  it('opens the doors 2 s after a stop and shuts them as its departure count reaches 0 (D-84: it was 3 s early)', () => {
     expect(trainAt(31).doors).toBe(false);
     expect(trainAt(33).doors).toBe(true);
-    expect(trainAt(71).doors).toBe(true);
-    expect(trainAt(72.5).doors).toBe(false);
+    expect(trainAt(72.5).doors).toBe(true);
+    expect(trainAt(74.95).doors).toBe(true);
+    expect(trainAt(74.95).departIn).toBeLessThan(0.1);
+    expect(trainAt(75.05).phase).toBe('travel');
+    expect(trainAt(75.05).doors).toBe(false);
   });
 
   it('calls at the End of the Line from the final act, and the last train terminates there', () => {
@@ -285,6 +289,87 @@ describe('the bosses at the stations (D-80)', () => {
   });
 });
 
+describe('nobody stuck in the train (D-84)', () => {
+  it('fills the pocket between two cars: a shove from the platform cannot wedge anyone there', () => {
+    const g = gt();
+    noBosses(g);
+    at(g, dwellAt(g, J));
+    const p = g.player, o = trainOrigin(J);
+    // the gap between the coach (from x 390) and the dining car (to x 360), outside the gangway, on the platform side
+    for (const ly of [70, 90, 115]) {
+      p.x = p.px = o.x + 375;
+      p.y = p.py = o.y + ly;
+      collideBody(p, g.bosses);
+      const lx = p.x - o.x, y = p.y - o.y;
+      expect(lx > 360 - 6 && lx < 390 + 6 && y > TRAIN.gangHalf + TRAIN.wallT && y < TRAIN.halfW + TRAIN.wallT, `${lx},${y}`).toBe(false);
+    }
+  });
+
+  it("steps anyone out of a train's walls once it has gone, rather than leaving them a whole loop inside it", () => {
+    const g = gt();
+    noBosses(g);
+    at(g, nextArrival(J, 0, eFromOf(g), 2400) + DWELL[J] + 5);
+    expect(trainNow(g).phase).toBe('travel');
+    const q = inCar(J, 600, 20);
+    step(g, q.x, q.y);
+    expect(regionAt(g.player.x, g.player.y)).toBe(J);
+    expect(g.player.y - trainOrigin(J).y).toBeGreaterThan(TRAIN.halfW + TRAIN.wallT);
+    // while the train stands there, inside is aboard: nobody is moved
+    at(g, dwellAt(g, J));
+    step(g, q.x, q.y);
+    expect(g.player.y - trainOrigin(J).y).toBeLessThan(TRAIN.halfW);
+  });
+
+  it('carries off whoever is in a car or a doorway as it leaves, not someone pressed against its side', () => {
+    const g = gt({ players: [{ character: 'carny', name: 'A' }, { character: 'strongman', name: 'B' }] } as never);
+    noBosses(g);
+    at(g, nextArrival(J, 0, eFromOf(g), 2400) + DWELL[J] - 1);
+    const [a, b] = g.players;
+    const door = inCar(J, CARS[2].doors[0], TRAIN.halfW + TRAIN.wallT / 2);
+    const side = inCar(J, 600, TRAIN.halfW + TRAIN.wallT + b.r);
+    for (let i = 0; i < 90; i++) {
+      if (i < 50) {
+        a.x = a.px = door.x;
+        a.y = a.py = door.y;
+        b.x = b.px = side.x;
+        b.y = b.py = side.y;
+      }
+      g.tick();
+    }
+    expect(trainNow(g).phase).toBe('travel');
+    expect(regionAt(a.x, a.y)).toBe(TRANSIT);
+    expect(Math.abs(a.y - trainOrigin(TRANSIT).y)).toBeLessThan(TRAIN.halfW);
+    expect(regionAt(b.x, b.y)).toBe(J);
+  });
+
+  it('a boss quiets only its own station: a partner at another station still meets the crowd', () => {
+    const g = gt({ players: [{ character: 'carny', name: 'A' }, { character: 'strongman', name: 'B' }] } as never);
+    at(g, 296);
+    const [a, b] = g.players;
+    const hold = () => {
+      a.x = a.px = REGIONS[J].cx;
+      a.y = a.py = trackY(J) + 500;
+      b.x = b.px = REGIONS[V].cx;
+      b.y = b.py = trackY(V) + 500;
+    };
+    let guard = 0;
+    while (!g.bosses.some((q) => q.awake && !q.dead) && guard++ < 60 * 20) {
+      hold();
+      g.tick();
+    }
+    const boss = g.bosses.find((q) => q.awake && !q.dead)!;
+    expect(regionAt(boss.x, boss.y)).toBe(J);
+    for (const e of g.active) if (e.alive && regionAt(e.x, e.y) === V) g.despawnEnemy(e);
+    for (let i = 0; i < 60 * 15; i++) {
+      hold();
+      if (g.phase === 'draft') g.chooseDraft(0);
+      g.tick();
+    }
+    expect(boss.dead).toBe(false);
+    expect(g.active.filter((e) => e.alive && regionAt(e.x, e.y) === V).length).toBeGreaterThan(8);
+  });
+});
+
 describe('the phantom doors (D-80)', () => {
   it('stand open from 29:00 and take whoever steps through to the End of the Line', () => {
     const g = gt();
@@ -326,19 +411,27 @@ describe('The Last Train Home, solo (D-80)', () => {
       const c = STATION_CLOCK[r];
       press(g, c.x, c.y + 40);
     }
-    expect(ch.stage).toBe(LT.Lantern);
-    // 3 the lantern (the train still at the Junction)
+    expect(ch.stage).toBe(LT.Battery);
+    // 3 the signal battery (the train still at the Junction)
     press(g, JUNCTION.lamproom.x, JUNCTION.lamproom.y + 20);
     expect(ch.stage).toBe(LT.Signals);
-    expect(ch.lanternBy).toBe(0);
-    // 4 the four signals, shown the lantern from the tender while each is in sight
-    const tender = () => inCar(TRANSIT, LT_TRAIN.tender.x, 0);
+    expect(ch.batteryBy).toBe(0);
+    expect(ch.lamp()).toBe(0);
+    // 4 fit it to the lamp box at the front of the tender (here the Junction's copy of the train): the lamp burns red
+    const box = (r: number) => inCar(r, LT_TRAIN.lampbox.x - 20, LT_TRAIN.lampbox.y - 10);
+    press(g, box(J).x, box(J).y);
+    expect([ch.batteryIn, ch.batteryBy, ch.lamp()]).toEqual([1, 255, 1]);
+    // then each of the four, switched to green a moment before the engine passes it
+    let wait = 0;
     for (let leg = 0; leg < 4; leg++) {
-      let guard = 0;
-      while (!(ch.signalInSight().leg === leg && ch.signalInSight().inSight) && guard++ < 200000) g.time += 0.1;
+      wait = 0;
+      while (!(ch.signalAhead().leg === leg && ch.signalAhead().inS < 2) && wait++ < 200000) g.time += 0.1;
       tickN(g, 1);
-      const w = tender();
+      const w = box(TRANSIT);
       press(g, w.x, w.y);
+      expect(ch.lamp()).toBe(2);
+      for (let i = 0; i < 200 && !(ch.signals & (1 << leg)); i++) step(g, w.x, w.y);
+      expect(ch.signals & (1 << leg)).toBeTruthy();
     }
     expect(ch.signals).toBe(15);
     expect(ch.stage).toBe(LT.Points);
@@ -450,6 +543,34 @@ describe('The Last Train Home, solo (D-80)', () => {
   });
 });
 
+describe("the train's signal lamp (D-84)", () => {
+  it('dark until the battery is fitted, red after; a signal passed at red stays at danger, one passed at green clears', () => {
+    const g = gt();
+    noBosses(g);
+    const ch = chainOf(g);
+    ch.stage = LT.Signals;
+    expect(ch.lamp()).toBe(0);
+    ch.batteryIn = 1;
+    expect(ch.lamp()).toBe(1);
+    const box = inCar(TRANSIT, LT_TRAIN.lampbox.x - 20, LT_TRAIN.lampbox.y - 10);
+    // the first leg's signal, passed at red
+    let wait = 0;
+    while (!(ch.signalAhead().leg === 0 && ch.signalAhead().inS < 1.5) && wait++ < 200000) g.time += 0.1;
+    for (let i = 0; i < 150 && ch.signalAhead().inS < 99; i++) step(g, box.x, box.y);
+    expect(ch.signals).toBe(0);
+    // the next leg's, switched to green just before: the press holds green 3 s, then the lamp goes back to red
+    wait = 0;
+    while (!(ch.signalAhead().leg === 1 && ch.signalAhead().inS < 2) && wait++ < 200000) g.time += 0.1;
+    tickN(g, 1);
+    press(g, box.x, box.y);
+    expect(ch.lamp()).toBe(2);
+    for (let i = 0; i < 200 && !(ch.signals & 2); i++) step(g, box.x, box.y);
+    expect(ch.signals).toBe(2);
+    for (let i = 0; i < 60 * 3; i++) step(g, box.x, box.y);
+    expect(ch.lamp()).toBe(1);
+  });
+});
+
 describe('The Last Train Home in co-op (D-80)', () => {
   it('reaches a guest with the timetable\'s own number, so its doors and train are the host\'s', () => {
     const host = gt({ seed: 8, players: [{ character: 'carny', name: 'Host' }, { character: 'strongman', name: 'Guest' }] } as never);
@@ -464,7 +585,9 @@ describe('The Last Train Home in co-op (D-80)', () => {
     ch.tasks = 5;
     ch.coal = 2;
     ch.hour = 7;
-    ch.lanternBy = 1;
+    ch.batteryBy = 1;
+    ch.batteryIn = 1;
+    ch.greenT = 2;
     const mirror = new Game({ ...host.cfg, godMode: false });
     const rep = new Replica(mirror, 1);
     const enc = new SnapshotEncoder();
@@ -482,7 +605,9 @@ describe('The Last Train Home in co-op (D-80)', () => {
     expect(m.tasks).toBe(5);
     expect(m.coal).toBe(2);
     expect(m.hour).toBe(7);
-    expect(m.lanternBy).toBe(1);
+    expect(m.batteryBy).toBe(1);
+    expect(m.batteryIn).toBe(1);
+    expect(m.greenT).toBeCloseTo(2, 1);
     for (let k = 0; k < 4; k++) expect(m.sigAt[k]).toBeCloseTo(ch.sigAt[k], 2);
     for (const t of [800, 995, 1000, 1300]) expect(trainAt(t, eFromOf(mirror))).toEqual(trainAt(t, eFromOf(host)));
   });

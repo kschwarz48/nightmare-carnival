@@ -9,7 +9,7 @@
 //   spawner, boarding at its two ends only: out of the tender's coal and over the rear platform's railing.
 // - Bosses fight at stations and hold still while nobody is in their place.
 
-import { E, FINAL_ACT, FINAL_BOSS_AT, MOUTHS, REGIONS, REGION_HW, TRANSIT, TRAIN, carAtLocal, doorWalls, inCopy, regionAt, trackY, trainAt, trainOrigin, walkRect, type TrainState } from '../data/ghosttrain';
+import { E, FINAL_ACT, FINAL_BOSS_AT, MOUTHS, REGIONS, REGION_HW, TRANSIT, TRAIN, carAtLocal, doorWalls, inTrainLocal, regionAt, trackY, trainAt, trainOrigin, walkRect, type TrainState } from '../data/ghosttrain';
 import { setDynamicWalls, type Prop } from '../data/map';
 import { ENEMIES } from '../data/enemies';
 import type { Enemy } from './entities';
@@ -49,7 +49,9 @@ const prevOf = new WeakMap<Game, Prev>();
 export function moveAboard(g: Game, from: number, to: number): number {
   const a = trainOrigin(from), b = trainOrigin(to);
   const dx = b.x - a.x, dy = b.y - a.y;
-  const inside = (x: number, y: number) => inCopy(from, x, y, 14);
+  // inside a car or a gangway, or in a doorway (D-84: not someone on the platform pressed against its side, who
+  // used to be carried off in the wall)
+  const inside = (x: number, y: number) => inTrainLocal(x - a.x, y - a.y, TRAIN.wallT);
   let moved = 0;
   for (const p of g.players) {
     if (!inside(p.x, p.y)) continue;
@@ -202,6 +204,27 @@ function confine(g: Game): void {
     b.x = Math.max(w.minX + 80, Math.min(w.maxX - 80, b.x));
     b.y = Math.max(ty, Math.min(w.maxY - 80, b.y));
   }
+  // players are never left inside a train's walls (D-84). Aboard: in a car or a gangway, nowhere else. At a station
+  // whose train is away: out of its carriages' footprint and back on the platform (knocked in as the doors shut, a
+  // player waited there a whole loop of the line for the doors to open again)
+  const st = trainNow(g);
+  for (const p of g.players) {
+    if (p.dead) continue;
+    const r = regionAt(p.x, p.y);
+    if (r < 0) continue;
+    const o = trainOrigin(r), lx = p.x - o.x, ly = p.y - o.y;
+    if (r === TRANSIT) {
+      if (inTrainLocal(lx, ly)) continue;
+      const x = Math.max(TRAIN.rear + p.r, Math.min(TRAIN.front - p.r, lx));
+      const half = (carAtLocal(x) ? TRAIN.halfW : TRAIN.gangHalf) - p.r;
+      p.x = p.px = o.x + x;
+      p.y = p.py = o.y + Math.max(-half, Math.min(half, ly));
+      continue;
+    }
+    if ((st.phase === 'dwell' && st.at === r) || !inTrainLocal(lx, ly, TRAIN.wallT)) continue;
+    p.y = p.py = o.y + TRAIN.halfW + TRAIN.wallT + p.r + 2;
+    p.px = p.x;
+  }
 }
 
 // ---------------------------------------------------------------- the journeys
@@ -280,9 +303,10 @@ function stationPlayers(g: Game): { p: Player; r: number }[] {
 /**
  * The anchor for the next station spawn: a standing player at a station, the one whose place has the fewest
  * creatures per player (so a party split between stations each gets a fair crowd). Null if everyone rides.
+ * `skip`: a station left out (where a boss is being fought, D-84).
  */
-export function stationAnchor(g: Game): Player | null {
-  const list = stationPlayers(g);
+export function stationAnchor(g: Game, skip = -1): Player | null {
+  const list = stationPlayers(g).filter((it) => it.r !== skip);
   if (!list.length) return null;
   const count = new Array(TRANSIT).fill(0), pl = new Array(TRANSIT).fill(0);
   for (const { r } of list) pl[r]++;
@@ -302,10 +326,14 @@ export function stationAnchor(g: Game): Player | null {
   return best.p;
 }
 
-/** How many creatures stand at stations (the waves' counts; what rides the train has its own). */
-export function stationAlive(g: Game): number {
+/** How many creatures stand at stations (the waves' counts; what rides the train has its own), but `skip`. */
+export function stationAlive(g: Game, skip = -1): number {
   let n = 0;
-  for (const e of g.active) if (e.alive && regionAt(e.x, e.y) !== TRANSIT) n++;
+  for (const e of g.active) {
+    if (!e.alive) continue;
+    const r = regionAt(e.x, e.y);
+    if (r !== TRANSIT && r !== skip) n++;
+  }
   return n;
 }
 

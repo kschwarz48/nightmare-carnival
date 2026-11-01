@@ -46,6 +46,8 @@ export class Director {
   private seenBossKills = 0;
   private scratch = { minAlive: 0, maxAlive: 0, interval: 1, batch: 1 };
   bossActive = false;
+  /** the Ghost Train: the station a boss is being fought at, left out of the waves meanwhile (-1: none) */
+  private away = -1;
   private bruteAnnounced = false;
 
   constructor(private g: Game) {}
@@ -111,16 +113,27 @@ export class Director {
     }
     if (this.recoveryT > 0) this.recoveryT -= dt;
 
-    if (this.bossActive || preBoss) return; // ambient spawns pause for the set-piece
+    // ambient spawns pause for the set-piece; on the Ghost Train only at the boss's own station (D-84): anyone at
+    // another (or riding, whose journeys have their own spawner) still meets the night's crowd, their share of it
+    const ghost = g.mapId === 'ghost_train';
+    this.away = -1;
+    let share = 1;
+    if (this.bossActive || preBoss) {
+      const b = ghost && this.bossActive ? g.bosses.find((x) => x.awake && !x.dead) : undefined;
+      if (!b) return;
+      this.away = regionAt(b.x, b.y);
+      if (!stationAnchor(g, this.away)) return;
+      const up = g.players.filter((p) => g.isUp(p));
+      share = 0.5 + (0.5 * up.filter((p) => regionAt(p.x, p.y) !== this.away).length) / Math.max(1, up.length);
+    }
     const wave = this.activeWave();
     const minutes = g.minutes;
     const B = this.blended(wave);
-    const cap = Math.min(B.maxAlive * (g.endless ? 1.4 : 1), this.cap);
+    const cap = Math.min(B.maxAlive * (g.endless ? 1.4 : 1) * share, this.cap);
     // the Ghost Train (D-80): the waves fill the stations; what rides the train has its own spawner
-    const ghost = g.mapId === 'ghost_train';
-    let alive = ghost ? stationAlive(g) : g.active.length;
+    let alive = ghost ? stationAlive(g, this.away) : g.active.length;
 
-    if (wave.id !== this.currentWave) {
+    if (wave.id !== this.currentWave && this.away < 0) {
       this.currentWave = wave.id;
       for (let i = 0; i < (wave.eliteBurst ?? 0); i++) {
         if (g.active.length >= this.cap) break;
@@ -131,7 +144,7 @@ export class Director {
 
     // Miniboss cadence (doc 03 §6).
     this.minibossAcc += dt;
-    if (this.minibossAcc >= g.diff.minibossInterval && !g.victoryLap) {
+    if (this.minibossAcc >= g.diff.minibossInterval && !g.victoryLap && this.away < 0) {
       // the Ghost Train's Inspector only walks the stations: while everyone rides he waits for the next one
       const anchor = ghost ? stationAnchor(g) : null;
       if (!ghost || anchor) {
@@ -148,7 +161,7 @@ export class Director {
 
     // 1) baseline top-up
     let guard = 0;
-    const minAlive = Math.min(B.minAlive, cap);
+    const minAlive = Math.min(B.minAlive * share, cap);
     while (alive < minAlive && guard++ < 40) {
       if (!this.spawnOne(wave)) break;
       alive++;
@@ -241,7 +254,7 @@ export class Director {
    */
   private spawnOneAtStation(wave: WaveDef, forceElite: boolean): boolean {
     const g = this.g;
-    const anchor = stationAnchor(g);
+    const anchor = stationAnchor(g, this.away);
     if (!anchor) return false;
     const r = regionAt(anchor.x, anchor.y);
     const id = this.pickEnemy(wave, (id) => homeOk(id, r));

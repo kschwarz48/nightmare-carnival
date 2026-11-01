@@ -331,6 +331,9 @@ export const LT_TRAIN = {
   letter: { x: 128, y: -34 },
   firebox: { x: 1650, y: 30 },
   whistle: { x: 1650, y: -78 },
+  /** the train's own signal lamp (D-84): its lamp box inside the tender's front, its post outside on the corner */
+  lampbox: { x: 1660, y: 84 },
+  lamp: { x: 1702, y: 100 },
   /** anywhere in the tender: the lantern shown to a signal ahead */
   tender: { x: 1540, y: 0, x0: 1390, x1: 1690 },
 };

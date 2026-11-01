@@ -333,6 +333,13 @@ export const RECIPES: Record<string, () => Float32Array> = {
     V('saw', 740, 744, 1.3, { vol: 0.1, lp: 2800, attack: 0.12, decay: 1.1, vib: 0.008, vibRate: 5.7 }),
     V('noise', 1, 1, 1.3, { vol: 0.12, hp: 1800, lp: 6000, attack: 0.05, decay: 1.2 }),
   ]),
+  // the train pulling up (D-84): two blasts, a short and a long, loud enough to carry across the station
+  gt_arrive: () => render(([[0, 0.55], [0.8, 1.7]] as [number, number][]).flatMap(([d, len]) => [
+    V('saw', 494, 498, len, { vol: 0.24, lp: 2600, attack: 0.06, decay: 0.6, vib: 0.006, vibRate: 6, delay: d }),
+    V('saw', 587, 590, len, { vol: 0.2, lp: 2600, attack: 0.08, decay: 0.6, vib: 0.007, vibRate: 6.4, delay: d }),
+    V('saw', 740, 744, len, { vol: 0.16, lp: 2800, attack: 0.1, decay: 0.6, vib: 0.008, vibRate: 5.7, delay: d }),
+    V('noise', 1, 1, len, { vol: 0.17, hp: 1800, lp: 6000, attack: 0.05, decay: 0.7, delay: d }),
+  ])),
   // a station hand bell: inharmonic partials ringing out
   gt_bell: () => render([...[1, 2.4, 3.9, 5.4].map((m, i) => V('sine', 1180 * m, 1180 * m, 1.2 - i * 0.2, { vol: 0.16 / (1 + i), decay: 3 + i * 2 })), ...[1, 2.4].map((m) => V('sine', 1180 * m, 1180 * m, 0.9, { vol: 0.08, decay: 4, delay: 0.32 }))]),
   gt_chuff: () => render([V('noise', 1, 1, 0.22, { vol: 0.45, lp: 1200, hp: 120, decay: 12 }), V('sine', 70, 45, 0.18, { vol: 0.35, decay: 16 })]),

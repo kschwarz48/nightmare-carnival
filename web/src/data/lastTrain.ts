@@ -5,11 +5,12 @@
 export const LAST_TRAIN = {
   id: 'last_train',
   /** reach (sim units) for each kind of fixture */
-  reach: { booking: 110, board: 140, page: 80, clock: 90, lamproom: 100, lantern: 1e9, lever: 34, whistle: 80, punch: 100, passenger: 90, letter: 90, postbox: 90, chute: 100, coal: 90, stoke: 90, church: 120, rope: 52, ticket: 100 },
-  /** the signal on each leg stands this far along it (fraction of the leg, seeded 0.3..0.7 a night); the
-   *  lantern counts from when the signal comes into sight (this many units ahead of the train) until just past it */
-  sightAhead: 3200,
-  sightPast: 260,
+  reach: { booking: 110, board: 140, page: 80, clock: 90, lamproom: 100, lampbox: 80, lever: 34, whistle: 80, punch: 100, passenger: 90, letter: 90, postbox: 90, chute: 100, coal: 90, stoke: 90, church: 120, rope: 52, ticket: 100 },
+  /** the signal on each leg stands this far along it (fraction of the leg, seeded 0.3..0.7 a night). The train's
+   *  lamp shows green this long after a press at its lamp box, and a signal is called out this many seconds before
+   *  the engine passes it (D-84) */
+  greenFor: 3,
+  callAhead: 2.5,
   /** the bridge over the drop: seconds into the leg from Stillwater to the End of the Line */
   bridge: [13, 23] as [number, number],
   /** the boiler's pressure needle swings with this period (s); a stoke counts while it's this close to the top */
@@ -36,9 +37,11 @@ export const LT_TEXT = {
   clockNo: ['The hands won\'t move.', 'A station clock only starts while its train is standing in.'],
   clockJunction: ['The Junction\'s master clock won\'t start alone.', 'The other three stations must keep time first.'],
   clock: (r: string, n: number) => [`${r}'s clock is ticking again.`, n === 4 ? 'The Midnight Line keeps time again.' : `${n} of 4 station clocks running.`],
-  lantern: ['The guard\'s lantern. Its glass is red on one side and green on the other.', 'Signals stand at danger on every leg of the line. Show them the green from the front of the train.'],
-  signalAhead: ['A signal at danger ahead!', 'Show the lantern from the tender, now.'],
-  signalNone: ['Nothing ahead but the dark.', 'Wait until a signal comes into sight.'],
+  battery: ['The signal battery: heavy, its brass terminals still bright.', 'The train\'s own signal lamp is dark. Fit the battery to the lamp box at the front of the tender.'],
+  batteryIn: ['The train\'s signal lamp burns red.', 'A signal stands at danger on every leg. Switch the lamp to green as the train passes each one.'],
+  green: ['The lamp shows green.', ''],
+  signalAhead: ['A signal at danger ahead!', 'Switch the train\'s lamp to green, now.'],
+  signalMissed: ['The signal stays at danger.', 'The lamp has to show green as the train passes it. It will come round again.'],
   signal: (n: number) => ['The signal drops to clear.', n === 4 ? 'The whole line is clear.' : `${n} of 4 signals clear.`],
   signalsDone: ['Every signal shows clear.', 'In the Junction\'s signal box, the points to the End of the Line can be set.'],
   boardLevers: (levers: number[]) => ['The timetable\'s footnote:', `"Route 13 — levers ${levers.map((l) => l + 1).join(' · ')}."`],
@@ -73,8 +76,8 @@ export const LT_TEXT = {
     ['THE BOOKING CLERK', '"Every journey starts with a ticket. Ask at the window."'],
     ['THE BOOKING CLERK', '"The timetable came apart on the train. Look in the luggage, the dining car, Car 13 and the sleepers."'],
     ['THE BOOKING CLERK', '"Wind each station\'s clock while its train is in. The Junction\'s last."'],
-    ['THE BOOKING CLERK', '"The guard always left his lantern in the lamp room under the signal box."'],
-    ['THE BOOKING CLERK', '"Ride up front, in the tender, and show the green to every signal at danger."'],
+    ['THE BOOKING CLERK', '"The battery for the train\'s signal lamp is kept in the lamp room under the signal box."'],
+    ['THE BOOKING CLERK', '"Fit it at the front of the tender, and show every signal at danger the green as you pass it."'],
     ['THE BOOKING CLERK', '"The signal box. The timetable\'s footnote has the levers."'],
     ['THE BOOKING CLERK', '"Ride to the End of the Line and whistle on the bridge."'],
     ['THE BOOKING CLERK', '"The punch is on the ticket box at the End of the Line."'],

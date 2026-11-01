@@ -1023,11 +1023,20 @@ export class App {
         a.play('gt_whistle', { vol: 0.9 * vol });
         if (near && !riding && st.at === here) this.hud.toastMsg('All aboard!');
       }
-      if (crossed(prev.departIn, st.departIn, 3)) a.play('gt_doors', { vol: 0.8 * (near ? 1 : 0) });
       if (prev.t < 2 && st.t >= 2) a.play('gt_doors', { vol: 0.7 * (near ? 1 : 0) });
     }
+    // pulling up at a station: a loud double blast for everyone there and aboard, a distant one elsewhere (D-84)
+    if (st.phase === 'dwell' && prev.phase !== 'dwell') {
+      const there = riding || st.at === here;
+      a.play('gt_arrive', { vol: there ? 1 : 0.22 });
+      if (there && !riding) this.hud.toastMsg('The train is in — doors opening');
+    }
     if (st.phase === 'travel') {
-      if (prev.phase === 'dwell') a.play('gt_chuff', { vol: 0.8 * vol });
+      // the doors shut as the departure count reaches 0 (D-84), and it pulls away
+      if (prev.phase === 'dwell') {
+        a.play('gt_doors', { vol: 0.8 * (near ? 1 : 0) });
+        a.play('gt_chuff', { vol: 0.8 * vol });
+      }
       // chuffs quickening as it pulls away, then the run
       if (st.t < 9 && near) {
         this.chuffAcc += dt * (0.8 + speed * 5);
@@ -1040,6 +1049,12 @@ export class App {
       if (riding && st.at === 3 && st.t >= 13 && prev.t < 13) a.play('gt_rush', { vol: 0.8 });
     }
     if (st.phase === 'approach' && st.arriveIn < 18 && prev.arriveIn >= 18) a.play('gt_whistle', { vol: 0.5 });
+  }
+
+  /** Is this machine's player aboard the moving Ghost Train? */
+  private aboard(g: Game): boolean {
+    const me = g.players[this.localIndex] ?? g.player;
+    return gtRegionAt(me.x, me.y) === TRANSIT;
   }
 
   /** The Last Train Home's cues (and the line's: the timetable read at a clock, the phantom doors). */
@@ -1130,16 +1145,26 @@ export class App {
         this.hud.banner('THE LINE KEEPS TIME', 'Every station clock is running again', 'gold', 3.5);
         a.play('gt_chime', { vol: 0.9 });
         break;
-      case 'lt_lantern':
-        say(LT_TEXT.lantern, 7);
+      case 'lt_battery':
+        say(LT_TEXT.battery, 7);
         a.play('glint', { vol: 0.7, pan: pan(q.x) });
         break;
-      case 'lt_signal_ahead':
-        if (ch && ch.lanternBy === this.localIndex) say(LT_TEXT.signalAhead, 3);
-        a.play('gt_bell', { vol: 0.5 });
+      case 'lt_battery_in':
+        say(LT_TEXT.batteryIn, 7);
+        a.play('clank', { vol: 0.7, pan: pan(q.x) });
+        a.play('gt_tick', { vol: 0.8, pan: pan(q.x) });
         break;
-      case 'lt_signal_none':
-        say(LT_TEXT.signalNone, 3);
+      case 'lt_green':
+        a.play('clank', { vol: 0.45, pitch: 1.4, pan: pan(q.x) });
+        break;
+      case 'lt_signal_ahead':
+        // everyone aboard hears the call: anyone at the lamp box can switch it to green (D-84)
+        if (this.aboard(g)) say(LT_TEXT.signalAhead, 3);
+        a.play('gt_bell', { vol: 0.6 });
+        break;
+      case 'lt_signal_missed':
+        if (this.aboard(g)) say(LT_TEXT.signalMissed, 4);
+        a.play('sour', { vol: 0.4 });
         break;
       case 'lt_signal':
         say(LT_TEXT.signal(q.b ?? 1), 4);

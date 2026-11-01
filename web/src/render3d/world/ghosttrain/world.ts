@@ -116,7 +116,7 @@ export class GhostTrainWorld {
   addLights(g: Game, time: number): void {
     const p = g.player;
     this.lighting.addLights(g, time, this.train, p.x, p.y);
-    this.quest.addLights(g, time);
+    this.quest.addLights(g, time, this.train);
   }
 
   setQuality(_q: 'low' | 'medium' | 'high'): void {}

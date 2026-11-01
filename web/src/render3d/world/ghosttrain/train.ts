@@ -318,7 +318,7 @@ export class TrainRender {
       if (!inside) this.roof.add(x, y, 0, 0, 1);
       // doors: open (slid east into the wall) while the train stands here with them open
       const open = r !== TRANSIT && st.phase === 'dwell' && st.at === r && st.doors ? 1 : 0;
-      const k = open ? Math.min(1, (st.t - 2) / 0.8) * Math.min(1, (st.departIn - 3) / 0.8) : 0;
+      const k = open ? Math.min(1, (st.t - 2) / 0.8) * Math.min(1, st.departIn / 0.8) : 0;
       for (const c of CARS) for (const d of c.doors) {
         const di = this.doors.add(x + d + Math.max(0, k) * (T.doorW - 6), y + T.halfW + T.wallT / 2 + (k > 0 ? 7 : 0), 0, 0, 1);
         this.doors.tint(di, 1, 1, 1, fl);
