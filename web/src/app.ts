@@ -174,8 +174,9 @@ export class App {
   private hubParty = '';
   /** this night unlocked the Midway (announced on the results) */
   private hubJustUnlocked = false;
-  /** where the Lost & Found's Back returns to when it was opened from the co-op lobby (D-74) */
-  private lfReturn: State | null = null;
+  /** where the Lost & Found's Back returns to when it was opened from the co-op lobby (D-74), or 'party':
+   *  wherever the co-op party is by then (a guest who went shopping from the results, D-75) */
+  private lfReturn: State | 'party' | null = null;
   /** guest: finished its prize wheel at this mirror time, waiting for the host's night to resume */
   private guestPrizeAt = -1;
   /** the Boardwalk's last announced turn of the tide (its time, rounded), so each is told once */
@@ -335,8 +336,13 @@ export class App {
     // leaving the Lost & Found (D-74): back to the co-op lobby it was opened from, and whatever was bought
     // there reaches the session (the host uses everyone's current perks and unlocks for the next night)
     if (this.state === 'lostfound' && state !== 'lostfound') {
-      if (state === 'title' && this.lfReturn && this.net) state = this.lfReturn;
+      let ret = state === 'title' && this.net ? this.lfReturn : null;
       this.lfReturn = null;
+      // a guest who went shopping from the results goes back to wherever the party is now (D-75)
+      if (ret === 'party') ret = this.game?.hub ? 'hub' : !this.game ? 'lobby' : 'netmsg';
+      // the host hasn't moved on yet: a waiting note instead (its own go() passes the purchases on)
+      if (ret === 'netmsg') return this.partyWait();
+      if (ret) state = ret;
       this.syncProfile(state === 'lobby');
     }
     // once the first night is fully completed, the Midway takes the main menu's place (D-60)
@@ -393,11 +399,16 @@ export class App {
       case 'mp':
         this.checkReach();
         el = L.multiplayerMenu(this.ctx, {
-          name: L.loadName(), status: this.mpStatus, busy: this.mpBusy, reach: this.netReach,
+          name: L.loadName(), status: this.mpStatus, busy: this.mpBusy, reach: this.netReach, focus: arg?.focus,
           host: (n) => void this.hostGame(n),
           join: (n) => {
             L.storeName(n);
             this.mpStatus = '';
+            // leaving your own Midway to join a friend's: the friend's grounds replace it once connected
+            if (this.game?.hub && !this.net) {
+              this.endRunView();
+              this.makeDemo();
+            }
             this.go('mp_join');
           },
           back: () => {
@@ -491,8 +502,10 @@ export class App {
   }
 
   /** Common run setup for solo, the co-op host's night and the co-op guest's mirror. */
-  private beginRun(g: Game, character: string, title: string, sub: string): void {
+  private beginRun(g: Game, character: string, title: string, sub: string, keepChat = false): void {
     this.hubHud.root.remove();
+    // a new night, a fresh chat log (D-75); a guest rejoining its night keeps that night's lines
+    if (!keepChat) this.chat.clear();
     this.game?.bus.clear();
     this.game = g;
     g.setCtx(g.players[this.localIndex] ?? g.players[0]);
@@ -857,11 +870,15 @@ export class App {
         say(MIRA.facesDone, 8);
         setTimeout(() => a.play('toll', { vol: 0.5, pitch: 1.3 }), 600);
         break;
-      case 'u_mural':
-        say(MIRA.mural, 7);
+      case 'u_mural': {
+        // the emblems in this night's order (D-75), so the clue reads even if the floor's shapes don't
+        const names = ['the dumbbell', 'the tutu', 'the red nose', 'the top hat'];
+        const order = chain?.order ?? [];
+        say(order.length === 4 ? [MIRA.mural[0], `${MIRA.mural[1]}: ${order.map((j) => names[j]).join(', ')}`] : MIRA.mural, 9);
         tune(460, 0.4);
         fx('ring', 'gravity', 160);
         break;
+      }
       case 'u_note':
         bell(PERFORMER_NOTES[q.a ?? 0], 0.6, q.x);
         if ((q.b ?? 0) < 4) say(MIRA.plinthTrue(q.b ?? 1), 2.5);
@@ -1232,8 +1249,8 @@ export class App {
       }
       const actions = net
         ? net.role === 'host'
-          ? { again: () => this.coopToLobby(), againLabel: this.save.hubUnlocked() ? 'Back to the Midway' : 'Back to the Lobby', menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound') }
-          : { again: () => this.hud.toastMsg(`Waiting for ${g.players[0]?.name ?? 'the host'} to head back to the lobby…`), againLabel: 'Wait for Host', menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound') }
+          ? { again: () => this.coopToLobby(), againLabel: this.save.hubUnlocked() ? 'Back to the Midway' : 'Back to the Lobby', menu: () => this.toMenu(), lostfound: () => this.coopLostFound() }
+          : { again: () => this.hud.toastMsg(`Waiting for ${g.players[0]?.name ?? 'the host'} to head back to the lobby…`), againLabel: 'Wait for Host', menu: () => this.toMenu(), lostfound: () => this.guestLostFound() }
         : { again: () => this.lastRun && this.startRun(this.lastRun), menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound'), endless: canEndless ? () => this.goEndless() : undefined };
       const el = S.resultsScreen(this.ctx, st, { achievements: earned.map((a) => `${a.name} — ${a.desc} (+${a.reward} LT)`), newUnlocks: notes, dailyBest }, { ...actions, menuLabel: net ? (net.role === 'host' ? 'Close the Lobby' : 'Leave') : this.save.hubUnlocked() ? 'To the Midway' : undefined });
       this.ui.append(el);
@@ -1692,8 +1709,11 @@ export class App {
     this.beginHub(g, 0);
   }
 
-  /** Co-op host: (re)build the Midway for everyone seated, keeping each where they stood, and send it out. */
-  private restartHub(): void {
+  /**
+   * Co-op host: (re)build the Midway for everyone seated, keeping each where they stood, and send it out.
+   * `keepShop`: the party changed while the host shops at the Lost & Found, so the shop stays open (D-75).
+   */
+  private restartHub(keepShop = false): void {
     if (this.net?.role !== 'host') return this.startHub();
     const hs = this.net.host;
     const old = this.game?.hub ? this.game : null;
@@ -1708,7 +1728,7 @@ export class App {
     this.endRunView();
     const g = new Game(runConfigFromStart(cfg));
     hs.attachGame(g);
-    this.beginHub(g, 0);
+    this.beginHub(g, 0, keepShop);
   }
 
   private hubPartyKey(): string {
@@ -1722,13 +1742,16 @@ export class App {
     this.mpBusy = false;
     this.endRunView();
     const g = new Game(runConfigFromStart(cfg));
-    this.beginHub(g, this.net?.role === 'guest' ? this.net.guest.slot : 1);
+    // a guest shopping at the Lost & Found when the host brings everyone here keeps shopping (D-75)
+    this.beginHub(g, this.net?.role === 'guest' ? this.net.guest.slot : 1, true);
     setTimeout(() => this.sendView(), 0);
     return g;
   }
 
   /** Step into a built hub world (solo, the host's, or a guest's mirror). */
-  private beginHub(g: Game, local: number): void {
+  /** `keepShop`: someone at the Lost & Found stays there, the grounds waiting behind it (D-75) — only when
+   *  the network rebuilds the Midway, never when the player is the one leaving the shop for it. */
+  private beginHub(g: Game, local: number, keepShop = false): void {
     this.game?.bus.clear();
     this.game = g;
     this.localIndex = local;
@@ -1742,6 +1765,12 @@ export class App {
     this.hud.root.remove();
     if (!this.hubHud.root.isConnected) this.ui.append(this.hubHud.root);
     this.hubHud.welcome();
+    if (keepShop && this.state === 'lostfound') {
+      this.hubHud.root.classList.add('under');
+      // Back from the shop now leads here, wherever it was going to lead before
+      if (this.lfReturn) this.lfReturn = 'party';
+      return;
+    }
     this.go('hub');
   }
 
@@ -1913,15 +1942,10 @@ export class App {
     const role = this.net?.role ?? null;
     const items: { label: string; fn: () => void; cls?: string }[] = [{ label: 'Back to the Midway', fn: () => this.go('hub') }];
     if (!role) {
-      items.push({ label: 'Invite Friends', fn: () => void this.hostGame(L.loadName() || 'Host') });
-      items.push({
-        label: 'Join a Friend',
-        fn: () => {
-          this.endRunView();
-          this.makeDemo();
-          this.go('mp_join');
-        },
-      });
+      // both go through the online menu first, so you can set the name you play under (D-75: Invite Friends
+      // opened the lobby at once with the last name used)
+      items.push({ label: 'Invite Friends', fn: () => this.go('mp', { focus: 'host' }) });
+      items.push({ label: 'Join a Friend', fn: () => this.go('mp', { focus: 'join' }) });
       if (this.save.dailyAvailable()) items.push({ label: 'Daily Run', fn: () => this.go('daily') });
     } else if (role === 'host') {
       items.push({
@@ -2137,7 +2161,7 @@ export class App {
   private refreshLobby(): void {
     // co-op host on the Midway: someone joined or left, so rebuild the hub around the new party (D-60)
     if (this.net?.role === 'host' && this.net.host.inHub && this.game?.hub) {
-      if (this.hubPartyKey() !== this.hubParty) this.restartHub();
+      if (this.hubPartyKey() !== this.hubParty) this.restartHub(true);
       return;
     }
     if (this.state !== 'lobby') return;
@@ -2193,7 +2217,7 @@ export class App {
     this.localIndex = me;
     if (this.game) this.endRunView();
     const g = new Game(runConfigFromStart(cfg));
-    this.beginRun(g, cfg.players[me].character, resume ? 'BACK IN THE NIGHT' : 'MIDNIGHT', resume ? 'Reconnected to the host' : withYou(cfg.players.filter((_, i) => i !== me).map((p) => p.name)));
+    this.beginRun(g, cfg.players[me].character, resume ? 'BACK IN THE NIGHT' : 'MIDNIGHT', resume ? 'Reconnected to the host' : withYou(cfg.players.filter((_, i) => i !== me).map((p) => p.name)), resume);
     setTimeout(() => this.sendView(), 0);
     return g;
   }
@@ -2337,10 +2361,48 @@ export class App {
     this.go('lobby');
   }
 
+  /**
+   * Co-op host, from the results (D-75): everyone back to the Midway (or the lobby), and the Lost & Found opens
+   * here. It used to close the lobby. Back returns to the grounds, or to the lobby (shown away meanwhile).
+   */
+  private coopLostFound(): void {
+    if (this.net?.role !== 'host') return this.toMenu('lostfound');
+    this.coopToLobby();
+    if (this.game?.hub) this.go('lostfound');
+    else this.lobbyLostFound();
+  }
+
+  /**
+   * Co-op guest, from the results (D-75): the Lost & Found without leaving the party. When the host takes
+   * everyone on meanwhile, the shop stays open; Back returns to wherever the party is by then.
+   */
+  private guestLostFound(): void {
+    if (this.net?.role !== 'guest') return this.toMenu('lostfound');
+    this.lfReturn = 'party';
+    this.go('lostfound');
+  }
+
+  /** Guest, back from the Lost & Found before the host has moved on: a waiting note (the next move is the host's). */
+  private partyWait(): void {
+    const host = this.net?.role === 'guest' ? this.net.guest.lobby?.players[0]?.name ?? 'the host' : 'the host';
+    this.go('netmsg', {
+      title: 'The Night Is Over',
+      text: `Waiting for ${host} to head back to the Midway…`,
+      actions: [{ label: 'Lost & Found', fn: () => this.guestLostFound() }, { label: 'Leave the Party', fn: () => this.toMenu(), cls: 'small red' }],
+    });
+  }
+
   /** Guest: the host took everyone back to the lobby. */
   private guestToLobby(): void {
     this.endRunView();
     this.makeDemo();
+    // shopping at the Lost & Found: stay there (shown away in the lobby) until Back, which then follows the
+    // party (the host may still take everyone on to the Midway) (D-75)
+    if (this.state === 'lostfound' && this.net?.role === 'guest') {
+      this.lfReturn = 'party';
+      this.net.guest.setReady(false, true);
+      return;
+    }
     this.go('lobby');
   }
 

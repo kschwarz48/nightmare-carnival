@@ -2,7 +2,7 @@
 // written into it too, so a clue that faded off the screen can still be read back. Bottom-left; new
 // lines linger, then fade; T opens the line (Enter sends, Esc closes) whenever a co-op session is up.
 // Solo, T opens the log to read back (D-72): nothing to type, and Esc, Enter or T closes it.
-// Everything is set as text, never markup.
+// Each night starts a fresh log (D-75). Everything is set as text, never markup.
 
 import { h } from './dom';
 
@@ -70,6 +70,12 @@ export class ChatBox {
     return this.born.length;
   }
 
+  /** A fresh log for a new night (D-75): the last night's lines are gone. */
+  clear(): void {
+    this.log.replaceChildren();
+    this.born.length = 0;
+  }
+
   add(line: ChatLine): void {
     // the same line twice in a row within a few seconds (a cue that fired twice) is written once
     const key = `${line.kind}|${line.who ?? ''}|${line.text}|${line.sub ?? ''}`;
@@ -102,6 +108,9 @@ export class ChatBox {
     this.field.placeholder = this.canSend ? SEND_HINT : READ_HINT;
     this.field.value = '';
     this.field.focus();
+    // show every line before measuring (closed, all but the newest few are hidden), then land on the newest
+    // (D-75: it opened scrolled to the top, on the oldest line)
+    this.update(0);
     this.log.scrollTop = this.log.scrollHeight;
     this.onOpenChange(true);
   }

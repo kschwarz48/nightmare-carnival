@@ -35,7 +35,8 @@ export function readyEvolutions(g: Game): string[] {
   return out;
 }
 
-function isUnlocked(g: Game, unlock?: string): boolean {
+/** Is an item with this unlock id in the acting player's draft pool? */
+export function isUnlocked(g: Game, unlock?: string): boolean {
   if (!unlock) return true;
   if (g.cfg.daily) return !SECRET_UNLOCKS.includes(unlock); // Daily Run: full pool (D-18), secrets stay secret
   return g.player.unlocked.has(unlock); // the acting player's own save (D-74)

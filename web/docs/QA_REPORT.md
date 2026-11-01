@@ -899,3 +899,39 @@ before this round). New tests:
 - Ultrawide 3440×1440 itself (the zoom formula gives 1.333 there, the same as 2560×1440), 4K, Firefox and
   Safari (container units need Firefox 110 / Safari 16).
 - Co-op across real networks after these changes.
+
+## Bug round — 2026-11-01 (D-75)
+
+**Changed:** the chat log (opens at the newest line, resets each night), recipes on passive cards, the Whole
+Troupe on purchase and on opening the Lost & Found, the Midway's invite/join through the name screen, the
+Fun House mural's emblems (and one before each plinth) and its whisper, the results screen's Lost & Found in
+co-op. Decision: D-75.
+
+**Automated:** typecheck clean; 322 tests pass in 23 files (`meta.test.ts` adds the Whole Troupe on the last
+purchase and on an older save). The UI flows below have no automated tests (the suite runs without a DOM).
+
+**Checked in the browser (dev server):**
+- The chat: 30 lines aged out, then opened: it lands on the newest (scroll 395 of 717, the last line in
+  view); a new night: 30 lines → 0.
+- A level-up with three passives: Lucky Ticket shows Throwing Cards lit (Lv 1/8) + "✓ this card" = Royal
+  Flush, and the Strongman Bell dim; the others list their two evolutions.
+- A save owning every performer without the achievement: opening the Lost & Found announces it, adds 150
+  Lost Tickets and the list reads ✓ Earned.
+- Invite Friends on the Midway: the online menu with the name selected; typing a new name works (the chat
+  key doesn't open the chat) and nothing hosts until Host a Game.
+- The Fun House gallery's plinth emblems and the crisp mural; the mural whisper and its chat line naming the
+  emblems in the night's order.
+- A two-tab co-op party over PeerJS (host + guest on the same machine), lost on purpose:
+  - the guest's Lost & Found kept it in the party;
+  - the host's took everyone to the Midway with the lobby still open and opened the shop;
+  - the guest stayed in its shop with the Midway behind it.
+- Found and fixed this way:
+  - Back from the Lost & Found could leave you stuck in the shop when the Midway had to be rebuilt (from a
+    solo results screen); re-checked: Back lands on the Midway.
+  - A guest's Back after the host moved everyone went to the lobby instead of the Midway.
+
+**Not verified:**
+- The re-run of that last guest fix: the browser pane was hidden and the game doesn't run there; covered by
+  reading the message order through the code.
+- The host and guest on separate machines.
+

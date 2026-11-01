@@ -216,7 +216,10 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 .recipe .rp { display: flex; flex-direction: column; align-items: center; width: 4.4em; min-width: 0; opacity: 0.62; }
 .card .recipe { font-size: 0.9em; padding-left: 0.2em; padding-right: 0.2em; }
 .card .recipe .rp { width: 4.15em; }
-.recipe .rp.ok, .recipe .rp.out { opacity: 1; }
+.recipe .rp.ok, .recipe .rp.out, .recipe .rp.have { opacity: 1; }
+/* a weapon you own, not yet at its top level (D-75): lit, without the tick */
+.recipe .rp.have img { filter: none; }
+.recipe .rp.have small { color: #f0d890; }
 .recipe .rp img { width: 34px; height: 34px; filter: grayscale(0.75); }
 .recipe .rp.ok img, .recipe .rp.out img { filter: none; }
 .recipe .rp b { font-family: var(--head); font-weight: normal; font-size: 0.7em; line-height: 1.05; text-align: center; overflow-wrap: anywhere; }

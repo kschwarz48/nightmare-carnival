@@ -955,3 +955,33 @@ and teleports, and the prize wheel dull and see-through.
   Settings' UI scale multiplies on top. Inside it, `cqw`/`cqh` stand in for `vw`/`vh`, and everything placed
   from screen coordinates (overhead bars, prompts, arrows, the Midway's labels, the tray tooltip) divides by
   the zoom.
+
+### D-75 · Bug round: the chat opens at its newest line and resets each night, recipes on passive cards, the Whole Troupe, naming yourself before inviting, a readable Fun House mural, the Lost & Found keeps the party together
+- **The report** (the owner): the chat log opened at its top (the oldest line) and kept earlier runs' lines;
+  passive cards in a level-up didn't show their evolution recipe, or didn't light the weapons he had; his
+  brother bought every performer but didn't get the achievement; Invite Friends opened the lobby before he
+  could set his name; the Fun House mural's emblems meant nothing; and the host's Lost & Found after a lost
+  co-op night closed the lobby.
+- **The chat** (`ui/chat.ts`, `app.ts`): opening the log revealed its older lines only after it had scrolled
+  to the bottom of the few that showed, so it landed on the oldest line; now every line shows first. Each
+  night (solo, host, guest) starts a fresh log; a guest rejoining its night keeps that night's lines.
+- **Recipes on passive cards** (`ui/hud.ts`): a passive's card lists every evolution it feeds that can come
+  up in your drafts (weapons you own first, at most two); a weapon you own is lit even below its top level
+  ("Lv 3/8"), one you don't is dim ("not owned"), and the passive reads "✓ this card". Before, only weapons
+  already owned showed, and greyed out until they reached Lv 8.
+- **The Whole Troupe** (`meta/save.ts claimDerived`, `ui/screens.ts`): derived achievements were only checked
+  when some other achievement was granted. Now buying the last performer earns it at once (with its 150
+  Lost Tickets), and opening the Lost & Found awards anything a save already qualifies for (his brother's
+  save gets it there), announced at the top of the panel. Tests: `meta.test.ts`.
+- **Name before inviting** (`app.ts`, `ui/lobby.ts`): the Midway's Invite Friends and Join a Friend open the
+  online menu (the name selected, ready to type over; that choice the default) instead of hosting at once.
+- **The Fun House mural** (`render3d/world/funhouse/quest.ts`, `app.ts`): each plinth in the Puppet Gallery
+  has its performer's emblem painted on the floor before it; the emblems are drawn to read (a dumbbell with
+  plates, a ballerina with raised arms, a clown's face under a pointed hat, a top hat with its band), bigger
+  and brighter on the mural; and the mural's whisper names them in the night's order.
+- **The Lost & Found keeps the party together** (`app.ts`): from the results, the host's takes everyone back
+  to the Midway (or the lobby, where the host shows as away) and opens the shop there; a guest's opens the
+  shop without leaving the party. A guest still shopping when the host moves everyone on stays in the shop
+  (the Midway waits behind it), and Back leads wherever the party is; with no Midway or lobby yet, Back shows
+  a waiting note.
+

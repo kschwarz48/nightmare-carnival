@@ -38,16 +38,26 @@ const REACH_TEXT: Record<Reach, [string, string]> = {
   blocked: ['warn', 'Connection check: this browser is blocking peer-to-peer connections (WebRTC). Opera / Opera GX: Settings → Privacy & security → WebRTC → "Use any suitable network interface", and turn off its VPN. Or try Chrome or Edge.'],
 };
 
-export function multiplayerMenu(c: UICtx, o: { name: string; status: string; busy: boolean; reach: Reach | null; host: (name: string) => void; join: (name: string) => void; back: () => void }): HTMLElement {
+/** `focus`: opened from the Midway's Invite Friends / Join a Friend (D-75): that choice is the default, and the
+ *  name is selected, ready to type over. */
+export function multiplayerMenu(c: UICtx, o: { name: string; status: string; busy: boolean; reach: Reach | null; host: (name: string) => void; join: (name: string) => void; back: () => void; focus?: 'host' | 'join' }): HTMLElement {
   const input = h('input', { class: 'mp-input', type: 'text', maxlength: '16', value: o.name, placeholder: 'Your name', 'aria-label': 'Your name', 'data-nav': '', spellcheck: 'false', autocomplete: 'off' }) as HTMLInputElement;
   const nm = () => input.value.trim() || 'Player';
+  if (o.focus && !o.busy) {
+    setTimeout(() => {
+      if (!input.isConnected) return;
+      input.focus();
+      input.select();
+    }, 30);
+  }
+  const join = o.focus === 'join';
   return h('div', { class: 'screen dim mp' }, h('div', { class: 'panel bulbs mp-panel' },
     h('h2', { class: 'title-text' }, 'Online Night'),
     h('div', { class: 'muted' }, 'Play the same night with up to five friends: shared tickets and levels, your own builds. One of you hosts; the others join with the host’s code.'),
     h('label', { class: 'mp-label' }, 'Your name', input),
     h('div', { class: 'menu' },
-      btn('Host a Game', () => { c.click(); o.host(nm()); }, '', { 'data-default': '', disabled: o.busy || undefined }),
-      btn('Join a Game', () => { c.click(); o.join(nm()); }, 'purple', { disabled: o.busy || undefined }),
+      btn('Host a Game', () => { c.click(); o.host(nm()); }, '', { 'data-default': join ? undefined : '', disabled: o.busy || undefined }),
+      btn('Join a Game', () => { c.click(); o.join(nm()); }, 'purple', { 'data-default': join ? '' : undefined, disabled: o.busy || undefined }),
       btn('Back', () => { c.click(); o.back(); }, 'small red'),
     ),
     h('div', { class: `mp-status${o.status ? '' : ' hidden'}` }, o.status),

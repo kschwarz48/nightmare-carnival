@@ -50,6 +50,10 @@ Each guest's end stats carry the whole table (`RunStats.party`, `me`). The resul
 well-formed table (`partyRows`), so a broken peer can't crash it.
 
 After the night, the host can press **Back to the Lobby** for another round with the same connection.
+The results screen's **Lost & Found** keeps the party together (D-75): the host's takes everyone back to the
+Midway (or the lobby) and opens the shop there; a guest's opens the shop without leaving, and Back returns to
+wherever the party is by then (a guest still shopping when the host moves on stays in the shop). From the
+Midway, **Invite Friends** and **Join a Friend** open the online menu first, so the name can be set.
 
 **The Midway (D-60).** If the host has fully completed the first night, friends who join land on the
 host's **Midway hub** instead of the lobby screen. Everyone walks the grounds together, and more

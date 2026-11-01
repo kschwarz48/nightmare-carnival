@@ -296,6 +296,8 @@ export class SaveManager {
     if (this.data.lostTickets < c.unlock.cost) return false;
     this.data.lostTickets -= c.unlock.cost;
     this.data.unlocks.push(`char_${id}`);
+    // the last performer bought earns the Whole Troupe at once (D-75: it waited for some other achievement)
+    this.claimDerived();
     this.save();
     return true;
   }
@@ -350,7 +352,18 @@ export class SaveManager {
       this.data.totalEarned += a.reward;
       out.push(a);
     }
-    // derived achievements
+    out.push(...this.claimDerived());
+    return out;
+  }
+
+  /**
+   * Achievements that follow from the save itself (every performer unlocked, every evolution discovered):
+   * awarded (with their Lost Tickets) whenever they're met, and returned. Checked when achievements are
+   * granted, when a performer is bought and when the Lost & Found opens (D-75), so an older save that
+   * already qualifies gets them too.
+   */
+  claimDerived(): typeof ACHIEVEMENTS {
+    const out: typeof ACHIEVEMENTS = [];
     const allChars = CHARACTERS.every((c) => this.characterAvailable(c.id));
     if (allChars && !this.hasAchievement('all_characters')) out.push(...this.grantAchievements(['all_characters']));
     // secret evolutions (the Easter egg's reward) don't count toward Full House

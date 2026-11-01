@@ -9,7 +9,7 @@ import { EVENTS } from '../data/events';
 import type { Assets } from '../render/assets';
 import type { Game } from '../sim/game';
 import type { DraftOption } from '../sim/draft';
-import { readyEvolutions } from '../sim/draft';
+import { isUnlocked, readyEvolutions } from '../sim/draft';
 import type { UnreflectedChain } from '../sim/quest/unreflected';
 import { FocusNav, fmtTime, h, uiZoom } from './dom';
 
@@ -54,24 +54,27 @@ export interface CoopHud {
 /**
  * An evolution recipe at a glance (D-71): the weapon at its top level + the passive = the evolution, as icons
  * with their names, each requirement ticked once it's met (only this player's own passive counts, D-74); the
- * band lights up gold when it's ready. `levelAfter` is the weapon's level once an offered card is taken.
+ * band lights up gold when it's ready. A weapon you own is lit even below its top level (D-75), dim if you
+ * don't have it. `levelAfter` is the weapon's level once an offered card is taken; `passiveAfter` marks a
+ * recipe shown on the passive's own card (taking it brings the passive).
  */
-export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?: number): HTMLElement | null {
+export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?: number, passiveAfter = false): HTMLElement | null {
   const d = WEAPONS[weaponId];
   if (!d?.evolvesTo || !d.evoPassive) return null;
   const evo = WEAPONS[d.evolvesTo], pas = PASSIVES[d.evoPassive];
+  const owned = levelAfter !== undefined || g.weapons.has(weaponId);
   const lv = Math.min(d.maxLevel, levelAfter ?? g.weapons.get(weaponId)?.level ?? 0);
   const haveLv = lv >= d.maxLevel;
-  const mine = g.player.passiveLevel(d.evoPassive) >= 1;
+  const mine = passiveAfter || g.player.passiveLevel(d.evoPassive) >= 1;
   const ready = haveLv && mine;
-  const part = (icon: string, name: string, ok: boolean | null, note: string) =>
-    h('div', { class: `rp${ok === null ? ' out' : ok ? ' ok' : ''}` }, h('img', { src: icon, alt: '' }), h('b', {}, name), note ? h('small', {}, `${ok ? '✓ ' : ''}${note}`) : null);
+  const part = (icon: string, name: string, ok: boolean | null | 'have', note: string) =>
+    h('div', { class: `rp${ok === null ? ' out' : ok === 'have' ? ' have' : ok ? ' ok' : ''}` }, h('img', { src: icon, alt: '' }), h('b', {}, name), note ? h('small', {}, `${ok === true ? '✓ ' : ''}${note}`) : null);
   return h('div', { class: `recipe${ready ? ' ready' : ''}` },
-    h('div', { class: 'rh' }, ready ? '✦ READY: next level-up or chest' : '✦ EVOLUTION'),
+    h('div', { class: 'rh' }, ready ? (passiveAfter ? '✦ READY with this card' : '✦ READY: next level-up or chest') : '✦ EVOLUTION'),
     h('div', { class: 'rrow' },
-      part(assets.weaponIcon(weaponId), d.name, haveLv, `Lv ${lv}/${d.maxLevel}`),
+      part(assets.weaponIcon(weaponId), d.name, haveLv ? true : owned ? 'have' : false, owned ? `Lv ${lv}/${d.maxLevel}` : 'not owned'),
       h('span', { class: 'op' }, '+'),
-      part(assets.passiveIcon(d.evoPassive), pas.name, mine, mine ? 'have it' : 'need it'),
+      part(assets.passiveIcon(d.evoPassive), pas.name, mine, passiveAfter ? 'this card' : mine ? 'have it' : 'need it'),
       h('span', { class: 'op' }, '='),
       part(assets.weaponIcon(evo.id), evo.name, null, ''),
     ));
@@ -663,7 +666,11 @@ export class DraftView {
       const recipes: (HTMLElement | null)[] = [];
       if (o.kind === 'new_weapon' || o.kind === 'level_weapon') recipes.push(evoRecipe(this.assets, g, o.refId, o.level));
       else if (o.kind === 'passive') {
-        for (const w of Object.values(WEAPONS)) if (w.evoPassive === o.refId && !w.isEvolution && g.weapons.has(w.id)) recipes.push(evoRecipe(this.assets, g, w.id));
+        // every evolution this passive feeds (D-75: only those of weapons already owned showed, and dim), the
+        // ones whose weapon you have first and lit; a weapon that has already evolved needs it no more
+        const feeds = Object.values(WEAPONS).filter((w) => w.evoPassive === o.refId && !w.isEvolution && !g.weapons.list.some((x) => x.def.evolvedFrom === w.id) && (g.weapons.has(w.id) || isUnlocked(g, w.unlock)));
+        feeds.sort((a, b) => Number(g.weapons.has(b.id)) - Number(g.weapons.has(a.id)));
+        for (const w of feeds) recipes.push(evoRecipe(this.assets, g, w.id, undefined, true));
       } else if (o.kind === 'evolution') hint = `Replaces ${WEAPONS[o.refId].name}`;
       const rarityName = o.rarity === 'evolution' ? '✦ EVOLUTION ✦' : o.rarity.toUpperCase();
       return h('div', { class: `card ${o.rarity}${o.kind === 'voucher' ? ' voucher' : ''}${o.disabled ? ' disabled' : ''}`, 'data-nav': o.disabled ? undefined : '', 'data-default': i === 0 ? '' : undefined, onclick: () => (o.disabled ? undefined : this.banishMode ? this.doBanish(i) : this.onPick(i)) },

@@ -73,6 +73,23 @@ describe('save system', () => {
     expect(s.difficultyAvailable('nightmare')).toBe(false);
   });
 
+  it('earns The Whole Troupe the moment the last performer is bought, and on an older save that qualifies (D-75)', () => {
+    const s = new SaveManager(mem());
+    s.data.lostTickets = 5000;
+    s.grantAchievements(['reach_12', 'beat_ferris_wheel', 'beat_puppet_king', 'beat_ringmaster']);
+    for (const id of ['fortune_teller', 'ride_operator', 'lost_child']) expect(s.buyCharacter(id)).toBe(true);
+    expect(s.hasAchievement('all_characters')).toBe(false);
+    const lt = s.data.lostTickets;
+    expect(s.buyCharacter('ringleader')).toBe(true);
+    expect(s.hasAchievement('all_characters')).toBe(true);
+    expect(s.data.lostTickets).toBe(lt - 500 + 150); // the price, then the achievement's reward
+    // a save that bought everyone before this fix gets it (once) the next time it's checked
+    const old = new SaveManager(mem());
+    old.data.unlocks.push('char_fortune_teller', 'char_ride_operator', 'char_lost_child', 'char_ringleader');
+    expect(old.claimDerived().map((a) => a.id)).toEqual(['all_characters']);
+    expect(old.claimDerived()).toEqual([]);
+  });
+
   it('achievements pay Lost Tickets exactly once', () => {
     const s = new SaveManager(mem());
     const a = s.grantAchievements(['first_night']);

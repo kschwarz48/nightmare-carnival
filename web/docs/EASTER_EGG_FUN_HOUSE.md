@@ -87,7 +87,10 @@ together.
 
 Press interact within **90** of the footprints (*Look from the brass footprints*). The picture snaps
 into a crisp row of four emblems and stays crisp for the rest of the night. The music box plays the four
-notes in that order. Whisper: *"From the brass footprints, the smear becomes a picture: the performers,
+notes in that order. Each plinth in the Puppet Gallery has its performer's emblem painted on the floor
+before it (D-75), so the mural's row can be matched to the plinths; and the whisper (kept in the chat log)
+names the emblems in the night's order, e.g. *"…in the order they bowed: the dumbbell, the top hat, the red
+nose, the tutu"*. Whisper: *"From the brass footprints, the smear becomes a picture: the performers,
 in the order they bowed."*
 
 The order is **per run** (seeded) and reads **west to east**. Emblems:

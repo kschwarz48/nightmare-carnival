@@ -5,7 +5,8 @@
 //   smudge on the glass itself so the clue survives low quality (no reflections) too;
 // - each freed performer's head back on its dress form in the gallery;
 // - the anamorphic mural: the bow order smeared across the chamber floor, sharpening as you near the
-//   brass footprints, crisp from them (and for good once read);
+//   brass footprints, crisp from them (and for good once read); each plinth in the gallery has its
+//   performer's emblem painted on the floor before it, so the mural's order can be matched (D-75);
 // - the great curtain parting on the projector, its ring of warm-up bulbs, its beam through the maze;
 // - the four pivot mirrors turning to their states; the crystal blazing when the beam arrives;
 // - the four stopped clocks' hands (the quest's times, all night), the vanity's mirrored clock;
@@ -128,6 +129,12 @@ export class QuestVisuals {
       });
     }
 
+    // ---- each plinth's emblem on the floor before it (D-75: the mural's emblems matched nothing in the
+    // gallery), brighter once the mural has been read
+    U.plinths.forEach((p, i) => {
+      if (inView(p.x, p.y)) this.emblem(r, i, p.x, p.y + 78, 1, ch.muralSeen ? 0.85 : 0.55, 0.85);
+    });
+
     // ---- the freed performers' heads, back on their dress forms
     U.plinths.forEach((p, i) => {
       if (!(ch.freed & (1 << i)) || !inView(p.x, p.y)) return;
@@ -148,7 +155,7 @@ export class QuestVisuals {
       const sharp = ch.muralSeen ? 1 : ready ? Math.max(0, 1 - dm / 420) ** 2 : 0;
       const smear = 1 + 4.5 * (1 - sharp);
       const order = ch.muralSeen || ready ? ch.order : [2, 0, 3, 1];
-      order.forEach((who, k) => this.emblem(r, who, U.mural.x + (k - 1.5) * 92, U.mural.y - (smear - 1) * 14 * (k % 2 ? 1 : -1), smear, 0.2 + 0.38 * sharp));
+      order.forEach((who, k) => this.emblem(r, who, U.mural.x + (k - 1.5) * 112, U.mural.y - (smear - 1) * 14 * (k % 2 ? 1 : -1), smear, 0.22 + 0.68 * sharp, 1.25));
       // the footprints glow once the faces are home
       if (ready && !ch.muralSeen) r.addShapes.circle(U.mark.x, U.mark.y, REACH.mark, 1, 0.85, 0.5, 0.18 + 0.1 * Math.sin(t * 3), 0);
     }
@@ -234,31 +241,51 @@ export class QuestVisuals {
     b.addMatrix(this.mat);
   }
 
-  /** A performer's emblem painted on the chamber floor, stretched `smear` times north-south. */
-  private emblem(r: GameRenderer3D, who: number, x: number, y: number, smear: number, a: number): void {
+  /**
+   * A performer's emblem painted on the floor (the chamber's mural, and before each plinth), stretched `smear`
+   * times north-south, `k` times its size. Drawn to read at a glance (D-75): the strongman's dumbbell, the
+   * ballerina with her arms raised over her tutu, the clown's face with its red nose under a pointed hat, the
+   * magician's top hat with its band.
+   */
+  private emblem(r: GameRenderer3D, who: number, x: number, y: number, smear: number, a: number, k = 1): void {
     const [cr, cg, cb] = COLS[who];
     const S = r.addShapes, L = r.teleLine;
-    const sy = (v: number) => y + v * smear;
-    r.zoneShapes.circle(x, y, 40, 0.05, 0.03, 0.05, 0.5 * a, 0);
+    const sx = (v: number) => x + v * k;
+    const sy = (v: number) => y + v * k * smear;
+    r.zoneShapes.circle(x, y, 44 * k, 0.05, 0.03, 0.05, 0.6 * a, 0);
     switch (who) {
-      case 0: // the strongman's dumbbell
-        S.line(x - 24, sy(0), x + 24, sy(0), 6, cr, cg, cb, a);
-        for (const s of [-1, 1]) S.circle(x + s * 26, sy(0), 11, cr, cg, cb, a, a * 0.6);
+      case 0: // the strongman's dumbbell: a grip between two heavy plates
+        S.line(sx(-22), sy(0), sx(22), sy(0), 6 * k, cr, cg, cb, a);
+        for (const s of [-1, 1]) {
+          S.line(sx(s * 20), sy(-14), sx(s * 20), sy(14), 9 * k, cr, cg, cb, a);
+          S.line(sx(s * 29), sy(-10), sx(s * 29), sy(10), 7 * k, cr, cg, cb, a);
+        }
         break;
-      case 1: // the ballerina's tutu and head
-        S.circle(x, sy(-18), 8, cr, cg, cb, a);
-        S.line(x - 26, sy(4), x + 26, sy(4), 10 * smear ** 0.3, cr, cg, cb, a);
-        S.line(x, sy(-10), x, sy(26), 4, cr, cg, cb, a);
+      case 1: // the ballerina: a head, arms raised to meet above it, the tutu, two legs
+        S.circle(sx(0), sy(-16), 7 * k, cr, cg, cb, a, a);
+        for (const s of [-1, 1]) {
+          S.line(sx(0), sy(-6), sx(s * 13), sy(-20), 3 * k, cr, cg, cb, a);
+          S.line(sx(s * 13), sy(-20), sx(s * 3), sy(-30), 3 * k, cr, cg, cb, a);
+          S.line(sx(s * 4), sy(10), sx(s * 7), sy(30), 3 * k, cr, cg, cb, a);
+        }
+        S.line(sx(0), sy(-9), sx(0), sy(8), 5 * k, cr, cg, cb, a);
+        S.line(sx(-24), sy(8), sx(24), sy(8), 9 * k * smear ** 0.3, cr, cg, cb, a);
         break;
-      case 2: // the clown: a face, its nose, its ruff
-        S.circle(x, sy(-4), 17, cr, cg, cb, a * 0.8, a * 0.5);
-        S.circle(x, sy(-2), 5, 1, 0.2, 0.15, a);
-        S.line(x - 24, sy(18), x + 24, sy(18), 7, cr, cg, cb, a);
+      case 2: // the clown: a face with eyes, a big red nose and a grin, a pointed hat, a ruff
+        S.circle(sx(0), sy(2), 16 * k, cr, cg, cb, a * 0.85, a * 0.5);
+        for (const s of [-1, 1]) S.circle(sx(s * 6), sy(-3), 2.4 * k, 0.1, 0.06, 0.12, a, a);
+        S.circle(sx(0), sy(4), 5 * k, 1, 0.2, 0.15, a, a);
+        S.line(sx(-8), sy(11), sx(8), sy(11), 2.4 * k, 1, 0.2, 0.15, a);
+        S.line(sx(-11), sy(-12), sx(0), sy(-32), 3.5 * k, cr, cg, cb, a);
+        S.line(sx(11), sy(-12), sx(0), sy(-32), 3.5 * k, cr, cg, cb, a);
+        S.circle(sx(0), sy(-34), 4 * k, 1, 0.2, 0.15, a, a);
+        S.line(sx(-22), sy(21), sx(22), sy(21), 7 * k, cr, cg, cb, a);
         break;
-      default: // the magician's top hat
-        S.line(x - 13, sy(-6), x + 13, sy(-6), 26, cr, cg, cb, a);
-        S.line(x - 26, sy(8), x + 26, sy(8), 6, cr, cg, cb, a);
+      default: // the magician's top hat: a tall crown with a band, a wide brim
+        S.line(sx(-13), sy(-8), sx(13), sy(-8), 26 * k, cr, cg, cb, a);
+        S.line(sx(-13), sy(2), sx(13), sy(2), 4 * k, 0.9, 0.15, 0.25, a);
+        S.line(sx(-27), sy(9), sx(27), sy(9), 6 * k, cr, cg, cb, a);
     }
-    L.ring(x, y, 44, 46, cr, cg, cb, a * 0.5, a * 0.5);
+    L.ring(x, y, 46 * k, 48 * k, cr, cg, cb, a * 0.5, a * 0.5);
   }
 }

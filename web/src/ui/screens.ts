@@ -268,6 +268,25 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
 export function lostFoundScreen(c: UICtx): HTMLElement {
   const s = c.save;
   const root = h('div', { class: 'screen lostfound dim' });
+  // achievements the save already qualifies for (an older save that owns every performer, D-75), and those a
+  // purchase here earns: announced at the top of the panel
+  const fmt = (a: (typeof ACHIEVEMENTS)[number]) => `${a.name} — ${a.desc} (+${a.reward} LT)`;
+  const earned: string[] = s.claimDerived().map(fmt);
+  if (earned.length) s.save();
+  const buy = (fn: () => boolean) => {
+    const before = new Set(s.data.achievements);
+    if (!fn()) {
+      c.audio.play('deny', { vol: 0.5 });
+      return;
+    }
+    c.audio.play('buy', { vol: 0.6 });
+    const got = ACHIEVEMENTS.filter((a) => !before.has(a.id) && s.hasAchievement(a.id));
+    if (got.length) {
+      earned.push(...got.map(fmt));
+      c.audio.play('fanfare', { vol: 0.5 });
+    }
+    render();
+  };
   const render = () => {
     const perks = PERKS.map((p) => {
       const lvl = s.perkLevel(p.id), maxed = s.perkMaxed(p.id), cost = s.perkCost(p.id);
@@ -280,7 +299,7 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
     const chars = CHARACTERS.filter((ch) => ch.unlock).map((ch) => {
       const owned = s.characterAvailable(ch.id), met = s.characterRequirementMet(ch.id);
       const can = !owned && met && s.data.lostTickets >= ch.unlock!.cost;
-      return h('div', { class: `lf-item${owned ? ' owned' : met ? (can ? '' : ' cant') : ' locked'}`, 'data-nav': '', onclick: () => { if (s.buyCharacter(ch.id)) { c.audio.play('buy', { vol: 0.6 }); render(); } else c.audio.play('deny', { vol: 0.5 }); } },
+      return h('div', { class: `lf-item${owned ? ' owned' : met ? (can ? '' : ' cant') : ' locked'}`, 'data-nav': '', onclick: () => buy(() => s.buyCharacter(ch.id)) },
         h('img', { src: c.assets.portrait(ch.id), alt: '', style: { borderRadius: '50%' } }), h('div', { class: 'nm' }, ch.name), h('div', { class: 'ds' }, owned ? 'Unlocked' : met ? ch.title : `Requires: ${ch.unlock!.reqText}`),
         h('div', { class: 'cost', style: { gridColumn: '2' } }, owned ? 'OWNED' : `${ch.unlock!.cost} LT`));
     });
@@ -293,6 +312,7 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
     root.replaceChildren(h('div', { class: 'panel bulbs' },
       h('div', { class: 'lf-head' }, h('h2', { class: 'title-text' }, 'Lost & Found'), h('span', { class: 'ticket-count' }, fmtNum(s.data.lostTickets)), h('div', {}, btn('Refund perks', () => { const n = s.refundPerks(); c.audio.play('ui_back'); if (n) render(); }, 'small purple'), ' ', btn('Back', () => { c.click(); c.go('title'); }, 'small red', { 'data-default': '' }))),
       h('div', { class: 'muted' }, 'Spend the Lost Tickets you carry out of each night. Perks are a head start — the night is still won in the drafts.'),
+      ...earned.map((t) => h('div', { class: 'achievement' }, `★ ${t}`)),
       h('div', { class: 'section-title' }, 'Permanent Perks'), h('div', { class: 'lf-grid' }, ...perks),
       h('div', { class: 'section-title' }, 'Performers'), h('div', { class: 'lf-grid' }, ...chars),
       h('div', { class: 'section-title' }, 'New Attractions'), h('div', { class: 'lf-grid' }, ...unlocks),
