@@ -208,6 +208,30 @@ function orb(col: number, r = 6, core = 0xffffff): THREE.BufferGeometry {
   return m.build({ ao: 0 });
 }
 
+/**
+ * A fortune-teller's crystal ball (D-77), for the Crystal Orbs and Cosmic Convergence: a dark violet glass
+ * sphere, unit radius 10, glowing from within (a lit core just under the glass on top, fading to the dark
+ * rim), a few glints like stars caught inside, and a gloss highlight on its shoulder, so it reads as a solid
+ * glass ball lit from inside rather than a ball of light. (The batch draws opaque, so what should look
+ * inside is laid just under the surface.)
+ */
+function crystalBall(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  m.add(sphere(10, 20, 16), { col: 0x2c1f66, emit: 0.28, surf: SURF.glass });
+  // the light inside, showing through the top of the glass
+  m.add(ellipsoid(6.6, 3, 6.6, 16, 8), { col: 0x6a4ac4, pos: [0, 7.6, 0], emit: 0.62, surf: SURF.glass });
+  m.add(ellipsoid(3, 1.4, 3, 12, 6), { col: 0xb8a0ff, pos: [0.8, 9.25, 0.6], emit: 0.85, surf: SURF.glass });
+  // glints: specks of light caught in the glass, in a loose spiral
+  for (let k = 0; k < 6; k++) {
+    const a = k * 2.4, el = 0.5 + 0.18 * k;
+    const x = Math.cos(a) * Math.cos(el) * 9.7, z = Math.sin(a) * Math.cos(el) * 9.7, y = Math.sin(el) * 9.7;
+    m.add(sphere(0.5 + (k % 2) * 0.2, 6, 4), { col: k % 3 === 0 ? 0x9ef0ff : 0xf2eaff, pos: [x, y, z], emit: 1.4, surf: SURF.bulb });
+  }
+  // the gloss: a soft highlight on the shoulder, where a lamp would catch the glass
+  m.add(ellipsoid(2.6, 1.4, 1.6, 10, 6), { col: 0xffffff, pos: [-3.8, 8.6, 3.6], rot: [-0.6, 0, 0.45], emit: 1.1, surf: SURF.glass });
+  return m.build({ ao: 0 });
+}
+
 function bulletTicket(): THREE.BufferGeometry {
   const m = new ModelBuilder();
   m.add(extrude(ticketShape(14, 8), 1, 0.2, 4, 1), { col: 0xffd0a0, emit: 1.4, surf: SURF.paint, rot: [Math.PI / 2, 0, 0] });
@@ -451,6 +475,7 @@ export const ITEM_MODELS: Record<string, ModelDef> = {
   b_popcorn: { build: popcorn, rim: NO_RIM },
   b_spiral: { build: () => orb(0xff6a8a, 6), rim: NO_RIM },
   b_spark: { build: () => orb(0x9ec8ff, 4.6), rim: NO_RIM },
+  b_crystal: { build: crystalBall, rim: [0.72, 0.58, 1, 0.75] },
   b_bolt: { build: bolt, rim: NO_RIM },
   b_ring: { build: () => orb(0xffd060, 5.4), rim: NO_RIM },
   b_hellfire: { build: hellfire, rim: NO_RIM },

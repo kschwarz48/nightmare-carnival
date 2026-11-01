@@ -181,20 +181,22 @@ export class QuestVisuals {
         if (f > 0) r.teleLine.ring(P.x, P.y, P.r - 14, P.r + 4, 1, 0.86, 0.4, 0.95, 0.95, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2);
       }
       const lamp = st > UR.Projector ? 1 : ch.charge / U.charge;
-      r.glow.draw(glowF, P.x, P.y + 40, 104, 0.6 + lamp, 0.6 + lamp, 0, 1, 0.92, 0.7, 0.2 + 0.6 * lamp);
-      pool.add(P.x, P.y + 30, 260, 0.3 + 0.9 * lamp, 1, 0.85, 0.6, 110, 2);
+      // (D-77: a little less blinding at full power)
+      r.glow.draw(glowF, P.x, P.y + 40, 104, 0.6 + 0.8 * lamp, 0.6 + 0.8 * lamp, 0, 1, 0.9, 0.66, 0.2 + 0.42 * lamp);
+      pool.add(P.x, P.y + 30, 260, 0.3 + 0.62 * lamp, 1, 0.85, 0.6, 110, 2);
     }
     if (st >= UR.Beam) {
       const tr = ch.beam();
+      // the beam (D-77: its near-white core read as blinding; warmer and dimmer, still a bright shaft of light)
       for (let k = 1; k < tr.pts.length; k++) {
         const a = tr.pts[k - 1], b = tr.pts[k];
-        r.addShapes.line(a.x, a.y, b.x, b.y, 26, 1, 0.9, 0.65, 0.22, 0);
-        r.addShapes.line(a.x, a.y, b.x, b.y, 9, 1, 0.98, 0.9, 0.85, 0.3);
-        if (k > 1) r.glow.draw(glowF, a.x, a.y, 30, 0.8, 0.8, 0, 1, 0.95, 0.75, 0.6);
+        r.addShapes.line(a.x, a.y, b.x, b.y, 24, 1, 0.86, 0.58, 0.16, 0);
+        r.addShapes.line(a.x, a.y, b.x, b.y, 7, 1, 0.9, 0.7, 0.52, 0.18);
+        if (k > 1) r.glow.draw(glowF, a.x, a.y, 30, 0.7, 0.7, 0, 1, 0.92, 0.7, 0.4);
       }
       const end = tr.pts[tr.pts.length - 1];
-      r.glow.draw(glowF, end.x, end.y, 40, tr.hit ? 2.4 : 1, tr.hit ? 2.4 : 1, 0, tr.hit ? 0.7 : 1, tr.hit ? 1 : 0.8, tr.hit ? 0.95 : 0.5, tr.hit ? 0.9 : 0.55);
-      if (tr.hit) pool.add(U.crystal.x, U.crystal.y, 420, 1.4, 0.6, 1, 0.92, 140, 3);
+      r.glow.draw(glowF, end.x, end.y, 40, tr.hit ? 1.8 : 0.9, tr.hit ? 1.8 : 0.9, 0, tr.hit ? 0.7 : 1, tr.hit ? 1 : 0.8, tr.hit ? 0.95 : 0.5, tr.hit ? 0.62 : 0.4);
+      if (tr.hit) pool.add(U.crystal.x, U.crystal.y, 420, 1.0, 0.6, 1, 0.92, 140, 3);
       if (st === UR.Beam) for (const pv of U.beamPivots) r.addShapes.ring(pv.x, pv.y, REACH.pivot - 5, REACH.pivot, 1, 0.9, 0.6, 0.25 + 0.1 * Math.sin(t * 3), 0.25);
     }
     // the pivot mirrors themselves, turning to their states

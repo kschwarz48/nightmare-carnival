@@ -1006,3 +1006,22 @@ and teleports, and the prize wheel dull and see-through.
   passive (+0.4 a level) left the draft pool. The Free Funnel Cake event and its treats are unchanged.
   Test: `meta.test.ts`.
 
+### D-77 · Neon lasers without the white, crystal-ball orbs, a softer projector beam, a lighter Glasswalker
+- **The report** (the owner): the Laser Light Show's and Grand Illumination's beams were a little blinding,
+  too much white; the Crystal Orbs and Cosmic Convergence should look like physical glowing balls, a
+  fortune teller's crystal balls with a magical aura, not orbs of light; the Fun House projector's beam
+  was a little too bright; the burst-slashing mobs after the mirror boss had a little too much health.
+- **The lasers** (`render3d/renderer3d.ts`): each beam is neon in its own colour (pink, teal, amber,
+  violet), with a hot core in that colour instead of white. The beams start just off the player, so up to
+  six no longer pile into a white star there. The end glow and its light are dimmer.
+- **The crystal balls** (`render3d/models/items.ts crystalBall`, `renderer3d.ts`): a dark violet glass
+  sphere, lit softly from within (a glow just under the glass on top, fading to the dark rim), with a few
+  glints caught inside, a gloss highlight and a violet rim light. Each turns slowly, wrapped in a soft aura
+  that breathes between violet and teal. They were rainbow-tinted balls of light. The batch draws opaque, so
+  what should read as inside is laid just under the surface.
+- **The projector** (`render3d/world/funhouse/quest.ts`): the beam's near-white core is warmer and about 40%
+  dimmer, its outer glow and bounce glows a third dimmer; the crystal's light when struck, and the lamp's
+  glow and light at full power, are about a quarter dimmer.
+- **The Glasswalker** (`data/enemies.ts`): 172 → 135 HP. It shows itself for about three seconds per visit
+  (a second of ripple, then the close and the slash) and good builds couldn't finish it in time.
+

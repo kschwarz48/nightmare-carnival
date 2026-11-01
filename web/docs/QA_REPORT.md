@@ -961,3 +961,21 @@ hidden):
 - The stranded-guest fix in a real two-machine session; covered by the session test.
 - A person reading the projector's indicator.
 
+## Lasers, crystal balls, the projector, the Glasswalker — 2026-11-01 (D-77)
+
+**Changed:** the laser beams' colours (no white core), the orbs' model (crystal balls with an aura), the
+projector beam's brightness, the Glasswalker's health (172 → 135). Decision: D-77.
+
+**Automated:** typecheck clean; 324 tests pass in 23 files (no new tests: visuals and one number).
+
+**Checked** (screenshots inspected; the dev server in the desktop bench runner's Electron window at
+1600×900, because the browser pane was hidden):
+- A night with Grand Illumination, the Laser Light Show, Cosmic Convergence and the Crystal Orbs at max:
+  coloured neon beams with no white blowout where they cross at the player.
+- The crystal balls. A first try put the inner glow inside the glass, where the opaque batch hides it; a
+  second made them glow like lamps; the third, kept, reads as violet glass lit from within with a gloss
+  and an aura.
+- The projector's beam switched on and striking the crystal: a warm, visible shaft of light, no glare.
+
+**Not verified:** how the new Glasswalker feels in a real run (one health number, from the report).
+

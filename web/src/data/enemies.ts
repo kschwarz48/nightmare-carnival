@@ -242,7 +242,8 @@ export const ENEMIES: Record<string, EnemyDef> = {
     tell: 'Walks your own footsteps a moment behind; gleams before it lunges.',
   }),
   glasswalker: E({
-    id: 'glasswalker', name: 'Glasswalker', hp: 172, speed: 90, contact: 16, tickets: 6,
+    // D-77: 172 → 135 HP; it shows itself for ~3 s per visit, and good builds couldn't finish it in time
+    id: 'glasswalker', name: 'Glasswalker', hp: 135, speed: 90, contact: 16, tickets: 6,
     behavior: 'glasswalker', phases: true, radius: 14, sep: 16, knockbackTaken: 0.6, canElite: true, eliteName: 'Cathedral Glass',
     params: { hop: 3.2, emerge: 0.9, slash: 22, slashR: 95 },
     deathFx: 'glass', hitSfx: 'glass_hit', deathSfx: 'shatter', drawScale: 3.6, act: 3, role: 'Mirror stepper',

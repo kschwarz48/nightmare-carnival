@@ -1350,31 +1350,37 @@ export class GameRenderer3D {
       if (k === 'laser' && w.active) {
         const n = g.weapons.amount(w);
         const L = 260 * g.weapons.area(w);
-        const cols = [[1, 0.25, 0.55], [0.25, 1, 0.8], [1, 0.85, 0.25], [0.6, 0.4, 1]];
+        // neon in each beam's own colour (D-77: a white core on every beam, all crossing at the player, read
+        // as a blinding white star); the beams start just off the player
+        const cols = [[1, 0.16, 0.6], [0.12, 1, 0.78], [1, 0.74, 0.14], [0.6, 0.3, 1]];
         for (let i = 0; i < n; i++) {
           const a = g.weapons.beamAngle(w, i, n);
           const c = cols[i % cols.length];
-          const ex = px + Math.cos(a) * L, ey = py + Math.sin(a) * L;
-          A.line(px, py, ex, ey, 16, c[0], c[1], c[2], 0.35, 0);
-          A.line(px, py, ex, ey, 4, 1, 1, 1, 0.85, 0.3);
-          this.fxAdd.draw(glowF, ex, ey, 20, 0.6, 0.6, 0, c[0], c[1], c[2], 0.8);
-          pool.add(ex, ey, 160, 0.5, c[0], c[1], c[2], 40, 1.5);
+          const cx = Math.cos(a), cy = Math.sin(a);
+          const sx = px + cx * 16, sy = py + cy * 16, ex = px + cx * L, ey = py + cy * L;
+          A.line(sx, sy, ex, ey, 13, c[0], c[1], c[2], 0.3, 0);
+          A.line(sx, sy, ex, ey, 3, 0.3 + 0.7 * c[0], 0.3 + 0.7 * c[1], 0.3 + 0.7 * c[2], 0.7, 0.25);
+          this.fxAdd.draw(glowF, ex, ey, 18, 0.5, 0.5, 0, c[0], c[1], c[2], 0.5);
+          pool.add(ex, ey, 140, 0.32, c[0], c[1], c[2], 40, 1.5);
         }
       } else if (k === 'orbs' && w.active) {
         const n = g.weapons.amount(w);
         const R = g.weapons.orbRadius(w);
         const evo = w.def.isEvolution;
         const size = ((evo ? 22 : 14) * g.weapons.area(w)) / (evo ? 1.7 : 1);
-        const b = this.batch('orb', { build: () => orbGeo(), rim: [0, 0, 0, 0] }, 24);
+        // crystal balls (D-77): glass lit from within, each turning slowly, wrapped in a soft magical aura
+        // that breathes between violet and teal (they were balls of rainbow light)
+        const b = this.batch('crystal', ITEM_MODELS.b_crystal, 24);
         this.abilityBatches.add(b);
         for (let i = 0; i < n; i++) {
           const a = w.angle + (i * Math.PI * 2) / n;
           const ox = px + Math.cos(a) * R, oy = py + Math.sin(a) * R;
-          const hue = (this.time * 0.5 + i / n) % 1;
-          const c = [0.5 + 0.5 * Math.sin(hue * 6.28), 0.5 + 0.5 * Math.sin(hue * 6.28 + 2), 0.5 + 0.5 * Math.sin(hue * 6.28 + 4)];
-          const j = b.add(ox, oy, 26, 0, size / 10);
-          b.tint(j, c[0] * 0.6 + 0.4, c[1] * 0.6 + 0.4, c[2] * 0.6 + 0.4, 1.4);
-          this.fxAdd.draw(glowF, ox, oy, 26, size / 18, size / 18, 0, c[0], c[1], c[2], 0.8);
+          const k = 0.5 + 0.5 * Math.sin(this.time * 1.7 + i * 1.3);
+          const j = b.add(ox, oy, 28, this.time * 0.8 + i, size / 10);
+          b.tint(j, evo ? 0.9 : 1, evo ? 0.95 : 1, 1, 1 + 0.25 * k);
+          const ar = 0.55 + 0.25 * k, ag = 0.35 + 0.45 * (1 - k), ab = 1;
+          this.fxAdd.draw(glowF, ox, oy, 28, size / 15, size / 15, 0, ar, ag, ab, 0.36 + 0.14 * k);
+          A.ring(ox, oy, size * 1.05, size * 1.45, ar, ag, ab, 0.16 + 0.08 * k, 0);
         }
       } else if (k === 'rings' && w.def.isEvolution) {
         const n = g.weapons.amount(w);
@@ -1697,10 +1703,5 @@ const BALLOON_TINTS: [number, number, number][] = [
 /** Neon colours per ticket tier (blue → green → magenta, D-27). */
 const NEON: [number, number, number][] = [[0.12, 0.5, 1], [0.15, 0.95, 0.4], [1, 0.23, 0.82]];
 const PLUSH_TINTS: [number, number, number][] = [[0.75, 0.55, 0.4], [0.9, 0.85, 0.75], [0.6, 0.62, 0.68], [0.85, 0.6, 0.6]];
-
-function orbGeo(): THREE.BufferGeometry {
-  const g = ITEM_MODELS.b_spark.build();
-  return g;
-}
 
 export const _unused = { PROPS };
