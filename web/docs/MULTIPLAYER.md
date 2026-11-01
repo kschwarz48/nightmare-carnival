@@ -112,7 +112,8 @@ HOST browser                                             GUEST browser
   sent only while the guest may not have its current bytes, that is, while it changed after the
   newest snapshot the guest has acknowledged. A presence bitmap marks which slots exist, so a ticket
   lying still costs one bit. Bosses send only the JSON keys that changed since the acknowledged
-  baseline. Positions are quarter-unit i16 and strings are dictionary ids. A lost snapshot loses
+  baseline. Positions are half-unit i16 (±16383; quarter-unit until D-82, which stopped at 8191, short of
+  the Ghost Train's far stations) and strings are dictionary ids. A lost snapshot loses
   nothing: unacknowledged parts are simply sent again. Very large snapshots drop the rate to
   15 or 12 Hz, and a congested channel skips a snapshot instead of queueing stale state.
 - **Interest management.** Enemies are sent within 1.9× the guest's view, so anything walking in already

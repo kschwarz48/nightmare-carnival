@@ -23,6 +23,7 @@ import { SnapshotEncoder, decodeSnapshot, type View } from '../src/net/snapshot'
 import { Replica } from '../src/net/replica';
 import { StringDict } from '../src/net/codec';
 import { SaveManager, type StorageLike } from '../src/meta/save';
+import { CAMERA_FOR, PLAYER_BOUNDS } from '../src/data/map';
 import { computePayout } from '../src/data/meta';
 
 const gt = (o: Parameters<typeof makeGame>[0] = {}) => makeGame({ map: 'ghost_train', godMode: true, seed: 11, ...o } as never);
@@ -484,6 +485,65 @@ describe('The Last Train Home in co-op (D-80)', () => {
     expect(m.lanternBy).toBe(1);
     for (let k = 0; k < 4; k++) expect(m.sigAt[k]).toBeCloseTo(ch.sigAt[k], 2);
     for (const t of [800, 995, 1000, 1300]) expect(trainAt(t, eFromOf(mirror))).toEqual(trainAt(t, eFromOf(host)));
+  });
+});
+
+describe("the Ghost Train in a guest's mirror (D-82)", () => {
+  const party = () => {
+    const host = gt({ seed: 8, players: [{ character: 'carny', name: 'Host' }, { character: 'strongman', name: 'Guest' }] } as never);
+    noBosses(host);
+    const mirror = new Game({ ...host.cfg, godMode: false });
+    return { host, mirror, rep: new Replica(mirror, 1) };
+  };
+  const send = (host: Game, rep: Replica) => {
+    const view: View = { x: 3200, y: 4800, hx: 9000, hy: 9000 };
+    rep.apply(decodeSnapshot(new SnapshotEncoder().encode(host, { seq: 1, ackInput: 0, ackSnap: 0, dict: new StringDict(), dictFrom: 0, view, fx: [], sfx: [] }), rep.dict), 0);
+  };
+
+  it('shows creatures and tickets where they are: out at the far end of a station, at the End of the Line, aboard the train', () => {
+    const { host, mirror, rep } = party();
+    const o = trainOrigin(TRANSIT);
+    // past x 8191 at St. Vesper's and Stillwater; the End of the Line and the moving train lie past y 8191 entirely
+    const spots = [
+      { x: REGIONS[V].cx + 2200, y: REGIONS[V].cy + 300 },
+      { x: REGIONS[S].cx + 2200, y: REGIONS[S].cy + 300 },
+      { x: REGIONS[E].cx - 1500, y: REGIONS[E].cy + 400 },
+      { x: o.x + 400, y: o.y + 30 },
+    ];
+    const es = spots.map((s) => host.spawnEnemy('gt_porter', s.x, s.y, { exact: true })!);
+    const ts = spots.map((s) => host.spawnPickup('ticket', s.x + 40, s.y, 1));
+    send(host, rep);
+    for (const e of es) {
+      const m = mirror.enemies[e.idx];
+      expect(m.alive).toBe(true);
+      expect(Math.abs(m.x - e.x)).toBeLessThanOrEqual(0.25);
+      expect(Math.abs(m.y - e.y)).toBeLessThanOrEqual(0.25);
+    }
+    for (const t of ts) {
+      const m = mirror.pickups[host.pickups.indexOf(t)];
+      expect(Math.abs(m.x - t.x) + Math.abs(m.y - t.y)).toBeLessThanOrEqual(0.5);
+    }
+  });
+
+  it('keeps its own walls, bounds and camera places when the attract demo behind the Settings takes the map', () => {
+    const { host, mirror, rep } = party();
+    const me = host.players[1];
+    me.x = REGIONS[V].cx + 1500;
+    me.y = REGIONS[V].cy + 300;
+    send(host, rep);
+    const x0 = mirror.players[1].x;
+    expect(x0).toBeCloseTo(me.x, 1);
+    // the Settings over a guest's paused night: a Carnival Core demo ticks behind them and switches the map
+    const demo = makeGame({ godMode: true });
+    demo.tick();
+    expect(PLAYER_BOUNDS.maxX).toBeLessThan(3000);
+    // back in the night, the guest walks on from where it stands (not into the Carnival's bounds by the Junction)
+    for (let i = 1; i <= 10; i++) rep.predict(i, 1, 0);
+    expect(Math.abs(mirror.players[1].x - x0)).toBeLessThan(80);
+    // and the camera keeps to St. Vesper's
+    demo.tick();
+    rep.frame(1 / 60);
+    expect(CAMERA_FOR?.(mirror.players[1].x, mirror.players[1].y).maxX).toBeGreaterThan(8000);
   });
 });
 

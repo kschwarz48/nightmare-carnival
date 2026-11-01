@@ -115,6 +115,28 @@ understate that character.
 
 ---
 
+## Ghost Train co-op fixes — 2026-11-01 (D-82)
+
+- `npm test`: 25 files, 391 tests pass (4 new). Every map's extent round-trips the wire (net). Creatures and
+  tickets at St. Vesper's and Stillwater's east ends, at the End of the Line and aboard the moving train reach
+  a guest's mirror exactly (ghosttrain). A mirror whose map the attract demo switched walks on from where it
+  stands and keeps St. Vesper's camera (ghosttrain). A stall of both tabs at once keeps the guest, and a dead
+  line after a stall is still dropped (net). Each new test fails with its fix taken out: the creature at
+  St. Vesper's east end lands 408 units short, the guest snaps 5760 units back toward the Junction, the guest
+  is dropped.
+- Two real game windows on this PC (Electron, fresh profiles, the dev-hooks build), joined over WebRTC through
+  PeerJS like any co-op game, the host on the Ghost Train:
+  - creatures held at St. Vesper's east end (x 8250–8620) and aboard the moving train (y 9560–9620) showed on
+    the guest exactly where the host had them (0.00 gap);
+  - the guest paused, opened Settings for 3 s (its paused night behind them, the attract demo not ticking),
+    went Back and resumed: still at St. Vesper's east end where the host had it, the camera with it (x 7910,
+    paused and playing); the host's round trip the same;
+  - from a cold start (both windows building the Ghost Train as the night started) the guest stayed
+    connected, twice; before the stall fix the same cold start dropped it.
+  Screenshots looked at: the guest at St. Vesper's east end with the creatures around both players, and the
+  Settings over the paused night.
+- Not tried on two machines or networks; the 12–15 s freeze of a first Ghost Train start remains.
+
 ## The Ghost Train's night music — 2026-11-01 (D-81)
 
 - `tests/audio.test.ts` (8, 5 new): the song from its first note on the line's night, no waltz, no drone,

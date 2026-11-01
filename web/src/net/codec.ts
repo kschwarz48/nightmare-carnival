@@ -67,9 +67,9 @@ export class Writer {
   frac(v: number): void {
     this.u8(Math.max(0, Math.min(255, Math.round(v * 255))));
   }
-  /** World position at quarter-unit precision (±8191). */
+  /** World position at half-unit precision (±16383; the Ghost Train's line runs out to 11 000, D-82). */
   pos(v: number): void {
-    this.i16(v * 4);
+    this.i16(v * 2);
   }
   str(s: string): void {
     const b = enc.encode(s.length > 512 ? s.slice(0, 512) : s);
@@ -161,7 +161,7 @@ export class Reader {
     return this.u8() / 255;
   }
   pos(): number {
-    return this.i16() / 4;
+    return this.i16() / 2;
   }
   str(): string {
     const n = this.u16();

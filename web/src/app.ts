@@ -3,7 +3,7 @@
 // co-op (lobby, host loop, guest mirror loop — D-52), and the development-only timeline tools
 // (stripped from production builds).
 
-import { MAPS, type MapId, MAP_LOCK } from './data/maps';
+import { MAPS, type MapId, MAP_LOCK, useMap } from './data/maps';
 import { AudioEngine } from './audio/audio';
 import { Input, type NavEvent } from './input/input';
 import { SaveManager } from './meta/save';
@@ -1651,7 +1651,7 @@ export class App {
   session(): { state: SessionState; safe: boolean } {
     const s = this.state;
     if (s === 'loading') return { state: 'boot', safe: true };
-    if (s === 'playing' || s === 'paused') return { state: 'match', safe: false };
+    if (s === 'playing' || this.nightPaused) return { state: 'match', safe: false };
     // a finished night: the offer may show, and taking it leaves any party behind (the player's choice)
     if (s === 'results') return { state: 'results', safe: true };
     if (this.net) return { state: s === 'hub' || s === 'midway' ? 'hub' : 'lobby', safe: false };
@@ -1891,6 +1891,15 @@ export class App {
     }
   }
 
+  /**
+   * A night stands paused: its pause menu, or the Settings opened from it. The night stays behind both; the
+   * attract demo must not run there, since its night would take over the map's shared walls, bounds and
+   * camera places from one that is only paused (D-82).
+   */
+  private get nightPaused(): boolean {
+    return this.state === 'paused' || (this.state === 'settings' && !!this.game && !this.game.hub);
+  }
+
   // =================================================================== main loop
   private frame(t: number): void {
     requestAnimationFrame((tt) => this.frame(tt));
@@ -1923,10 +1932,10 @@ export class App {
     const playing = this.state === 'playing' && g;
     // player screen position for mouse aim
     const cssW = window.innerWidth, cssH = window.innerHeight;
-    const target = g && (playing || this.state === 'paused' || g.hub) ? g.player : this.demo!.player;
+    const target = g && (playing || this.nightPaused || g.hub) ? g.player : this.demo!.player;
     const sp = this.renderer.worldToScreen(target.x, target.y, cssW, cssH, 30);
     this.input.poll(sp.x, sp.y);
-    if (net?.role === 'guest' && g && (this.state === 'playing' || this.state === 'paused' || this.state === 'results' || g.hub)) {
+    if (net?.role === 'guest' && g && (this.state === 'playing' || this.nightPaused || this.state === 'results' || g.hub)) {
       this.guestFrame(dt, t, cssW, cssH);
       return;
     }
@@ -1988,9 +1997,10 @@ export class App {
       this.boardwalkFrame(g!);
       this.ghostTrainFrame(g!, dt);
       perf.mark(SEC.hud, h0);
-    } else if (this.state === 'paused' || this.state === 'results') {
+    } else if (this.nightPaused || this.state === 'results') {
       if (g) {
         hs?.captureFx(g.fx.events);
+        useMap(g.mapId); // a night that isn't ticking doesn't take its map back by itself
         const r0 = perf.now();
         this.renderer.render(g, 1, dt);
         perf.mark(SEC.render, r0);

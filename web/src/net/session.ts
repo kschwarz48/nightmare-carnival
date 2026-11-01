@@ -27,6 +27,12 @@ const CHAT_REFILL = 700;
 
 export const HELLO_TIMEOUT = 8000;
 export const LINK_TIMEOUT = 10000;
+/**
+ * A frame this long after the last means this tab itself stood still (a map's world built as a night starts
+ * takes 12-15 s the first time, D-82). That time isn't the other side's silence: it was most likely stalled
+ * too, building its own, and whatever it sent meanwhile may still be waiting to be read.
+ */
+export const STALL = 1000;
 export const PING_EVERY = 1000;
 /** How long the host's run waits (paused) for a dropped guest before carrying on without them. */
 export const RECONNECT_WAIT = 20000;
@@ -835,6 +841,7 @@ export class HostSession {
 
   /** Per frame: timeouts, pings, waits, snapshots. `now` in ms. */
   update(now: number, dtMs: number): void {
+    const gap = now - this.now;
     this.now = now;
     for (const p of [...this.pending]) if (now - p.at > HELLO_TIMEOUT) this.refuse(p.link, 'bad_hello');
     const ping = now - this.lastPing > PING_EVERY;
@@ -845,7 +852,7 @@ export class HostSession {
       if (s.heard) {
         s.lastHeard = now;
         s.heard = false;
-      }
+      } else if (gap > STALL) s.lastHeard += gap;
       if (now - s.lastHeard > LINK_TIMEOUT) this.lost(s, 'timeout');
       else if (ping) this.sendTo(s, { t: 'ping', at: now });
     }
@@ -1209,12 +1216,13 @@ export class GuestSession {
 
   /** Per frame: keepalive acks while not stepping, pings, link timeout, diagnostics. */
   update(now: number): void {
+    const gap = now - this.now;
     this.now = now;
     if (this.state === 'closed') return;
     if (this.heard) {
       this.lastHeard = now;
       this.heard = false;
-    }
+    } else if (gap > STALL) this.lastHeard += gap;
     if (now - this.lastHeard > LINK_TIMEOUT && this.state !== 'connecting') {
       this.link.onClose = null;
       this.link.close('timeout');

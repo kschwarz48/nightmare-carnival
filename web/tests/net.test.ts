@@ -21,6 +21,7 @@ import { addHazardPull } from '../src/sim/movement';
 import { generateDraft } from '../src/sim/draft';
 import { createBoss } from '../src/sim/bosses';
 import { BOSS_MAP } from '../src/data/bosses';
+import { MAPS, MAP_IDS } from '../src/data/maps';
 
 const UNLOCKED = ['w_orbs', 'w_cannon', 'w_laser', 'w_bell', 'w_mirror', 'p_season_pass', 'p_coin_purse', 'p_rabbits_foot'];
 const duo = (seed = 99, o: Parameters<typeof makeGame>[0] = {}) =>
@@ -57,13 +58,13 @@ describe('binary codec', () => {
     w.u32(4000000000);
     w.f32(3.25);
     w.frac(0.5);
-    w.pos(-1234.75);
+    w.pos(-1234.5);
     w.str('Steam Calliope ✓');
     const buf = w.done();
     const r = new Reader(buf);
     expect([r.u8(), r.i8(), r.u16(), r.i16(), r.u32(), r.f32()]).toEqual([250, -100, 65000, -30000, 4000000000, 3.25]);
     expect(r.frac()).toBeCloseTo(0.5, 2);
-    expect(r.pos()).toBe(-1234.75);
+    expect(r.pos()).toBe(-1234.5);
     expect(r.str()).toBe('Steam Calliope ✓');
     expect(r.left).toBe(0);
     expect(() => new Reader(buf.slice(0, buf.byteLength - 3)).str()).toThrow(RangeError);
@@ -86,6 +87,18 @@ describe('binary codec', () => {
     w.u8(NaN);
     const r = new Reader(w.done());
     expect([r.i8(), r.u16(), r.i16(), r.f32(), r.u8(), r.u8(), r.u8()]).toEqual([127, 0, 32767, 0, 0, 255, 0]);
+  });
+
+  it('carries a position from anywhere a map can hold one (the Ghost Train runs past the old ±8191, D-82)', () => {
+    for (const id of MAP_IDS) {
+      const { half, bounds } = MAPS[id].layout;
+      // (shots are culled 300 past the map's half; nothing the sim keeps lies further out)
+      for (const v of [half + 300, -half - 300, bounds.minX, bounds.maxX, bounds.minY, bounds.maxY]) {
+        const w = new Writer();
+        w.pos(v);
+        expect(Math.abs(new Reader(w.done()).pos() - v), `${id} ${v}`).toBeLessThanOrEqual(0.25);
+      }
+    }
   });
 
   it('syncs the string dictionary incrementally and ignores gaps', () => {
@@ -143,8 +156,8 @@ describe('snapshot serialization', () => {
       const src = g.enemies[r.slot];
       expect(r.S!.uid).toBe(src.uid & 0xffff);
       expect(r.S!.def).toBe(src.def.id);
-      expect(Math.abs(r.M!.x - src.x)).toBeLessThanOrEqual(0.125);
-      expect(Math.abs(r.M!.y - src.y)).toBeLessThanOrEqual(0.125);
+      expect(Math.abs(r.M!.x - src.x)).toBeLessThanOrEqual(0.25);
+      expect(Math.abs(r.M!.y - src.y)).toBeLessThanOrEqual(0.25);
       expect(r.T).toBeTruthy();
     }
     expect(presentCount(s.projs)).toBe(g.projs.filter((p) => p.alive).length);
@@ -259,7 +272,7 @@ describe('replication into the guest mirror', () => {
       expect(src.alive).toBe(true);
       expect(src.uid & 0xffff).toBe(e.uid);
       expect(src.def.id).toBe(e.def.id);
-      expect(Math.abs(src.x - e.x)).toBeLessThanOrEqual(0.125);
+      expect(Math.abs(src.x - e.x)).toBeLessThanOrEqual(0.25);
       expect(Math.abs(src.flash - e.flash)).toBeLessThan(0.01);
     }
     // every live pickup / projectile on the host exists on the mirror with the right kind and place
@@ -267,7 +280,7 @@ describe('replication into the guest mirror', () => {
       if (!p.alive) return;
       expect(mirror.pickups[i].alive).toBe(true);
       expect(mirror.pickups[i].kind).toBe(p.kind);
-      expect(Math.abs(mirror.pickups[i].x - p.x)).toBeLessThanOrEqual(0.125);
+      expect(Math.abs(mirror.pickups[i].x - p.x)).toBeLessThanOrEqual(0.25);
     });
     host.projs.forEach((p, i) => {
       if (!p.alive) return;
@@ -1012,6 +1025,32 @@ describe('a synchronized co-op run over a lossy network', () => {
     expect(g.time).toBeGreaterThan(tWait + 2);
     expect(back.game!.level).toBe(g.level);
     expect(h.notices.some((n) => /reconnected/.test(n))).toBe(true);
+  });
+
+  it("keeps a guest through a stall of both tabs at once (each building the night's world, D-82); a dead line is still found out", () => {
+    const h = new Harness({ latency: 30 });
+    h.run(100);
+    const g = h.startRun();
+    const frame = h.playFrame(() => [0.5, 0]);
+    h.run(2000, frame);
+    // the first Ghost Train night of a session stands both tabs still for 12-15 s: nothing sent, nothing read,
+    // and each draws its next frame before it reads what arrived meanwhile
+    h.now += 14000;
+    h.host.update(h.now, 1000 / 60);
+    h.guest.update(h.now);
+    h.run(3000, frame);
+    expect(h.host.connected(1)).toBe(true);
+    expect(h.guest.state).toBe('run');
+    const t = g.time;
+    h.run(2000, frame);
+    expect(g.time).toBeGreaterThan(t + 1.5);
+    // a stall, then a line that really has gone quiet: dropped as before
+    h.now += 5000;
+    h.guestLink.severed = true;
+    h.hostLink.severed = true;
+    h.run(LINK_TIMEOUT + 1500, frame);
+    expect(h.host.connected(1)).toBe(false);
+    expect(h.guest.state).toBe('closed');
   });
 
   it('carries on without a guest who never returns', () => {

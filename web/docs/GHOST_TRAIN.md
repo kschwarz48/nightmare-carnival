@@ -215,3 +215,6 @@ doors, chuffs, brakes, the bridge), so a guest hears exactly what the host does.
   the car floor at this camera angle), and the locomotive's smoke is spark particles, not a volumetric plume.
 - Bot balance runs cover the bosses' time-to-kill and a ridden night; long human play-testing of the
   35-minute arc (especially co-op splits across stations) is still needed.
+- The first Ghost Train night of a session freezes the game 12–15 s while the map's world is built (0.4 s
+  after that). Co-op rides it out since D-82, unless a guest's build takes 10 s longer than the host's (then
+  Rejoin).

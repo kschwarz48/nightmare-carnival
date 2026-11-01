@@ -7,6 +7,7 @@
 
 import { ENEMIES } from '../data/enemies';
 import { BOSS_MAP } from '../data/bosses';
+import { useMap } from '../data/maps';
 import { WEAPONS } from '../data/weapons';
 import { createBoss } from '../sim/bosses';
 import type { BossBase } from '../sim/bosses/boss';
@@ -407,6 +408,9 @@ export class Replica {
   /** Advance local-only motion between snapshots (hazard drift, animation clocks, correction ease). */
   frame(dt: number): void {
     const g = this.g;
+    // the mirror never ticks, so nothing else gives it back its map's walls, bounds and camera places after
+    // another game took them (the attract demo behind a menu, D-82); its prediction and the camera use them
+    useMap(g.mapId);
     for (const h of g.hazards) {
       if (!h.alive) continue;
       h.x += h.vx * dt;
@@ -451,6 +455,7 @@ export class Replica {
   }
 
   private step(ix: number, iy: number): void {
+    useMap(this.g.mapId);
     const p = this.g.players[this.local];
     const [mx, my] = steer(p, ix, iy);
     // an inhale pulls the guest exactly as the host will (same formula, replicated hazard)

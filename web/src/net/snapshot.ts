@@ -9,7 +9,7 @@
 //
 // Interest management: enemies within a wide ring of the guest's view (so anything walking in already
 // has a history to interpolate from), projectiles, bullets, pickups, zones and cosmetic events near
-// it; players, hazards, summons, bosses and the quest always. Positions are quarter-unit i16,
+// it; players, hazards, summons, bosses and the quest always. Positions are half-unit i16 (D-82),
 // fractions bytes, strings dictionary ids (codec.ts).
 
 import type { Game } from '../sim/game';

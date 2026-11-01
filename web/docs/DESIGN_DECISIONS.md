@@ -1234,3 +1234,35 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
 - **Loading.** 3.9 MB (320 kbps, as delivered): fetched after the menus' song when the save can play the map,
   otherwise when a night on the line first asks for it (silence over the ambience until it arrives). If it
   can't load, the railway waltz stands in, so the night is never without music.
+
+### D-82 · Co-op on the Ghost Train: the whole line on the wire, Settings that keep the night, a stall that isn't a lost guest
+
+- **The reports.** From a co-op play-test: on a guest's screen the creatures stopped at invisible walls (at
+  St. Vesper's they could not follow the party to the station's east end), and aboard the train the guests
+  took hits from creatures they could not see, while the host saw everything right. And: Settings, then Back,
+  put a player back at the first station with the camera stuck there.
+- **Positions on the wire.** Snapshots carried positions as quarter-unit i16, so ±8191.75. The first three
+  maps fit (the Boardwalk, the widest, reaches ±3950). The Ghost Train's places lie far apart: St. Vesper's and
+  Stillwater run east to x 8700, and the End of the Line and the moving train lie at y 9600, wholly past the
+  limit. A guest saw everything beyond it clamped onto the line x or y = 8191.75: the invisible wall, and on
+  the train the creatures drawn 1300 units north of where they bit. Positions now travel as half-unit i16
+  (±16383) at the same size. The rounding (at most 0.25 unit, a quarter of a pixel at the default zoom) is
+  invisible, and a part that moved less than that is no longer resent (the encoder compares bytes). PROTO 14:
+  the wire format changed, so older builds are refused with the usual message. A test round-trips every
+  map's extent.
+- **Settings over a night.** The pause menu's Settings showed the attract demo behind them, and ticking the
+  demo (a Carnival Core night of its own) switched the shared map state to the Carnival's: walls, bounds,
+  camera places and the director's tables. The host's night takes its map back on its next tick, so the host
+  saw at most a camera swing. A guest's mirror never ticks, so it kept the Carnival's layout: its prediction
+  pushed it into the Carnival's ±2140 bounds by the Junction, and the camera clamped there. Now the paused
+  night stays behind its Settings, as behind the pause menu (and the update offer treats that as mid-night).
+  The guest's mirror takes its own map back every frame and before every predicted step, and a paused or
+  finished night being drawn does too.
+- **Found while testing: a cold start dropping the guest.** The first Ghost Train night of a session builds
+  the map's world, with the game frozen 12–15 s on this PC (a second start takes 0.4 s). A co-op night freezes
+  host and guest together, so nothing is sent meanwhile, and each counted its own frozen seconds as the other
+  side's silence, past the 10 s link timeout. In a two-window test the guest was dropped as the night began
+  ("Connection Lost", Rejoin). A frame that comes more than a second after the last now leaves that stall out
+  of the silence count, on both sides; a line that has really gone quiet is still dropped 10 s later. A guest
+  whose build takes 10 s longer than the host's can still be dropped (then Rejoin). The real cure is not
+  freezing: building the world ahead of the night or in pieces, not done here.
