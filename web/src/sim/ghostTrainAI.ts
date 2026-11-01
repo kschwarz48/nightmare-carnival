@@ -65,6 +65,13 @@ export function ticketless(g: Game, e: Enemy, dt: number): void {
   moveDir(g, e, ux * c - uy * s, uy * c + ux * s, e.speed, dt);
 }
 
+// ---------------------------------------------------------------- The Navvy (D-84)
+/** The crowd's meat: no wind-up, no trick, straight at you, and a little faster from further off. */
+export function navvy(g: Game, e: Enemy, dt: number): void {
+  const { ux, uy, d } = toward(g, e);
+  moveDir(g, e, ux, uy, e.speed * (d > 700 ? 1.35 : 1), dt);
+}
+
 // ---------------------------------------------------------------- Coalborn
 /** Rests a moment (0), then darts (1) at you, a little off line each time. */
 export function coalborn(g: Game, e: Enemy, dt: number): void {
@@ -847,4 +854,5 @@ export const GT_BEHAVIORS: Record<string, (g: Game, e: Enemy, dt: number) => voi
   gt_signalman: signalman, gt_commuter: commuter, gt_newsboy: newsboy, gt_mimic: mimic, gt_gravebound: gravebound,
   gt_moth: moth, gt_pallbearer: pallbearer, gt_slag: slag, gt_riveter: riveter, gt_hound: hound, gt_stillfolk: stillfolk,
   gt_watcher: watcher, gt_bellwraith: bellwraith, gt_collected: collected, gt_puncher: puncher, gt_inspector: inspector,
+  gt_navvy: navvy,
 };

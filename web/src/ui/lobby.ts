@@ -6,6 +6,8 @@ import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
 import { DIFFICULTIES, CURSE } from '../data/difficulty';
 import { MAP_IDS, MAP_LOCK, MAPS, type MapId } from '../data/maps';
 import { WEAPONS } from '../data/weapons';
+import { PETS, PET_MAP } from '../data/pets';
+import { ACHIEVEMENTS } from '../data/meta';
 import type { LobbyState } from '../net/protocol';
 import type { Reach } from '../net/peer';
 import { CODE_LENGTH } from '../net/codes';
@@ -212,6 +214,37 @@ export function characterPanel(c: UICtx, current: string, pick: (id: string) => 
       }, h('img', { src: c.assets.portrait(ch.id), alt: ch.name }), h('div', { class: `nm${avail && ch.name.replace('The ', '').length > 8 ? ' long' : ''}` }, avail ? ch.name.replace('The ', '') : '???'));
     })),
     cur ? h('div', { class: 'mp-detail' }, h('b', {}, cur.name), ' — ', cur.quirkName, h('div', { class: 'muted' }, `Starts with ${WEAPONS[cur.startWeapon].name}. ${cur.quirkDesc}`)) : null,
+    h('div', { class: 'menu' }, btn('Back', () => { c.click(); back(); }, 'small red')),
+  ));
+}
+
+/**
+ * Companions (D-84): each pet with its passive; the earned ones to choose (it follows you here at once, and into the
+ * next night), the rest saying what brings them along.
+ */
+export function petPanel(c: UICtx, current: string | null, pick: (id: string | null) => void, back: () => void): HTMLElement {
+  const s = c.save;
+  const card = (id: string | null) => {
+    const p = id ? PET_MAP[id] : null;
+    const owned = !p || s.petUnlocked(p.id);
+    const ach = p ? ACHIEVEMENTS.find((a) => a.id === p.achievement) : undefined;
+    return h('div', {
+      class: `pet-card${current === id ? ' sel' : ''}${owned ? '' : ' locked'}`,
+      'data-nav': owned ? '' : undefined,
+      'data-default': current === id ? '' : undefined,
+      onclick: () => { if (!owned) return; c.click(); pick(id); },
+    },
+      p ? h('img', { src: c.assets.petPortrait(p.id), alt: p.name }) : h('div', { class: 'pet-none' }, '—'),
+      h('div', { class: 'nm' }, p ? p.name : 'No companion'),
+      h('div', { class: 'ds' }, p ? `${p.breed} · ${p.buffName}: ${p.buff}` : 'Walk the night alone'),
+      p && !owned ? h('div', { class: 'lock' }, `🔒 ${ach?.name}: ${ach?.desc}`) : null);
+  };
+  const cur = current ? PET_MAP[current] : null;
+  return h('div', { class: 'screen dim mp' }, h('div', { class: 'panel bulbs mp-panel pets' },
+    h('h2', { class: 'title-text' }, 'Companions'),
+    h('div', { class: 'muted' }, 'A companion follows you everywhere, its own passive on your stats. Each is earned by an achievement you can finish on any map.'),
+    h('div', { class: 'pet-grid' }, card(null), ...PETS.map((p) => card(p.id))),
+    cur ? h('div', { class: 'mp-detail' }, h('b', {}, cur.name), ` — ${cur.lore}`) : null,
     h('div', { class: 'menu' }, btn('Back', () => { c.click(); back(); }, 'small red')),
   ));
 }

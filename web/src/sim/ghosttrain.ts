@@ -234,18 +234,21 @@ function confine(g: Game): void {
  */
 export function journeyPace(t: number): { rate: number; cap: number; hp: number } {
   const m = t / 60;
+  // D-84: unchanged for the first ten minutes or so (hard enough), then a much denser carriage: the late journeys
+  // had grown easy
+  const late = Math.max(0, m - 11);
   return {
-    rate: Math.min(1.6, 0.42 + 0.034 * m),
-    cap: Math.round(Math.min(64, 18 + 1.25 * m)),
+    rate: Math.min(2.6, 0.42 + 0.034 * m + 0.05 * late),
+    cap: Math.round(Math.min(110, 18 + 1.25 * m + 1.6 * late)),
     hp: 1 + Math.max(0, m - 8) * 0.012,
   };
 }
-/** What boards a moving train, by act (weights). */
+/** What boards a moving train, by act (weights): from Act II mostly meat, navvies above all (D-84), few with tricks. */
 const JOURNEY: [string, number][][] = [
   [['gt_ticketless', 70], ['gt_coalborn', 22], ['gt_porter', 8]],
-  [['gt_ticketless', 46], ['gt_coalborn', 18], ['gt_porter', 12], ['gt_railcrawler', 12], ['gt_mourner', 8], ['gt_signalman', 4]],
-  [['gt_ticketless', 34], ['gt_coalborn', 16], ['gt_porter', 14], ['gt_railcrawler', 16], ['gt_mourner', 10], ['gt_signalman', 6], ['gt_mimic', 4]],
-  [['gt_ticketless', 26], ['gt_coalborn', 14], ['gt_porter', 14], ['gt_railcrawler', 16], ['gt_mourner', 10], ['gt_signalman', 6], ['gt_collected', 8], ['gt_puncher', 6]],
+  [['gt_ticketless', 40], ['gt_coalborn', 16], ['gt_porter', 14], ['gt_navvy', 12], ['gt_railcrawler', 10], ['gt_mourner', 5], ['gt_signalman', 3]],
+  [['gt_ticketless', 30], ['gt_coalborn', 12], ['gt_porter', 14], ['gt_navvy', 22], ['gt_railcrawler', 12], ['gt_mourner', 5], ['gt_signalman', 3], ['gt_mimic', 2]],
+  [['gt_ticketless', 24], ['gt_coalborn', 10], ['gt_porter', 14], ['gt_navvy', 28], ['gt_railcrawler', 12], ['gt_collected', 6], ['gt_mourner', 3], ['gt_signalman', 2], ['gt_puncher', 1]],
 ];
 const acc = new WeakMap<Game, { front: number; rear: number; side: number }>();
 
@@ -279,8 +282,22 @@ function journeySpawns(g: Game, st: TrainState, dt: number): void {
         for (const e of g.active) if (e.alive && e.def.id === id) n++;
         if (n >= ENEMIES[id].maxAlive!) id = 'gt_ticketless';
       }
-      const m = MOUTHS[end];
-      const e = g.spawnEnemy(id, o.x + m.x + g.rng.range(-10, 10), o.y + m.y + g.rng.range(-60, 60), { exact: true, elite: g.rng.chance(g.director.eliteChance() * 0.8), hpMult: pace.hp });
+      // where it comes aboard (D-84): now and then over the ends as before (the coal things always out of the tender),
+      // mostly just out of sight to the left or right of someone riding, anywhere along the carriages, so the crowd
+      // closes in from both sides at once
+      const rider = riders[g.rng.int(0, riders.length - 1)];
+      const lx = rider.x - o.x + (end === 'front' ? 1 : -1) * (VIEW_HALF_X * 1.05 + g.rng.range(0, 280));
+      let x: number, y: number;
+      if (id === 'gt_coalborn' || g.rng.chance(0.3) || lx < TRAIN.rear + 30 || lx > TRAIN.front - 30) {
+        const m = MOUTHS[end];
+        x = o.x + m.x + g.rng.range(-10, 10);
+        y = o.y + m.y + g.rng.range(-60, 60);
+      } else {
+        const half = (carAtLocal(lx) ? TRAIN.halfW : TRAIN.gangHalf) - 22;
+        x = o.x + lx;
+        y = o.y + g.rng.range(-half, half);
+      }
+      const e = g.spawnEnemy(id, x, y, { exact: true, elite: g.rng.chance(g.director.eliteChance() * 0.8), hpMult: pace.hp });
       if (!e) return;
       e.leashExempt = true;
       aboard++;

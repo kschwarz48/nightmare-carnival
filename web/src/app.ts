@@ -108,7 +108,7 @@ class BackgroundClock {
   }
 }
 
-type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results' | 'mp' | 'mp_join' | 'lobby' | 'netmsg' | 'hub' | 'midway' | 'charswap';
+type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results' | 'mp' | 'mp_join' | 'lobby' | 'netmsg' | 'hub' | 'midway' | 'charswap' | 'pets';
 
 export class App {
   canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -385,6 +385,9 @@ export class App {
       case 'midway':
         el = this.midwayMenuEl();
         break;
+      case 'pets':
+        el = L.petPanel(this.ctx, this.save.petChoice() ?? null, (id) => this.setPet(id), () => this.go('midway'));
+        break;
       case 'charswap':
         el = L.characterPanel(this.ctx, this.game?.hub ? this.game.players[this.localIndex]?.char.id ?? this.hubCharacter() : this.hubCharacter(), (id) => this.swapCharacter(id), () => this.go('midway'));
         break;
@@ -521,6 +524,7 @@ export class App {
       aimMode: this.save.data.settings.aimMode,
       questMemory: Object.fromEntries(Object.entries(this.save.data.quests).map(([k, v]) => [k, v.completions])),
       map,
+      pet: o.daily ? undefined : this.save.petChoice(),
     };
     this.localIndex = 0;
     const intro = MAPS[map].intro;
@@ -2056,7 +2060,7 @@ export class App {
   // =================================================================== online co-op (D-52)
   private profileBase(name: string) {
     const perk = (id: string) => this.save.perkLevel(id);
-    return { name, meta: this.save.metaStats(), rerolls: perk('reroll'), banishes: perk('banish'), canSkip: this.save.isUnlocked('f_skip'), aimMode: this.save.data.settings.aimMode ?? 'auto' };
+    return { name, meta: this.save.metaStats(), rerolls: perk('reroll'), banishes: perk('banish'), canSkip: this.save.isUnlocked('f_skip'), aimMode: this.save.data.settings.aimMode ?? 'auto', pet: this.save.petChoice() };
   }
 
   private guestProfile(name: string): GuestProfile {
@@ -2082,8 +2086,25 @@ export class App {
     const was = this.game?.hub ? this.game.players[0] : null;
     this.endRunView();
     const ch = this.hubCharacter();
-    const g = new Game({ character: ch, difficulty: 'midway', curse: false, seed: (Math.random() * 2 ** 31) | 0, players: [{ character: ch, name: L.loadName() || 'You' }], hub: { npcs: this.hubCast(), at: was ? [{ x: was.x, y: was.y }] : undefined } });
+    const pet = this.save.petChoice();
+    const g = new Game({ character: ch, difficulty: 'midway', curse: false, seed: (Math.random() * 2 ** 31) | 0, players: [{ character: ch, name: L.loadName() || 'You', pet }], pet, hub: { npcs: this.hubCast(), at: was ? [{ x: was.x, y: was.y }] : undefined } });
     this.beginHub(g, 0);
+  }
+
+  /**
+   * Choose a companion on the Midway (D-84): it follows you at once (the Midway rebuilt where everyone stands) and into
+   * the next night. In a party the host rebuilds it; a guest's new profile reaches the host, whose lobby change does.
+   */
+  private setPet(id: string | null): void {
+    this.save.data.pet = id ?? undefined;
+    this.save.save();
+    const n = this.net;
+    if (n?.role === 'host') {
+      n.host.setSelf(this.profileBase(n.host.self.name));
+      this.restartHub(true);
+    } else if (n?.role === 'guest') n.guest.sendProfile(this.guestProfile(n.guest.profile.name));
+    else if (this.game?.hub) return this.startHub();
+    this.go('hub');
   }
 
   /**
@@ -2128,8 +2149,8 @@ export class App {
   private hubPartyKey(): string {
     if (this.net?.role !== 'host') return '';
     const hs = this.net.host;
-    // everyone's character too: a Swap Character on the Midway rebuilds it for the whole party (D-84)
-    return `${hs.hostCharacter}|` + hs.guests.map((s) => `${s.index}:${s.profile.name}:${s.connected}:${s.character ?? ''}`).join('|');
+    // everyone's character and companion too: a Swap Character on the Midway, or a new pet, rebuilds it for the party (D-84)
+    return `${hs.hostCharacter}:${hs.self.pet ?? ''}|` + hs.guests.map((s) => `${s.index}:${s.profile.name}:${s.connected}:${s.character ?? ''}:${s.profile.pet ?? ''}`).join('|');
   }
 
   /** Guest: the host is on the Midway; build the mirror the session will feed. */
@@ -2388,7 +2409,7 @@ export class App {
         },
       });
     } else items.push({ label: 'Leave the Midway', fn: () => this.toMenu() });
-    items.push({ label: 'Swap Character', fn: () => this.go('charswap') });
+    items.push({ label: 'Swap Character', fn: () => this.go('charswap') }, { label: 'Companions', fn: () => this.go('pets') });
     items.push({ label: 'Carnival-pedia', fn: () => this.go('pedia') }, { label: 'Settings', fn: () => this.go('settings') });
     items.push({
       label: 'Title Screen',

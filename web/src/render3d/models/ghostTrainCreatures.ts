@@ -159,6 +159,33 @@ function porter(): SculptModel {
   return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
 }
 
+// ================================================================== The Navvy (D-84)
+/** A navvy the line never paid off: a wall of a man in moleskins and a waistcoat, a red neckerchief, a sledgehammer on
+ *  his shoulder. No wind-up and no trick: he walks you down. */
+function navvy(): SculptModel {
+  const P = prop(1.6, { headR: 11, chestW: 19, waistW: 17, hipW: 15, depth: 0.95, arm: [6.6, 5.8, 4.8], leg: [6.6, 5.6, 4.4] });
+  const bones = humanBones(P, [{ name: 'hammer', parent: 'chest', head: [P.shoulderX, P.shoulderY, -4] }]);
+  const b = bi(bones);
+  const sc = new Sculpt(2, 3);
+  const moleskin = coat(0x4a3a28), vest = coat(0x1e1c1a), shirt = weather(0xb0a898, 0.45, 0.06, 0x6a6458);
+  humanBody(sc, P, b, { skin: ghostSkin, torso: vest, hips: moleskin, upperArm: shirt, foreArm: ghostSkin, hand: ghostSkin, thigh: moleskin, shin: moleskin, shoe: 0x141210 });
+  head(sc, P, b('head'), { skin: ghostSkin, nose: 1.4, ears: true, brow: 1.5, cheeks: 1.1, chin: 1.1, jaw: 1.5 });
+  eyeDetails(sc, P, b('head'), { size: 0.13, sclera: 0x2a2e32, iris: 0xd8e8ff, glow: 1.1 });
+  cap(sc, P, b('head'), 0x2a2420, 0);
+  sc.detail(torus(P.headR * 0.72, 1.7, 6, 14), { col: 0x8a2018, bone: b('neck'), pos: [0, P.neck - 1, 0], rot: [Math.PI / 2, 0, 0], surf: SURF.cloth });
+  for (let i = 0; i < 4; i++) sc.detail(sphere(1, 8, 6), { col: PAL.brass, bone: b('chest'), pos: [0, P.chest + 4 - i * 5, P.chestW * P.depth + 0.8], surf: SURF.brass });
+  // the sledgehammer: its haft up from his right hand at the shoulder, leaning back, the iron head behind him
+  sc.detail(cyl(1.6, 1.8, 60, 8), { col: 0x5a3e24, bone: b('hammer'), pos: [P.shoulderX + 2, P.shoulderY + 10, -4], rot: [-0.6, 0, -0.2], surf: SURF.wood });
+  sc.detail(box(9, 20, 9), { col: 0x2a2c2e, bone: b('hammer'), pos: [P.shoulderX + 7, P.shoulderY + 35, -21], rot: [-0.6, 0, -0.2], surf: SURF.iron });
+  const carry: Pose = { armR: { rx: -0.35, rz: -0.3 }, foreR: { rx: -1.9 } };
+  const g: Gait = { ...GAIT_WALK, stride: 0.42, knee: 0.55, bob: 3.6, sway: 0.22, twist: 0.08, arm: 0.35, elbow: 0.25, lean: 0.14, headBob: 0.1 };
+  const clips: Clips = {
+    move: { frames: 36, fn: (t) => mix(gaitPose(t, g), carry) },
+    attack: { frames: 14, loop: false, fn: (t) => mix(gaitPose(0, g), carry, { chest: { rx: 0.35 * pulse(t, 0.6, 0.3) } }) },
+  };
+  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+}
+
 // ================================================================== Railcrawler
 function railcrawler(): SculptModel {
   const bones: BoneDef[] = [{ name: 'body', parent: null, head: [0, 14, 0] }, { name: 'lamp', parent: 'body', head: [0, 18, 12] }];
@@ -757,6 +784,7 @@ export const GHOST_TRAIN_BUILDERS: Record<string, () => SculptModel> = {
   gt_ticketless: ticketless,
   gt_coalborn: coalborn,
   gt_porter: porter,
+  gt_navvy: navvy,
   gt_railcrawler: railcrawler,
   gt_mourner: mourner,
   gt_signalman: signalman,

@@ -111,6 +111,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'beat_hour_thief', name: 'Thirteen O\'Clock', desc: 'Defeat the Hour Thief.', reward: 100 },
   { id: 'beat_night_express', name: 'End of the Line', desc: "Defeat the Night Express and see the Ghost Train's dawn.", reward: 180 },
   { id: 'last_train', name: 'The Last Train Home', desc: 'Punch every ticket, and see the Conductor off.', reward: 500 },
+  // companions (D-84): each brings a pet along, and each can be earned on any map
+  { id: 'pet_milo', name: 'Fetch!', desc: 'Pick up two golden tickets in a single night, on any map. Milo comes along.', reward: 60 },
+  { id: 'pet_augustus', name: 'Nine Lives', desc: 'See the dawn on any map without your health ever falling below half. Augustus comes along.', reward: 120 },
 ];
 
 /** End-of-run payout (doc 01 §8). */

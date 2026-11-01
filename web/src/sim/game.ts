@@ -46,6 +46,7 @@ import { FxQueue } from './fx';
 const WEB_RAMP = { step: 0.4, max: 10 };
 import { Player } from './player';
 import { Weapons } from './weapons';
+import { PET_MAP } from '../data/pets';
 import { addHazardPull, moveBody, steer } from './movement';
 
 import { KB_FATIGUE_S, KB_SCALE, KB_WEAR, TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
@@ -68,7 +69,9 @@ export interface RunConfig {
   canSkip?: boolean;
   unlocked?: Set<string>;
   /** Co-op party (D-51): one entry per player; absent = solo with `character`. Player 0 uses the top-level meta/rerolls. */
-  players?: { character: string; name?: string; meta?: { axis: string; value: number }[]; rerolls?: number; banishes?: number; canSkip?: boolean; aimMode?: 'auto' | 'hybrid' | 'manual'; unlocked?: Set<string> }[];
+  players?: { character: string; name?: string; meta?: { axis: string; value: number }[]; rerolls?: number; banishes?: number; canSkip?: boolean; aimMode?: 'auto' | 'hybrid' | 'manual'; unlocked?: Set<string>; pet?: string }[];
+  /** player 0's companion (D-84) */
+  pet?: string;
   /** Test hooks */
   godMode?: boolean;
   /** Persistent quest memory from the save (e.g. how often the Last Song was completed). */
@@ -322,6 +325,10 @@ export class Game {
       pl.aimMode = (i === 0 ? cfg.aimMode : pc.aimMode) ?? 'auto';
       // the draft pool's unlocks are each player's own (D-74); a config without them shares the top-level set
       pl.unlocked = pc.unlocked ?? cfg.unlocked ?? new Set();
+      // a companion (D-84): its passive on this player's stats; the renderer draws it following them
+      const pet = PET_MAP[(i === 0 ? cfg.pet ?? pc.pet : pc.pet) ?? ''];
+      pl.pet = pet?.id ?? null;
+      if (pet) for (const e of pet.effects) pl.stats.apply(e.axis, e.v);
       pl.initHp();
       const at = cfg.hub?.at?.[i];
       pl.x = pl.px = at?.x ?? PLAYER_SPAWN.x + (i - (party.length - 1) / 2) * 70;
@@ -670,6 +677,7 @@ export class Game {
     }
     const dmg = Math.max(1, amount - p.stats.armor);
     p.hp -= dmg;
+    p.lowHp = Math.min(p.lowHp, Math.max(0, p.hp) / p.stats.maxHp());
     p.iframes = IFRAMES;
     p.hurtFlash = 0.3;
     p.bossDamageTaken += dmg;
@@ -1770,6 +1778,7 @@ export class Game {
         break;
       }
       case 'golden':
+        p.goldens++;
         for (const g of this.pickups) if (g.alive && (g.kind === 'ticket' || g.kind === 'bank')) g.magnet = true;
         this.fx.push('flash', p.x, p.y, 0.35, 0, 0, 'gold');
         this.bus.emit('pickup', { kind: 'golden', value: 0, player: p.index });
@@ -2166,7 +2175,8 @@ export class Game {
       score,
       maxLevelReached: this.level,
       enemiesSeen: [...this.enemiesSeen],
-      achievementsHit: [...this.achievementsHit],
+      // the night's, and this player's own (the companions', D-84: Milo fetches for whoever found the tickets)
+      achievementsHit: [...this.achievementsHit, ...(p.goldens >= 2 ? ['pet_milo'] : []), ...(won && p.lowHp >= 0.5 ? ['pet_augustus'] : [])],
       trueEnding: this.trueEnding,
       voucherTickets: this.voucherPaid,
       questStage: this.quests.get(this.map.quest.id)?.stage ?? 0,

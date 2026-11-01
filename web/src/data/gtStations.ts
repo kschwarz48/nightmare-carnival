@@ -87,6 +87,9 @@ export const JUNCTION = (() => {
     board: { x: cx + 40, y: cy - 520 },
     levers: { x: cx - 1850, y: cy - 420 },
     lamproom: { x: cx - 2010, y: cy - 290 },
+    /** the signal box itself, and the fingerpost pointing to it off the platform (D-84) */
+    signalbox: { x: cx - 2010, y: cy - 420 },
+    fingerpost: { x: cx - 1350, y: cy - 560 },
     postbox: { x: cx + 560, y: cy - 608 },
   };
 })();
@@ -100,7 +103,8 @@ export const JUNCTION = (() => {
   for (const [x, y] of [[-460, -260], [460, -260], [-460, -40], [460, -40]]) add({ kind: 'gt_waitbench', x: cx + x, y: cy + y, hw: 80, hh: 15 });
   for (const [x, y, v] of [[1180, -330, 0], [-1450, 60, 1], [1500, 420, 0], [-260, 380, 1]]) add({ kind: 'gt_cart', x: cx + x, y: cy + y, hw: 52, hh: 26, variant: v });
   // the signal box (the lever frame on its east face; the lamp room under it) and the water tower
-  add({ kind: 'gt_signalbox', x: cx - 2010, y: cy - 420, hw: 120, hh: 100 });
+  add({ kind: 'gt_signalbox', x: JUNCTION.signalbox.x, y: JUNCTION.signalbox.y, hw: 120, hh: 100 });
+  add({ kind: 'gt_fingerpost', x: JUNCTION.fingerpost.x, y: JUNCTION.fingerpost.y, r: 8 });
   add({ kind: 'gt_watertower', x: cx + 1950, y: cy - 400, r: 80 });
   // the forecourt: a dry fountain, a hearse at the cab stand, and the terminal's façade along the south
   add({ kind: 'gt_fountain', x: cx, y: cy + 560, r: 110 });

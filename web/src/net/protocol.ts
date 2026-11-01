@@ -10,9 +10,10 @@ import { PERKS } from '../data/meta';
 import { PASSIVES, WEAPONS } from '../data/weapons';
 import { Reader, Writer } from './codec';
 import { isMapId, type MapId } from '../data/maps';
+import { isPetId } from '../data/pets';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 15;
+export const PROTO = 16;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
@@ -63,6 +64,8 @@ export interface GuestProfile {
   /** the weapons and charms their own save has added to the draft pool (D-74: bought at the Lost & Found
    *  or found in a hidden quest); their drafts offer these, whoever hosts */
   unlocks?: string[];
+  /** their companion (D-84): it follows them, its passive on their stats */
+  pet?: string;
 }
 
 /** The shared run definition the host sends at start; the guest builds its mirror Game from it. */
@@ -72,7 +75,7 @@ export interface StartCfg {
   curse: boolean;
   unlocked: string[];
   questMemory: Record<string, number>;
-  players: { character: string; name: string; meta: { axis: string; value: number }[]; aimMode: AimMode; rerolls: number; banishes: number; canSkip: boolean; unlocked?: string[] }[];
+  players: { character: string; name: string; meta: { axis: string; value: number }[]; aimMode: AimMode; rerolls: number; banishes: number; canSkip: boolean; unlocked?: string[]; pet?: string }[];
   /** set when this is the Midway hub rather than a night (D-60): the cast to show and where players stand */
   hub?: { npcs: string[]; at?: { x: number; y: number }[] };
   /** the night's map (D-63); the Carnival Core when absent */
@@ -182,6 +185,7 @@ export function cleanProfile(v: unknown): GuestProfile | null {
     chars,
     pref: isStr(v.pref, 32) && CHARACTER_MAP[v.pref as keyof typeof CHARACTER_MAP] ? v.pref : undefined,
     unlocks: cleanUnlocks(v.unlocks),
+    pet: isPetId(v.pet) ? v.pet : undefined,
   };
 }
 
@@ -322,7 +326,7 @@ function cleanStart(v: unknown): StartCfg | null {
     if (!isObj(p) || !isStr(p.character, 32) || !CHARACTER_MAP[p.character as keyof typeof CHARACTER_MAP]) return null;
     const prof = cleanProfile({ ...p, chars: [] });
     if (!prof) return null;
-    players.push({ character: p.character, name: cleanName(p.name, 'Player'), meta: prof.meta, aimMode: prof.aimMode, rerolls: isInt(p.rerolls, 0, 99) ? p.rerolls : 0, banishes: isInt(p.banishes, 0, 99) ? p.banishes : 0, canSkip: p.canSkip === true, unlocked: Array.isArray(p.unlocked) ? cleanUnlocks(p.unlocked) : undefined });
+    players.push({ character: p.character, name: cleanName(p.name, 'Player'), meta: prof.meta, aimMode: prof.aimMode, rerolls: isInt(p.rerolls, 0, 99) ? p.rerolls : 0, banishes: isInt(p.banishes, 0, 99) ? p.banishes : 0, canSkip: p.canSkip === true, unlocked: Array.isArray(p.unlocked) ? cleanUnlocks(p.unlocked) : undefined, pet: prof.pet });
   }
   const unlocked = Array.isArray(v.unlocked) ? v.unlocked.filter((s): s is string => isStr(s, 40)).slice(0, 256) : [];
   const questMemory: Record<string, number> = {};

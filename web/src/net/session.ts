@@ -46,6 +46,7 @@ export interface HostProfile {
   banishes: number;
   canSkip: boolean;
   aimMode: GuestProfile['aimMode'];
+  pet?: string;
 }
 
 interface Seat {
@@ -152,7 +153,8 @@ export function runConfigFromStart(c: StartCfg): RunConfig {
     aimMode: p0.aimMode,
     unlocked: new Set(c.unlocked),
     questMemory: c.questMemory,
-    players: c.players.map((p) => ({ character: p.character, name: p.name, meta: p.meta, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, aimMode: p.aimMode, unlocked: p.unlocked ? new Set(p.unlocked) : undefined })),
+    pet: p0.pet,
+    players: c.players.map((p) => ({ character: p.character, name: p.name, meta: p.meta, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, aimMode: p.aimMode, unlocked: p.unlocked ? new Set(p.unlocked) : undefined, pet: p.pet })),
     hub: c.hub,
     map: c.map,
   };
@@ -295,7 +297,7 @@ export class HostSession {
     if (!this.canStart()) return null;
     const me = this.self;
     // every player drafts from their own save's unlocks (D-74): the host's, and each guest's
-    const entry = (character: string, name: string, p: HostProfile | GuestProfile, unlocked: string[]) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, unlocked });
+    const entry = (character: string, name: string, p: HostProfile | GuestProfile, unlocked: string[]) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, unlocked, pet: p.pet });
     this.startCfg = {
       seed: o.seed >>> 0,
       map: this.lobby.map,
@@ -319,7 +321,7 @@ export class HostSession {
    */
   startHub(o: { seed: number; unlocked: string[]; questMemory: Record<string, number>; npcs: string[]; at?: { x: number; y: number }[] }): StartCfg {
     const me = this.self;
-    const entry = (character: string, name: string, p: HostProfile | GuestProfile, unlocked: string[]) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, unlocked });
+    const entry = (character: string, name: string, p: HostProfile | GuestProfile, unlocked: string[]) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, unlocked, pet: p.pet });
     this.startCfg = {
       seed: o.seed >>> 0,
       difficulty: this.lobby.difficulty,
@@ -564,9 +566,10 @@ export class HostSession {
         if (m.away !== undefined) s.away = m.away;
         return this.broadcastLobby();
       case 'profile':
-        // perks and unlocks for the next night; the seat keeps its name
+        // perks and unlocks for the next night; the seat keeps its name (and the lobby hears of it: a companion
+        // chosen on the Midway follows at once, D-84)
         s.profile = { ...m.profile, name: s.profile.name };
-        return;
+        return this.broadcastLobby();
       case 'view':
         s.view = { hx: m.hx, hy: m.hy };
         return;

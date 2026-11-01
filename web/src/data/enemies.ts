@@ -36,7 +36,7 @@ export type BehaviorId =
   | 'tidecaller'
   | 'duckline'
   // the Ghost Train (D-80)
-  | 'gt_ticketless' | 'gt_coalborn' | 'gt_porter' | 'gt_railcrawler' | 'gt_mourner' | 'gt_signalman'
+  | 'gt_ticketless' | 'gt_coalborn' | 'gt_porter' | 'gt_railcrawler' | 'gt_mourner' | 'gt_signalman' | 'gt_navvy'
   | 'gt_commuter' | 'gt_newsboy' | 'gt_mimic' | 'gt_gravebound' | 'gt_moth' | 'gt_pallbearer'
   | 'gt_slag' | 'gt_riveter' | 'gt_hound' | 'gt_stillfolk' | 'gt_watcher' | 'gt_bellwraith'
   | 'gt_collected' | 'gt_puncher' | 'gt_inspector';
@@ -420,6 +420,14 @@ export const ENEMIES: Record<string, EnemyDef> = {
     deathFx: 'wood', hitSfx: 'knock', deathSfx: 'trunkslam', drawScale: 2.9, act: 2, role: 'Shielded tank',
     lore: 'He carries a steamer trunk in front of him and never sets it down. Nobody has ever seen what is inside.',
     tell: 'The trunk soaks hits from the front; get round him. Lowers his shoulder to bash you out of the way.',
+  }),
+  gt_navvy: E({
+    id: 'gt_navvy', name: 'The Navvy', hp: 340, speed: 62, contact: 16, tickets: 9,
+    behavior: 'gt_navvy', radius: 25, sep: 30, knockbackTaken: 0.08, canElite: true, eliteName: 'Ganger',
+    params: { home: 'any' },
+    deathFx: 'boards', hitSfx: 'knock', deathSfx: 'trunkslam', drawScale: 3.6, act: 2, role: 'Juggernaut',
+    lore: 'He laid the Midnight Line with his own two hands and was never paid off. He has come to collect, from everyone aboard.',
+    tell: 'No tricks at all: he walks straight at you and does not stop. Kill him or keep moving.',
   }),
   gt_railcrawler: E({
     id: 'gt_railcrawler', name: 'Railcrawler', hp: 60, speed: 150, contact: 9, tickets: 4,

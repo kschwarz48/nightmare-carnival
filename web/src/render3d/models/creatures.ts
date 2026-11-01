@@ -14,6 +14,7 @@ import type { SculptModel } from './characters';
 import { FUNHOUSE_BUILDERS } from './funhouseCreatures';
 import { BOARDWALK_BUILDERS } from './boardwalkCreatures';
 import { GHOST_TRAIN_BUILDERS } from './ghostTrainCreatures';
+import { PET_BUILDERS } from './pets';
 
 type Clips = Record<string, ClipDef>;
 const bi = (bones: BoneDef[]) => (n: string) => {
@@ -608,6 +609,7 @@ const BUILDERS: Record<string, () => SculptModel> = {
   ...FUNHOUSE_BUILDERS,
   ...BOARDWALK_BUILDERS,
   ...GHOST_TRAIN_BUILDERS,
+  ...PET_BUILDERS,
 };
 
 export function creatureModel(id: string): SculptModel {

@@ -2,6 +2,7 @@
 // localStorage JSON with a migration chain, a backup slot, and corruption recovery.
 
 import { ACHIEVEMENTS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNLOCKS } from '../data/meta';
+import { PET_MAP } from '../data/pets';
 import { CHARACTERS } from '../data/characters';
 import { CURSE, DIFFICULTIES } from '../data/difficulty';
 import { EVOLUTION_IDS, PASSIVES, WEAPONS } from '../data/weapons';
@@ -68,6 +69,8 @@ export interface SaveData {
   boardwalkTester?: boolean;
   /** alpha testing aid: `?unlock=ghosttrain` opens the Ghost Train on this save (D-80) */
   ghosttrainTester?: boolean;
+  /** the companion chosen (D-84): it follows you if its achievement has been earned */
+  pet?: string;
   /** owned weapons and passives the player has left out of their drafts (D-78); they stay owned */
   disabled?: string[];
   /** Lost Tickets spent at the Lost & Found since the last refund (D-78), so a later price change can refund exactly */
@@ -350,6 +353,16 @@ export class SaveManager {
   }
   hasAchievement(id: string): boolean {
     return this.data.achievements.includes(id);
+  }
+  /** Has this save earned companion `id` (D-84)? */
+  petUnlocked(id: string): boolean {
+    const p = PET_MAP[id];
+    return !!p && this.hasAchievement(p.achievement);
+  }
+  /** The companion that comes along: the one chosen, while it is earned (none otherwise). */
+  petChoice(): string | undefined {
+    const id = this.data.pet;
+    return id && this.petUnlocked(id) ? id : undefined;
   }
   characterAvailable(id: string): boolean {
     const c = CHARACTERS.find((x) => x.id === id);

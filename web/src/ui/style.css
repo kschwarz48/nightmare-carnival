@@ -159,6 +159,17 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 .hud .tray .group { display: flex; gap: 6px; background: rgba(20, 10, 32, 0.7); border: 3px solid var(--ink); border-radius: 14px; padding: 5px; }
 .hud .slot { width: 48px; height: 48px; position: relative; border-radius: 50%; }
 .hud .slot img { width: 100%; height: 100%; }
+/* companions (D-84) */
+.pets .pet-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8em; margin: 0.8em 0; }
+.pet-card { display: flex; flex-direction: column; align-items: center; gap: 0.3em; padding: 0.7em 0.6em; border: 3px solid var(--ink); border-radius: 14px; background: rgba(20, 10, 32, 0.6); cursor: pointer; text-align: center; }
+.pet-card img, .pet-card .pet-none { width: 96px; height: 96px; }
+.pet-card .pet-none { display: grid; place-items: center; font-size: 2.4em; color: var(--bone); border-radius: 50%; background: rgba(255, 255, 255, 0.05); }
+.pet-card .nm { font-family: var(--head); color: var(--gold); font-size: 1.15em; }
+.pet-card .ds { font-size: 0.85em; color: var(--bone); line-height: 1.25; }
+.pet-card .lock { font-size: 0.8em; color: #f0b0a0; line-height: 1.25; }
+.pet-card.sel { box-shadow: 0 0 0 3px var(--gold); }
+.pet-card.locked { opacity: 0.6; cursor: default; }
+.pet-card.locked img { filter: grayscale(0.7) brightness(0.8); }
 /* a cooldown dial over a slot (D-84): the grey still to recharge, swept back clockwise from twelve o'clock */
 .hud .slot .cd { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: conic-gradient(transparent var(--cd, 360deg), rgba(14, 8, 22, 0.7) 0); }
 .hud .slot.empty { border: 2px dashed rgba(255, 255, 255, 0.25); }

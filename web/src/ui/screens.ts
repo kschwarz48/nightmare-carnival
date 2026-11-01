@@ -8,6 +8,7 @@ import { ACHIEVEMENTS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNL
 import { BOSSES } from '../data/bosses';
 import { ENEMIES, PEDIA_ENEMIES } from '../data/enemies';
 import { PASSIVES, WEAPONS, BASE_WEAPON_IDS, EVOLUTION_IDS, PASSIVE_IDS } from '../data/weapons';
+import { PETS, PET_MAP } from '../data/pets';
 import { dailySeedString, hashSeed, Rng } from '../core/rng';
 import type { Assets } from '../render/assets';
 import type { AudioEngine } from '../audio/audio';
@@ -130,6 +131,18 @@ export function charSelectScreen(c: UICtx): HTMLElement {
       h('div', { class: 'muted' }, DIFFICULTIES.find((d) => d.id === selDiff)!.desc),
       h('div', { class: `toggle${curse ? ' on' : ''}${s.curseAvailable() ? '' : ' disabled'}`, 'data-nav': '', onclick: () => { c.click(); curse = !curse; render(); } },
         h('span', { class: 'box' }), s.curseAvailable() ? `Curse — faster, denser, tougher · +35% Lost Tickets` : `Curse (locked — ${CURSE.unlock.reqText})`),
+      // a companion (D-84): those earned to choose, the rest locked with what brings them
+      h('div', { class: 'section-title', style: { margin: '0.4em 0 0' } }, 'Companion'),
+      h('div', { class: 'diff-row' }, ...[null, ...PETS.map((p) => p.id)].map((id) => {
+        const p = id ? PET_MAP[id] : null;
+        const ok = !p || s.petUnlocked(p.id);
+        const ach = p ? ACHIEVEMENTS.find((a) => a.id === p.achievement) : undefined;
+        return h('button', { class: `diff-btn${(s.petChoice() ?? null) === id ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: p ? (ok ? `${p.breed} · ${p.buffName}: ${p.buff}` : `Locked — ${ach?.name}: ${ach?.desc}`) : 'No companion', onclick: () => { c.click(); s.data.pet = id ?? undefined; s.save(); render(); } }, p ? (ok ? p.name : `🔒 ${p.name}`) : 'None');
+      })),
+      h('div', { class: 'muted' }, (() => {
+        const p = PET_MAP[s.petChoice() ?? ''];
+        return p ? `${p.name} the ${p.breed} — ${p.buffName}: ${p.buff}` : 'No companion tonight.';
+      })()),
       h('div', { class: 'cs-actions' },
         btn('Back', () => { c.click(); c.go('title'); }, 'small red'),
         btn('Start the Night!', () => { if (!avail) return; c.click(); c.startRun({ character: selChar, difficulty: selDiff, curse, map: selMap }); }, '', { disabled: !avail || undefined, 'data-default': '' }),

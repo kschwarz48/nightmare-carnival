@@ -519,6 +519,7 @@ const LEGACY_MODELS: Record<string, ModelDef> = {
   gt_ticketless: { build: () => new THREE.BufferGeometry(), rim: [0.7, 0.8, 1, 0.55], shadow: true },
   gt_coalborn: { build: () => new THREE.BufferGeometry(), rim: [1, 0.5, 0.2, 0.6], shadow: true },
   gt_porter: { build: () => new THREE.BufferGeometry(), rim: [1, 0.6, 0.45, 0.55], shadow: true },
+  gt_navvy: { build: () => new THREE.BufferGeometry(), rim: [0.9, 0.8, 0.65, 0.55], shadow: true },
   gt_railcrawler: { build: () => new THREE.BufferGeometry(), rim: [1, 0.7, 0.45, 0.55], shadow: true },
   gt_mourner: { build: () => new THREE.BufferGeometry(), rim: [0.65, 0.7, 1, 0.6], shadow: true },
   gt_signalman: { build: () => new THREE.BufferGeometry(), rim: [1, 0.45, 0.4, 0.55], shadow: true },

@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { clamp, lerp } from '../core/math';
-import { CAMERA_BOUNDS, CAMERA_FOR, LIGHTS, MAP_HALF, PROPS, SEA_Y } from '../data/map';
+import { CAMERA_BOUNDS, CAMERA_FOR, LIGHTS, MAP_HALF, PROPS, SEA_Y, WALK_CLAMP, PLAYER_BOUNDS } from '../data/map';
 import type { Assets } from '../render/assets';
 import type { Frame } from '../render/atlas';
 import { FxSystem } from '../render/fx';
@@ -51,6 +51,8 @@ const FRUSTUM_H = 1000;
  */
 export const ACTOR_SCALE = 1.28;
 export const ACTOR_STRETCH = 1.12;
+/** the companions' size beside their people (D-84): a little larger than life, so they read at play zoom */
+const PET_SCALE = 1.2;
 /**
  * Instances one character's batch can hold: six players with their dash afterimages, mirror clones (as
  * many as the summon pool holds) and the Midway's characters. It was 6, so a Hall of Mirrors with six
@@ -629,6 +631,7 @@ export class GameRenderer3D {
       this.addShapes.alphaScale = this.fxAdd.alphaScale = op;
     }
     g.setCtx(p);
+    this.drawPets(g, alpha, dt, p, px, py);
     this.drawRails(dt);
     this.drawSummons(g, alpha, dt);
     if (g.hub) this.drawHub(g, dt);
@@ -1467,6 +1470,51 @@ export class GameRenderer3D {
         A.circle(px, py, R, 1, 0.85, 0.3, 0.12, 0);
         A.ring(px, py, R - 3, R, 1, 0.85, 0.3, 0.5, 0.5);
       }
+    }
+  }
+
+  /** where each player's companion is (D-84): cosmetic, kept here (nothing in the sim) */
+  private petAt = new Map<number, { x: number; y: number; t: number; speed: number }>();
+
+  /**
+   * Each player's companion (D-84): it trots to a spot just behind its person and a little to one side (Milo the
+   * right, Augustus the left), idles facing them while they stand, and is carried along by a jump between places (a
+   * train arriving, a phantom door). The spot is kept on the map's own ground, so it never stands in a wall.
+   */
+  private drawPets(g: Game, alpha: number, dt: number, me: Player, mx: number, my: number): void {
+    for (const p of g.players) {
+      if (!p.pet) continue;
+      const key = `pet_${p.pet}`;
+      const def = ENEMY_MODELS[key];
+      if (!def?.rig) continue;
+      const px = p === me ? mx : lerp(p.px, p.x, alpha), py = p === me ? my : lerp(p.py, p.y, alpha);
+      const fl = Math.hypot(p.faceX, p.faceY);
+      const fx = fl > 0.01 ? p.faceX / fl : 0, fy = fl > 0.01 ? p.faceY / fl : 1;
+      const side = p.pet === 'milo' ? 1 : -1;
+      const tgt = { x: px - fx * 46 - fy * 30 * side, y: py - fy * 46 + fx * 30 * side };
+      WALK_CLAMP?.(tgt);
+      tgt.x = clamp(tgt.x, PLAYER_BOUNDS.minX, PLAYER_BOUNDS.maxX);
+      tgt.y = clamp(tgt.y, PLAYER_BOUNDS.minY, PLAYER_BOUNDS.maxY);
+      let s = this.petAt.get(p.index);
+      if (!s || Math.hypot(tgt.x - s.x, tgt.y - s.y) > 700) {
+        s = { x: tgt.x, y: tgt.y, t: 0, speed: 0 };
+        this.petAt.set(p.index, s);
+      }
+      const dx = tgt.x - s.x, dy = tgt.y - s.y, d = Math.hypot(dx, dy);
+      s.speed += ((d > 10 ? Math.min(420, 60 + d * 3.2) : 0) - s.speed) * Math.min(1, dt * 6);
+      const step = Math.min(d, s.speed * dt);
+      if (d > 0.01) {
+        s.x += (dx / d) * step;
+        s.y += (dy / d) * step;
+      }
+      const moving = s.speed > 25;
+      s.t += dt * (moving ? Math.max(0.6, s.speed / 48) : 0);
+      const yaw = this.smoothYaw(-50 - p.index, moving ? Math.atan2(dx, dy) : Math.atan2(px - s.x, py - s.y), dt, 8);
+      const b = this.batch(key, def, 8);
+      const i = b.add(s.x, s.y, 0, yaw, PET_SCALE * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
+      const rig = def.rig();
+      const row = moving ? rig.row('move', s.t) : rig.row('idle', this.time / (p.pet === 'milo' ? 4 : 6) + p.index * 0.3);
+      b.anim(i, row, row, 0, 0);
     }
   }
 

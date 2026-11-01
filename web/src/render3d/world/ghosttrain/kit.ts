@@ -274,7 +274,21 @@ export const GT_KIT: Record<string, (variant: number) => THREE.BufferGeometry> =
     for (let i = 0; i < 5; i++) m.add(box(3, 30, 3), { col: i % 2 ? 0x8a1410 : 0x1a2a6a, pos: [121, 120, -76 + i * 38], surf: SURF.paint });
     // the stairs up its side
     for (let i = 0; i < 8; i++) m.add(box(30, 4, 14), { col: darkWood, pos: [-136, 10 + i * 12, -70 + i * 14], surf: SURF.wood });
+    // its nameboard on two posts in front (D-84: lettered SIGNAL BOX by the world, so it can be found and remembered)
+    for (const x of [-104, 104]) m.add(box(6, 132, 6), { col: darkWood, pos: [x, 66, 120], surf: SURF.wood });
+    m.add(box(220, 38, 4), { col: 0x5a1a18, pos: [0, 114, 120], surf: SURF.paint });
+    m.add(box(212, 30, 4.4), { col: GT.cream, pos: [0, 114, 120], surf: SURF.paint, emit: 0.08 });
   }, 0.4),
+  gt_fingerpost: () => B((m) => {
+    // a fingerpost on the concourse (D-84): the signal box one way, the booking office the other (the world letters it)
+    m.add(cyl(3.2, 4, 176, 10), { col: greenIron, pos: [0, 88, 0], surf: SURF.iron });
+    m.add(sphere(5, 10, 8), { col: GT.gilt, pos: [0, 180, 0], surf: SURF.gold });
+    for (const [s, y] of [[-1, 150], [1, 118]] as [number, number][]) {
+      m.add(box(118, 22, 3), { col: GT.cream, pos: [s * 62, y, 2], surf: SURF.paint, emit: 0.08 });
+      m.add(box(120, 24, 2), { col: 0x5a1a18, pos: [s * 62, y, 0.6], surf: SURF.paint });
+      m.add(cone(13, 16, 3), { col: GT.cream, pos: [s * 129, y, 2], rot: [0, 0, s * (Math.PI / 2)], scale: [1, 1, 0.25], surf: SURF.paint });
+    }
+  }, 0.3),
   gt_watertower: () => B((m) => {
     // the water tower: four iron legs, a riveted tank, the swing spout
     for (const [x, z] of [[-50, -50], [50, -50], [-50, 50], [50, 50]]) m.add(cyl(6, 8, 160, 8), { col: iron, pos: [x, 80, z], surf: SURF.iron });

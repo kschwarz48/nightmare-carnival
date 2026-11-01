@@ -8,6 +8,7 @@ export const GHOST_TRAIN_ART: Record<string, { w: number; h: number; ay: number 
   gt_ticketless: { w: 60, h: 96, ay: 0.95 },
   gt_coalborn: { w: 56, h: 52, ay: 0.9 },
   gt_porter: { w: 84, h: 110, ay: 0.95 },
+  gt_navvy: { w: 96, h: 122, ay: 0.95 },
   gt_railcrawler: { w: 86, h: 54, ay: 0.9 },
   gt_mourner: { w: 62, h: 104, ay: 0.95 },
   gt_signalman: { w: 66, h: 98, ay: 0.95 },
@@ -106,6 +107,18 @@ export function drawGhostTrainEnemy(ctx: Ctx, id: string, w: number, h: number, 
       return true;
     case 'gt_porter':
       figure(ctx, w, h, s, mode, { coat: '#5a1a18', hat: 'peak', hatCol: '#2a0e0c', scale: 1.2, prop: (x, hy) => { roundRect(ctx, x - 26, hy + 26, 52, 36, 4); fillInk(ctx, shade(ctx, x - 10, hy + 30, 40, '#7a5028', '#2a1a0c'), 3); for (const y of [34, 46, 56]) { ctx.fillStyle = '#b8902e'; ctx.fillRect(x - 25, hy + y, 50, 2.4); } } });
+      return true;
+    case 'gt_navvy':
+      figure(ctx, w, h, s, mode, { coat: '#2a2622', hat: 'cap', hatCol: '#2a2420', scale: 1.38, prop: (x, hy) => {
+        ctx.strokeStyle = '#5a3a20';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(x + 16, hy + 42);
+        ctx.lineTo(x + 4, hy - 4);
+        ctx.stroke();
+        roundRect(ctx, x - 6, hy - 16, 18, 12, 2);
+        fillInk(ctx, '#3a3c40', 2);
+      } });
       return true;
     case 'gt_railcrawler': {
       const cy = 24;

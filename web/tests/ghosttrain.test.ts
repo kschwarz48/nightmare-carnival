@@ -14,6 +14,7 @@ import { CONDUCTOR_DEF, GHOST_BOSSES, BOSS_MAP } from '../src/data/bosses';
 import { ENEMIES } from '../src/data/enemies';
 import { C, CARS, DWELL, E, FINAL_ACT, J, MOUTHS, PHANTOM_AT, REGIONS, S, TERMINUS_FROM, TRAIN, TRANSIT, V, inCopy, nextArrival, regionAt, trackY, trainAt, trainOrigin } from '../src/data/ghosttrain';
 import { collideBody } from '../src/sim/movement';
+import { VIEW_HALF_X } from '../src/sim/constants';
 import { CINDER, END, JUNCTION, LT_TRAIN, PHANTOM_DOOR, STATION_CLOCK, STILLWATER, VESPER } from '../src/data/gtStations';
 import { LAST_TRAIN } from '../src/data/lastTrain';
 import { FOLLOW_AFTER, bossStation, eFromOf, homeOk, stationAnchor, trainNow } from '../src/sim/ghosttrain';
@@ -109,7 +110,7 @@ describe('the Ghost Train on the map registry (D-80)', () => {
       expect(typeof ENEMIES[id].params.home, id).toBe('string');
     }
     const gtIds = Object.keys(ENEMIES).filter((k) => k.startsWith('gt_'));
-    expect(gtIds.length).toBe(21);
+    expect(gtIds.length).toBe(22);
     expect(ids.size).toBeGreaterThanOrEqual(20);
     // every boss is new and has its secret one
     expect(new Set(GHOST_BOSSES.map((b) => b.id)).size).toBe(6);
@@ -212,7 +213,7 @@ describe('boarding, riding and alighting (D-80)', () => {
 });
 
 describe('who comes aboard, and where (D-80)', () => {
-  it('boards a moving train only at its two ends (the tender and the rear platform), never in the cars between', () => {
+  it('boards a moving train out of its riders\' sight: over the two ends, or along the carriages just off screen (D-84)', () => {
     const g = gt();
     noBosses(g);
     at(g, 80);
@@ -220,7 +221,7 @@ describe('who comes aboard, and where (D-80)', () => {
     const p = g.player;
     const seen = new Set<number>();
     for (const e of g.active) seen.add(e.uid);
-    let fresh = 0;
+    let fresh = 0, along = 0;
     for (let i = 0; i < 60 * 25; i++) {
       p.x = p.px = o.x + 120;
       p.y = p.py = o.y;
@@ -232,10 +233,12 @@ describe('who comes aboard, and where (D-80)', () => {
         fresh++;
         const lx = e.x - o.x;
         const nearEnd = Math.abs(lx - MOUTHS.front.x) < 40 || Math.abs(lx - MOUTHS.rear.x) < 40;
-        expect(nearEnd, `${e.def.id} at local x ${lx.toFixed(0)}`).toBe(true);
+        if (!nearEnd) along++;
+        expect(nearEnd || Math.abs(lx - 120) > VIEW_HALF_X, `${e.def.id} at local x ${lx.toFixed(0)}`).toBe(true);
       }
     }
     expect(fresh).toBeGreaterThan(4);
+    expect(along).toBeGreaterThan(0);
   });
 
   it('sends nothing aboard while nobody rides', () => {

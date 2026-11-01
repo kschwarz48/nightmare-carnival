@@ -9,6 +9,11 @@ export class Player {
   /** Slot in the party (0 = host / solo). */
   index = 0;
   name = 'Player 1';
+  /** the companion following this player (D-84; its passive is already in the stats), or none */
+  pet: string | null = null;
+  /** this night so far: the lowest health fraction reached, and the golden tickets picked up (the pets' achievements) */
+  lowHp = 1;
+  goldens = 0;
   /** This player's arsenal (each player owns one; the game points `g.weapons` at it as context). */
   weapons!: Weapons;
   /** Co-op: fallen into a coffin, waiting to be revived (D-51). */

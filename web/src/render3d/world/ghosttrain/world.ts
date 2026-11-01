@@ -88,10 +88,16 @@ export class GhostTrainWorld {
     kb.freeze();
     this.root.add(kb.mesh);
     this.statics.push(kb);
-    // the booking office's board over its window, lettered (D-84)
-    const sign = signMesh('TICKETS', 106, 15, { color: '#3a1418', glow: 0.25 });
-    sign.position.set(JUNCTION.office.x, 136, JUNCTION.office.y + 72.6);
-    this.root.add(sign);
+    // lettering (D-84): the booking office's board over its window, the signal box's nameboard, the fingerpost's arms
+    const letter = (text: string, w: number, h: number, x: number, y: number, z: number) => {
+      const m = signMesh(text, w, h, { color: '#3a1418', glow: 0.25 });
+      m.position.set(x, y, z);
+      this.root.add(m);
+    };
+    letter('TICKETS', 106, 15, JUNCTION.office.x, 136, JUNCTION.office.y + 72.6);
+    letter('SIGNAL BOX', 196, 26, JUNCTION.signalbox.x, 114, JUNCTION.signalbox.y + 122.6);
+    letter('SIGNAL BOX', 104, 16, JUNCTION.fingerpost.x - 62, 150, JUNCTION.fingerpost.y + 3.8);
+    letter('BOOKING OFFICE', 104, 16, JUNCTION.fingerpost.x + 62, 118, JUNCTION.fingerpost.y + 3.8);
     this.train = new TrainRender(this.root);
     this.scenery = new Scenery(this.root);
     this.lighting = new GtLighting(this.root);
