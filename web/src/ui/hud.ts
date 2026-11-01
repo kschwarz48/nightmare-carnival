@@ -10,7 +10,8 @@ import type { Assets } from '../render/assets';
 import type { Game } from '../sim/game';
 import type { DraftOption } from '../sim/draft';
 import { isUnlocked, readyEvolutions } from '../sim/draft';
-import type { UnreflectedChain } from '../sim/quest/unreflected';
+import { UR, type UnreflectedChain } from '../sim/quest/unreflected';
+import { UNREFLECTED } from '../data/funhouse';
 import { FocusNav, fmtTime, h, uiZoom } from './dom';
 
 /** Player colours for UI (Player 1 lamp-gold, 2 ghost-teal, 3 rose, 4 lime, 5 violet, 6 tangerine); match PLAYER_COLS and `.p1`…`.p6` in style.css. */
@@ -80,6 +81,9 @@ export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?
     ));
 }
 
+/** The overhead bar slot the Fun House projector's warm-up uses (no creature has a negative uid). */
+const PROJECTOR_BAR = -7001;
+
 /** A quest whisper stays on screen this many times as long as it asks for (D-71). */
 const WHISPER_HOLD = 2;
 
@@ -132,6 +136,8 @@ export class Hud {
   private hurtT = 0;
   private barLayer: HTMLDivElement;
   private bars = new Map<number, { el: HTMLDivElement; fill: HTMLElement; key: string }>();
+  /** the Fun House projector's warm-up as last seen (D-76): its charge, rising (1) / falling (-1) / still, and when it moved */
+  private proj = { v: 0, trend: 0, at: 0 };
   private arrowLayer: HTMLDivElement;
   private arrows: HTMLDivElement[] = [];
   private markers: HTMLDivElement[] = [];
@@ -341,16 +347,22 @@ export class Hud {
     const put = (uid: number, x: number, y: number, height: number, frac: number, color: string, name: string | null, segs: number[]) => {
       const s = screen.toScreen(x, y, height);
       seen.add(uid);
-      const key = `${name ?? ''}|${color}|${segs.join(',')}`;
+      // (a label that changes, like the projector's countdown, is rewritten in place: rebuilding the bar
+      // would replay its fill from empty, D-76)
+      const key = `${name === null ? 'boss' : 'named'}|${color}|${segs.join(',')}`;
       let b = this.bars.get(uid);
       if (!b || b.key !== key) {
         b?.el.remove();
         const fill = h('i', { style: { background: `linear-gradient(180deg, ${color}, #7a0a14)` } });
         const bar = h('div', { class: 'b' }, fill, ...segs.map((at) => h('span', { class: 'seg', style: { left: `${at * 100}%` } })));
-        const el = h('div', { class: `ohbar ${name ? 'mini' : 'boss'}` }, name ? h('span', { class: 'nm' }, name) : null, bar);
+        const el = h('div', { class: `ohbar ${name !== null ? 'mini' : 'boss'}` }, name !== null ? h('span', { class: 'nm' }, name) : null, bar);
         this.barLayer.append(el);
         b = { el, fill, key };
         this.bars.set(uid, b);
+      }
+      if (name !== null) {
+        const nm = b.el.firstElementChild as HTMLElement;
+        if (nm.textContent !== name) nm.textContent = name;
       }
       const on = s.x > -100 && s.x < screen.w + 100 && s.y > 20 && s.y < screen.h + 60;
       b.el.style.display = on ? '' : 'none';
@@ -367,6 +379,21 @@ export class Hud {
     for (const e of g.active) {
       if (!e.alive || e.def.id !== g.map.miniboss) continue;
       put(e.uid, e.x, e.y, 200 * e.scale, e.hp / Math.max(1e-6, e.maxHp), '#ff5a3a', e.def.name, []);
+    }
+    // the Fun House projector (D-76): how far it has warmed, live, and what it wants from you
+    const ch = g.mapId === 'fun_house' ? g.quests?.get<UnreflectedChain>('unreflected') : undefined;
+    if (ch && ch.stage === UR.Projector) {
+      const pr = this.proj;
+      // rising, falling or still (a guest's copy changes in steps, so a trend holds a moment between them)
+      if (ch.charge !== pr.v) {
+        pr.trend = ch.charge > pr.v ? 1 : -1;
+        pr.v = ch.charge;
+        pr.at = g.realTime;
+      } else if (g.realTime - pr.at > 0.6) pr.trend = 0;
+      const left = Math.max(1, Math.ceil(UNREFLECTED.charge - ch.charge));
+      const label = pr.trend > 0 ? `Warming up · stay in the ring (${left}s)` : pr.trend < 0 ? 'Cooling down · back into the ring!' : 'Stand in the ring to start the projector';
+      const P = UNREFLECTED.projector;
+      put(PROJECTOR_BAR, P.x, P.y, 230, ch.charge / UNREFLECTED.charge, '#ffcf6a', label, [0.25, 0.5, 0.75]);
     }
     for (const [uid, b] of this.bars) {
       if (seen.has(uid)) continue;

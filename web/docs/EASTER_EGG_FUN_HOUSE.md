@@ -130,7 +130,10 @@ Four right: *"The overture plays. Behind the gallery's great curtain, something 
 The gallery's great curtain parts on a brass prism projector at **(-1335, -1580)**, aimed south through
 the gallery's maze door. While anyone stands within **150** of it, its charge rises 1 per second. It
 falls 0.5 per second when nobody is there. A ring of ten warm-up bulbs around it lights one bulb per
-3 s, and the lamp brightens.
+3 s, and the lamp brightens. Since D-76 the warm-up shows live:
+- the ring to stand in is drawn plainly, and a gold arc fills around it as the charge rises;
+- a bar floats over the projector, labelled *Stand in the ring to start the projector*, *Warming up · stay
+  in the ring (Ns)* or *Cooling down · back into the ring!*.
 
 At **30** the projector fires.
 

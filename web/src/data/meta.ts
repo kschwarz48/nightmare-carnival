@@ -21,6 +21,8 @@ export const PERKS: PerkDef[] = [
   { id: 'luck', name: 'Four-Leaf Clover', desc: '+5% Luck', axis: 'luck', mag: 0.05, base: 45, growth: 1.6, cap: 4 },
   { id: 'greed', name: 'Piggy Bank', desc: '+8% Greed (Lost Tickets)', axis: 'greed', mag: 0.08, base: 40, growth: 1.55, cap: 5 },
   { id: 'armor', name: 'Padded Vest', desc: '+1 Armor', axis: 'armor', mag: 1, base: 90, growth: 2.0, cap: 2 },
+  // D-76: base regeneration, every night (it was the Funnel Cake passive in the drafts)
+  { id: 'regen', name: 'Funnel Cake', desc: '+0.2 HP regen per second', axis: 'regen', mag: 0.2, base: 50, growth: 1.6, cap: 5 },
   { id: 'revive', name: 'Spare Balloon', desc: '+1 Revive per run', axis: 'revive', mag: 1, base: 200, growth: 2.0, cap: 1 },
   { id: 'reroll', name: 'Re-Spin Token', desc: '+1 draft Reroll per run', axis: 'reroll', mag: 1, base: 60, growth: 1.8, cap: 3 },
   { id: 'banish', name: 'Banish Stamp', desc: '+1 draft Banish per run', axis: 'banish', mag: 1, base: 70, growth: 1.8, cap: 3 },

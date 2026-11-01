@@ -12,7 +12,7 @@ import { Reader, Writer } from './codec';
 import { isMapId, type MapId } from '../data/maps';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 12;
+export const PROTO = 13;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
@@ -99,7 +99,9 @@ export type HostMsg =
   | { t: 'welcome'; v: number; slot: number; token: string; lobby: LobbyState }
   | { t: 'reject'; reason: RejectReason; detail?: string }
   | { t: 'lobby'; lobby: LobbyState; you?: number }
-  | { t: 'start'; cfg: StartCfg; resume?: boolean; slot?: number }
+  /** `epoch`: which game this is (D-76); input and snapshot packets carry it, and a packet from another
+   *  game (still on the wire across a rebuild of the Midway, or after a night) is dropped */
+  | { t: 'start'; cfg: StartCfg; resume?: boolean; slot?: number; epoch?: number }
   | { t: 'hold'; why: HoldWhy; who: number[] }
   | { t: 'ev'; type: string; e: unknown }
   | { t: 'pause'; by: string | null }
@@ -260,7 +262,7 @@ export function parseHostMsg(raw: unknown): HostMsg | null {
     }
     case 'start': {
       const cfg = cleanStart(m.cfg);
-      return cfg ? { t: 'start', cfg, resume: m.resume === true, slot: isInt(m.slot, 1, cfg.players.length - 1) ? m.slot : undefined } : null;
+      return cfg ? { t: 'start', cfg, resume: m.resume === true, slot: isInt(m.slot, 1, cfg.players.length - 1) ? m.slot : undefined, epoch: isInt(m.epoch, 0, 255) ? m.epoch : 0 } : null;
     }
     case 'hold':
       return HOLD_WHY.includes(m.why as HoldWhy) && Array.isArray(m.who) && m.who.length <= MAX_PLAYERS && m.who.every((i) => isInt(i, 0, MAX_PLAYERS - 1))
@@ -377,6 +379,8 @@ export interface NetInput {
 }
 
 export interface InputPacket {
+  /** the game these inputs belong to (D-76: the host drops another game's) */
+  epoch?: number;
   /** highest snapshot sequence the guest has received (for diagnostics) */
   ackSnap: number;
   /** guest's string-dictionary size: the host resends entries from here until acknowledged */
@@ -390,6 +394,7 @@ const q8 = (v: number) => Math.max(-127, Math.min(127, Math.round(v * 127)));
 export function encodeInputPacket(p: InputPacket, w = new Writer(128)): ArrayBuffer {
   w.reset();
   w.u8(BIN_INPUT);
+  w.u8((p.epoch ?? 0) & 255);
   const last = p.inputs[p.inputs.length - 1];
   w.u32(last ? last.seq : 0);
   w.u32(p.ackSnap);
@@ -408,10 +413,11 @@ export function encodeInputPacket(p: InputPacket, w = new Writer(128)): ArrayBuf
 
 /** Decode a guest input packet; null if malformed. Movement is clamped to the unit disc. */
 export function decodeInputPacket(buf: ArrayBuffer): InputPacket | null {
-  if (!(buf instanceof ArrayBuffer) || buf.byteLength > MAX_INPUT_BYTES || buf.byteLength < 12) return null;
+  if (!(buf instanceof ArrayBuffer) || buf.byteLength > MAX_INPUT_BYTES || buf.byteLength < 13) return null;
   try {
     const r = new Reader(buf);
     if (r.u8() !== BIN_INPUT) return null;
+    const epoch = r.u8();
     const seq = r.u32(), ackSnap = r.u32(), dictSize = r.u16();
     const n = r.u8();
     if (n > 16) return null;
@@ -425,7 +431,7 @@ export function decodeInputPacket(buf: ArrayBuffer): InputPacket | null {
       }
       inputs.push({ seq: seq - (n - 1 - k), mx, my, ax: r.i8() / 127, ay: r.i8() / 127, aim: (r.u8() & 1) === 1, ia: r.u8() });
     }
-    return { ackSnap, dictSize, inputs };
+    return { epoch, ackSnap, dictSize, inputs };
   } catch {
     return null;
   }

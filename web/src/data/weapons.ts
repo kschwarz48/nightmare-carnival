@@ -421,7 +421,7 @@ export const PASSIVES: Record<string, PassiveDef> = {
   caffeine: P({ id: 'caffeine', name: 'Caffeine', desc: '+15% Projectile speed', effects: [{ axis: 'projSpeed', perLevel: flat(0.15) }], maxLevel: 5, weight: 1, lore: "Carny coffee. Don't ask what's in it." }),
   running_shoes: P({ id: 'running_shoes', name: 'Running Shoes', desc: '+8% Move speed', effects: [{ axis: 'moveSpeed', perLevel: flat(0.08) }], maxLevel: 5, weight: 1, lore: 'The laces tie themselves when the music starts.' }),
   sugar_rush: P({ id: 'sugar_rush', name: 'Sugar Rush', desc: '+12% Max HP', effects: [{ axis: 'maxHp', perLevel: flat(0.12) }], maxLevel: 5, weight: 1, lore: 'A paper cone of pure pink courage.' }),
-  funnel_cake: P({ id: 'funnel_cake', name: 'Funnel Cake', desc: '+0.4 HP regen per second', effects: [{ axis: 'regen', perLevel: flat(0.4) }], maxLevel: 5, weight: 1, lore: 'Powdered sugar heals all wounds. Most of them.' }),
+  // (Funnel Cake, +0.4 HP regen per second, left the draft pool for the Lost & Found's permanent perks: D-76)
   safety_goggles: P({ id: 'safety_goggles', name: 'Safety Goggles', desc: '+1 Armor (flat damage reduction)', effects: [{ axis: 'armor', perLevel: flat(1) }], maxLevel: 5, weight: 1, lore: 'Required for the Hammer Strike. Ignored by everyone.' }),
   magnet_glove: P({ id: 'magnet_glove', name: 'Magnet Glove', desc: '+25% Pickup radius', effects: [{ axis: 'pickup', perLevel: flat(0.25) }], maxLevel: 5, weight: 1, lore: 'Tickets cling to it. So do screams.' }),
   lucky_ticket: P({ id: 'lucky_ticket', name: 'Lucky Ticket', desc: '+10% Luck (crits, rarer drafts, 4th card)', effects: [{ axis: 'luck', perLevel: flat(0.1) }], maxLevel: 5, weight: 1, lore: 'Number 777. The winning number. For someone.' }),

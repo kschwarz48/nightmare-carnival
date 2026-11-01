@@ -985,3 +985,24 @@ and teleports, and the prize wheel dull and see-through.
   (the Midway waits behind it), and Back leads wherever the party is; with no Midway or lobby yet, Back shows
   a waiting note.
 
+### D-76 · Guests no longer get stranded when the Midway is rebuilt; the projector's warm-up shows live; HP regen is a perk
+- **The report** (the owner):
+  - after a lost night, back on the Midway, a guest was stuck behind an invisible wall and had to leave and
+    rejoin; it happened again when a third player joined, and again when they left;
+  - the Fun House projector needs a live progress indicator so it's obvious you stand by it to start it;
+  - base HP regeneration should be a Lost & Found perk instead of the Funnel Cake passive.
+- **The stranded guest** (`net/protocol.ts`, `net/snapshot.ts`, `net/session.ts`, PROTO 13): every rebuild
+  of the Midway restarts both sides' packet numbering. The guest's last inputs of the old game, still on the
+  wire or resent every 100 ms from the results screen, could reach the host after its reset. The host then
+  took every fresh input for an old one, for as long as the old visit or night had lasted. Every start now
+  names its game (`epoch`); input packets and snapshots carry it, and each side drops another game's.
+  Details: `docs/MULTIPLAYER.md`. Test: `hub.test.ts` (fails on the old code).
+- **The projector** (`render3d/world/funhouse/quest.ts`, `ui/hud.ts`): during its step, the ring to stand in
+  is drawn plainly and a gold arc fills around it as the charge rises. A bar floats over the projector with
+  what to do: stand in the ring; warming up with the seconds left; or cooling down when it's left alone.
+  Overhead bar labels now change in place (a changing label rebuilt the bar, replaying its fill).
+- **Regeneration as a perk** (`data/meta.ts`, `data/weapons.ts`): the Lost & Found sells *Funnel Cake*,
+  +0.2 HP a second per level, up to +1 at level 5 (50, 80, 128, 205, 328 Lost Tickets). The Funnel Cake
+  passive (+0.4 a level) left the draft pool. The Free Funnel Cake event and its treats are unchanged.
+  Test: `meta.test.ts`.
+

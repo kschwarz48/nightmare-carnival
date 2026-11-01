@@ -935,3 +935,29 @@ purchase and on an older save). The UI flows below have no automated tests (the 
   reading the message order through the code.
 - The host and guest on separate machines.
 
+## Stranded guests, the projector, the regen perk — 2026-11-01 (D-76)
+
+**Changed:**
+- Every start names its game, and input packets and snapshots carry it (PROTO 13), so a rebuilt Midway no
+  longer strands a guest.
+- The projector's warm-up shows live: an arc on the floor and a bar with what to do.
+- HP regeneration moved from the Funnel Cake passive to a Lost & Found perk.
+
+Decision: D-76.
+
+**Automated:** typecheck clean; 324 tests pass in 23 files. New tests:
+- `hub.test.ts`: a guest walking a loop on the Midway while the host rebuilds it, with 60 ms of latency. It
+  fails on the old code (44 px walked in the second after the rebuild) and passes now.
+- `net.test.ts`: input packets round-trip their game number.
+- `meta.test.ts`: the perk's prices, its regeneration in a run, and Funnel Cake never offered in a draft.
+
+**Checked** (the dev server in the desktop bench runner's Electron window, since the browser pane was
+hidden):
+- The projector step staged mid-charge with the player in the ring: the bar reads "Warming up · stay in
+  the ring (20s)" at 37% and climbs; the gold arc fills around the ring (screenshot inspected).
+- The Lost & Found lists *Funnel Cake, +0.2 HP regen per second* (5 levels, 50 LT) with its icon.
+
+**Not verified:**
+- The stranded-guest fix in a real two-machine session; covered by the session test.
+- A person reading the projector's indicator.
+

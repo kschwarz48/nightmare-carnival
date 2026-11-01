@@ -351,8 +351,9 @@ describe('replication into the guest mirror', () => {
 // ===================================================================================== protocol
 describe('protocol validation', () => {
   it('round-trips input packets and clamps hostile values', () => {
-    const buf = encodeInputPacket({ ackSnap: 12, dictSize: 40, inputs: [{ seq: 9, mx: 1, my: 0, ax: 0, ay: -1, aim: true, ia: 3 }, { seq: 10, mx: -0.5, my: 0.5, ax: 1, ay: 0, aim: false, ia: 260 }] });
+    const buf = encodeInputPacket({ epoch: 7, ackSnap: 12, dictSize: 40, inputs: [{ seq: 9, mx: 1, my: 0, ax: 0, ay: -1, aim: true, ia: 3 }, { seq: 10, mx: -0.5, my: 0.5, ax: 1, ay: 0, aim: false, ia: 260 }] });
     const p = decodeInputPacket(buf)!;
+    expect(p.epoch).toBe(7); // which game the inputs belong to (D-76)
     expect(p.ackSnap).toBe(12);
     expect(p.dictSize).toBe(40);
     expect(p.inputs.map((i) => i.seq)).toEqual([9, 10]);
@@ -361,12 +362,12 @@ describe('protocol validation', () => {
     expect(p.inputs[1].mx).toBeCloseTo(-0.5, 1);
     // a forged packet with (127,127) movement is normalised to the unit disc
     const forged = new Uint8Array(buf.slice(0));
-    forged[12] = 127;
     forged[13] = 127;
+    forged[14] = 127;
     const f = decodeInputPacket(forged.buffer)!;
     expect(Math.hypot(f.inputs[0].mx, f.inputs[0].my)).toBeLessThanOrEqual(1.0001);
     expect(decodeInputPacket(new ArrayBuffer(3))).toBeNull();
-    expect(decodeInputPacket(new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 200]).buffer)).toBeNull(); // claims 200 inputs
+    expect(decodeInputPacket(new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 200]).buffer)).toBeNull(); // claims 200 inputs
     expect(decodeInputPacket(new ArrayBuffer(4096))).toBeNull();
   });
 

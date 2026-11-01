@@ -70,7 +70,7 @@ export interface BossDelta { base: number; uids: number[]; d: Record<string, Rec
 export interface QuestSnap { stage: number; lit: boolean[]; souls: number[]; order: number[]; progress: number; rings: number; carrying: boolean }
 
 export interface Snapshot {
-  seq: number; tick: number; ackInput: number;
+  epoch: number; seq: number; tick: number; ackInput: number;
   time: number; realTime: number; phase: (typeof PHASES)[number]; level: number; xp: number; xpToNext: number; kills: number;
   darkness: number; wind: number; act: number; flags: number; tilt: number; shuffle: number; dawnT: number; rarity: string;
   players: PlayerSnap[];
@@ -311,6 +311,8 @@ function sameBytes(a: Uint8Array | undefined, b: Uint8Array): boolean {
 // ------------------------------------------------------------------------------------- encode
 export interface EncodeCtx {
   seq: number;
+  /** the game this snapshot belongs to (D-76: a guest drops another game's) */
+  epoch?: number;
   ackInput: number;
   /** newest snapshot the guest has acknowledged (0 = none: send everything) */
   ackSnap: number;
@@ -345,6 +347,7 @@ export class SnapshotEncoder {
     const v = c.view;
     w.reset();
     w.u8(SNAP);
+    w.u8((c.epoch ?? 0) & 255);
     w.u32(c.seq);
     w.u32(g.tickCount);
     w.u32(c.ackInput);
@@ -669,9 +672,15 @@ const PART_KEYS = ['S', 'M', 'T'] as const;
  * Decode a snapshot. String ids are resolved after the dictionary tail (it sits at the end), so ids
  * defined in this very packet resolve. Throws RangeError on truncated/malformed input.
  */
+/** The game a snapshot belongs to (D-76), read from its header without decoding it; -1 if too short. */
+export function snapshotEpoch(buf: ArrayBuffer): number {
+  return buf.byteLength >= 2 ? new Uint8Array(buf, 1, 1)[0] : -1;
+}
+
 export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
   const r = new Reader(buf);
   if (r.u8() !== SNAP) throw new RangeError('net: not a snapshot');
+  const epoch = r.u8();
   const seq = r.u32(), tick = r.u32(), ackInput = r.u32();
   const time = r.f32(), realTime = r.f32();
   const phase = PHASES[r.u8()] ?? 'play';
@@ -799,7 +808,7 @@ export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
   dict.readInto(r);
   for (const s of ids) s.o[s.k] = dict.get(s.id);
   return {
-    seq, tick, ackInput, time, realTime, phase, level, xp, xpToNext, kills, darkness, wind, act, flags, tilt, shuffle, dawnT, rarity: top.rarity as string,
+    epoch, seq, tick, ackInput, time, realTime, phase, level, xp, xpToNext, kills, darkness, wind, act, flags, tilt, shuffle, dawnT, rarity: top.rarity as string,
     players,
     enemies: pools.enemies as Snapshot['enemies'],
     projs: pools.projs as Snapshot['projs'],

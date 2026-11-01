@@ -256,6 +256,22 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### Rebuilding the Midway without stranding a guest (D-76, PROTO 13)
+
+Each time the host rebuilt the Midway, a guest could walk into an invisible wall and have to leave and
+rejoin. Rebuilds happen after a night, when someone joins, or when someone leaves.
+- **The cause.** Both sides restart their packet numbering for each game. The guest goes on sending its
+  last few inputs until the host's start reaches it, and from the results screen it keeps resending them
+  every 100 ms. Those inputs were numbered in the old game. When one landed just after the host's reset,
+  the host took the guest's fresh inputs, numbered from 1 again, for older ones and dropped them. That
+  lasted as long as the old visit or night had. Snapshots had the same hole the other way.
+- **The fix.** Every start names its game (`epoch`, 0–255). Input packets and snapshots carry it in their
+  header. Each side drops packets of another game; the guest does so before decoding, so an old game's
+  string table never mixes into the new one.
+- **Test:** `hub.test.ts` "keeps a walking guest moving when the host rebuilds the Midway". It fails
+  without the fix: the guest walks 44 px in the second after the rebuild, against 100+.
+- **PROTO 13:** both binary headers grew a byte.
+
 ### Personal builds, Party Favors, the lobby Lost & Found (D-74, PROTO 12)
 
 From the owner's four-player night:

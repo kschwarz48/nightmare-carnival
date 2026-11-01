@@ -174,7 +174,12 @@ export class QuestVisuals {
         r.addShapes.circle(x, y, 12, 1, 0.82, 0.45, on ? 0.85 : 0.12, 0);
         r.teleLine.ring(x, y, 9, 12, 1, 0.8, 0.5, on ? 0.9 : 0.3, on ? 0.9 : 0.3);
       }
-      if (st === UR.Projector) r.addShapes.ring(P.x, P.y, P.r - 6, P.r, 1, 0.85, 0.55, 0.12 + 0.08 * Math.sin(t * 2.5), 0.12);
+      if (st === UR.Projector) {
+        // the ring to stand in, plain to see, and the warm-up filling round it live (D-76)
+        const f = ch.charge / U.charge;
+        r.addShapes.ring(P.x, P.y, P.r - 8, P.r, 1, 0.85, 0.55, 0.26 + 0.14 * Math.sin(t * 3), 0.26);
+        if (f > 0) r.teleLine.ring(P.x, P.y, P.r - 14, P.r + 4, 1, 0.86, 0.4, 0.95, 0.95, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2);
+      }
       const lamp = st > UR.Projector ? 1 : ch.charge / U.charge;
       r.glow.draw(glowF, P.x, P.y + 40, 104, 0.6 + lamp, 0.6 + lamp, 0, 1, 0.92, 0.7, 0.2 + 0.6 * lamp);
       pool.add(P.x, P.y + 30, 260, 0.3 + 0.9 * lamp, 1, 0.85, 0.6, 110, 2);

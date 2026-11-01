@@ -16,7 +16,7 @@ What it does have, and what was tuned instead:
 | **Tickets** | Run XP, dropped by enemies, collected by walking near them | `TICKETS`, `XP_CURVE` |
 | **Levels / drafts** | Each level opens a 3–4 card draft (weapons, passives, evolutions) | `XP_CURVE` |
 | **Chests** | Multi-roll upgrades from bosses, Carnival Brutes, rare elites, events | `CHESTS`, `minibossInterval` |
-| **Healing** | Food pickups, Funnel Cake passive, the 5% fallback | `HEALING` |
+| **Healing** | Food pickups (and the Free Funnel Cake event's treats), the Lost & Found's Funnel Cake regeneration perk (D-76), the 5% fallback | `HEALING`, `PERKS` |
 | **Lost Tickets (LT)** | Persistent meta currency: end-of-night payout, achievements, vouchers | `computePayout`, `VOUCHER` |
 | **Rerolls / Banishes / Skip** | Per-run draft tools bought in the Lost & Found | `data/meta.ts` |
 
@@ -72,8 +72,10 @@ Each chest is a prize-wheel show (D-34), so the target was ~10–15 per night (m
 
 ## Healing
 
-Food every 70–110 s in Act I down to 55–90 s in Act IV, healing 20% (min 20 HP); Funnel Cake passive
-12%; the maxed-pool fallback 5% (`HEALING`).
+Food every 70–110 s in Act I down to 55–90 s in Act IV, healing 20% (min 20 HP); the Free Funnel Cake
+event's treats 12%; the maxed-pool fallback 5% (`HEALING`). Regeneration is a permanent perk since D-76:
+the Lost & Found's *Funnel Cake*, +0.2 HP a second per level up to +1 at level 5 (50, 80, 128, 205, 328
+Lost Tickets); it was a draftable passive (+0.4 a level) before.
 
 ## Upgrade-pool fallback and vouchers (D-31)
 

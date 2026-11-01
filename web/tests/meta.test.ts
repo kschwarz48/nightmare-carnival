@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { SaveManager, migrate, SAVE_VERSION, type StorageLike } from '../src/meta/save';
 import { DIFFICULTY_MAP } from '../src/data/difficulty';
 import { makeGame, runFor } from './helpers';
+import { generateDraft } from '../src/sim/draft';
 import { dailySeedString, hashSeed, Rng } from '../src/core/rng';
 
 function mem(): StorageLike & { m: Map<string, string> } {
@@ -88,6 +89,24 @@ describe('save system', () => {
     old.data.unlocks.push('char_fortune_teller', 'char_ride_operator', 'char_lost_child', 'char_ringleader');
     expect(old.claimDerived().map((a) => a.id)).toEqual(['all_characters']);
     expect(old.claimDerived()).toEqual([]);
+  });
+
+  it('sells base HP regeneration as a permanent perk, and Funnel Cake is no longer drafted (D-76)', () => {
+    const s = new SaveManager(mem());
+    s.data.lostTickets = 1000;
+    expect(s.perkCost('regen')).toBe(50);
+    expect(s.buyPerk('regen')).toBe(true);
+    expect(s.perkCost('regen')).toBe(80);
+    expect(s.buyPerk('regen')).toBe(true);
+    const meta = s.metaStats().find((m) => m.axis === 'regen');
+    expect(meta?.value).toBeCloseTo(0.4, 5);
+    const g = makeGame({ meta: s.metaStats() });
+    expect(g.player.stats.regen).toBeCloseTo(0.4, 5);
+    // regenerates without any passive
+    g.player.hp = 50;
+    for (let i = 0; i < 60 * 5; i++) g.tick();
+    expect(g.player.hp).toBeGreaterThan(51);
+    for (let k = 0; k < 200; k++) for (const o of generateDraft(g)) expect(o.refId).not.toBe('funnel_cake');
   });
 
   it('achievements pay Lost Tickets exactly once', () => {

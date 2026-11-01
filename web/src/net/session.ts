@@ -18,7 +18,7 @@ import {
   type GuestMsg, type GuestProfile, type HoldWhy, type HostMsg, type LobbyState, type NetInput, type RejectReason, type StartCfg,
 } from './protocol';
 import { Replica } from './replica';
-import { SnapshotEncoder, decodeSnapshot, type SfxEvt } from './snapshot';
+import { SnapshotEncoder, decodeSnapshot, snapshotEpoch, type SfxEvt } from './snapshot';
 
 /** Chat flood guard (D-65): a burst of lines, then one per this many ms. */
 const CHAT_BURST = 4;
@@ -166,6 +166,8 @@ export class HostSession {
   startCfg: StartCfg | null = null;
   hostCharacter: string | null = null;
   hostReady = false;
+  /** which game is running (D-76): bumped at every start; inputs from another game are dropped */
+  private epoch = 0;
   /** the host is browsing the Lost & Found from the lobby (D-74) */
   hostAway = false;
   hostPaused = false;
@@ -299,7 +301,8 @@ export class HostSession {
     };
     this.lobby.inRun = true;
     this.broadcastLobby();
-    for (const s of this.live) this.sendTo(s, { t: 'start', cfg: this.startCfg, slot: s.index });
+    this.epoch = (this.epoch + 1) & 255;
+    for (const s of this.live) this.sendTo(s, { t: 'start', cfg: this.startCfg, slot: s.index, epoch: this.epoch });
     return this.startCfg;
   }
 
@@ -321,7 +324,8 @@ export class HostSession {
     };
     this.inHub = true;
     this.lobby.inRun = false;
-    for (const s of this.live) this.sendTo(s, { t: 'start', cfg: this.startCfg, slot: s.index });
+    this.epoch = (this.epoch + 1) & 255;
+    for (const s of this.live) this.sendTo(s, { t: 'start', cfg: this.startCfg, slot: s.index, epoch: this.epoch });
     return this.startCfg;
   }
 
@@ -427,7 +431,7 @@ export class HostSession {
     if ((this.lobby.inRun || this.inHub) && this.startCfg) {
       // the guest rebuilds its mirror from scratch: its stream restarts with a full snapshot and the
       // whole dictionary (the other guests' streams are untouched)
-      link.sendMsg({ t: 'start', cfg: this.startCfg, resume: true, slot: s.index } satisfies HostMsg);
+      link.sendMsg({ t: 'start', cfg: this.startCfg, resume: true, slot: s.index, epoch: this.epoch } satisfies HostMsg);
       this.resendDraft(s);
       if (this.hostPaused) link.sendMsg({ t: 'pause', by: this.self.name } satisfies HostMsg);
       s.prize = 0;
@@ -626,6 +630,9 @@ export class HostSession {
     const pk = decodeInputPacket(buf);
     if (!pk) return this.strike(s, 1);
     s.heard = true;
+    // another game's inputs, still on the wire across a restart (D-76): fresh ones restart their numbering,
+    // so letting an old one through made every new input look stale (the guest stood behind an invisible wall)
+    if (pk.epoch !== this.epoch) return;
     if (pk.dictSize <= this.dict.size) s.dictAck = Math.max(s.dictAck, pk.dictSize);
     s.ackSnap = Math.max(s.ackSnap, Math.min(pk.ackSnap, s.snapSeq));
     for (const i of pk.inputs) {
@@ -929,7 +936,7 @@ export class HostSession {
       return;
     }
     const view = { x: p.x, y: p.y, hx: s.view.hx, hy: s.view.hy };
-    const buf = s.enc.encode(g, { seq: ++s.snapSeq, ackInput: s.lastApplied, ackSnap: s.ackSnap, dict: this.dict, dictFrom: s.dictAck, view, fx: s.fx, sfx: s.sfx, frozen: this.paused || !this.prizeReady });
+    const buf = s.enc.encode(g, { seq: ++s.snapSeq, epoch: this.epoch, ackInput: s.lastApplied, ackSnap: s.ackSnap, dict: this.dict, dictFrom: s.dictAck, view, fx: s.fx, sfx: s.sfx, frozen: this.paused || !this.prizeReady });
     s.fx.length = 0;
     s.sfx.length = 0;
     s.link.sendBin(buf);
@@ -965,6 +972,8 @@ export class GuestSession {
   partnerConnected = true;
   closeReason = '';
   private seq = 0;
+  /** the game the host says is running (D-76): inputs carry it, and snapshots of another game are dropped */
+  private epoch = 0;
   private recent: NetInput[] = [];
   /** interact presses so far, sent with every input (D-67) */
   private ia = 0;
@@ -1087,6 +1096,7 @@ export class GuestSession {
         this.prizeWait = false;
         this.seq = 0;
         this.recent.length = 0;
+        this.epoch = m.epoch ?? 0;
         const g = this.onStart(m.cfg, !!m.resume);
         if (!g) return;
         this.game = g;
@@ -1155,6 +1165,9 @@ export class GuestSession {
     const r = this.replica;
     if (!r) return;
     this.heard = true;
+    // another game's snapshot, still on the wire across a restart (D-76): dropped before decoding, so its
+    // string table never mixes into the new game's
+    if (snapshotEpoch(buf) !== this.epoch) return;
     try {
       r.apply(decodeSnapshot(buf, r.dict), this.now);
     } catch {
@@ -1188,7 +1201,7 @@ export class GuestSession {
     const r = this.replica;
     if (!r) return;
     this.lastSend = this.now;
-    this.link.sendBin(encodeInputPacket({ ackSnap: r.last?.seq ?? 0, dictSize: r.dict.size, inputs: this.recent }, this.writer));
+    this.link.sendBin(encodeInputPacket({ epoch: this.epoch, ackSnap: r.last?.seq ?? 0, dictSize: r.dict.size, inputs: this.recent }, this.writer));
   }
 
   /** Per frame: keepalive acks while not stepping, pings, link timeout, diagnostics. */

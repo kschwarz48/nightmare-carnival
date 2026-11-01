@@ -139,3 +139,61 @@ describe('the Midway online (D-60)', () => {
     expect(host.inHub).toBe(false);
   });
 });
+
+describe('rebuilding the Midway mid-walk (D-76)', () => {
+  it("keeps a walking guest moving when the host rebuilds the Midway (someone joins or leaves, or after a night)", () => {
+    // the guest was walking when the host rebuilt the grounds: its last inputs of the old Midway were still
+    // on the wire and reached the host after the rebuild, so the host took the guest's fresh inputs (numbered
+    // from 1 again) for old ones and dropped them for as long as the old visit had lasted — an invisible wall
+    const net = new LoopbackNet({ latency: 60 });
+    const host = new HostSession('MIDWAY', hostProfile);
+    let now = 1000;
+    const [h, gl] = net.pair();
+    host.accept(h);
+    const gs = new GuestSession(gl, guestProfile('Ann'), null, now);
+    gs.onStart = (cfg) => new Game(runConfigFromStart(cfg));
+    let game: Game | null = null;
+    let t = 0;
+    const frame = (walk: boolean) => {
+      now += 1000 / 60;
+      net.pump(now);
+      host.update(now, 1000 / 60);
+      gs.update(now);
+      if (walk && gs.state === 'run' && gs.replica) {
+        // a small loop on the open plaza (nothing to bump into)
+        t += 1 / 60;
+        gs.step(Math.cos(t * 2), Math.sin(t * 2), 0, 0, false);
+        gs.replica.frame(1 / 60);
+      }
+      if (game) {
+        host.beforeTick(game);
+        game.tick();
+      }
+    };
+    for (let i = 0; i < 20; i++) frame(false);
+    host.hostCharacter = 'carny';
+    const rebuild = (seed: number) => {
+      const at = game ? game.players.map((p) => ({ x: p.x, y: p.y })) : [{ x: 0, y: 330 }, { x: 60, y: 360 }];
+      const cfg = host.startHub({ seed, unlocked: [], questMemory: {}, npcs: [], at });
+      game = new Game(runConfigFromStart(cfg));
+      host.attachGame(game);
+    };
+    rebuild(5);
+    // how far the host has the guest walk over the next `n` frames
+    const walked = (n: number) => {
+      let d = 0;
+      for (let i = 0; i < n; i++) {
+        const p = game!.players[1], x = p.x, y = p.y;
+        frame(true);
+        d += Math.hypot(game!.players[1].x - x, game!.players[1].y - y);
+      }
+      return d;
+    };
+    // walking for a few seconds, then the host rebuilds the grounds mid-stride
+    expect(walked(60 * 4)).toBeGreaterThan(400);
+    rebuild(6);
+    // within a second the host has the guest walking again on the new grounds
+    expect(walked(60)).toBeGreaterThan(100);
+  });
+});
+

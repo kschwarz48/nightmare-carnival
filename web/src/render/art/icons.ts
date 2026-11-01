@@ -549,7 +549,7 @@ export function passiveIcon(ctx: Ctx, w: number, h: number, id: string): void {
 /** Generic UI glyphs (Lost & Found perks, HUD). */
 export function uiIcon(ctx: Ctx, w: number, h: number, id: string): void {
   const map: Record<string, string> = {
-    max_hp: 'sugar_rush', might: 'strongman_belt', speed: 'running_shoes', pickup: 'magnet_glove', luck: 'lucky_ticket',
+    max_hp: 'sugar_rush', might: 'strongman_belt', speed: 'running_shoes', pickup: 'magnet_glove', luck: 'lucky_ticket', regen: 'funnel_cake',
     greed: 'coin_purse', armor: 'safety_goggles', revive: 'rabbits_foot', reroll: 'spinning_top', banish: 'season_pass',
   };
   if (map[id]) {
