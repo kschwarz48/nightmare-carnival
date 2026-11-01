@@ -140,6 +140,7 @@ snowflakes, music notes; themed death bursts per enemy family; damage-number gly
 | Asset | Source | Usage | Status |
 |---|---|---|---|
 | "Freaky Funky Circus" (2026-10-30 mix) — Bradley Schwarz | supplied by the repo owner → `public/audio/freaky_funky_circus.mp3` (320 kbps, 1:42, kept as delivered) | title menus, results, dawn (from the top); boss fights (from the groove at 11.98 s); played at 0.78 to match the old level (D-61) | ✅ original track, preserved |
+| "CircularCus" — Bradley Schwarz | supplied by the repo owner (2026-11-01) → `public/audio/circular_cus.mp3` (320 kbps, 1:38.5, kept as delivered) | the Ghost Train's night between bosses, from the top, repeating after a 1 s rest; played as mixed (gain 1, -12.8 LUFS) (D-81) | ✅ original track, preserved |
 | Dread drone (detuned saw pad + theremin wail) | live oscillators | grows each Act | ✅ |
 | Boss themes ×6 (Tent, Wheel, Puppet King, Ringmaster ×3 phases) | live step-sequencer: tuba oompah, chord stabs, drums, detuned calliope melody | boss fights | ◐ synthesized big band (not live-recorded) |
 | Ambience loop (wind, creaks, distant music box) | synthesized at boot | always | ✅ |
@@ -157,6 +158,6 @@ The tables above describe the earlier 2D sprite pass. Since the 2.5D overhaul (D
   **No external models, textures or generated assets** are used; there are no image files for the world.
 - The 2D canvas atlas (`src/render/art`, `assets.ts`) remains only for particles, damage digits and the
   DOM UI (icons, portraits, Pedia) — the portraits are still in the older cartoon style (see the handoff).
-- Audio: the two original Bradley Schwarz music tracks are preserved unchanged in `public/audio/`; all
+- Audio: Bradley Schwarz's music tracks are preserved unchanged in `public/audio/`; all
   sound effects are synthesised (`src/audio/synth.ts`).
 - Fonts: Rye and Oswald via `@fontsource` (OFL).

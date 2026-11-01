@@ -115,6 +115,19 @@ understate that character.
 
 ---
 
+## The Ghost Train's night music — 2026-11-01 (D-81)
+
+- `tests/audio.test.ts` (8, 5 new): the song from its first note on the line's night, no waltz, no drone,
+  through an Act change; a boss cuts it for the boss song played through, then it comes back from the top;
+  the rest between play-throughs and a boss arriving in it; a new night starting it fresh; it coming in when
+  it arrives, and the waltz standing in when it can't load. `npm test` 25 files, 387 tests pass; the build
+  builds.
+- In the browser (dev server, a real Ghost Train run): the song fetched (200) and decoded (98.55 s) after the
+  menus' song; the night started on it at gain 1, the waltz and drone off; the Stationmaster's arrival
+  switched to "Freaky Funk Circus"; with the boss dead the boss song kept playing, and once it ended the
+  night's song came back from its first note; at the song's end it came back after the 1 s rest. Checked
+  through the engine's state (sources, buffers, gains), not by ear.
+
 ## The Ghost Train, a fourth map — 2026-11-01 (D-80)
 
 - **Automated:** `npm test` 25 files, 382 tests pass, among them `tests/ghosttrain.test.ts` (19): the registry and

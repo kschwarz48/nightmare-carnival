@@ -1216,3 +1216,21 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   bytes including `eFrom`.
 - **Scope honesty:** see `GHOST_TRAIN.md` §11 for what is simpler than the Boardwalk's art (lettering on the
   boards, the creature sculpts' detail, the locomotive's smoke).
+
+### D-81 · The Ghost Train's night plays Bradley's second song
+
+- **The ask.** New background music for the fourth map from Bradley ("CircularCus"), keeping the boss-music
+  logic as it is.
+- **The night.** On every Act of the Ghost Train's night and its endless night after dawn (`gt_act1–4`,
+  `gt_endless`) the song plays from its first note in place of the railway waltz. It is a whole piece, not a
+  loop (a 12 s intro at 150 bpm, the body at about 160, a slowing fade at the end; 1:38.5), so at its end it
+  rests 1 s and plays again from the top; an Act changing mid-song lets it carry on.
+- **Bosses: unchanged (D-70).** A boss's arrival cuts it for "Freaky Funk Circus" from the top, played through
+  even if the boss falls first; then the night's song comes back from its first note. A boss due in the rest
+  between two play-throughs stops the next one before it starts. A new night on the line starts it fresh.
+- **Level.** Mastered at -12.8 LUFS, about 1 dB under the boss song as it plays (-9.7 LUFS at its 0.78), so it
+  plays as mixed (gain 1) and a boss still lifts the music a little. The Act-by-Act dread drone stays off under
+  it (it would sit across his key); the stations' and carriages' ambiences and the train's own sounds carry on.
+- **Loading.** 3.9 MB (320 kbps, as delivered): fetched after the menus' song when the save can play the map,
+  otherwise when a night on the line first asks for it (silence over the ambience until it arrives). If it
+  can't load, the railway waltz stands in, so the night is never without music.

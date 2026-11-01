@@ -4,10 +4,10 @@
 // the Midway hub a hushed, broken carousel waltz of its own (D-61), and the Fun House a waltz that runs
 // backwards over glass harmonics, with an indoor ambience of its own (D-63), and the Boardwalk a slow
 // detuned seaside waltz with a bell buoy tolling under it, over three ambiences that crossfade with where
-// the listener stands: the promenade, the beach, the pier (D-68); the Ghost Train a lonely railway waltz
-// over the clack of the rail joints with a whistle far down the line, and two ambiences, the stations'
-// night and the carriages' rattle, that crossfade as you board and alight (D-80). Quest chimes dip the
-// music so they always carry. SFX are synthesized at boot.
+// the listener stands: the promenade, the beach, the pier (D-68); the Ghost Train's night Bradley's second
+// song, "CircularCus" (D-81; a lonely railway waltz over the clack of the rail joints stands in if it can't
+// load), over two ambiences, the stations' night and the carriages' rattle, that crossfade as you board and
+// alight (D-80). Quest chimes dip the music so they always carry. SFX are synthesized at boot.
 
 import { RECIPES, SR } from './synth';
 import { LEGACY } from '../core/flags';
@@ -89,6 +89,27 @@ const SONG_GROOVE = 11.98;
 const SONG_GAIN = 0.78;
 /** Bradley's loop runs a touch faster as the Ringmaster sheds his skins. */
 const BOSS_RATE: Record<string, number> = { boss_ringmaster_2: 1.03, boss_ringmaster_3: 1.06 };
+/**
+ * Bradley's second song, the Ghost Train's night (D-81): between the bosses there it plays from its first note
+ * in place of the railway waltz, and at its end, after a breath, from the top again (it has an intro and fades
+ * out, so it repeats whole). Boss fights keep "Freaky Funk Circus". Fetched only once a night needs it or the
+ * map is open to the player; the waltz stands in if it can't load.
+ */
+const LINE_SONG = 'circular_cus.mp3';
+/** mastered at -12.8 LUFS, about 1 dB under the boss song as it plays (-9.7 LUFS at SONG_GAIN): left as mixed */
+const LINE_SONG_GAIN = 1;
+/** the pause between one play-through's last note and the next one's first (s) */
+const LINE_BREATH = 1;
+/** the cues it plays on: every Act of the Ghost Train's night, and the endless night after its dawn */
+const LINE_CUE = /^gt_(act[1-4]|endless)$/;
+
+/** A track's last sound (s), past the encoder's tail of silence. */
+function lastSound(buf: AudioBuffer): number {
+  const d = buf.getChannelData(0);
+  let e = d.length - 1;
+  while (e > 0 && Math.abs(d[e]) < 0.002) e--;
+  return e / buf.sampleRate;
+}
 
 export class AudioEngine {
   ctx: AudioContext | null = null;
@@ -118,6 +139,10 @@ export class AudioEngine {
   private currentTrack = '';
   /** a boss fight's play-through of Bradley's song is under way: it runs to its end before anything else plays */
   private bossSong = false;
+  /** the Ghost Train's song (D-81) and its last sound (s); 'wanted' waits for audio to unlock */
+  private line: AudioBuffer | null = null;
+  private lineEnd = 0;
+  private lineState: 'none' | 'wanted' | 'loading' | 'ready' | 'failed' = 'none';
   private lastPlay = new Map<string, number>();
   private active = new Map<string, number>();
   private scoreTimer = 0;
@@ -229,22 +254,20 @@ export class AudioEngine {
     return this.buffers.get(id);
   }
 
+  private async fetchTrack(file: string): Promise<AudioBuffer> {
+    const res = await fetch(`${BASE}audio/${file}`);
+    return await this.ctx!.decodeAudioData(await res.arrayBuffer());
+  }
+
   private async loadTracks(): Promise<void> {
-    const ctx = this.ctx!;
-    const load = async (file: string) => {
-      const res = await fetch(`${BASE}audio/${file}`);
-      return await ctx.decodeAudioData(await res.arrayBuffer());
-    };
     try {
-      const song = await load(SONG);
+      const song = await this.fetchTrack(SONG);
       this.tracks.intro = song;
       this.tracks.loop = song;
       // loop from the groove to the last sound (trimming the encoder's tail of silence)
-      const d = song.getChannelData(0);
-      let e = d.length - 1;
-      while (e > 0 && Math.abs(d[e]) < 0.002) e--;
-      this.tracks.loopStart = Math.min(SONG_GROOVE, e / song.sampleRate / 2);
-      this.tracks.loopEnd = e / song.sampleRate;
+      const end = lastSound(song);
+      this.tracks.loopStart = Math.min(SONG_GROOVE, end / 2);
+      this.tracks.loopEnd = end;
       const c = this.cue;
       this.currentTrack = '';
       this.cue = 'silence';
@@ -252,6 +275,34 @@ export class AudioEngine {
     } catch (e) {
       console.warn('music failed to load', e);
     }
+    // the Ghost Train's song, if it was asked for before audio unlocked, after the menus' song
+    if (this.lineState === 'wanted') this.loadLineSong();
+  }
+
+  /**
+   * Fetch the Ghost Train's song (D-81) unless it's already here or on its way. Safe to call any time: before
+   * audio unlocks it only notes the wish. A night that was waiting for it hears it as soon as it arrives (or,
+   * if it can't be had, the railway waltz).
+   */
+  loadLineSong(): void {
+    if (this.lineState === 'none') this.lineState = 'wanted';
+    if (this.lineState !== 'wanted' || !this.unlocked) return;
+    this.lineState = 'loading';
+    this.fetchTrack(LINE_SONG)
+      .then(
+        (buf) => {
+          this.line = buf;
+          this.lineEnd = lastSound(buf);
+          this.lineState = 'ready';
+        },
+        (e) => {
+          console.warn('the Ghost Train song failed to load', e);
+          this.lineState = 'failed';
+        },
+      )
+      .then(() => {
+        if (LINE_CUE.test(this.cue) && !this.bossSong) this.applyCue(this.cue);
+      });
   }
 
   applyVolumes(): void {
@@ -354,6 +405,9 @@ export class AudioEngine {
    * falls first: cues that arrive meanwhile (the next Act, a boss warning, dawn, the results) wait for its
    * end, and only then does their music come in. A fight that outlasts the song hears it again from the top;
    * a boss that arrives while it is still playing out keeps it going rather than cutting it off.
+   *
+   * The Ghost Train's night (D-81) is Bradley's second song instead of a waltz, under the same rules: a boss
+   * cuts it for the boss song, and it comes back from its first note once that has played out.
    */
   private applyCue(c: Cue): void {
     const boss = c.startsWith('boss_');
@@ -362,17 +416,59 @@ export class AudioEngine {
       if (boss) this.trackSrc.playbackRate.setTargetAtTime(BOSS_RATE[c] ?? 1, this.ctx!.currentTime, 0.5);
       return;
     }
-    const night = NIGHT[c];
+    const line = LINE_CUE.test(c) && this.lineState !== 'failed';
+    const night = line ? undefined : NIGHT[c];
     if (night) this.startScore(night);
     else this.stopScore();
     if (c === 'menu' || c === 'results' || c === 'dawn') this.playTrack('intro', 1, 20000);
     else if (boss) this.playBossSong(BOSS_RATE[c] ?? 1);
+    else if (line) this.playLineSong();
     else if (night) this.fadeOutTrack(2);
     else if (c === 'silence') this.duckTrack(0);
-    // dread drone grows with the Act (doc 02 §9: motifs bent darker as the night deepens)
+    // dread drone grows with the Act (doc 02 §9: motifs bent darker as the night deepens); Bradley's songs play clean
     const act = c.replace('fh_', '').replace('bw_', '').replace('gt_', '');
-    const dread = act === 'act2' ? 0.15 : act === 'act3' ? 0.28 : act === 'act4' ? 0.38 : act === 'endless' ? 0.4 : 0;
+    const dread = line ? 0 : act === 'act2' ? 0.15 : act === 'act3' ? 0.28 : act === 'act4' ? 0.38 : act === 'endless' ? 0.4 : 0;
     this.setDrone(dread);
+  }
+
+  /**
+   * The Ghost Train's song (D-81) from its first note, at `when` (audio time; now if earlier); at its end, while
+   * the night still wants it, a breath and then from the top again. Already playing (perhaps hushed for a
+   * boss's warning), it carries on and comes back up. Not here yet: whatever else plays fades out, and the
+   * song comes in when it arrives (see loadLineSong).
+   */
+  private playLineSong(when = 0): void {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    if (this.currentTrack === 'line' && this.trackSrc) {
+      this.trackGain!.gain.setTargetAtTime(LINE_SONG_GAIN, t, 0.6);
+      return;
+    }
+    const buf = this.line;
+    if (!buf) {
+      this.fadeOutTrack(2);
+      this.loadLineSong();
+      return;
+    }
+    this.fadeOutTrack(1.2);
+    const at = Math.max(t, when);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    g.gain.setTargetAtTime(LINE_SONG_GAIN, at, 0.05);
+    src.connect(g).connect(this.music);
+    src.onended = () => {
+      if (this.trackSrc !== src) return;
+      this.trackSrc = null;
+      this.trackGain = null;
+      this.currentTrack = '';
+      if (LINE_CUE.test(this.cue)) this.playLineSong(ctx.currentTime + LINE_BREATH);
+    };
+    src.start(at, 0, this.lineEnd);
+    this.trackSrc = src;
+    this.trackGain = g;
+    this.currentTrack = 'line';
   }
 
   /** The song from its first note, once through; at its end, whatever the night has moved on to plays. */
@@ -406,9 +502,12 @@ export class AudioEngine {
     this.bossSong = true;
   }
 
-  /** A new night starts on its own music: cut a boss song still playing out from the last one. */
+  /**
+   * A new night starts on its own music: cut a boss song still playing out from the last one (and the Ghost
+   * Train's song, so a new night there hears it from its first note).
+   */
   endBossSong(): void {
-    if (!this.bossSong) return;
+    if (!this.bossSong && this.currentTrack !== 'line') return;
     this.fadeOutTrack(1.5);
     // whatever is cued next is applied fresh, even if it matches the last cue
     this.cue = 'silence';
@@ -452,15 +551,19 @@ export class AudioEngine {
     this.currentTrack = which;
   }
 
+  // (both drop a swell still scheduled, e.g. the Ghost Train's song coming back in after its breath)
   private duckTrack(level: number): void {
     if (!this.trackGain) return;
-    this.trackGain.gain.setTargetAtTime(level, this.ctx!.currentTime, 0.5);
+    const t = this.ctx!.currentTime;
+    this.trackGain.gain.cancelScheduledValues(t);
+    this.trackGain.gain.setTargetAtTime(level, t, 0.5);
   }
 
   private fadeOutTrack(sec: number): void {
     if (!this.trackSrc || !this.trackGain) return;
     const t = this.ctx!.currentTime;
     const src = this.trackSrc;
+    this.trackGain.gain.cancelScheduledValues(t);
     this.trackGain.gain.setTargetAtTime(0, t, sec / 4);
     try {
       src.stop(t + sec);

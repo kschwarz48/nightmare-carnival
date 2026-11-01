@@ -277,6 +277,9 @@ export class App {
       this.save.data.midwayTester = true;
       this.save.save();
     }
+    // the Ghost Train's song comes down once audio unlocks if this save can play the map (D-81); otherwise when a
+    // night there first asks for it
+    if (this.save.mapAvailable('ghost_train')) this.audio.loadLineSong();
     this.draft = new DraftView(this.assets, (i) => this.pickDraft(i), () => this.rerollDraft(), (i) => this.banishDraft(i), () => this.skipDraft());
     this.prizeUi = new PrizeOverlay(() => this.prize.skip(false));
     this.prize = new PrizeWheel(this.renderer.overlay, this.assets, this.prizeUi, this.audio);

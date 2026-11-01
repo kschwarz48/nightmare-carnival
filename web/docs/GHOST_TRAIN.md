@@ -187,8 +187,11 @@ station; or a station's own.
 
 ## 9. Audio
 
-Procedural music (`gt_act1–4`, `gt_endless`): a railway waltz over the clack of the rail joints with a
-whistle far down the line; boss fights keep Bradley's song. Two ambience beds crossfading as you board and
+Music (`gt_act1–4`, `gt_endless`): Bradley's second song, "CircularCus" (`public/audio/circular_cus.mp3`,
+D-81), from its first note, again from the top after a 1 s rest at its end; boss fights keep "Freaky Funk
+Circus" played through, and the night's song comes back from the top after it. The procedural railway waltz
+(the clack of the rail joints, a whistle far down the line) stands in only if the song can't load. Two
+ambience beds crossfading as you board and
 alight (the stations' night: wind, wires, a clock, a far bell; the carriages: the wheels' clack quickening
 with the train, the body's creak). The train's sounds are read off the timetable each frame (bell, whistle,
 doors, chuffs, brakes, the bridge), so a guest hears exactly what the host does.

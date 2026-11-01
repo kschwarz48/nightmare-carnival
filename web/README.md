@@ -175,6 +175,7 @@ Press <kbd>`</kbd> during a run for the dev panel, or use `window.__nc` in the c
 ## Credits
 
 - Game design & original Godot project: the Nightmare Carnival repository docs and code.
-- Music: **"Freaky Funk Circus"** (intro + loop) by **Bradley Schwarz**, from the repository.
+- Music: **"Freaky Funk Circus"** (intro + loop) by **Bradley Schwarz**, from the repository, and his
+  **"CircularCus"** (the Ghost Train's night).
 - All other art, sound effects and the procedural boss score were created for this rebuild
   (procedurally, in code). Fonts: Rye and Oswald (SIL Open Font License) via Fontsource.

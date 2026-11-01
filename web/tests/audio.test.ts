@@ -1,14 +1,19 @@
 // Bradley's song on boss fights (D-70): it starts from its first note when a fight begins and always plays
 // through to its end, even if the boss falls first; only then does the night's music come back. A fight
-// that outlasts it hears it again from the top. Driven through a stand-in AudioContext (node has none).
+// that outlasts it hears it again from the top. The Ghost Train's night is his second song (D-81) under the
+// same rules. Driven through a stand-in AudioContext (node has none).
 
 import { describe, expect, it, vi } from 'vitest';
 import { AudioEngine } from '../src/audio/audio';
 
 interface FakeSource {
+  buffer: unknown;
   playbackRate: { value: number; setTargetAtTime: ReturnType<typeof vi.fn> };
   loop: boolean;
+  /** when it was told to start (audio time), from where in the buffer, and for how long */
+  at: number;
   offset: number;
+  dur?: number;
   stopped: boolean;
   onended: (() => void) | null;
 }
@@ -22,8 +27,8 @@ function engine() {
     createGain: () => ({ ...node(), gain: param() }),
     createBufferSource: () => {
       const s = {
-        ...node(), buffer: null, loop: false, loopStart: 0, loopEnd: 0, playbackRate: param(), onended: null, offset: -1, stopped: false,
-        start(_t: number, off = 0) { this.offset = off; },
+        ...node(), buffer: null, loop: false, loopStart: 0, loopEnd: 0, playbackRate: param(), onended: null, at: -1, offset: -1, dur: undefined as number | undefined, stopped: false,
+        start(t = 0, off = 0, dur?: number) { this.at = t; this.offset = off; this.dur = dur; },
         stop() { this.stopped = true; },
       };
       sources.push(s as unknown as FakeSource);
@@ -37,7 +42,16 @@ function engine() {
     startScore: vi.fn(), stopScore: vi.fn(), setDrone: vi.fn(),
   });
   const playing = () => sources.filter((s) => !s.stopped);
-  return { a, sources, playing, score: (a as unknown as Record<string, unknown>).startScore as ReturnType<typeof vi.fn> };
+  const r = a as unknown as Record<string, unknown>;
+  return { a, ctx, sources, playing, score: r.startScore as ReturnType<typeof vi.fn>, drone: r.setDrone as ReturnType<typeof vi.fn> };
+}
+
+/** The engine with the Ghost Train's song already fetched. */
+function lineEngine() {
+  const e = engine();
+  const line = { duration: 98.55 };
+  Object.assign(e.a, { line, lineEnd: 98.5, lineState: 'ready' });
+  return { ...e, line, intro: (e.a as unknown as { tracks: { intro: unknown } }).tracks.intro };
 }
 
 describe("Bradley's song on boss fights (D-70)", () => {
@@ -79,5 +93,80 @@ describe("Bradley's song on boss fights (D-70)", () => {
     expect(playing()).toHaveLength(1);
     a.endBossSong();
     expect(playing()).toHaveLength(0);
+  });
+});
+
+describe("the Ghost Train's night: Bradley's second song (D-81)", () => {
+  it('plays from its first note instead of the waltz, clean of the dread drone, and carries on through the Acts', () => {
+    const { a, sources, playing, score, drone, line } = lineEngine();
+    a.setCue('gt_act1');
+    expect(sources).toHaveLength(1);
+    expect(sources[0].buffer).toBe(line);
+    expect([sources[0].offset, sources[0].dur, sources[0].loop]).toEqual([0, 98.5, false]);
+    expect(score).not.toHaveBeenCalled();
+    a.setCue('gt_act3');
+    expect(playing()).toEqual([sources[0]]);
+    expect(drone).toHaveBeenLastCalledWith(0);
+  });
+
+  it('a boss cuts it for the boss song played through; after that it comes back from the top', () => {
+    const { a, sources, playing, line, intro } = lineEngine();
+    a.setCue('gt_act2');
+    a.setCue('silence');
+    a.setCue('boss_stationmaster');
+    expect(sources[0].stopped).toBe(true);
+    expect(sources[1].buffer).toBe(intro);
+    expect(sources[1].offset).toBe(0);
+    // the boss falls: the boss song plays out first
+    a.setCue('gt_act2');
+    expect(playing()).toEqual([sources[1]]);
+    sources[1].onended!();
+    expect(sources).toHaveLength(3);
+    expect(sources[2].buffer).toBe(line);
+    expect(sources[2].offset).toBe(0);
+  });
+
+  it('at its end plays again from the top after a breath; a boss arriving in the breath stops it before it starts', () => {
+    const { a, ctx, sources, line, intro } = lineEngine();
+    a.setCue('gt_act1');
+    ctx.currentTime = 98.5;
+    sources[0].onended!();
+    expect(sources[1].buffer).toBe(line);
+    expect([sources[1].at, sources[1].offset]).toEqual([99.5, 0]);
+    a.setCue('silence');
+    a.setCue('boss_stoker');
+    expect(sources[1].stopped).toBe(true);
+    expect(sources[2].buffer).toBe(intro);
+  });
+
+  it('a new night on the line hears it from its first note', () => {
+    const { a, sources } = lineEngine();
+    a.setCue('gt_act3');
+    a.endBossSong();
+    a.setCue('gt_act1');
+    expect(sources[0].stopped).toBe(true);
+    expect(sources[1].offset).toBe(0);
+  });
+
+  it('comes in when it arrives; if it cannot be had, the railway waltz stands in', async () => {
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+    const buf = { duration: 98.55, sampleRate: 100, getChannelData: () => new Float32Array([0.4, 0.3, 0]) };
+    const ok = engine();
+    Object.assign(ok.a, { fetchTrack: vi.fn(() => Promise.resolve(buf)) });
+    ok.a.setCue('gt_act1');
+    expect(ok.sources).toHaveLength(0);
+    expect(ok.score).not.toHaveBeenCalled();
+    await flush();
+    expect(ok.sources).toHaveLength(1);
+    expect(ok.sources[0].buffer).toBe(buf);
+    expect(ok.sources[0].dur).toBeCloseTo(0.01);
+
+    const bad = engine();
+    Object.assign(bad.a, { fetchTrack: vi.fn(() => Promise.reject(new Error('offline'))) });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    bad.a.setCue('gt_act1');
+    await flush();
+    expect(bad.sources).toHaveLength(0);
+    expect(bad.score).toHaveBeenCalledTimes(1);
   });
 });
