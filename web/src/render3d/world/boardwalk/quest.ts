@@ -319,10 +319,14 @@ export class BoardwalkQuest {
       const hookX = PIER_FIX.crane.x + 300, hookY = PIER_FIX.crane.y, hookH = 134;
       const ringer = ch.bellBy !== 255 ? g.players[ch.bellBy] : undefined;
       if (st === SE.Account && ringer) {
-        // a ghost of it hangs at its ringer's shoulder
-        this.bell.position.set(ringer.x - 30, 120 + Math.sin(t * 2) * 6, ringer.y);
-        this.bell.scale.setScalar(0.55);
-        this.bell.rotation.set(Math.sin(t * 1.4) * 0.15, 0, 0);
+        // D-78: a ghost of it floats round its ringer's shoulders, like the Ghost Ticket and Mira's Reflection,
+        // swaying as if it hung from something nobody can see, lit sea-green from within
+        const a = t * 1.25;
+        const bx = ringer.x + Math.cos(a) * 50, by = ringer.y + Math.sin(a) * 32, bh = 46 + Math.sin(t * 2.6) * 6;
+        this.bell.position.set(bx, bh, by);
+        this.bell.scale.setScalar(0.62);
+        this.bell.rotation.set(Math.sin(t * 1.9) * 0.22, a * 0.6, Math.cos(t * 1.6) * 0.18);
+        halo(bx, by, bh + 12, 1.1 + 0.1 * Math.sin(t * 3), [0.45, 1, 0.85], 0.5);
       } else if (st >= SE.Ledger) {
         this.bell.position.set(hookX, hookH - 60, hookY);
         this.bell.scale.setScalar(1.3);
@@ -355,5 +359,8 @@ export class BoardwalkQuest {
     S.lamps.forEach((L, i) => {
       if (ch.lit & (1 << i)) pool.add(L.x, L.y - 30, 240, 1, 0.45, 0.9, 1, 120, 1.2);
     });
+    // the bell's own light while it circles its ringer
+    const ringer = st === SE.Account && ch.bellBy !== 255 ? g.players[ch.bellBy] : undefined;
+    if (ringer) pool.add(ringer.x, ringer.y, 210, 0.55, 0.45, 1, 0.85, 70, 3);
   }
 }

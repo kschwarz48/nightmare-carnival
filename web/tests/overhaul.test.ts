@@ -349,9 +349,14 @@ describe('save v4 (quest memory)', () => {
     const v3 = { version: 3, lostTickets: 321, totalEarned: 999, perks: { might: 2 }, unlocks: ['w_orbs'], achievements: ['first_night'], pedia: [], stats: { runs: 4 }, history: [], daily: {} };
     const out = migrate(v3);
     expect(out.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(4);
-    expect(out.lostTickets).toBe(321);
-    expect(out.unlocks).toEqual(['w_orbs']);
+    expect(SAVE_VERSION).toBe(5);
+    // v5 (D-78) refunds what was bought at the old prices: two levels of Brass Knuckles (40 + 64), the Orbs (60)
+    expect(out.lostTickets).toBe(321 + 104 + 60);
+    expect(out.unlocks).toEqual([]);
+    expect(out.perks).toEqual({});
+    expect(out.totalEarned).toBe(999);
+    expect(out.stats.runs).toBe(4);
+    expect(out.achievements).toEqual(['first_night']);
     expect(out.quests).toEqual({});
   });
 

@@ -8,7 +8,7 @@ import { xpToNext } from '../src/data/progression';
 
 const mode = process.argv[2] ?? 'god';
 const seeds = [11, 22, 33, 44, 55].slice(0, Number(process.argv[3] ?? 3));
-const chars = ['carny', 'strongman', 'fortune_teller', 'ride_operator', 'lost_child', 'ringleader'];
+const chars = ['carny', 'strongman', 'fortune_teller', 'ride_operator', 'lost_child', 'ringleader', 'mira'];
 const marks = [1, 2, 3, 5, 6, 8, 10, 12, 15, 18, 20, 24];
 
 interface Row { char: string; levels: number[]; first: number; time: number; won: boolean; chests: number; vouchers: number; drifts: number; alive: number[]; xpMin: number[]; deaths: number }

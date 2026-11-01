@@ -4,7 +4,7 @@
 import { MAP_IDS, MAP_LOCK, MAPS, isMapId, type MapId } from '../data/maps';
 import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
 import { DIFFICULTIES, CURSE } from '../data/difficulty';
-import { ACHIEVEMENTS, PERKS, UNLOCKS } from '../data/meta';
+import { ACHIEVEMENTS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNLOCKS, type UnlockDef } from '../data/meta';
 import { BOSSES } from '../data/bosses';
 import { ENEMIES, PEDIA_ENEMIES } from '../data/enemies';
 import { PASSIVES, WEAPONS, BASE_WEAPON_IDS, EVOLUTION_IDS, PASSIVE_IDS } from '../data/weapons';
@@ -70,7 +70,7 @@ export function titleScreen(c: UICtx): HTMLElement {
     h('div', { class: 'tagline' }, 'Survive from midnight to dawn'),
     menu,
     h('div', { class: 'wallet' }, h('span', { class: 'ticket-count' }, fmtNum(s.data.lostTickets))),
-    h('div', { class: 'corner-left' }, s.recovered ? 'Your save was restored from its backup slot.' : 'WASD / arrows / left stick to move · weapons fire automatically · Esc to pause'),
+    h('div', { class: 'corner-left' }, s.recovered ? 'Your save was restored from its backup slot.' : s.data.notice ?? 'WASD / arrows / left stick to move · weapons fire automatically · Esc to pause'),
     h('div', { class: 'corner' }, `Runs ${s.data.stats.runs} · Wins ${s.data.stats.wins}`, h('br'), 'Music: "Freaky Funk Circus" — Bradley Schwarz'),
     downloadBadge(c),
   );
@@ -81,6 +81,7 @@ export function pressStart(c: UICtx, onStart: () => void): HTMLElement {
     h('img', { class: 'logo', src: c.assets.logo(), alt: 'Nightmare Carnival' }),
     h('div', { class: 'tagline' }, 'A 1930s cartoon-horror survivors-like'),
     h('div', { class: 'press-start' }, 'Click or press any button'),
+    c.save.data.notice ? h('div', { class: 'press-notice' }, c.save.data.notice) : null,
     downloadBadge(c),
   );
   return el;
@@ -99,7 +100,7 @@ export function charSelectScreen(c: UICtx): HTMLElement {
     grid.replaceChildren(...CHARACTERS.map((ch) => {
       const avail = s.characterAvailable(ch.id);
       return h('div', { class: `char-card${ch.id === selChar ? ' sel' : ''}${avail ? '' : ' locked'}`, 'data-nav': '', onclick: () => { c.click(); selChar = ch.id; render(); } },
-        h('img', { src: c.assets.portrait(ch.id), alt: ch.name }), h('div', { class: 'nm' }, avail ? ch.name.replace('The ', '') : '???'));
+        h('img', { src: c.assets.portrait(ch.id), alt: ch.name }), h('div', { class: `nm${avail && ch.name.replace('The ', '').length > 8 ? ' long' : ''}` }, avail ? ch.name.replace('The ', '') : '???'));
     }));
     const ch = CHARACTER_MAP[selChar];
     const avail = s.characterAvailable(ch.id);
@@ -272,7 +273,10 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
   // purchase here earns: announced at the top of the panel
   const fmt = (a: (typeof ACHIEVEMENTS)[number]) => `${a.name} — ${a.desc} (+${a.reward} LT)`;
   const earned: string[] = s.claimDerived().map(fmt);
-  if (earned.length) s.save();
+  // a one-time message (D-78: the new prices' refund) shows here once, then goes
+  const notice = s.data.notice;
+  if (notice) delete s.data.notice;
+  if (earned.length || notice) s.save();
   const buy = (fn: () => boolean) => {
     const before = new Set(s.data.achievements);
     if (!fn()) {
@@ -294,28 +298,51 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
       return h('div', { class: `lf-item${maxed ? ' owned' : can ? '' : ' cant'}`, 'data-nav': '', onclick: () => { if (s.buyPerk(p.id)) { c.audio.play('buy', { vol: 0.6 }); render(); } else c.audio.play('deny', { vol: 0.5 }); } },
         h('img', { src: c.assets.uiIcon(p.id), alt: '' }), h('div', { class: 'nm' }, p.name), h('div', { class: 'ds' }, p.desc),
         h('div', { class: 'pips' }, ...Array.from({ length: p.cap }, (_, i) => h('i', { class: i < lvl ? 'on' : '' }))),
-        h('div', { class: 'cost', style: { gridColumn: '2' } }, maxed ? 'MAXED' : `${cost} LT`));
+        h('div', { class: 'cost', style: { gridColumn: '2' } }, maxed ? 'MAXED' : `${fmtNum(cost)} LT`));
     });
     const chars = CHARACTERS.filter((ch) => ch.unlock).map((ch) => {
       const owned = s.characterAvailable(ch.id), met = s.characterRequirementMet(ch.id);
       const can = !owned && met && s.data.lostTickets >= ch.unlock!.cost;
       return h('div', { class: `lf-item${owned ? ' owned' : met ? (can ? '' : ' cant') : ' locked'}`, 'data-nav': '', onclick: () => buy(() => s.buyCharacter(ch.id)) },
         h('img', { src: c.assets.portrait(ch.id), alt: '', style: { borderRadius: '50%' } }), h('div', { class: 'nm' }, ch.name), h('div', { class: 'ds' }, owned ? 'Unlocked' : met ? ch.title : `Requires: ${ch.unlock!.reqText}`),
-        h('div', { class: 'cost', style: { gridColumn: '2' } }, owned ? 'OWNED' : `${ch.unlock!.cost} LT`));
+        h('div', { class: 'cost', style: { gridColumn: '2' } }, owned ? 'OWNED' : `${fmtNum(ch.unlock!.cost)} LT`));
     });
-    const unlocks = UNLOCKS.map((u) => {
-      const owned = s.isUnlocked(u.id), can = !owned && s.data.lostTickets >= u.cost;
+    // an owned weapon or passive is switched in or out of the drafts with a click (D-78); features just show OWNED
+    const toggle = (id: string) => {
+      s.setInPool(id, !s.inPool(id));
+      c.audio.play('ui_back', { vol: 0.5 });
+      render();
+    };
+    const poolTag = (id: string) => h('div', { class: 'pool', style: { gridColumn: '2' } }, s.inPool(id) ? '✓ In your drafts' : '✕ Left out of your drafts');
+    const unlockItem = (u: UnlockDef) => {
+      const owned = s.isUnlocked(u.id), met = s.unlockRequirementMet(u.id), pool = u.kind !== 'feature';
+      const can = !owned && met && s.data.lostTickets >= u.cost;
       const icon = u.kind === 'weapon' ? c.assets.weaponIcon(u.ref!) : u.kind === 'passive' ? c.assets.passiveIcon(u.ref!) : c.assets.uiIcon('reroll');
-      return h('div', { class: `lf-item${owned ? ' owned' : can ? '' : ' cant'}`, 'data-nav': '', onclick: () => { if (s.buyUnlock(u.id)) { c.audio.play('buy', { vol: 0.6 }); render(); } else c.audio.play('deny', { vol: 0.5 }); } },
-        h('img', { src: icon, alt: '' }), h('div', { class: 'nm' }, u.name), h('div', { class: 'ds' }, u.desc), h('div', { class: 'cost', style: { gridColumn: '2' } }, owned ? 'OWNED' : `${u.cost} LT`));
+      const cls = owned ? (pool ? (s.inPool(u.id) ? ' owned on' : ' owned off') : ' owned') : met ? (can ? '' : ' cant') : ' locked';
+      return h('div', { class: `lf-item${cls}`, 'data-nav': '', onclick: () => (owned ? pool && toggle(u.id) : buy(() => s.buyUnlock(u.id))) },
+        h('img', { src: icon, alt: '' }), h('div', { class: 'nm' }, u.name), h('div', { class: 'ds' }, met || owned ? u.desc : `Requires: ${u.reqText}`),
+        owned && pool ? poolTag(u.id) : h('div', { class: 'cost', style: { gridColumn: '2' } }, owned ? 'OWNED' : `${fmtNum(u.cost)} LT`));
+    };
+    // what the hidden quests (and the Commodore) gave: listed once earned, to switch in and out like the rest
+    const earnedItems = [...SECRET_UNLOCKS, ...EARNED_UNLOCKS].filter((id) => s.isUnlocked(id)).map((id) => {
+      const w = Object.values(WEAPONS).find((d) => d.unlock === id), p = Object.values(PASSIVES).find((d) => d.unlock === id);
+      const quest = Object.entries(QUEST_UNLOCKS).find(([, ids]) => ids.includes(id))?.[0];
+      const how = ACHIEVEMENTS.find((a) => a.id === quest)?.name;
+      return h('div', { class: `lf-item owned${s.inPool(id) ? ' on' : ' off'}`, 'data-nav': '', onclick: () => toggle(id) },
+        h('img', { src: w ? c.assets.weaponIcon(w.id) : c.assets.passiveIcon(p!.id), alt: '' }), h('div', { class: 'nm' }, w?.name ?? p?.name ?? id),
+        h('div', { class: 'ds' }, how ? `Earned: ${how}` : 'Earned'), poolTag(id));
     });
+    const unlocks = [...UNLOCKS.map(unlockItem), ...earnedItems];
     root.replaceChildren(h('div', { class: 'panel bulbs' },
       h('div', { class: 'lf-head' }, h('h2', { class: 'title-text' }, 'Lost & Found'), h('span', { class: 'ticket-count' }, fmtNum(s.data.lostTickets)), h('div', {}, btn('Refund perks', () => { const n = s.refundPerks(); c.audio.play('ui_back'); if (n) render(); }, 'small purple'), ' ', btn('Back', () => { c.click(); c.go('title'); }, 'small red', { 'data-default': '' }))),
       h('div', { class: 'muted' }, 'Spend the Lost Tickets you carry out of each night. Perks are a head start — the night is still won in the drafts.'),
+      notice ? h('div', { class: 'lf-notice' }, notice) : null,
       ...earned.map((t) => h('div', { class: 'achievement' }, `★ ${t}`)),
       h('div', { class: 'section-title' }, 'Permanent Perks'), h('div', { class: 'lf-grid' }, ...perks),
       h('div', { class: 'section-title' }, 'Performers'), h('div', { class: 'lf-grid' }, ...chars),
-      h('div', { class: 'section-title' }, 'New Attractions'), h('div', { class: 'lf-grid' }, ...unlocks),
+      h('div', { class: 'section-title' }, 'New Attractions'),
+      h('div', { class: 'muted' }, 'Click a weapon or passive you own to leave it out of your drafts, or to put it back. Daily Runs always use the full pool.'),
+      h('div', { class: 'lf-grid' }, ...unlocks),
       h('div', { class: 'section-title' }, 'Achievements'),
       h('div', { class: 'lf-grid' }, ...ACHIEVEMENTS.map((a) => h('div', { class: `lf-item${s.hasAchievement(a.id) ? '' : ' locked'}` }, h('img', { src: c.assets.uiIcon('luck'), alt: '' }), h('div', { class: 'nm' }, a.name), h('div', { class: 'ds' }, a.desc), h('div', { class: 'cost', style: { gridColumn: '2' } }, s.hasAchievement(a.id) ? '✓ Earned' : `+${a.reward} LT`)))),
     ));

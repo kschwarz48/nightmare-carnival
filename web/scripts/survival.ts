@@ -1,5 +1,5 @@
 import { makeGame, smartPilot, smartDraft } from '../tests/helpers';
-const chars = ['carny', 'strongman', 'fortune_teller', 'ride_operator', 'lost_child', 'ringleader'];
+const chars = ['carny', 'strongman', 'fortune_teller', 'ride_operator', 'lost_child', 'ringleader', 'mira'];
 const diffs = (process.argv[2] ?? 'midway').split(',') as any[];
 // optional third argument: the map (D-64), e.g. `npx vite-node scripts/survival.ts midway fun_house`
 const map = (process.argv[3] ?? 'carnival_core') as any;

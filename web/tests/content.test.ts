@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { makeGame } from './helpers';
 import { WEAPONS, PASSIVES, BASE_WEAPON_IDS, EVOLUTION_IDS, PASSIVE_IDS } from '../src/data/weapons';
 import { ENEMIES } from '../src/data/enemies';
-import { SECRET_UNLOCKS, UNLOCKS } from '../src/data/meta';
+import { EARNED_UNLOCKS, SECRET_UNLOCKS, UNLOCKS } from '../src/data/meta';
 import { CHARACTERS } from '../src/data/characters';
 import { WAVES } from '../src/data/waves';
 import { PROPS } from '../src/data/map';
@@ -32,9 +32,11 @@ describe('content integrity', () => {
       expect(WEAPONS[w.evolvesTo!], id).toBeTruthy();
       expect(WEAPONS[w.evolvesTo!].evolvedFrom).toBe(id);
       expect(PASSIVES[w.evoPassive!], `${id} passive`).toBeTruthy();
-      if (w.unlock) expect(unlockIds.has(w.unlock) || SECRET_UNLOCKS.includes(w.unlock), `${id} unlock`).toBe(true);
+      // everything gated is obtainable: sold, a hidden quest's reward, or earned (D-78: Running Shoes)
+      const obtainable = (u: string) => unlockIds.has(u) || SECRET_UNLOCKS.includes(u) || EARNED_UNLOCKS.includes(u);
+      if (w.unlock) expect(obtainable(w.unlock), `${id} unlock`).toBe(true);
       const p = PASSIVES[w.evoPassive!];
-      if (p.unlock) expect(unlockIds.has(p.unlock)).toBe(true);
+      if (p.unlock) expect(obtainable(p.unlock), `${id} passive unlock`).toBe(true);
       expect(w.lv.dmg.length).toBe(8);
       expect(w.levelText.length).toBeGreaterThanOrEqual(9);
     }

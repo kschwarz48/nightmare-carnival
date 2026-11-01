@@ -23,6 +23,7 @@ import { FunhouseWorld } from './world/funhouse/world';
 import { BoardwalkWorld } from './world/boardwalk/world';
 import { seaSurfaceHeight, seabedHeight, waterDepth } from '../data/boardwalk';
 import { EMERGE } from '../sim/boardwalkAI';
+import { miraHaloRadius } from '../sim/weapons';
 import type { MapId } from '../data/maps';
 import { LAST_SONG } from '../data/quests';
 import { HUB_EXITS } from '../data/hub';
@@ -609,6 +610,7 @@ export class GameRenderer3D {
       this.addShapes.alphaScale = this.fxAdd.alphaScale = op;
     }
     g.setCtx(p);
+    this.drawRails(dt);
     this.drawSummons(g, alpha, dt);
     if (g.hub) this.drawHub(g, dt);
     this.drawProjectiles(g, alpha, opts.shotOffset);
@@ -1307,6 +1309,30 @@ export class GameRenderer3D {
     void dt;
   }
 
+  /** each surging player's rail of light (D-78), from where the launch began to the car; it fades after */
+  private rails = new Map<number, { x0: number; y0: number; x1: number; y1: number; fade: number }>();
+
+  private drawRails(dt: number): void {
+    const A = this.addShapes;
+    for (const [k, r] of this.rails) {
+      if (r.fade > 0) r.fade += dt;
+      const a = r.fade > 0 ? 1 - r.fade / 0.6 : 1;
+      if (a <= 0) {
+        this.rails.delete(k);
+        continue;
+      }
+      const dx = r.x1 - r.x0, dy = r.y1 - r.y0, L = Math.hypot(dx, dy);
+      if (L < 4) continue;
+      const nx = -dy / L, ny = dx / L;
+      for (let d = 6; d < L; d += 15) {
+        const cx = r.x0 + dx * (d / L), cy = r.y0 + dy * (d / L);
+        A.line(cx - nx * 13, cy - ny * 13, cx + nx * 13, cy + ny * 13, 2.2, 0.9, 0.48, 0.2, 0.34 * a, 0.08 * a);
+      }
+      // warm gold, not white: the rails glow without blooming out
+      for (const s of [-1, 1]) A.line(r.x0 + nx * 9 * s, r.y0 + ny * 9 * s, r.x1 + nx * 9 * s, r.y1 + ny * 9 * s, 2.4, 1, 0.7, 0.28, 0.55 * a, 0.3 * a);
+    }
+  }
+
   // =================================================================== summons / weapons / player
   private drawSummons(g: Game, alpha: number, dt: number): void {
     for (let si = 0; si < g.summons.length; si++) {
@@ -1325,6 +1351,17 @@ export class GameRenderer3D {
         b.anim(i, row, row, 0, 0);
         b.tint(i, 0.45, 0.65, 1.0);
         b.rimLight(i, 0.5, 0.85, 1, 1.4 + 0.3 * Math.sin(this.time * 8));
+        if (owner.char.quirk === 'mirror_aura') {
+          // Mira's Glass Halo (D-78): a ring of glass shards turning round the clone (it cuts once a second)
+          const R = miraHaloRadius(owner);
+          const A = this.addShapes;
+          A.circle(x, y, R, 0.55, 0.9, 1, 0.05, 0);
+          A.ring(x, y, R - 2.5, R, 0.7, 0.95, 1, 0.42, 0.35);
+          for (let k = 0; k < 8; k++) {
+            const a = this.time * 1.6 + (k * Math.PI) / 4 + si;
+            A.line(x + Math.cos(a) * (R - 9), y + Math.sin(a) * (R - 9), x + Math.cos(a + 0.12) * (R - 2), y + Math.sin(a + 0.12) * (R - 2), 2, 0.85, 1, 1, 0.55, 0.45);
+          }
+        }
         continue;
       }
       const key = `s_${s.kind}`;
@@ -1523,15 +1560,18 @@ export class GameRenderer3D {
       const col = PLAYER_COLS[p.index % PLAYER_COLS.length];
       this.addShapes.ring(px, py, 24, 30, col[0], col[1], col[2], 0.0, 0.45);
     }
-    if (p.dashT > 0) {
-      // bumper surge afterimages
-      for (let k = 1; k <= 3; k++) {
-        const j = b.add(px - p.dashX * k * 22, py - p.dashY * k * 22, 0, yaw, s * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
-        b.anim(j, ra, rb, 0.5, bl);
-        b.tint(j, 1, 0.8, 0.5, 1);
-        b.rimLight(j, 1, 0.6, 0.3, 1.2);
+    // the Undertow's launch (D-78): its rider stands in the lead car on a rail of light (drawRails)
+    const rail = this.rails.get(p.index);
+    if (p.dashT > 0 && !npc) {
+      if (!rail || rail.fade > 0) this.rails.set(p.index, { x0: px - p.dashX * 18, y0: py - p.dashY * 18, x1: px, y1: py, fade: 0 });
+      else {
+        rail.x1 = px;
+        rail.y1 = py;
       }
-    }
+      const cb = this.batch('undertow_car', ITEM_MODELS.undertow_car, 8);
+      cb.add(px, py, 0, Math.atan2(p.dashX, p.dashY), 1.7);
+      this.glow.draw(this.f('fx_glow_0'), px, py, 26, 0.9, 0.9, 0, 1, 0.75, 0.4, 0.35);
+    } else if (rail && rail.fade === 0) rail.fade = 1e-4;
     // the Boardwalk's shallows (D-68): a player wading stands on the sea floor, the water round their knees
     let ph = 0;
     if (this.world.boardwalk && !npc) {

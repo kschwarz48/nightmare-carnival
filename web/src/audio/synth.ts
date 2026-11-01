@@ -127,6 +127,7 @@ export const RECIPES: Record<string, () => Float32Array> = {
   whack: () => render([V('noise', 1, 1, 0.1, { vol: 0.5, decay: 30, lp: 2200 }), V('sine', 240, 90, 0.12, { vol: 0.6, decay: 22 })]),
   tarot: () => render([V('sine', 880, 1320, 0.15, { vol: 0.12, decay: 12, vib: 0.02, vibRate: 10 }), V('noise', 1, 1, 0.08, { vol: 0.12, decay: 30, hp: 3000 })]),
   deathcard: () => render([V('saw', 220, 110, 0.4, { vol: 0.2, lp: 1200, vib: 0.05, vibRate: 6, decay: 4 }), V('sine', 1760, 880, 0.3, { vol: 0.1, decay: 6 })]),
+  coaster: () => render([V('sine', 760, 520, 0.05, { vol: 0.28, decay: 40 }), V('sine', 760, 520, 0.05, { vol: 0.24, decay: 40, delay: 0.06 }), V('noise', 1, 1, 0.5, { vol: 0.34, attack: 0.05, decay: 4, lp: 1700, hp: 220, delay: 0.08 }), V('saw', 210, 110, 0.45, { vol: 0.1, lp: 1100, decay: 3, delay: 0.08 })]),
   horn: () => render([V('square', 420, 410, 0.18, { vol: 0.18, lp: 1800, duty: 0.3 }), V('square', 530, 520, 0.18, { vol: 0.14, lp: 1800, duty: 0.3 })]),
   engine: () => render([V('saw', 70, 110, 0.4, { vol: 0.22, lp: 500, vib: 0.2, vibRate: 25, decay: 3 })]),
   hatpop: () => render([V('sine', 300, 1100, 0.12, { vol: 0.4, decay: 15, curve: 0.5 }), V('noise', 1, 1, 0.15, { vol: 0.25, decay: 15, hp: 1500, delay: 0.05 })]),

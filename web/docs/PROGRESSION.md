@@ -74,15 +74,43 @@ Each chest is a prize-wheel show (D-34), so the target was ~10–15 per night (m
 
 Food every 70–110 s in Act I down to 55–90 s in Act IV, healing 20% (min 20 HP); the Free Funnel Cake
 event's treats 12%; the maxed-pool fallback 5% (`HEALING`). Regeneration is a permanent perk since D-76:
-the Lost & Found's *Funnel Cake*, +0.2 HP a second per level up to +1 at level 5 (50, 80, 128, 205, 328
-Lost Tickets); it was a draftable passive (+0.4 a level) before.
+the Lost & Found's *Funnel Cake*, +0.2 HP a second per level up to +1 at level 5 (200, 340, 578, 983,
+1,670 Lost Tickets since D-78); it was a draftable passive (+0.4 a level) before.
 
 ## Upgrade-pool fallback and vouchers (D-31)
 
 Only when nothing is left to draft: *Funnel Cake Crumbs* (5% max HP, capped) or a *Lost & Found
 Voucher* worth `(6 + 0.25·min) × 0.9^taken × greed` LT (min 1), banked immediately, **120 LT cap per
-run**, after which the card is shown disabled. A winning night pays roughly 900–1,200 LT, so vouchers
-can add at most ~10–13%. Maxed-out chest rolls pay a voucher (or the 5% heal once capped).
+run**, after which the card is shown disabled. A winning night pays roughly 800–1,500 LT, so vouchers
+can add at most ~10–15%. Maxed-out chest rolls pay a voucher (or the 5% heal once capped).
+
+## The Lost & Found's prices (D-78)
+
+What a night pays, measured with `npx vite-node scripts/payout.ts` (smart pilot and draft policy, Midway,
+no perks, two seeds per map): winning nights 785–1,512 LT (Carnival Core 785/824, Fun House 1,232/1,283,
+Boardwalk 853/1,512); the pilot's lost nights, ending at 2.5–7.6 minutes, 39–114 LT. Greed perks, the Coin
+Purse, Carnival (+30%), Nightmare (+60%) and the Curse (+35%) raise all of these. Achievements pay about
+3,900 LT once.
+
+| | Before D-78 | Since D-78 |
+| --- | --- | --- |
+| Perks, every level | ~4,600 | 22,097 |
+| New attractions | 920 | 8,500 (the Undertow added) |
+| Performers | 1,250 | 16,100 (Mira added) |
+| Everything | ~6,800 (about six winning nights) | ~46,700 (about forty winning nights on Midway with no Greed) |
+
+- **Perks** (`PERKS`, cost = base × growth^level): Hearty Stew 120 × 1.6 (5 levels), Brass Knuckles
+  160 × 1.7 (5), Worn Sneakers 140 × 1.7 (4), Ticket Magnet 100 × 1.6 (4), Four-Leaf Clover 180 × 1.7 (4),
+  Piggy Bank 160 × 1.65 (5), Padded Vest 400 × 2.2 (2), Funnel Cake 200 × 1.7 (5), Spare Balloon 1,500
+  (1), Re-Spin Token 250 × 1.9 (3), Banish Stamp 300 × 1.9 (3).
+- **Attractions** (`UNLOCKS`): Crystal Orbs 400, Carnival Cannon 600, Laser Light Show 750, Strongman Bell
+  750, Funhouse Mirror 1,000, the Undertow 2,000 (after the Leviathan), Season Pass 500, Coin Purse 600,
+  Rabbit's Foot 1,500, Skip Ticket 400.
+- **Performers** (`CHARACTERS`): the Fortune Teller 800 (survive to 12:00), the Lost Child 1,800 (the
+  Puppet King), the Ringleader 3,000 (the Ringmaster), Mira 4,500 (the Proprietor), the Commodore 6,000
+  (the Leviathan).
+- **The update refunded every save** (save v5): everything bought at the old prices came back as Lost
+  Tickets, and everything bought was locked again. Details under D-78.
 
 ## Measured (headless)
 

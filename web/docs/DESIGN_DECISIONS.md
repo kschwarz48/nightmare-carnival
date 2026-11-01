@@ -1025,3 +1025,74 @@ and teleports, and the prize wheel dull and see-through.
 - **The Glasswalker** (`data/enemies.ts`): 172 → 135 HP. It shows itself for about three seconds per visit
   (a second of ripple, then the close and the slash) and good builds couldn't finish it in time.
 
+### D-78 · A dearer Lost & Found (and a refund for every save), Mira, the Commodore and his coaster, draft-pool switches, game scrollbars
+- **The request** (the owner):
+  - the browser's scrollbars in some menus (Choose Your Fools, the Lost & Found) should be the game's own,
+    and nothing should scroll sideways;
+  - the Lost & Found should cost much more to max out, given what a night pays; with the update, every
+    save gets back what it spent there, and everything is locked or unlocked under the new rules;
+  - a new performer, **Mira**, bought after the Fun House is survived (no hidden quest), starting with the
+    Funhouse Mirror, whose clones gain an aura that hurts enemies inside it once a second; the Funhouse
+    Mirror evolves with Mira's Hand Mirror;
+  - on the Boardwalk, after the last step before the secret boss, the bell floats round its carrier like
+    the Ghost Ticket and Mira's Reflection;
+  - the Ride Operator becomes the Boardwalk's secret boss (the Commodore) with the same quirk and opener,
+    the bumper car becomes the Boardwalk's roller coaster, both sold after the Boardwalk is survived, and
+    Running Shoes unlock by beating the Commodore;
+  - owned weapons and passives can be switched off, to keep them out of the drafts without not buying them.
+- **Scrollbars** (`ui/style.css`): a gold thumb in an ink rim on a dark groove kept clear of the panels'
+  rounded corners (Chromium and the desktop app; Firefox gets a thin gold bar). Sideways scrolling came
+  from the marquee-bulb ring: it sits 11 px outside a panel's border, and on a panel that scrolls it spilled
+  into the scroll area (the lobby scrolled 11 px sideways; measured with the ring forced back on). On
+  scrolling panels the bulbs are a dotted outline now, which shows (the ring was clipped there anyway) and
+  never scrolls. Every scroll container has `overflow-x: hidden`, and no screen scrolls sideways at
+  1600×900 or 1024×640 (Settings, the Carnival-pedia, the Lost & Found, a full six-player lobby). Long
+  character names get a smaller label on the select cards ("Commodore" was cut off).
+- **Prices** (`data/meta.ts`, `data/characters.ts`): about seven times dearer overall. Maxing the perks
+  costs 22,097 LT (was ~4,600), the attractions 8,500 (920), the performers 16,100 (1,250): ~46,700 in all,
+  about forty winning nights on Midway with no Greed, against six. A winning night pays 785–1,512 LT
+  (`scripts/payout.ts`, new). Tables in `docs/PROGRESSION.md`.
+- **The refund** (`meta/save.ts`, save v5): on first load every save gets back, at the old prices, what it
+  spent: every perk level, every attraction, every performer. Those are locked again. Achievements and the
+  hidden quests' rewards stay (re-granted from their achievements, now including Running Shoes for Summer's
+  End). The Whole Troupe means all seven performers now and nobody owns one after the refund, so it is
+  withdrawn with its 150 LT, to be earned again with its reward. A one-time notice names the amount on the
+  press screen, the title menu, the Midway and the Lost & Found (where it is cleared). Saves now record
+  what they spend there (`spent`), so a later price change can refund exactly. A save that owned the whole
+  store got 5,954 LT back.
+- **Attractions can wait for an achievement** (`UnlockDef.req`): the Undertow is sold after the Leviathan.
+  The results screen announces a newly buyable attraction, as it does a performer.
+- **Draft-pool switches** (`meta/save.ts` `inPool`/`setInPool`, `ui/screens.ts`): in the Lost & Found,
+  click an owned weapon or passive to leave it out of your drafts or put it back. The hidden quests' rewards
+  (Steam Calliope, Mira's Hand Mirror, Ada's Conch, Running Shoes) are listed there once earned, to switch
+  the same way. A switched-off item stays owned; co-op guests send their pool without it; a performer still
+  starts with their own weapon; Daily Runs keep the full pool.
+- **Mira** (`data/characters.ts`, `sim/weapons.ts`): 85 HP, speed 225, starts with the Funhouse Mirror (now
+  her signature weapon), 4,500 LT after the Proprietor. **Glass Halo:** each mirror clone carries an aura
+  (85 px × Area) that cuts every enemy inside once a second for 12 + 2 per mirror level, times Might (×1.25
+  on the Hall of Mirrors' clones). It is her only damage until she drafts a weapon: over a night's first
+  2:30 with only her starting weapon she dealt 580–940 (the Commodore's coaster 510–1,110, the
+  Strongman's mallet ~530, the Lost Child's plush ~1,300, the Carny's cards ~2,240). Her model: a girl
+  of twelve or so in a pale glass-blue dancer's dress with a lilac sash, dark hair in a bun, her cracked
+  hand mirror held to her face (3D sculpt and 2D art). On the Midway she waits by the Fun House doors.
+- **The mirror's partner** (`data/weapons.ts`): Mira's Hand Mirror (was the Season Pass). Full House now
+  skips evolutions whose partner is never sold (the Hall of Mirrors; the Last Lap, below), as it skipped
+  the Steam Calliope's.
+- **The Commodore** (`data/characters.ts`, the Ride Operator's id kept for saves and the protocol): the
+  same quirk (Live Wire), stats and opener, 6,000 LT after the Leviathan. Ezra Penhallow in a white suit
+  gone green, a commodore's cap, white mutton chops and a silver-topped cane (3D sculpt and 2D art); his
+  Midway lines are new.
+- **The Undertow** (was the Bumper Car; the Last Lap was Demolition Derby): the same numbers. The rider
+  stands in the Undertow's red and gold lead car, a sea serpent reared off its nose, and it lays a rail of
+  warm gold light behind it for the launch; the coupled cars carry pale riders, the Last Lap's runaway
+  cars are sea-green ghosts of them; a new icon and a launch sound (the chain lets go, the car drops).
+  Sold for 2,000 LT after the Leviathan; never drafted without it; evolves with Running Shoes.
+- **Running Shoes** (`data/weapons.ts`, `data/meta.ts`): out of the draft pool until the Commodore is
+  beaten (Summer's End's completion grants them, with Ada's Conch). They stay in Daily Runs.
+- **The bell** (`render3d/world/boardwalk/quest.ts`): during the account step it circles its carrier's
+  shoulders, bobbing and swaying, lit sea-green with a soft light (it hung still above them before).
+- **Tests:** `meta.test.ts` (the price totals; the refund on a v4 save, including that it never refunds
+  twice; the switches and the Daily; the Undertow's requirement; Running Shoes gating; the mirror's partner
+  and Full House; Mira's halo cutting with only the mirror, and nobody else's mirror doing so),
+  `content.test.ts`, `overhaul.test.ts` (migration).
+

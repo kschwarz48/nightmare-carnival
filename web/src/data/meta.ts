@@ -13,19 +13,22 @@ export interface PerkDef {
   cap: number;
 }
 
+// D-78: about seven times the old prices across the store (perks ~22,100 LT to max, attractions 8,500,
+// performers 16,100: ~46,700 in all, against ~6,800 before), so it takes a few dozen winning nights to own
+// everything; a winning night on Midway pays roughly 800–1,500 LT (`scripts/payout.ts`)
 export const PERKS: PerkDef[] = [
-  { id: 'max_hp', name: 'Hearty Stew', desc: '+6% Max HP', axis: 'maxHp', mag: 0.06, base: 30, growth: 1.5, cap: 5 },
-  { id: 'might', name: 'Brass Knuckles', desc: '+5% Might', axis: 'might', mag: 0.05, base: 40, growth: 1.6, cap: 5 },
-  { id: 'speed', name: 'Worn Sneakers', desc: '+4% Move speed', axis: 'moveSpeed', mag: 0.04, base: 35, growth: 1.6, cap: 4 },
-  { id: 'pickup', name: 'Ticket Magnet', desc: '+10% Pickup radius', axis: 'pickup', mag: 0.1, base: 25, growth: 1.5, cap: 4 },
-  { id: 'luck', name: 'Four-Leaf Clover', desc: '+5% Luck', axis: 'luck', mag: 0.05, base: 45, growth: 1.6, cap: 4 },
-  { id: 'greed', name: 'Piggy Bank', desc: '+8% Greed (Lost Tickets)', axis: 'greed', mag: 0.08, base: 40, growth: 1.55, cap: 5 },
-  { id: 'armor', name: 'Padded Vest', desc: '+1 Armor', axis: 'armor', mag: 1, base: 90, growth: 2.0, cap: 2 },
+  { id: 'max_hp', name: 'Hearty Stew', desc: '+6% Max HP', axis: 'maxHp', mag: 0.06, base: 120, growth: 1.6, cap: 5 },
+  { id: 'might', name: 'Brass Knuckles', desc: '+5% Might', axis: 'might', mag: 0.05, base: 160, growth: 1.7, cap: 5 },
+  { id: 'speed', name: 'Worn Sneakers', desc: '+4% Move speed', axis: 'moveSpeed', mag: 0.04, base: 140, growth: 1.7, cap: 4 },
+  { id: 'pickup', name: 'Ticket Magnet', desc: '+10% Pickup radius', axis: 'pickup', mag: 0.1, base: 100, growth: 1.6, cap: 4 },
+  { id: 'luck', name: 'Four-Leaf Clover', desc: '+5% Luck', axis: 'luck', mag: 0.05, base: 180, growth: 1.7, cap: 4 },
+  { id: 'greed', name: 'Piggy Bank', desc: '+8% Greed (Lost Tickets)', axis: 'greed', mag: 0.08, base: 160, growth: 1.65, cap: 5 },
+  { id: 'armor', name: 'Padded Vest', desc: '+1 Armor', axis: 'armor', mag: 1, base: 400, growth: 2.2, cap: 2 },
   // D-76: base regeneration, every night (it was the Funnel Cake passive in the drafts)
-  { id: 'regen', name: 'Funnel Cake', desc: '+0.2 HP regen per second', axis: 'regen', mag: 0.2, base: 50, growth: 1.6, cap: 5 },
-  { id: 'revive', name: 'Spare Balloon', desc: '+1 Revive per run', axis: 'revive', mag: 1, base: 200, growth: 2.0, cap: 1 },
-  { id: 'reroll', name: 'Re-Spin Token', desc: '+1 draft Reroll per run', axis: 'reroll', mag: 1, base: 60, growth: 1.8, cap: 3 },
-  { id: 'banish', name: 'Banish Stamp', desc: '+1 draft Banish per run', axis: 'banish', mag: 1, base: 70, growth: 1.8, cap: 3 },
+  { id: 'regen', name: 'Funnel Cake', desc: '+0.2 HP regen per second', axis: 'regen', mag: 0.2, base: 200, growth: 1.7, cap: 5 },
+  { id: 'revive', name: 'Spare Balloon', desc: '+1 Revive per run', axis: 'revive', mag: 1, base: 1500, growth: 2.0, cap: 1 },
+  { id: 'reroll', name: 'Re-Spin Token', desc: '+1 draft Reroll per run', axis: 'reroll', mag: 1, base: 250, growth: 1.9, cap: 3 },
+  { id: 'banish', name: 'Banish Stamp', desc: '+1 draft Banish per run', axis: 'banish', mag: 1, base: 300, growth: 1.9, cap: 3 },
 ];
 
 export interface UnlockDef {
@@ -35,24 +38,31 @@ export interface UnlockDef {
   cost: number;
   kind: 'weapon' | 'passive' | 'feature';
   ref?: string;
+  /** an achievement the attraction waits for before it can be bought (D-78), and how the shop names it */
+  req?: string;
+  reqText?: string;
 }
 
 export const UNLOCKS: UnlockDef[] = [
-  { id: 'w_orbs', name: 'Crystal Orbs', desc: 'Adds Crystal Orbs to the draft pool.', cost: 60, kind: 'weapon', ref: 'orbs' },
-  { id: 'w_cannon', name: 'Carnival Cannon', desc: 'Adds the Carnival Cannon to the draft pool.', cost: 90, kind: 'weapon', ref: 'cannon' },
-  { id: 'w_laser', name: 'Laser Light Show', desc: 'Adds the Laser Light Show to the draft pool.', cost: 110, kind: 'weapon', ref: 'laser' },
-  { id: 'w_bell', name: 'Strongman Bell', desc: 'Adds the Strongman Bell to the draft pool.', cost: 110, kind: 'weapon', ref: 'bell' },
-  { id: 'w_mirror', name: 'Funhouse Mirror', desc: 'Adds the Funhouse Mirror to the draft pool.', cost: 160, kind: 'weapon', ref: 'mirror' },
-  { id: 'p_season_pass', name: 'Season Pass', desc: 'Adds Season Pass (+XP) to the draft pool.', cost: 80, kind: 'passive', ref: 'season_pass' },
-  { id: 'p_coin_purse', name: 'Coin Purse', desc: 'Adds Coin Purse (+Greed) to the draft pool.', cost: 80, kind: 'passive', ref: 'coin_purse' },
-  { id: 'p_rabbits_foot', name: "Rabbit's Foot", desc: "Adds Rabbit's Foot (+Revive) to the draft pool.", cost: 180, kind: 'passive', ref: 'rabbits_foot' },
-  { id: 'f_skip', name: 'Skip Ticket', desc: 'Lets you skip a draft (heals 10 HP).', cost: 50, kind: 'feature' },
+  { id: 'w_orbs', name: 'Crystal Orbs', desc: 'Adds Crystal Orbs to the draft pool.', cost: 400, kind: 'weapon', ref: 'orbs' },
+  { id: 'w_cannon', name: 'Carnival Cannon', desc: 'Adds the Carnival Cannon to the draft pool.', cost: 600, kind: 'weapon', ref: 'cannon' },
+  { id: 'w_laser', name: 'Laser Light Show', desc: 'Adds the Laser Light Show to the draft pool.', cost: 750, kind: 'weapon', ref: 'laser' },
+  { id: 'w_bell', name: 'Strongman Bell', desc: 'Adds the Strongman Bell to the draft pool.', cost: 750, kind: 'weapon', ref: 'bell' },
+  { id: 'w_mirror', name: 'Funhouse Mirror', desc: 'Adds the Funhouse Mirror to the draft pool.', cost: 1000, kind: 'weapon', ref: 'mirror' },
+  // D-78: the Commodore's coaster car, sold once the Boardwalk has been survived (no hidden quest needed)
+  { id: 'w_undertow', name: 'The Undertow', desc: "Adds the Undertow, the Boardwalk's coaster car, to the draft pool.", cost: 2000, kind: 'weapon', ref: 'bumper', req: 'beat_leviathan', reqText: 'Defeat the Leviathan' },
+  { id: 'p_season_pass', name: 'Season Pass', desc: 'Adds Season Pass (+XP) to the draft pool.', cost: 500, kind: 'passive', ref: 'season_pass' },
+  { id: 'p_coin_purse', name: 'Coin Purse', desc: 'Adds Coin Purse (+Greed) to the draft pool.', cost: 600, kind: 'passive', ref: 'coin_purse' },
+  { id: 'p_rabbits_foot', name: "Rabbit's Foot", desc: "Adds Rabbit's Foot (+Revive) to the draft pool.", cost: 1500, kind: 'passive', ref: 'rabbits_foot' },
+  { id: 'f_skip', name: 'Skip Ticket', desc: 'Lets you skip a draft (heals 10 HP).', cost: 400, kind: 'feature' },
 ];
 
-/** Unlocks that are never sold — earned only through discovery (each map's hidden quest). */
+/** Unlocks that are never sold — earned only through discovery (each map's hidden quest); never in a Daily Run. */
 export const SECRET_UNLOCKS = ['w_calliope', 'p_hand_mirror', 'p_ada_conch'];
-/** Which hidden quest grants which of them. */
-export const QUEST_UNLOCKS: Record<string, string[]> = { last_song: ['w_calliope'], unreflected: ['p_hand_mirror'], summers_end: ['p_ada_conch'] };
+/** Never sold either, but no secret (D-78): Running Shoes, the Undertow's partner, for beating the Commodore. */
+export const EARNED_UNLOCKS = ['p_running_shoes'];
+/** Which hidden quest grants which of them (Summer's End is completed by beating the Commodore). */
+export const QUEST_UNLOCKS: Record<string, string[]> = { last_song: ['w_calliope'], unreflected: ['p_hand_mirror'], summers_end: ['p_ada_conch', 'p_running_shoes'] };
 
 export interface AchievementDef {
   id: string;
@@ -76,7 +86,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'kills_1000', name: 'Crowd Control', desc: 'Defeat 1,000 enemies in one run.', reward: 40 },
   { id: 'kills_5000', name: 'Midway Massacre', desc: 'Defeat 5,000 enemies in one run.', reward: 100 },
   { id: 'level_40', name: 'Ticket Hoarder', desc: 'Reach level 40 in one run.', reward: 60 },
-  { id: 'all_characters', name: 'The Whole Troupe', desc: 'Unlock all six characters.', reward: 150 },
+  { id: 'all_characters', name: 'The Whole Troupe', desc: 'Unlock all seven characters.', reward: 150 },
   { id: 'endless_30', name: 'Lock-In', desc: 'Survive to 30:00 in Endless.', reward: 120 },
   { id: 'daily_run', name: 'Daily Special', desc: 'Complete a Daily Run.', reward: 30 },
   { id: 'no_hit_boss', name: 'Untouchable', desc: 'Defeat a boss without taking damage during the fight.', reward: 80 },

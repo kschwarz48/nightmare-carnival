@@ -1,4 +1,4 @@
-// The six playable characters (doc 01 §6) — original 1930s rubber-hose designs.
+// The seven playable characters (doc 01 §6, D-78) — original 1930s rubber-hose designs.
 // Each is drawn facing right in an 80×96 unit box, feet at y≈88, with a parametric pose
 // (walk phase, idle breathe, hurt recoil) so frames are generated, not hand-placed.
 
@@ -99,7 +99,8 @@ export function drawCharacter(ctx: Ctx, id: string, phase: number, mode: CharMod
     case 'carny': carny(ctx, p); break;
     case 'strongman': strongman(ctx, p); break;
     case 'fortune_teller': fortune(ctx, p); break;
-    case 'ride_operator': rideOp(ctx, p); break;
+    case 'ride_operator': commodore(ctx, p); break;
+    case 'mira': mira(ctx, p); break;
     case 'lost_child': lostChild(ctx, p); break;
     case 'ringleader': ringleader(ctx, p); break;
     default: carny(ctx, p);
@@ -325,61 +326,156 @@ function star(ctx: Ctx, x: number, y: number, r: number): void {
   ctx.fill();
 }
 
-// ---------------------------------------------------------------- The Ride Operator
-function rideOp(ctx: Ctx, p: Pose): void {
-  legs(ctx, p, 62, '#2f5f8f', '#2a1d16');
-  arm(ctx, 33, 44, -p.arm, -1, '#2f5f8f');
-  // overalls
-  roundRect(ctx, 29, 40, 23, 29, 6);
-  fillInk(ctx, shade(ctx, 40, 52, 18, '#4f8fc8', '#2a5a8f'), 3);
-  // bib + straps
-  roundRect(ctx, 33, 44, 15, 12, 3);
-  fillInk(ctx, '#3a74b0', 2);
-  ctx.fillStyle = PAL.gold;
-  circle(ctx, 34.5, 45, 1.5);
-  ctx.fill();
-  circle(ctx, 46.5, 45, 1.5);
-  ctx.fill();
-  // pocket wrench
-  ink(ctx, 2.2);
-  ctx.strokeStyle = '#a9b2b8';
+// ---------------------------------------------------------------- The Commodore (D-78: was the Ride Operator)
+function commodore(ctx: Ctx, p: Pose): void {
+  const suit = '#ece4cc', suitDark = '#b8bea0';
+  legs(ctx, p, 62, suit, '#2a2018');
+  arm(ctx, 33, 44, -p.arm, -1, suit);
+  // a white double-breasted coat gone green at the edges, down past the hips
   ctx.beginPath();
-  ctx.moveTo(44, 47);
-  ctx.lineTo(48, 41);
-  ctx.stroke();
-  head(ctx, 41, 26, 12.5, '#d9a77e', p, { mouth: 'grin', cheeks: true });
-  // cap with goggles
-  ctx.beginPath();
-  ctx.moveTo(28, 22);
-  ctx.quadraticCurveTo(29, 10, 42, 10);
-  ctx.quadraticCurveTo(54, 10, 54, 21);
+  ctx.moveTo(29, 41);
+  ctx.quadraticCurveTo(26, 60, 28, 72);
+  ctx.lineTo(53, 72);
+  ctx.quadraticCurveTo(55, 60, 51, 41);
   ctx.closePath();
-  fillInk(ctx, PAL.yellow, 2.4);
-  ellipse(ctx, 56, 21, 7, 2.5);
-  fillInk(ctx, PAL.yellow, 2);
-  for (const gx of [36, 46]) {
-    circle(ctx, gx, 15, 3.6);
-    fillInk(ctx, '#bfe8ff', 2);
-    shine(ctx, gx - 1, 14, 1, 0.8);
+  fillInk(ctx, shade(ctx, 38, 52, 22, suit, suitDark), 3);
+  // lapels, and the shirt front between them
+  ctx.beginPath();
+  ctx.moveTo(36, 41);
+  ctx.lineTo(41, 52);
+  ctx.lineTo(46, 41);
+  ctx.closePath();
+  fillInk(ctx, '#fffaf0', 2);
+  ctx.beginPath();
+  ctx.moveTo(39.5, 42);
+  ctx.lineTo(41, 46);
+  ctx.lineTo(42.5, 42);
+  ctx.closePath();
+  fillInk(ctx, '#1a2a4a', 1.4);
+  // two rows of brass buttons, and a medal on a blue ribbon
+  for (const by of [55, 61, 67]) for (const bx of [37, 45]) {
+    circle(ctx, bx, by, 1.5);
+    fillInk(ctx, PAL.gold, 1.1);
   }
-  // front arm holds a lever with a spark
-  const g = arm(ctx, 48, 45, p.arm, 1, '#2f5f8f');
+  roundRect(ctx, 30.5, 45, 4, 5, 1);
+  fillInk(ctx, '#2a4a8a', 1.2);
+  circle(ctx, 32.5, 52, 2.2);
+  fillInk(ctx, PAL.gold, 1.2);
+  head(ctx, 41, 26, 12.5, '#dccfba', p, { mouth: 'smile', nose: '#e8b8a0' });
+  // white mutton chops and moustache
+  for (const side of [-1, 1]) {
+    ellipse(ctx, 41 + side * 8.4, 31, 3, 5.2, side * 0.25);
+    fillInk(ctx, '#f4f0e6', 1.6);
+  }
+  ctx.beginPath();
+  ctx.moveTo(36, 31.5);
+  ctx.quadraticCurveTo(43, 27.5, 50, 31.5);
+  ctx.quadraticCurveTo(43, 30.5, 36, 31.5);
+  fillInk(ctx, '#f4f0e6', 1.6);
+  // the commodore's cap: white crown, black band and peak, a gold anchor on the front
+  ctx.beginPath();
+  ctx.moveTo(28, 19);
+  ctx.quadraticCurveTo(27, 9, 41, 8);
+  ctx.quadraticCurveTo(56, 8, 55, 18);
+  ctx.closePath();
+  fillInk(ctx, shade(ctx, 40, 12, 14, '#ffffff', '#d8d8cc'), 2.4);
+  roundRect(ctx, 28, 16.5, 27, 4, 1.5);
+  fillInk(ctx, '#14181c', 2);
+  ellipse(ctx, 55, 21, 8, 2.4, 0.12);
+  fillInk(ctx, '#0a0c0e', 2);
+  ink(ctx, 1.4);
+  ctx.strokeStyle = PAL.gold;
+  ctx.beginPath();
+  ctx.moveTo(47, 11);
+  ctx.lineTo(47, 16);
+  ctx.moveTo(45, 12.2);
+  ctx.lineTo(49, 12.2);
+  ctx.moveTo(44.6, 14.5);
+  ctx.quadraticCurveTo(47, 17.5, 49.4, 14.5);
+  ctx.stroke();
+  // front arm leans on a silver-topped cane
+  const g = arm(ctx, 48, 45, p.arm * 0.6, 1, suit);
   ink(ctx, 3);
-  ctx.strokeStyle = '#7a7480';
+  ctx.strokeStyle = '#3a2418';
+  ctx.beginPath();
+  ctx.moveTo(g.x + 1, g.y - 2);
+  ctx.lineTo(g.x + 4, 88);
+  ctx.stroke();
+  circle(ctx, g.x + 0.6, g.y - 3, 2.4);
+  fillInk(ctx, '#c8d0d8', 1.4);
+}
+
+// ---------------------------------------------------------------- Mira (D-78)
+function mira(ctx: Ctx, p: Pose): void {
+  ctx.save();
+  ctx.translate(40, 88);
+  ctx.scale(0.92, 0.92);
+  ctx.translate(-40, -88);
+  const skin = '#ecdcd0';
+  legs(ctx, p, 66, '#f2eee8', '#e8a8b4', 6, 0.9, 5.5);
+  arm(ctx, 34, 47, -p.arm, -1, skin, skin, 0.9, 4.2);
+  // a dancer's dress of pale glass-blue: fitted bodice, a skirt flared to the knee, a silver hem
+  roundRect(ctx, 32, 44, 16, 13, 4);
+  fillInk(ctx, shade(ctx, 38, 48, 12, '#d8f4fa', '#7fb8c8'), 2.6);
+  ctx.beginPath();
+  ctx.moveTo(32, 55);
+  ctx.quadraticCurveTo(23 - p.sw, 66, 22 - p.sw * 2, 72);
+  ctx.quadraticCurveTo(40, 77, 58 + p.sw * 2, 72);
+  ctx.quadraticCurveTo(57 + p.sw, 66, 48, 55);
+  ctx.closePath();
+  fillInk(ctx, shade(ctx, 38, 60, 20, '#e0f8fc', '#6fa8bc'), 2.8);
+  ink(ctx, 1.6);
+  ctx.strokeStyle = '#f4fbff';
+  ctx.beginPath();
+  ctx.moveTo(24 - p.sw * 2, 70.5);
+  ctx.quadraticCurveTo(40, 75, 56 + p.sw * 2, 70.5);
+  ctx.stroke();
+  shine(ctx, 30, 62, 1.6, 0.7);
+  shine(ctx, 47, 66, 1.2, 0.6);
+  // puffed sleeves
+  for (const sx of [33, 47]) {
+    circle(ctx, sx, 46, 3.6);
+    fillInk(ctx, '#bfe6ee', 2);
+  }
+  head(ctx, 41, 30, 12.5, skin, p, { mouth: 'smile', cheeks: true, eyeR: 4.4 });
+  // dark hair: a bob with a fringe, and a dancer's bun tied with a lilac ribbon
+  ctx.beginPath();
+  ctx.moveTo(28.5, 32);
+  ctx.quadraticCurveTo(26, 15, 41, 16.5);
+  ctx.quadraticCurveTo(56, 15, 54, 30);
+  ctx.quadraticCurveTo(50, 22, 44, 22.5);
+  ctx.quadraticCurveTo(36, 21, 33, 27);
+  ctx.quadraticCurveTo(31, 30, 28.5, 32);
+  ctx.closePath();
+  fillInk(ctx, shade(ctx, 40, 20, 14, '#4a3036', '#1e1216'), 2.4);
+  circle(ctx, 33, 15, 5);
+  fillInk(ctx, '#2a1a1e', 2.2);
+  ctx.beginPath();
+  ctx.moveTo(35.5, 17.5);
+  ctx.lineTo(40, 14);
+  ctx.lineTo(40, 20.5);
+  ctx.closePath();
+  fillInk(ctx, '#cfc0ff', 1.6);
+  // front arm holds up her cracked hand mirror
+  const g = arm(ctx, 47, 47, p.arm * 0.3 - 0.6, 1, skin, skin, 0.9, 4.2);
+  ink(ctx, 2.6);
+  ctx.strokeStyle = '#b8862a';
   ctx.beginPath();
   ctx.moveTo(g.x, g.y);
-  ctx.lineTo(g.x + 6, g.y - 13);
+  ctx.lineTo(g.x + 3, g.y - 8);
   ctx.stroke();
-  circle(ctx, g.x + 6, g.y - 14, 3);
-  fillInk(ctx, PAL.red, 1.6);
-  ctx.strokeStyle = '#fff36a';
-  ctx.lineWidth = 1.6;
+  ellipse(ctx, g.x + 5, g.y - 14, 5, 6.5, 0.25);
+  fillInk(ctx, PAL.gold, 2);
+  ellipse(ctx, g.x + 5, g.y - 14, 3.4, 4.8, 0.25);
+  fillInk(ctx, shade(ctx, g.x + 4, g.y - 16, 5, '#f4feff', '#9fdcec'), 1.2);
+  ink(ctx, 0.9);
   ctx.beginPath();
-  ctx.moveTo(g.x + 9, g.y - 17);
-  ctx.lineTo(g.x + 12, g.y - 15);
-  ctx.lineTo(g.x + 11, g.y - 20);
-  ctx.lineTo(g.x + 15, g.y - 19);
+  ctx.moveTo(g.x + 3, g.y - 18);
+  ctx.lineTo(g.x + 5.6, g.y - 14);
+  ctx.lineTo(g.x + 4.4, g.y - 12.4);
+  ctx.lineTo(g.x + 7, g.y - 10.2);
   ctx.stroke();
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------- The Lost Child

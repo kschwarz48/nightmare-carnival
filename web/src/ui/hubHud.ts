@@ -30,7 +30,9 @@ export class HubHud {
   private code = h('div', { class: 'hub-code hidden' });
   /** the Windows app's download (browsers only), under the hint */
   private download = h('div', { class: 'hub-download hidden' });
-  private keys = { prompt: '', dialogue: '', code: '' };
+  /** a one-time message from the save (D-78: the Lost & Found's refund), until the Lost & Found shows it */
+  private notice = h('div', { class: 'hub-notice hidden' });
+  private keys = { prompt: '', dialogue: '', code: '', notice: '' };
 
   constructor(onCopy: (code: string) => void) {
     const title = h('div', { class: 'hub-title' }, h('div', { class: 't' }, 'THE MIDWAY'), h('div', { class: 's' }, 'the carnival is yours'));
@@ -39,7 +41,15 @@ export class HubHud {
       const c = this.code.dataset.code;
       if (c) onCopy(c);
     };
-    this.root.append(this.labels, title, hint, this.download, this.code, this.prompt, this.dialogue);
+    this.root.append(this.labels, title, hint, this.download, this.notice, this.code, this.prompt, this.dialogue);
+  }
+
+  /** Show (or clear) the save's one-time message, pointing at the ticket booth. */
+  setNotice(text?: string): void {
+    if ((text ?? '') === this.keys.notice) return;
+    this.keys.notice = text ?? '';
+    this.notice.classList.toggle('hidden', !text);
+    this.notice.replaceChildren(...(text ? [h('div', {}, text), h('small', {}, 'Visit the Ticket Booth to spend them.')] : []));
   }
 
   /** Show (or clear) the Windows app's download in the Midway's corner. */

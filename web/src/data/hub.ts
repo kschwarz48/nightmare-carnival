@@ -72,9 +72,9 @@ export const HUB_NPCS: HubNpc[] = [
   {
     char: 'ride_operator', x: -990, y: 60, at: 'the carousel',
     lines: [
-      'Keep your hands inside the ride. Keep your feet inside the ride. Keep your soul inside the ride.',
-      'I oiled every horse on this thing. One of them oils itself now. I don\'t ask.',
-      'Heard a whistle past the east fence last night. There\'s no station out there. Never was. Still, I counted the cars of that ghost train going by — thirteen, all lit, all empty. Someday it stops for somebody.',
+      'A fine carousel. Mine had sea horses, hand-carved in Genoa, and a brass ring nobody ever caught. I made sure of that.',
+      'I sold the summer to the sea, friend, and the sea always collects. I am settling my account one night at a time. Keep your hands inside the car.',
+      'Heard a whistle past the east fence last night. There is no station out there, and never was. Still, I counted the cars of that ghost train going by: thirteen, all lit, all empty. Someday it stops for somebody.',
     ],
   },
   {
@@ -83,6 +83,14 @@ export const HUB_NPCS: HubNpc[] = [
       'I won a prize! Then the prize won me. Now we take turns.',
       'Grown-ups never look at the balloons. The balloons always look at the grown-ups.',
       'The gulls fly south to the boardwalk every night. The pier lights come on by themselves, and there\'s music down there that isn\'t ours.',
+    ],
+  },
+  {
+    char: 'mira', x: -1065, y: -1475, at: 'the Fun House doors',
+    lines: [
+      'The air out here does not bend. I keep waiting for it to.',
+      'I danced for him every night, longer than I can count, and the seats were always empty. You are the first audience I have ever had. Do not clap. Run.',
+      'Every mirror is a door if you know how to knock. Mine still answer me. They fight for me now, instead of keeping me in.',
     ],
   },
   {

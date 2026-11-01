@@ -27,6 +27,13 @@ const UNBURNT = 1.6;
 const UNCHILLED = 2;
 /** ...and the Blizzard's storm, which never stops, three times as hard */
 const STORM_BITE = 3;
+/**
+ * Mira's Glass Halo (D-78): an aura round each of her mirror clones (px, times her Area) that cuts every
+ * enemy inside it once a second, for `dmg` + `perLevel` per mirror level past the first (times Might;
+ * the Hall of Mirrors' clones `evo` times that). It is her only damage until she drafts a weapon.
+ */
+export const MIRA_HALO = { r: 85, dmg: 12, perLevel: 2, evo: 1.25, every: 1 };
+export const miraHaloRadius = (p: { stats: { area: number } }): number => MIRA_HALO.r * p.stats.area;
 
 export class WeaponInst {
   def: WeaponDef;
@@ -404,7 +411,7 @@ export class Weapons {
     p.dashY = p.faceY;
     p.dashSpeed = this.speed(w);
     this.g.fx.push('dust', p.x, p.y, 1);
-    this.sfx('horn', 0.5);
+    this.sfx('coaster', 0.5);
     const escorts = this.amount(w) - 1;
     for (let i = 0; i < escorts; i++) {
       const side = i % 2 === 0 ? 1 : -1;
@@ -1330,6 +1337,13 @@ export class Weapons {
             s.y = pl.y + s.ty;
           }
           s.face = pl.facing;
+          if (pl.char.quirk === 'mirror_aura' && s.cd <= 0) {
+            s.cd = MIRA_HALO.every;
+            const R = miraHaloRadius(pl);
+            const dmg = (MIRA_HALO.dmg + MIRA_HALO.perLevel * (w.level - 1)) * pl.stats.might * (w.def.isEvolution ? MIRA_HALO.evo : 1);
+            g.forEachTargetInCircle(s.x, s.y, R, (t) => this.hit(w, t, dmg, s.x, s.y, 0));
+            g.fx.push('ring', s.x, s.y, R, 0, 0, 'glass');
+          }
           break;
         }
       }

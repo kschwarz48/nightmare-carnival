@@ -19,7 +19,7 @@ const minutes = Number(process.argv[4] ?? 24);
 const gainArg = process.argv[5] ?? 'current';
 if (gainArg !== 'current') COOP.xpGain = gainArg.split(',').map(Number);
 const charArg = process.argv[6] ?? 'carny';
-const chars = ['carny', 'strongman', 'fortune_teller', 'ride_operator', 'lost_child', 'ringleader'];
+const chars = ['carny', 'strongman', 'fortune_teller', 'ride_operator', 'lost_child', 'ringleader', 'mira'];
 
 /** The party script's draft policy, for any seat: finish evolutions, build 3-4 weapons, then their passives. */
 function draftFor(g: Game, i: number): void {

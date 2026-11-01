@@ -128,14 +128,16 @@ export const WEAPONS: Record<string, WeaponDef> = {
     maxLevel: 8, evolvesTo: 'death_card', evoPassive: 'spectacles', archetypes: ['crit'], aimable: false, weight: 1,
     lore: 'The cards already know who dies tonight.',
   }),
+  // D-78: the Commodore's coaster car (it was the Ride Operator's bumper car; the id stays for older saves).
+  // Sold after the Boardwalk is survived; the Commodore always starts with it.
   bumper: W({
-    id: 'bumper', name: 'Bumper Car', kind: 'bumper', signature: 'ride_operator',
-    desc: 'Periodically surge forward in a bumper car, ramming foes (brief invulnerability); every surge peels out with a spin that bumps everything around you.',
-    levelText: ['', '', '+15% area', '+6 damage', '−0.25s cooldown', '+1 escort car, +15% area', '+8 damage', '−0.25s cooldown', '+1 escort car, +10 damage'],
+    id: 'bumper', name: 'The Undertow', kind: 'bumper', signature: 'ride_operator', unlock: 'w_undertow',
+    desc: "Periodically launch forward in the Undertow's lead car on a rail of light, ramming foes (brief invulnerability); every launch rattles everything around you.",
+    levelText: ['', '', '+15% area', '+6 damage', '−0.25s cooldown', '+1 coupled car, +15% area', '+8 damage', '−0.25s cooldown', '+1 coupled car, +10 damage'],
     damage: 18, cooldown: 2.2, area: 1, amount: 1, speed: 560, pierce: 99, duration: 0.32, knockback: 3,
     lv: { dmg: [0, 0, 6, 0, 0, 8, 0, 10], cd: [0, 0, 0, -0.25, 0, 0, -0.25, 0], area: [0, 0.15, 0, 0, 0.15, 0, 0, 0], amount: [0, 0, 0, 0, 1, 0, 0, 1] },
     maxLevel: 8, evolvesTo: 'demolition_derby', evoPassive: 'running_shoes', archetypes: ['mobility'], aimable: false, weight: 0.9,
-    lore: 'Car 7 was always the one that hit the hardest. Now it drives you.',
+    lore: 'The Undertow ran its last lap the night the Gala Queen went down. Its lead car still knows the way.',
   }),
   plush: W({
     id: 'plush', name: 'Plush Companion', kind: 'plush', signature: 'lost_child', isSummon: true,
@@ -256,13 +258,14 @@ export const WEAPONS: Record<string, WeaponDef> = {
     lore: 'Ring the bell, win a cigar. Ring it hard enough and the ground answers.',
   }),
   mirror: W({
-    id: 'mirror', name: 'Funhouse Mirror', kind: 'mirror', unlock: 'w_mirror', isSummon: true,
+    id: 'mirror', name: 'Funhouse Mirror', kind: 'mirror', signature: 'mira', unlock: 'w_mirror', isSummon: true,
     desc: 'Conjures a mirror clone that re-fires your attacks from its own position, at 12% of your damage (up to 30%, shared between clones).',
     levelText: ['', '', '+3% clone power', '+1s duration', '+3% clone power', '+1 clone (sharing the power)', '+1s duration', '+4% clone power', '+8% clone power'],
     // D-61: `damage` is the clones' total share of your damage, split between however many there are
     damage: 0.12, cooldown: 3.0, area: 1, amount: 1, speed: 0, pierce: 0, duration: 4, knockback: 0,
     lv: { dmg: [0, 0.03, 0, 0.03, 0, 0, 0.04, 0.08], cd: Z8, area: Z8, amount: [0, 0, 0, 0, 1, 0, 0, 0], dur: [0, 0, 1, 0, 0, 1, 0, 0] },
-    maxLevel: 8, evolvesTo: 'hall_of_mirrors', evoPassive: 'season_pass', archetypes: ['summon'], aimable: false, weight: 0.8,
+    // D-78: Mira's own Hand Mirror evolves it (it was the Season Pass)
+    maxLevel: 8, evolvesTo: 'hall_of_mirrors', evoPassive: 'hand_mirror', archetypes: ['summon'], aimable: false, weight: 0.8,
     lore: 'In the funhouse there are two of you. Only one of you is scared.',
   }),
 
@@ -296,11 +299,11 @@ export const WEAPONS: Record<string, WeaponDef> = {
     archetypes: ['crit'], aimable: false, lore: 'Not an ending. A transformation. Yours.',
   }, 'dsdcdnD', 'reaper card'),
   demolition_derby: EVO({
-    id: 'demolition_derby', name: 'Demolition Derby', kind: 'bumper', evolvedFrom: 'bumper',
-    desc: 'A permanent ramming aura while you move, and phantom cars that pinball through the crowd.',
+    id: 'demolition_derby', name: 'The Last Lap', kind: 'bumper', evolvedFrom: 'bumper',
+    desc: 'A permanent ramming aura while you move, and runaway coaster cars that tear through the crowd.',
     damage: 58, cooldown: 1.6, area: 1.4, amount: 3, speed: 520, pierce: 999, duration: 0.3, knockback: 2.5,
-    archetypes: ['mobility'], aimable: false, lore: 'No brakes. No exits. No survivors.',
-  }, 'dadsdnD', 'phantom car'),
+    archetypes: ['mobility'], aimable: false, lore: 'The ride never ends. Keep your hands inside the car.',
+  }, 'dadsdnD', 'runaway car'),
   nightmare_menagerie: EVO({
     id: 'nightmare_menagerie', name: 'Nightmare Menagerie', kind: 'plush', evolvedFrom: 'plush', isSummon: true,
     desc: 'A ravenous pack of plush pets roams the screen; every bite mauls whatever crowds its prey.',
@@ -419,7 +422,8 @@ export const PASSIVES: Record<string, PassiveDef> = {
   extra_token: P({ id: 'extra_token', name: 'Extra Token', desc: '+1 Amount at levels 1, 3 and 5', effects: [{ axis: 'amount', perLevel: [1, 0, 1, 0, 1] }], maxLevel: 5, weight: 0.6, lore: 'Found under the skee-ball machine. Still warm.' }),
   spinning_top: P({ id: 'spinning_top', name: 'Spinning Top', desc: '+12% Duration', effects: [{ axis: 'duration', perLevel: flat(0.12) }], maxLevel: 5, weight: 1, lore: 'It has been spinning since 1931.' }),
   caffeine: P({ id: 'caffeine', name: 'Caffeine', desc: '+15% Projectile speed', effects: [{ axis: 'projSpeed', perLevel: flat(0.15) }], maxLevel: 5, weight: 1, lore: "Carny coffee. Don't ask what's in it." }),
-  running_shoes: P({ id: 'running_shoes', name: 'Running Shoes', desc: '+8% Move speed', effects: [{ axis: 'moveSpeed', perLevel: flat(0.08) }], maxLevel: 5, weight: 1, lore: 'The laces tie themselves when the music starts.' }),
+  // D-78: earned by beating the Commodore (the Undertow's evolution partner)
+  running_shoes: P({ id: 'running_shoes', name: 'Running Shoes', desc: '+8% Move speed', effects: [{ axis: 'moveSpeed', perLevel: flat(0.08) }], maxLevel: 5, unlock: 'p_running_shoes', weight: 1, lore: 'The laces tie themselves when the music starts.' }),
   sugar_rush: P({ id: 'sugar_rush', name: 'Sugar Rush', desc: '+12% Max HP', effects: [{ axis: 'maxHp', perLevel: flat(0.12) }], maxLevel: 5, weight: 1, lore: 'A paper cone of pure pink courage.' }),
   // (Funnel Cake, +0.4 HP regen per second, left the draft pool for the Lost & Found's permanent perks: D-76)
   safety_goggles: P({ id: 'safety_goggles', name: 'Safety Goggles', desc: '+1 Armor (flat damage reduction)', effects: [{ axis: 'armor', perLevel: flat(1) }], maxLevel: 5, weight: 1, lore: 'Required for the Hammer Strike. Ignored by everyone.' }),

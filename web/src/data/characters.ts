@@ -1,8 +1,8 @@
-// The six-character roster (doc 01 §6, D-13). Each has a distinct opener, stat identity and quirk.
+// The seven-character roster (doc 01 §6, D-13, D-78). Each has a distinct opener, stat identity and quirk.
 
 import type { StatAxis } from './weapons';
 
-export type QuirkId = 'xp_bonus' | 'shove' | 'fortune' | 'spark_trail' | 'balloon_shield' | 'ringleader';
+export type QuirkId = 'xp_bonus' | 'shove' | 'fortune' | 'spark_trail' | 'balloon_shield' | 'ringleader' | 'mirror_aura';
 
 export interface CharacterDef {
   id: string;
@@ -48,19 +48,21 @@ export const CHARACTERS: CharacterDef[] = [
     quirkName: 'Second Sight', quirkDesc: '+25% Might, +10% crit. Always sees 4 draft cards and previews the next draft.', quirk: 'fortune',
     hp: 75, speed: 220, pickup: 75, startWeapon: 'tarot',
     mods: { might: 0.25, critChance: 0.1 },
-    unlock: { req: 'reach_12', reqText: 'Survive to 12:00 once', cost: 150 },
+    unlock: { req: 'reach_12', reqText: 'Survive to 12:00 once', cost: 800 },
     palette: { main: '#5b2a86', accent: '#f0c75e', skin: '#e7c2a0' },
     lore: 'Madame Zelda read her own palm once. She has been running ever since.',
   },
   {
-    id: 'ride_operator', name: 'The Ride Operator', title: 'Mobility · area',
-    desc: 'Knows where every lever is. Never stops moving.',
+    // D-78: the Ride Operator became the Boardwalk's founder (its secret boss), with the same quirk and opener;
+    // the id stays, so older saves and the protocol still know him
+    id: 'ride_operator', name: 'The Commodore', title: 'Mobility · area',
+    desc: 'Ezra Penhallow, who built the Boardwalk, in a white suit gone green. He rides his own coaster and never stops moving.',
     quirkName: 'Live Wire', quirkDesc: '+20% move speed, +10% area. Leaves a crackling spark trail while moving.', quirk: 'spark_trail',
     hp: 100, speed: 264, pickup: 75, startWeapon: 'bumper',
     mods: { area: 0.1 },
-    unlock: { req: 'beat_ferris_wheel', reqText: 'Defeat the Ferris Wheel', cost: 250 },
-    palette: { main: '#2a6f97', accent: '#f6d743', skin: '#d9a77e' },
-    lore: 'Pulled the brake on the Ferris Wheel at midnight. It did not stop.',
+    unlock: { req: 'beat_leviathan', reqText: 'Defeat the Leviathan', cost: 6000 },
+    palette: { main: '#d8d0b8', accent: '#3ad8b0', skin: '#d0c4b2' },
+    lore: 'He promised the sea a summer that would never end, and paid for it with other people. The bill came due. He is working it off, one night at a time.',
   },
   {
     id: 'lost_child', name: 'The Lost Child', title: 'Fragile · companion',
@@ -68,7 +70,7 @@ export const CHARACTERS: CharacterDef[] = [
     quirkName: 'Balloon Shield', quirkDesc: 'A balloon absorbs one hit, then regrows. Starts with a revive balloon. Plush pets +20%.', quirk: 'balloon_shield',
     hp: 60, speed: 230, pickup: 70, startWeapon: 'plush',
     mods: { revive: 1 },
-    unlock: { req: 'beat_puppet_king', reqText: 'Defeat the Puppet King', cost: 350 },
+    unlock: { req: 'beat_puppet_king', reqText: 'Defeat the Puppet King', cost: 1800 },
     palette: { main: '#e98fb4', accent: '#7ec8e3', skin: '#f6dcc4' },
     lore: '"Have you seen my mommy?" asks the child. The carnival has. The carnival remembers everyone.',
   },
@@ -78,9 +80,20 @@ export const CHARACTERS: CharacterDef[] = [
     quirkName: 'Showstopper', quirkDesc: 'Summons inherit +40% Might. Non-summon weapons deal −15%.', quirk: 'ringleader',
     hp: 90, speed: 215, pickup: 75, startWeapon: 'tophat',
     mods: {},
-    unlock: { req: 'beat_ringmaster', reqText: 'Defeat the Ringmaster', cost: 500 },
+    unlock: { req: 'beat_ringmaster', reqText: 'Defeat the Ringmaster', cost: 3000 },
     palette: { main: '#8d1d2c', accent: '#f2d16b', skin: '#ecc7a5' },
     lore: 'Every show needs someone in the center ring. Tonight it will be someone new.',
+  },
+  {
+    // D-78: the girl the Fun House kept behind its glass; bought once the Fun House has been survived
+    id: 'mira', name: 'Mira', title: 'Reflections · aura',
+    desc: 'The girl the Fun House kept behind its glass, out in the night air at last. Her reflections fight beside her.',
+    quirkName: 'Glass Halo', quirkDesc: 'Her mirror clones carry an aura of broken glass that cuts every enemy inside it once a second.', quirk: 'mirror_aura',
+    hp: 85, speed: 225, pickup: 75, startWeapon: 'mirror',
+    mods: {},
+    unlock: { req: 'beat_proprietor', reqText: 'Defeat the Proprietor', cost: 4500 },
+    palette: { main: '#7fb8c8', accent: '#cfc0ff', skin: '#ecdcd0' },
+    lore: 'Professor Grinwell kept her dancing in the glass from 1931 on, for an audience that never came. She knows every trick a mirror can play, and a few it should not.',
   },
 ];
 

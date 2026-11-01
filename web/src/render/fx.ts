@@ -58,7 +58,7 @@ const COLORS: Record<string, [number, number, number]> = {
   frost: [0.6, 0.9, 1], fire: [1, 0.5, 0.15], jack: [1, 0.4, 0.2], boss: [1, 0.55, 0.3], deathcard: [0.75, 0.4, 1], beam: [1, 1, 0.85],
   bell: [1, 0.85, 0.4], jackpot: [1, 0.95, 0.3], pound: [1, 0.8, 0.6], shock: [1, 0.45, 0.25], blizzard: [0.65, 0.92, 1],
   inferno: [1, 0.45, 0.1], gravity: [0.7, 0.5, 1], revive: [1, 0.6, 0.8], mallet: [1, 0.92, 0.7], frenzy: [1, 0.85, 0.5],
-  cotton: [1, 0.6, 0.85],
+  cotton: [1, 0.6, 0.85], glass: [0.7, 0.95, 1],
 };
 
 export class FxSystem {

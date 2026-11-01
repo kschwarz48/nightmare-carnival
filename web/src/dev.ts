@@ -3,6 +3,7 @@
 import type { MapId } from './data/maps';
 import type { App } from './app';
 import { CHARACTERS } from './data/characters';
+import { UNLOCKS } from './data/meta';
 import { WEAPONS, PASSIVES } from './data/weapons';
 import { h, uiZoom } from './ui/dom';
 import { createBoss } from './sim/bosses';
@@ -228,7 +229,7 @@ export function installDevTools(app: App): void {
       unlockAll() {
         for (const a of ['reach_12', 'beat_tent', 'beat_ferris_wheel', 'beat_puppet_king', 'beat_ringmaster', 'win_carnival']) if (!app.save.data.achievements.includes(a)) app.save.data.achievements.push(a);
         for (const c of CHARACTERS) if (c.unlock && !app.save.data.unlocks.includes(`char_${c.id}`)) app.save.data.unlocks.push(`char_${c.id}`);
-        for (const u of ['w_orbs', 'w_cannon', 'w_laser', 'w_bell', 'w_mirror', 'p_season_pass', 'p_coin_purse', 'p_rabbits_foot', 'f_skip']) if (!app.save.data.unlocks.includes(u)) app.save.data.unlocks.push(u);
+        for (const u of UNLOCKS.map((x) => x.id)) if (!app.save.data.unlocks.includes(u)) app.save.data.unlocks.push(u);
         app.save.data.stats.runs = Math.max(1, app.save.data.stats.runs);
         app.save.save();
       },

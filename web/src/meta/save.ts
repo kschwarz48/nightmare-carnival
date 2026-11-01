@@ -1,12 +1,12 @@
 // Versioned persistent save (Godot SaveManager port, doc 08 §18 + 09 M8 "migration safety").
 // localStorage JSON with a migration chain, a backup slot, and corruption recovery.
 
-import { ACHIEVEMENTS, PERKS, SECRET_UNLOCKS, UNLOCKS } from '../data/meta';
+import { ACHIEVEMENTS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNLOCKS } from '../data/meta';
 import { CHARACTERS } from '../data/characters';
 import { CURSE, DIFFICULTIES } from '../data/difficulty';
-import { EVOLUTION_IDS, WEAPONS } from '../data/weapons';
+import { EVOLUTION_IDS, PASSIVES, WEAPONS } from '../data/weapons';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 const KEY = 'nightmare_carnival_save';
 const BACKUP = 'nightmare_carnival_save_backup';
 
@@ -66,6 +66,12 @@ export interface SaveData {
   funhouseTester?: boolean;
   /** alpha testing aid: `?unlock=boardwalk` opens the Boardwalk on this save (D-68) */
   boardwalkTester?: boolean;
+  /** owned weapons and passives the player has left out of their drafts (D-78); they stay owned */
+  disabled?: string[];
+  /** Lost Tickets spent at the Lost & Found since the last refund (D-78), so a later price change can refund exactly */
+  spent?: number;
+  /** a one-time message for the player (D-78: the Lost & Found's refund), cleared once the Lost & Found shows it */
+  notice?: string;
 }
 
 export const DEFAULT_BINDINGS: Record<string, string[]> = {
@@ -101,6 +107,19 @@ export function freshSave(): SaveData {
   };
 }
 
+/**
+ * What the Lost & Found charged before D-78 ([base, growth] for perks; flat prices for attractions and
+ * performers), so the new prices can refund every save's purchases at the price that was paid.
+ */
+const V4_PERKS: Record<string, [number, number]> = {
+  max_hp: [30, 1.5], might: [40, 1.6], speed: [35, 1.6], pickup: [25, 1.5], luck: [45, 1.6], greed: [40, 1.55], armor: [90, 2.0],
+  regen: [50, 1.6], revive: [200, 2.0], reroll: [60, 1.8], banish: [70, 1.8],
+};
+const V4_BOUGHT: Record<string, number> = {
+  w_orbs: 60, w_cannon: 90, w_laser: 110, w_bell: 110, w_mirror: 160, p_season_pass: 80, p_coin_purse: 80, p_rabbits_foot: 180, f_skip: 50,
+  char_fortune_teller: 150, char_ride_operator: 250, char_lost_child: 350, char_ringleader: 500,
+};
+
 /** Migration chain: each step upgrades from version n to n+1. */
 const MIGRATIONS: Record<number, (d: any) => any> = {
   // v1 → v2: Godot-style meta {lost_tickets, unlocks, perks, pedia, settings} → web schema
@@ -130,6 +149,36 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
   3: (d) => {
     d.quests ??= {};
     d.version = 4;
+    return d;
+  },
+  // v4 → v5 (D-78): the Lost & Found's new prices. Everything bought there (perks, attractions, performers)
+  // is refunded at the price paid and locked again, to be bought anew under the new rules. What was earned
+  // stays: achievements, the hidden quests' rewards (re-granted from their achievements, now including
+  // Running Shoes for the Commodore). The Whole Troupe means all seven performers now and nobody owns one
+  // any more, so it is withdrawn with its reward, to be earned again (reward and all).
+  4: (d) => {
+    let refund = 0;
+    const perks = d.perks && typeof d.perks === 'object' ? d.perks : {};
+    for (const [id, lvl] of Object.entries(perks)) {
+      const p = V4_PERKS[id];
+      if (!p || typeof lvl !== 'number') continue;
+      for (let i = 0; i < Math.min(lvl, 10); i++) refund += Math.round(p[0] * Math.pow(p[1], i));
+    }
+    const unlocks: string[] = Array.isArray(d.unlocks) ? d.unlocks.filter((u: unknown) => typeof u === 'string') : [];
+    for (const id of new Set(unlocks)) refund += V4_BOUGHT[id] ?? 0;
+    d.perks = {};
+    d.unlocks = [...new Set(unlocks.filter((id) => !(id in V4_BOUGHT)))];
+    const ach: string[] = Array.isArray(d.achievements) ? d.achievements : [];
+    for (const [quest, ids] of Object.entries(QUEST_UNLOCKS)) if (ach.includes(quest)) for (const id of ids) if (!d.unlocks.includes(id)) d.unlocks.push(id);
+    if (ach.includes('all_characters')) {
+      d.achievements = ach.filter((a) => a !== 'all_characters');
+      refund -= ACHIEVEMENTS.find((a) => a.id === 'all_characters')?.reward ?? 0;
+    }
+    refund = Math.max(0, refund);
+    d.lostTickets = (typeof d.lostTickets === 'number' && isFinite(d.lostTickets) ? Math.max(0, d.lostTickets) : 0) + refund;
+    d.spent = 0;
+    if (refund > 0) d.notice = `The Lost & Found has new prices. Everything you had bought there was refunded: +${refund.toLocaleString('en-US')} Lost Tickets to spend again.`;
+    d.version = 5;
     return d;
   },
 };
@@ -238,7 +287,7 @@ export class SaveManager {
     if (this.perkMaxed(id)) return false;
     const c = this.perkCost(id);
     if (this.data.lostTickets < c) return false;
-    this.data.lostTickets -= c;
+    this.pay(c);
     this.data.perks[id] = this.perkLevel(id) + 1;
     this.save();
     return true;
@@ -251,8 +300,13 @@ export class SaveManager {
     }
     this.data.perks = {};
     this.data.lostTickets += total;
+    this.data.spent = Math.max(0, (this.data.spent ?? 0) - total);
     this.save();
     return total;
+  }
+  private pay(c: number): void {
+    this.data.lostTickets -= c;
+    this.data.spent = (this.data.spent ?? 0) + c;
   }
   /** Meta stat bonuses for a new run. */
   metaStats(): { axis: string; value: number }[] {
@@ -268,13 +322,29 @@ export class SaveManager {
   isUnlocked(id: string): boolean {
     return this.data.unlocks.includes(id);
   }
+  /** Can this attraction be bought yet? (some wait for an achievement, D-78) */
+  unlockRequirementMet(id: string): boolean {
+    const u = UNLOCKS.find((x) => x.id === id);
+    return !!u && (!u.req || this.hasAchievement(u.req));
+  }
   buyUnlock(id: string): boolean {
     const u = UNLOCKS.find((x) => x.id === id);
-    if (!u || this.isUnlocked(id) || this.data.lostTickets < u.cost) return false;
-    this.data.lostTickets -= u.cost;
+    if (!u || this.isUnlocked(id) || !this.unlockRequirementMet(id) || this.data.lostTickets < u.cost) return false;
+    this.pay(u.cost);
     this.data.unlocks.push(id);
     this.save();
     return true;
+  }
+  /** Is this owned weapon or passive in the player's drafts? (they can leave any out, D-78) */
+  inPool(id: string): boolean {
+    return this.isUnlocked(id) && !(this.data.disabled ?? []).includes(id);
+  }
+  setInPool(id: string, on: boolean): void {
+    const off = new Set(this.data.disabled ?? []);
+    if (on) off.delete(id);
+    else off.add(id);
+    this.data.disabled = [...off];
+    this.save();
   }
   hasAchievement(id: string): boolean {
     return this.data.achievements.includes(id);
@@ -294,7 +364,7 @@ export class SaveManager {
     const c = CHARACTERS.find((x) => x.id === id);
     if (!c || !c.unlock || this.characterAvailable(id) || !this.characterRequirementMet(id)) return false;
     if (this.data.lostTickets < c.unlock.cost) return false;
-    this.data.lostTickets -= c.unlock.cost;
+    this.pay(c.unlock.cost);
     this.data.unlocks.push(`char_${id}`);
     // the last performer bought earns the Whole Troupe at once (D-75: it waited for some other achievement)
     this.claimDerived();
@@ -329,8 +399,10 @@ export class SaveManager {
   dailyAvailable(): boolean {
     return this.data.stats.runs >= 1;
   }
+  /** What this save brings to a night's draft pool: everything owned, less what the player left out (D-78). */
   unlockedSet(): Set<string> {
-    return new Set(this.data.unlocks);
+    const off = new Set(this.data.disabled ?? []);
+    return new Set(this.data.unlocks.filter((u) => !off.has(u)));
   }
 
   // ---------------------------------------------------------------- pedia
@@ -366,8 +438,14 @@ export class SaveManager {
     const out: typeof ACHIEVEMENTS = [];
     const allChars = CHARACTERS.every((c) => this.characterAvailable(c.id));
     if (allChars && !this.hasAchievement('all_characters')) out.push(...this.grantAchievements(['all_characters']));
-    // secret evolutions (the Easter egg's reward) don't count toward Full House
-    const allEvos = EVOLUTION_IDS.filter((e) => !SECRET_UNLOCKS.includes(WEAPONS[WEAPONS[e].evolvedFrom!]?.unlock ?? '')).every((e) => this.data.pedia.includes(e));
+    // evolutions that need something never sold (a hidden quest's reward, D-78: the Hand Mirror for the Hall
+    // of Mirrors, Running Shoes for the Last Lap) don't count toward Full House
+    const neverSold = [...SECRET_UNLOCKS, ...EARNED_UNLOCKS];
+    const counts = (e: string) => {
+      const base = WEAPONS[WEAPONS[e].evolvedFrom!];
+      return !neverSold.includes(base?.unlock ?? '') && !neverSold.includes(PASSIVES[base?.evoPassive ?? '']?.unlock ?? '');
+    };
+    const allEvos = EVOLUTION_IDS.filter(counts).every((e) => this.data.pedia.includes(e));
     if (allEvos && !this.hasAchievement('full_house')) out.push(...this.grantAchievements(['full_house']));
     return out;
   }

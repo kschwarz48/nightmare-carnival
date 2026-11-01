@@ -22,7 +22,7 @@ const densArg = process.argv[7] ?? 'current';
 if (densArg !== 'current') COOP.density = densArg.split(',').map(Number);
 const gainArg = process.argv[8] ?? 'current';
 if (gainArg !== 'current') COOP.xpGain = gainArg.split(',').map(Number);
-const chars = ['carny', 'strongman', 'fortune_teller', 'ride_operator', 'lost_child', 'ringleader'];
+const chars = ['carny', 'strongman', 'fortune_teller', 'ride_operator', 'lost_child', 'ringleader', 'mira'];
 const marks = [12, 16, 20, 24];
 
 /** Share of a player's possible item levels they hold: weapons to 8 (an evolution counts as full), passives to their max. */

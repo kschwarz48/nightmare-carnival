@@ -32,7 +32,7 @@ export const CARNIVAL_BOSSES: BossDef[] = [
     id: 'ferris_wheel', name: 'The Ferris Wheel', title: 'Off Its Axle', gate: 720, hp: 19000, contact: 20, radius: 150, enrage: 100,
     phases: [{ at: 1, name: 'Spinning Up' }, { at: 0.6, name: 'Off the Rails' }, { at: 0.3, name: 'Catastrophic Failure' }],
     intro: 'Its lights flare blood-red. With a shriek of tearing steel, the wheel wrenches free.',
-    defeat: 'The wheel topples, lights popping one by one.', unlocks: 'The Ride Operator',
+    defeat: 'The wheel topples, lights popping one by one.', unlocks: 'Carnival difficulty',
     lore: 'Forty gondolas. Forty screaming faces. It always wanted to see the rest of the carnival.', barColor: '#ff8a3d',
   },
   {
@@ -87,7 +87,7 @@ export const FUNHOUSE_BOSSES: BossDef[] = [
     id: 'proprietor', name: 'The Proprietor', title: 'The House Always Wins', gate: 1440, hp: 159500, contact: 24, radius: 75, enrage: 240,
     phases: [{ at: 1, name: 'The Illusionist' }, { at: 0.66, name: 'The House Itself' }, { at: 0.33, name: 'The Grin' }],
     intro: '"Welcome, welcome! Professor Ignatius Grinwell — at your service. Forever."',
-    defeat: 'The grin cracks from ear to ear. The doors of the Fun House swing open on the dawn.', unlocks: 'Endless',
+    defeat: 'The grin cracks from ear to ear. The doors of the Fun House swing open on the dawn.', unlocks: 'Mira · Endless',
     lore: 'He built the Palace of Illusions in 1931 and never left it. The house grew around him like a smile.', barColor: '#ff5a4a',
   },
 ];
@@ -128,7 +128,7 @@ export const BOARDWALK_BOSSES: BossDef[] = [
     id: 'leviathan', name: 'The Leviathan', title: 'From Below', gate: 1440, hp: 162250, contact: 24, radius: 95, enrage: 240,
     phases: [{ at: 1, name: 'Stirring' }, { at: 0.66, name: 'The Deep Rises' }, { at: 0.33, name: 'Leviathan' }],
     intro: 'The sea draws back from the beach all at once. Something under the boards has been listening.',
-    defeat: 'It goes down slowly, the way a ship goes down. The tide comes back gentle. Out on the water, the sky is getting light.', unlocks: 'Endless',
+    defeat: 'It goes down slowly, the way a ship goes down. The tide comes back gentle. Out on the water, the sky is getting light.', unlocks: 'The Commodore · the Undertow · Endless',
     lore: 'Old Mother Tide. Commodore Penhallow promised her a summer that would never end, and a share of everyone who came to enjoy it.', barColor: '#3ad8b0',
   },
 ];
@@ -138,7 +138,7 @@ export const COMMODORE_DEF: BossDef = {
   id: 'commodore', name: 'The Commodore', title: 'The Founder\'s Bargain', gate: 99999, hp: 165000, contact: 24, radius: 85, enrage: 260,
   phases: [{ at: 1, name: 'The Founder' }, { at: 0.66, name: 'The Bargain' }, { at: 0.33, name: 'Summer\'s End' }],
   intro: 'The ledger closes itself. Down the pier, in a white suit gone green, the man who sold the summer comes to collect.',
-  defeat: 'The account is settled. Ezra Penhallow lets go of the ledger, and the tide takes it out with him.', unlocks: 'True Dawn',
+  defeat: 'The account is settled. Ezra Penhallow lets go of the ledger, and the tide takes it out with him.', unlocks: 'True Dawn · Running Shoes',
   lore: 'He built Penhallow\'s Boardwalk in 1904 and bargained with the sea to keep it full. He paid with other people.', barColor: '#e8e0c0',
 };
 

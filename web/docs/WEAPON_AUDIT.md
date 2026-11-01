@@ -167,3 +167,11 @@ Score spread (best ÷ worst): **14.1× → 3.8×**.
   plenty; the gap is reach, because the director refills what ranged weapons kill at the screen's edge.
 - The Death Card and the Sharpshooter's Bouquet remain the boss killers (about twice the next weapon);
   the horde leaders are the Inferno Grill, Sticky Situation, Whack Frenzy and High Striker.
+
+## Renamed since (D-78)
+
+The Bumper Car is now **the Undertow**, the Commodore's coaster car (he took the Ride Operator's place),
+and Demolition Derby is **the Last Lap**. Their numbers are the ones above; only the names, models, icon
+and sound changed. The Undertow is sold in the Lost & Found after the Leviathan, and evolves with Running
+Shoes, which beating the Commodore unlocks. The Funhouse Mirror now evolves with Mira's Hand Mirror.
+

@@ -979,3 +979,36 @@ projector beam's brightness, the Glasswalker's health (172 → 135). Decision: D
 
 **Not verified:** how the new Glasswalker feels in a real run (one health number, from the report).
 
+## A dearer Lost & Found, Mira, the Commodore, switches, scrollbars — 2026-11-01 (D-78)
+
+**Changed:** the Lost & Found's prices (about seven times dearer) and a refund for every save (v5); Mira;
+the Commodore and the Undertow (were the Ride Operator and the Bumper Car); Running Shoes earned from the
+Commodore; the mirror evolves with Mira's Hand Mirror; switches for owned weapons and passives; the bell
+circles its carrier; game scrollbars and no sideways scrolling. Decision: D-78.
+
+**Automated:** typecheck clean; 330 tests pass in 23 files (6 new in `meta.test.ts`; migration, price and
+roster tests updated).
+
+**Checked** (the dev server in the desktop bench runner's Electron window, at 1600×900 and 1024×640;
+screenshots inspected):
+- An old (v4) save that owned the whole store, loaded through the game's save loader: +5,954 LT (matches
+  the old prices), perks and purchases cleared, the two quest rewards kept, the Whole Troupe withdrawn. The
+  refund notice on the press screen and at the top of the Lost & Found.
+- The Lost & Found: new prices, the Commodore "Requires: Defeat the Leviathan", Mira buyable, the Undertow
+  buyable after the Leviathan, owned items switched on and off (and earned quest rewards listed), the gold
+  scrollbar and bulb outline.
+- Sideways scrolling: none on Settings, the Carnival-pedia, the Lost & Found or a six-player lobby at either
+  size; with the old bulb ring forced back on, the lobby scrolled 11 px sideways.
+- The new 2D art (portraits, select art, the coaster icons). A first Commodore had mutton chops sticking
+  out past his head like floppy ears; moved onto his cheeks.
+- In a night: the Commodore mid-launch in the Undertow's lead car on its rail of light (a first try drew
+  the car's gold rim as a solid lid and the rail too white; fixed); Mira and her clone with its Glass Halo,
+  enemies cut inside it (360 damage from the mirror alone by 0:14); the Summer's End bell circling its
+  carrier on the Boardwalk.
+
+**Not verified:**
+- How the new prices feel over many real nights (they are tuned from simulated payouts).
+- Mira, the Commodore and the switches in a real co-op session (covered by unit tests and the profile
+  whitelist only).
+- The scrollbars in Firefox (the web build there gets the standard thin gold bar).
+

@@ -2,7 +2,7 @@
 // Each icon is painted inside a 64×64 badge.
 
 import { INK, PAL, circle, ellipse, fillInk, glove, hose, ink, pieEye, roundRect, shade, shine, shoe, stripes, vstripes, type Ctx } from './kit';
-import { card, cannonball, derbyCar, dart, kernel, plushPet, ring, rocket, tarotCard } from './items';
+import { card, cannonball, coasterCar, dart, kernel, plushPet, ring, rocket, tarotCard } from './items';
 
 function sub(ctx: Ctx, x: number, y: number, w: number, h: number, fn: (c: Ctx, w: number, h: number) => void, rot = 0): void {
   ctx.save();
@@ -69,7 +69,7 @@ export function weaponIcon(ctx: Ctx, w: number, h: number, kind: string, evo: bo
       sub(ctx, 18, 12, 28, 40, (c, ww, hh) => tarotCard(c, ww, hh, evo));
       break;
     case 'bumper':
-      sub(ctx, 12, 18, 40, 28, (c, ww, hh) => derbyCar(c, ww, hh, evo));
+      sub(ctx, 6, 12, 52, 38, (c, ww, hh) => coasterCar(c, ww, hh, evo));
       break;
     case 'plush':
       sub(ctx, 14, 12, 36, 40, (c, ww, hh) => plushPet(c, ww, hh, evo ? 1 : 0, 0));

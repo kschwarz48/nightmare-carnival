@@ -34,7 +34,7 @@ const UPDATE_LATER_MS = 30 * 60 * 1000;
 import { FortuneCard, PrizeOverlay } from './ui/prize';
 import { PrizeWheel } from './render3d/prizeWheel';
 import { LAST_SONG } from './data/quests';
-import { QUEST_UNLOCKS } from './data/meta';
+import { QUEST_UNLOCKS, UNLOCKS } from './data/meta';
 import { MIRA, PERFORMER_NAMES, PERFORMER_NOTES } from './data/funhouse';
 import type { UnreflectedChain } from './sim/quest/unreflected';
 import { ADA, GAME_NAMES, KEEPSAKES, TIDE, nextTideTurn, shoreMix } from './data/boardwalk';
@@ -1221,11 +1221,13 @@ export class App {
     }
     // achievements + new unlock notices
     const beforeChars = CHARACTERS.filter((c) => s.characterRequirementMet(c.id)).map((c) => c.id);
+    const beforeUnlocks = UNLOCKS.filter((u) => s.unlockRequirementMet(u.id)).map((u) => u.id);
     const beforeDiffs = DIFFICULTIES.filter((d) => s.difficultyAvailable(d.id)).map((d) => d.id);
     const beforeCurse = s.curseAvailable();
     const earned = s.grantAchievements(st.achievementsHit);
     const notes: string[] = [];
     for (const c of CHARACTERS) if (!beforeChars.includes(c.id) && s.characterRequirementMet(c.id)) notes.push(`${c.name} can now be unlocked in the Lost & Found!`);
+    for (const u of UNLOCKS) if (u.req && !beforeUnlocks.includes(u.id) && s.unlockRequirementMet(u.id)) notes.push(`${u.name} can now be bought in the Lost & Found!`);
     for (const d of DIFFICULTIES) if (!beforeDiffs.includes(d.id) && s.difficultyAvailable(d.id)) notes.push(`${d.name} difficulty unlocked!`);
     if (!beforeCurse && s.curseAvailable()) notes.push('The Curse can now be toggled at character select.');
     if (st.achievementsHit.includes('beat_ringmaster') && earned.some((a) => a.id === 'beat_ringmaster')) notes.push('Endless "Lock-In" unlocked — choose to stay after dawn.');
@@ -1242,7 +1244,7 @@ export class App {
       this.screenEl?.remove();
       this.state = 'results';
       this.hud.root.classList.add('under');
-      if (st.trueEnding) notes.unshift(st.map === 'fun_house' ? "Mira's Hand Mirror now appears in the draft pool." : st.map === 'boardwalk' ? "Ada's Conch now appears in the draft pool." : 'The Steam Calliope now plays in the draft pool.');
+      if (st.trueEnding) notes.unshift(st.map === 'fun_house' ? "Mira's Hand Mirror now appears in the draft pool (and evolves the Funhouse Mirror)." : st.map === 'boardwalk' ? "Ada's Conch and Running Shoes now appear in the draft pool." : 'The Steam Calliope now plays in the draft pool.');
       if (this.hubJustUnlocked) {
         notes.unshift('THE MIDWAY IS YOURS: from now on the carnival opens as your hub. Walk the grounds, visit the cast, and enter the Big Top for another night.');
         this.hubJustUnlocked = false;
@@ -1765,6 +1767,7 @@ export class App {
     this.hud.root.remove();
     if (!this.hubHud.root.isConnected) this.ui.append(this.hubHud.root);
     this.hubHud.welcome();
+    this.hubHud.setNotice(this.save.data.notice);
     if (keepShop && this.state === 'lostfound') {
       this.hubHud.root.classList.add('under');
       // Back from the shop now leads here, wherever it was going to lead before
@@ -1872,6 +1875,7 @@ export class App {
     const hs = this.net?.role === 'host' ? this.net.host : null;
     this.hubHud.root.classList.toggle('under', this.state !== 'hub');
     this.hubHud.update({ labels, prompt, dialogue, code: hs ? hs.lobby.code : null, party: g.players.map((p) => p.name) });
+    this.hubHud.setNotice(this.save.data.notice);
   }
 
   /** Interact during a night (E, or A on a pad; D-67): the sim uses it next tick; a guest sends it to the host. */

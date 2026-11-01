@@ -3,6 +3,10 @@ import { SaveManager, migrate, SAVE_VERSION, type StorageLike } from '../src/met
 import { DIFFICULTY_MAP } from '../src/data/difficulty';
 import { makeGame, runFor } from './helpers';
 import { generateDraft } from '../src/sim/draft';
+import { CHARACTERS } from '../src/data/characters';
+import { PERKS, UNLOCKS } from '../src/data/meta';
+import { EVOLUTION_IDS, WEAPONS } from '../src/data/weapons';
+import { MIRA_HALO } from '../src/sim/weapons';
 import { dailySeedString, hashSeed, Rng } from '../src/core/rng';
 
 function mem(): StorageLike & { m: Map<string, string> } {
@@ -24,9 +28,11 @@ describe('save system', () => {
     const v1 = { lost_tickets: 321, unlocks: ['crystal_orbs'], perks: { might: 2 }, pedia: ['living_balloon'], settings: { master_volume: 0.4, reduce_flashes: true } };
     const d = migrate(v1);
     expect(d.version).toBe(SAVE_VERSION);
-    expect(d.lostTickets).toBe(321);
-    expect(d.unlocks).toContain('w_orbs');
-    expect(d.perks.might).toBe(2);
+    // the Orbs (renamed on the way) and two perk levels come back as Lost Tickets at the old prices (D-78)
+    expect(d.lostTickets).toBe(321 + 60 + 40 + 64);
+    expect(d.unlocks).toEqual([]);
+    expect(d.perks).toEqual({});
+    expect(d.pedia).toEqual(['living_balloon']);
     expect(d.settings.master).toBe(0.4);
     expect(d.settings.reducedFlash).toBe(true);
     expect(d.daily).toEqual({});
@@ -63,30 +69,39 @@ describe('save system', () => {
 
   it('character unlock needs the requirement AND the price', () => {
     const s = new SaveManager(mem());
-    s.data.lostTickets = 1000;
+    s.data.lostTickets = 10000;
     expect(s.characterAvailable('ride_operator')).toBe(false);
     expect(s.buyCharacter('ride_operator')).toBe(false);
     s.grantAchievements(['beat_ferris_wheel']);
-    expect(s.characterRequirementMet('ride_operator')).toBe(true);
-    expect(s.buyCharacter('ride_operator')).toBe(true);
-    expect(s.characterAvailable('ride_operator')).toBe(true);
     expect(s.difficultyAvailable('carnival')).toBe(true);
     expect(s.difficultyAvailable('nightmare')).toBe(false);
+    // D-78: the Commodore waits for the Boardwalk to be survived, and costs 6,000
+    expect(s.characterRequirementMet('ride_operator')).toBe(false);
+    expect(s.buyCharacter('ride_operator')).toBe(false);
+    s.grantAchievements(['beat_leviathan']);
+    expect(s.characterRequirementMet('ride_operator')).toBe(true);
+    s.data.lostTickets = 5999;
+    expect(s.buyCharacter('ride_operator')).toBe(false);
+    s.data.lostTickets = 6000;
+    expect(s.buyCharacter('ride_operator')).toBe(true);
+    expect(s.characterAvailable('ride_operator')).toBe(true);
+    expect(s.data.lostTickets).toBe(0);
+    expect(s.data.spent).toBe(6000);
   });
 
   it('earns The Whole Troupe the moment the last performer is bought, and on an older save that qualifies (D-75)', () => {
     const s = new SaveManager(mem());
-    s.data.lostTickets = 5000;
-    s.grantAchievements(['reach_12', 'beat_ferris_wheel', 'beat_puppet_king', 'beat_ringmaster']);
-    for (const id of ['fortune_teller', 'ride_operator', 'lost_child']) expect(s.buyCharacter(id)).toBe(true);
+    s.data.lostTickets = 20000;
+    s.grantAchievements(['reach_12', 'beat_puppet_king', 'beat_ringmaster', 'beat_proprietor', 'beat_leviathan']);
+    for (const id of ['fortune_teller', 'ride_operator', 'lost_child', 'ringleader']) expect(s.buyCharacter(id)).toBe(true);
     expect(s.hasAchievement('all_characters')).toBe(false);
     const lt = s.data.lostTickets;
-    expect(s.buyCharacter('ringleader')).toBe(true);
+    expect(s.buyCharacter('mira')).toBe(true);
     expect(s.hasAchievement('all_characters')).toBe(true);
-    expect(s.data.lostTickets).toBe(lt - 500 + 150); // the price, then the achievement's reward
+    expect(s.data.lostTickets).toBe(lt - 4500 + 150); // the price, then the achievement's reward
     // a save that bought everyone before this fix gets it (once) the next time it's checked
     const old = new SaveManager(mem());
-    old.data.unlocks.push('char_fortune_teller', 'char_ride_operator', 'char_lost_child', 'char_ringleader');
+    old.data.unlocks.push(...CHARACTERS.filter((c) => c.unlock).map((c) => `char_${c.id}`));
     expect(old.claimDerived().map((a) => a.id)).toEqual(['all_characters']);
     expect(old.claimDerived()).toEqual([]);
   });
@@ -94,9 +109,9 @@ describe('save system', () => {
   it('sells base HP regeneration as a permanent perk, and Funnel Cake is no longer drafted (D-76)', () => {
     const s = new SaveManager(mem());
     s.data.lostTickets = 1000;
-    expect(s.perkCost('regen')).toBe(50);
+    expect(s.perkCost('regen')).toBe(200);
     expect(s.buyPerk('regen')).toBe(true);
-    expect(s.perkCost('regen')).toBe(80);
+    expect(s.perkCost('regen')).toBe(340);
     expect(s.buyPerk('regen')).toBe(true);
     const meta = s.metaStats().find((m) => m.axis === 'regen');
     expect(meta?.value).toBeCloseTo(0.4, 5);
@@ -107,6 +122,133 @@ describe('save system', () => {
     for (let i = 0; i < 60 * 5; i++) g.tick();
     expect(g.player.hp).toBeGreaterThan(51);
     for (let k = 0; k < 200; k++) for (const o of generateDraft(g)) expect(o.refId).not.toBe('funnel_cake');
+  });
+
+  it('prices the Lost & Found about seven times higher than before (D-78)', () => {
+    const perkTotal = PERKS.reduce((t, p) => t + Array.from({ length: p.cap }, (_, i) => Math.round(p.base * Math.pow(p.growth, i))).reduce((a, b) => a + b, 0), 0);
+    const unlockTotal = UNLOCKS.reduce((t, u) => t + u.cost, 0);
+    const castTotal = CHARACTERS.reduce((t, c) => t + (c.unlock?.cost ?? 0), 0);
+    expect(perkTotal).toBe(22097);
+    expect(unlockTotal).toBe(8500);
+    expect(castTotal).toBe(16100);
+    expect(CHARACTERS.length).toBe(7);
+  });
+
+  it('refunds everything bought at the old prices, keeps what was earned, and grants what the new rules give (D-78)', () => {
+    const v4 = {
+      version: 4, lostTickets: 1000, totalEarned: 5000, perks: { might: 5, regen: 2, revive: 1 },
+      unlocks: ['w_orbs', 'w_mirror', 'f_skip', 'char_fortune_teller', 'char_ringleader', 'w_calliope'],
+      achievements: ['first_night', 'all_characters', 'summers_end', 'last_song', 'beat_leviathan'], pedia: ['hall_of_mirrors'], quests: { last_song: { completions: 1, bestStage: 7 } },
+    };
+    const d = migrate(v4);
+    expect(d.version).toBe(5);
+    // Brass Knuckles 40+64+102+164+262, Funnel Cake 50+80, the Spare Balloon 200, the Orbs 60, the Mirror 160,
+    // the Skip Ticket 50, the Fortune Teller 150, the Ringleader 500; less the Whole Troupe's 150, withdrawn
+    const refund = 632 + 130 + 200 + 60 + 160 + 50 + 150 + 500 - 150;
+    expect(d.lostTickets).toBe(1000 + refund);
+    expect(d.notice).toContain(`+${refund.toLocaleString('en-US')} Lost Tickets`);
+    expect(d.perks).toEqual({});
+    expect(d.spent).toBe(0);
+    expect(d.totalEarned).toBe(5000);
+    expect([...d.unlocks].sort()).toEqual(['p_ada_conch', 'p_running_shoes', 'w_calliope']);
+    expect(d.achievements).toEqual(['first_night', 'summers_end', 'last_song', 'beat_leviathan']);
+    expect(d.pedia).toEqual(['hall_of_mirrors']);
+    expect(d.quests.last_song.completions).toBe(1);
+    // nothing bought, nothing to say
+    const plain = migrate({ version: 4, lostTickets: 50, perks: {}, unlocks: [], achievements: ['first_night'] });
+    expect(plain.lostTickets).toBe(50);
+    expect(plain.notice).toBeUndefined();
+    // once migrated it never refunds again
+    const st = mem();
+    st.setItem('nightmare_carnival_save', JSON.stringify(v4));
+    const a = new SaveManager(st);
+    a.save();
+    const b = new SaveManager(st);
+    expect(b.data.lostTickets).toBe(1000 + refund);
+  });
+
+  it('owned weapons and passives can be left out of the drafts and put back (D-78)', () => {
+    const s = new SaveManager(mem());
+    s.data.lostTickets = 5000;
+    expect(s.buyUnlock('w_orbs')).toBe(true);
+    expect(s.inPool('w_orbs')).toBe(true);
+    s.setInPool('w_orbs', false);
+    expect(s.isUnlocked('w_orbs')).toBe(true); // still owned
+    expect(s.inPool('w_orbs')).toBe(false);
+    expect(s.unlockedSet().has('w_orbs')).toBe(false);
+    const g = makeGame({ unlocked: s.unlockedSet(), seed: 7 });
+    for (let k = 0; k < 300; k++) for (const o of generateDraft(g)) expect(o.refId).not.toBe('orbs');
+    s.setInPool('w_orbs', true);
+    expect(s.unlockedSet().has('w_orbs')).toBe(true);
+    const g2 = makeGame({ unlocked: s.unlockedSet(), seed: 7 });
+    let seen = false;
+    for (let k = 0; k < 300 && !seen; k++) seen = generateDraft(g2).some((o) => o.refId === 'orbs');
+    expect(seen).toBe(true);
+    // a Daily Run keeps the full pool whatever is switched off
+    s.setInPool('w_orbs', false);
+    const daily = makeGame({ unlocked: s.unlockedSet(), seed: 7, daily: true });
+    let dailySeen = false;
+    for (let k = 0; k < 300 && !dailySeen; k++) dailySeen = generateDraft(daily).some((o) => o.refId === 'orbs');
+    expect(dailySeen).toBe(true);
+  });
+
+  it('sells the Undertow once the Boardwalk is survived; Running Shoes come from the Commodore (D-78)', () => {
+    const s = new SaveManager(mem());
+    s.data.lostTickets = 5000;
+    expect(s.unlockRequirementMet('w_undertow')).toBe(false);
+    expect(s.buyUnlock('w_undertow')).toBe(false);
+    s.grantAchievements(['beat_leviathan']);
+    expect(s.buyUnlock('w_undertow')).toBe(true);
+    expect(WEAPONS.bumper.name).toBe('The Undertow');
+    expect(WEAPONS.bumper.unlock).toBe('w_undertow');
+    // without the unlocks neither is ever drafted; the Commodore still starts with his coaster car
+    const g = makeGame({ unlocked: new Set(), seed: 3 });
+    for (let k = 0; k < 300; k++) for (const o of generateDraft(g)) {
+      expect(o.refId).not.toBe('bumper');
+      expect(o.refId).not.toBe('running_shoes');
+    }
+    expect(makeGame({ character: 'ride_operator', unlocked: new Set() }).player.weapons.has('bumper')).toBe(true);
+    const shod = makeGame({ unlocked: new Set(['p_running_shoes']), seed: 3 });
+    let seen = false;
+    for (let k = 0; k < 400 && !seen; k++) seen = generateDraft(shod).some((o) => o.refId === 'running_shoes');
+    expect(seen).toBe(true);
+  });
+
+  it("evolves the Funhouse Mirror with Mira's Hand Mirror; Full House skips evolutions that need a quest's reward (D-78)", () => {
+    expect(WEAPONS.mirror.evoPassive).toBe('hand_mirror');
+    expect(WEAPONS.mirror.signature).toBe('mira');
+    const s = new SaveManager(mem());
+    s.data.pedia = EVOLUTION_IDS.filter((e) => !['hall_of_mirrors', 'demolition_derby', 'grand_requiem'].includes(e));
+    expect(s.claimDerived().map((a) => a.id)).toContain('full_house');
+  });
+
+  it("Mira's clones cut what stands in their Glass Halo once a second, even with only the mirror (D-78)", () => {
+    for (const character of ['mira', 'carny']) {
+      const g = makeGame({ character, seed: 5, godMode: true });
+      if (character === 'carny') {
+        g.player.weapons.list.length = 0;
+        g.player.weapons.add('mirror');
+      }
+      expect(g.player.weapons.has('mirror')).toBe(true);
+      g.time = 30;
+      let clone = null as null | { x: number; y: number };
+      for (let i = 0; i < 400 && !clone; i++) {
+        g.tick();
+        clone = g.summons.find((s) => s.alive && s.kind === 'clone') ?? null;
+      }
+      expect(clone, character).not.toBeNull();
+      const e = g.spawnEnemy('possessed_stuffie', clone!.x + 20, clone!.y, { exact: true, hpMult: 50 })!;
+      e.speed = 0;
+      const hp = e.hp;
+      for (let i = 0; i < 125; i++) {
+        e.x = e.px = clone!.x + 20;
+        e.y = e.py = clone!.y;
+        g.tick();
+      }
+      const lost = hp - e.hp;
+      if (character === 'mira') expect(lost).toBeGreaterThanOrEqual(MIRA_HALO.dmg * 2 * 0.9); // two cuts or more, at the halo's damage
+      else expect(lost).toBe(0); // anyone else's mirror needs a weapon to reflect
+    }
   });
 
   it('achievements pay Lost Tickets exactly once', () => {

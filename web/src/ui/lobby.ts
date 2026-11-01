@@ -139,7 +139,7 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
       'data-nav': avail ? '' : undefined,
       title: avail ? ch.title + (pickers.length ? ` — also picked by ${pickers.map((i) => lobby.players[i]!.name).join(', ')}` : '') : 'Locked on this save',
       onclick: () => { if (!avail || lobby.inRun) return; c.click(); o.actions.pick(ch.id); },
-    }, h('img', { src: c.assets.portrait(ch.id), alt: ch.name }), pickers.length ? h('div', { class: 'picked' }, ...pickers.map((i) => h('i', { class: `p${i + 1}` }))) : null, h('div', { class: 'nm' }, avail ? ch.name.replace('The ', '') : '???'));
+    }, h('img', { src: c.assets.portrait(ch.id), alt: ch.name }), pickers.length ? h('div', { class: 'picked' }, ...pickers.map((i) => h('i', { class: `p${i + 1}` }))) : null, h('div', { class: `nm${avail && ch.name.replace('The ', '').length > 8 ? ' long' : ''}` }, avail ? ch.name.replace('The ', '') : '???'));
   }));
   const chDef = myChar ? CHARACTER_MAP[myChar] : null;
   const detail = chDef

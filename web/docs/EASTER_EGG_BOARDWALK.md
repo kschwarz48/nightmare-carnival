@@ -53,7 +53,7 @@ Ada speaks through **seashells** (Mira spoke through glass, Zoltana through card
 | 10 | LEDGER | the Gift Shop | open the back cabinet and read the ledger |
 | 11 | ACCOUNT | wherever the Leviathan surfaces | ring the bell at it three times while its head is up |
 | 12 | FINALE | near the party | the Commodore rises: the secret boss |
-| 13 | COMPLETE | — | the Boardwalk's True Dawn, an achievement, Ada's Conch unlocked |
+| 13 | COMPLETE | — | the Boardwalk's True Dawn, an achievement, Ada's Conch and Running Shoes unlocked |
 
 Thirteen progression steps (the Unreflected has nine) and about seventeen distinct mechanics (it has
 about nine): roughly one and a half times its depth, without repeating a step for length. They are:
@@ -210,7 +210,9 @@ the waterline and wading all follow (`SEA.retreat`). The seabed by the pier show
   - Grinwell, I. — the Palace of Illusions — paid in reflections;
   - the Ringmaster — the Carnival — paid in song.
 - **Then:** nine seconds later, "She comes up for her payment at the end of every night. Ring Father's
-  bell at her three times." A ghost of the bell now follows its reader (the carrier).
+  bell at her three times." A ghost of the bell now follows its reader (the carrier). Since D-78 it
+  circles the carrier's shoulders, like the Ghost Ticket and Mira's Reflection on the other maps: bronze,
+  lit sea-green from within, with a soft light of its own.
 
 ### 11 · ACCOUNT — the Leviathan
 - **When:** the Leviathan (the final boss, at 24:00).
@@ -233,7 +235,9 @@ the waterline and wading all follow (`SEA.retreat`). The seabed by the pier show
 - **True Dawn:** the `summers_end` achievement, the "SUMMER'S END" banner, and the results line "Ada's
   Conch now appears in the draft pool".
 - **Unlock:** Ada's Conch (`p_ada_conch`: +12% pickup radius and +0.25 HP regen per level) is unlocked
-  permanently.
+  permanently, and since D-78 so are **Running Shoes** (`p_running_shoes`: +8% move speed a level), the
+  Undertow's evolution partner, which are no longer in the draft pool until then. The results line reads
+  "Ada's Conch and Running Shoes now appear in the draft pool".
 - **Record:** `quests.summers_end` records the completion.
 
 ## State, co-op and failure
@@ -263,4 +267,5 @@ the waterline and wading all follow (`SEA.retreat`). The seabed by the pier show
   minutes of a 25-minute night, then wait for the Leviathan at 24:00. A first-time party will usually
   need more than one night to learn the clues. Low tide comes every 100 s (and is announced) and the
   green car every 80 s, so some steps have a short wait built in.
-- **Rewards.** True Dawn, the achievement (400 Lost Tickets), Ada's Conch in the draft pool.
+- **Rewards.** True Dawn, the achievement (400 Lost Tickets), Ada's Conch and Running Shoes in the draft
+  pool (D-78).

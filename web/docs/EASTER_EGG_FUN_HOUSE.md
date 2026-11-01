@@ -225,7 +225,8 @@ Defeating it:
 - **True Dawn** (`g.trueEnding`; the results title reads *THE UNREFLECTED*);
 - achievement **Through the Looking Glass** (`unreflected`, 400 tickets);
 - the permanent unlock **Mira's Hand Mirror** (`p_hand_mirror`), a passive giving +6% Might and +6%
-  Area per level, max 5, added to the draft pool;
+  Area per level, max 5, added to the draft pool. Since D-78 it is also the Funhouse Mirror's evolution
+  partner (Funhouse Mirror at level 8 + the Hand Mirror = the Hall of Mirrors); it was the Season Pass;
 - `quests.unreflected.completions` goes up in the save.
 
 ## Rules, co-op and recovery

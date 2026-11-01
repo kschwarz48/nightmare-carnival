@@ -169,12 +169,36 @@ function shrapnel(): THREE.BufferGeometry {
   return m.build({ ao: 0 });
 }
 
-function ghostCar(): THREE.BufferGeometry {
+/**
+ * The Undertow's coaster car (D-78, the Commodore's weapon), nose toward +z: red and gold with chase bulbs
+ * down its sides. The lead car (the one the player rides) rears a sea serpent off its nose; the coupled cars
+ * carry a pale rider with its arms flung up; the Last Lap's runaway cars are sea-green ghosts of them.
+ */
+function coasterCar(lead: boolean, ghost: boolean): THREE.BufferGeometry {
   const m = new ModelBuilder();
-  m.add(torus(13, 3.2, 6, 18), { col: PAL.ghost, pos: [0, 5, 0], rot: [Math.PI / 2, 0, 0], emit: 0.9, surf: SURF.glass });
-  m.add(lathe([[0, 0], [12, 1], [13, 7], [10, 12], [0, 13]], 14), { col: 0x5f9f8a, pos: [0, 2, 0], emit: 0.5, surf: SURF.glass });
-  eyes(m, { x: 4.4, y: 11, z: 10.6, r: 2, color: PAL.bone, glow: 1.2, part: PART.BODY });
-  return m.build({ ao: 0 });
+  const paint = ghost ? 0x3f9f8c : 0x8a1a16, emit = ghost ? 0.6 : 0.06, surf = ghost ? SURF.glass : SURF.paint;
+  const L = lead ? 30 : 26, W = 21;
+  m.add(rbox(W, 9, L, 3), { col: paint, pos: [0, 7.5, 0], emit, surf });
+  m.add(rbox(W - 5, 4, L - 8, 1.5), { col: ghost ? 0x0e2a26 : 0x140808, pos: [0, 11, -1.5], emit: ghost ? 0.3 : 0, surf });
+  // a gold rim round the tub's top edge (a frame, so the red and the seat well show from above)
+  for (const s of [-1, 1]) {
+    m.add(rbox(1.4, 1, L + 0.6, 0.5), { col: PAL.gold, pos: [s * (W / 2 - 0.4), 12.2, 0], emit: ghost ? 0.9 : 0.35, surf: SURF.gold });
+    m.add(rbox(W + 0.6, 1, 1.4, 0.5), { col: PAL.gold, pos: [0, 12.2, s * (L / 2 - 0.4)], emit: ghost ? 0.9 : 0.35, surf: SURF.gold });
+  }
+  m.add(rbox(W - 3, 2.6, L - 3, 0.8), { col: PAL.iron, pos: [0, 2.4, 0], surf: SURF.iron });
+  for (const x of [-W / 2, W / 2]) for (const z of [-L / 2 + 5, L / 2 - 5]) m.add(cyl(2.8, 2.8, 1.8, 10), { col: PAL.iron, pos: [x, 2.8, z], rot: [0, 0, Math.PI / 2], surf: SURF.iron });
+  for (const s of [-1, 1]) for (let i = 0; i < 4; i++) m.add(sphere(0.9, 6, 4), { col: ghost ? 0xb8fff0 : 0xffd27a, pos: [s * (W / 2 + 0.3), 9.5, -L / 2 + 5 + i * ((L - 10) / 3)], emit: 1.4, surf: SURF.bulb });
+  if (lead) {
+    m.add(tube([[0, 9, L / 2 - 2], [0, 16, L / 2 + 3], [0, 21, L / 2 + 6]], (u) => 4 - u, 8, 10), { col: paint, emit, surf });
+    m.add(ellipsoid(4.4, 4, 6.5, 12, 8), { col: paint, pos: [0, 22.5, L / 2 + 9], emit, surf });
+    for (const s of [-1, 1]) m.add(sphere(1.2, 8, 6), { col: 0xffe8a0, pos: [s * 2.6, 24.5, L / 2 + 12.5], emit: 2, surf: SURF.bulb });
+  } else {
+    const pale = ghost ? 0xd8fff6 : 0xbfe0e4;
+    m.add(cyl(3.4, 4, 9, 8), { col: pale, pos: [0, 16, -3], emit: 0.5, surf: SURF.glass });
+    m.add(sphere(3.1, 10, 8), { col: pale, pos: [0, 23, -3], emit: 0.5, surf: SURF.glass });
+    for (const s of [-1, 1]) m.add(tube([[s * 3.2, 19, -3], [s * 6.4, 25, -2], [s * 7.4, 31, -1.5]], (u) => 1.1 - u * 0.4, 4, 6), { col: pale, emit: 0.5, surf: SURF.glass });
+  }
+  return m.build({ ao: 0.2 });
 }
 
 function note(): THREE.BufferGeometry {
@@ -464,8 +488,10 @@ export const ITEM_MODELS: Record<string, ModelDef> = {
   shell: { build: rocket, rim: NO_RIM },
   kernel: { build: kernel, rim: NO_RIM },
   cannonball: { build: cannonball, rim: NO_RIM },
-  derby_car: { build: ghostCar, rim: NO_RIM },
-  bumper_ghost: { build: ghostCar, rim: NO_RIM },
+  // the Undertow (D-78): its coupled cars, the Last Lap's runaway cars, and the lead car its rider stands in
+  derby_car: { build: () => coasterCar(false, true), rim: [0.5, 1, 0.85, 0.6] },
+  bumper_ghost: { build: () => coasterCar(false, false), rim: [1, 0.8, 0.5, 0.5] },
+  undertow_car: { build: () => coasterCar(true, false), rim: [1, 0.8, 0.5, 0.45], shadow: true },
   mirror_shot: { build: mirrorShot, rim: NO_RIM },
   note: { build: note, rim: NO_RIM },
   // enemy bullets
@@ -499,7 +525,7 @@ export const ITEM_MODELS: Record<string, ModelDef> = {
   s_lion: { build: lion, anim: { a: [2.4, 0.03, 0.6, 0], b: [0.12, 0, 0.2, 0] }, rim: [0.95, 0.7, 0.35, 0.5], shadow: true },
   s_elephant: { build: elephant, anim: { a: [2, 0.02, 0.4, 0], b: [0.1, 0, 0.15, 0] }, rim: [0.8, 0.75, 0.7, 0.5], shadow: true },
   s_acrobat: { build: acrobat, anim: { a: [3, 0.05, 0.9, 0.6], b: [0.1, 0, 0, 0] }, rim: [0.6, 0.9, 0.85, 0.5], hover: 16, shadow: true },
-  s_derby_ghost: { build: ghostCar, anim: { a: [0.8, 0.03, 0, 0], b: [0, 0, 0, 0] }, rim: [0.5, 1, 0.75, 0.7] },
+  s_derby_ghost: { build: () => coasterCar(false, true), anim: { a: [0.8, 0.03, 0, 0], b: [0, 0, 0, 0] }, rim: [0.5, 1, 0.75, 0.7] },
 };
 
 export const _unused = { C, glove, limb, ruff, shoe, bulb, tube };

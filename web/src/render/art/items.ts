@@ -248,17 +248,67 @@ export function cannonball(ctx: Ctx, w: number, h: number): void {
   glove(ctx, w * 0.97, cy + h * 0.18, 3.4, 0);
 }
 
-export function derbyCar(ctx: Ctx, w: number, h: number, ghost = false): void {
-  ctx.save();
-  if (ghost) ctx.globalAlpha = 0.75;
-  const cx = w / 2, cy = h / 2;
-  roundRect(ctx, cx - w * 0.42, cy - h * 0.32, w * 0.84, h * 0.64, h * 0.3);
-  fillInk(ctx, '#2a2230', 2.4);
-  roundRect(ctx, cx - w * 0.33, cy - h * 0.26, w * 0.62, h * 0.52, h * 0.2);
-  fillInk(ctx, shade(ctx, cx, cy, w * 0.4, ghost ? '#b0f0ff' : '#ffe36a', ghost ? '#3fa0d0' : '#e8a020'), 2.4);
-  pieEye(ctx, cx + w * 0.22, cy - h * 0.1, 3, 3.4, 0.8, 0, { glow: '#fff8d0' });
-  pieEye(ctx, cx + w * 0.22, cy + h * 0.12, 3, 3.4, 0.8, 0, { glow: '#fff8d0' });
-  ctx.restore();
+/**
+ * The Undertow's lead car on a stretch of its track (D-78, the Commodore's coaster), nose to the right: red
+ * and gold with a sea serpent reared off the nose. `ghost`: the Last Lap's runaway car, sea-green, with a
+ * pale rider's arms flung up.
+ */
+export function coasterCar(ctx: Ctx, w: number, h: number, ghost = false): void {
+  const body = ghost ? '#4fb8a4' : '#b8241c', dark = ghost ? '#1e5a50' : '#4a0a0a', bulb = ghost ? '#d8fff4' : '#ffd27a';
+  const ry = h * 0.88;
+  // the track: ties under a rail
+  ink(ctx, 1.4);
+  for (let x = w * 0.04; x < w; x += w * 0.15) {
+    ctx.beginPath();
+    ctx.moveTo(x, ry - 1);
+    ctx.lineTo(x + w * 0.05, ry + 3.2);
+    ctx.stroke();
+  }
+  roundRect(ctx, 0, ry - 1.8, w, 2.8, 1.2);
+  fillInk(ctx, ghost ? '#9ff0e0' : PAL.gold, 1.2);
+  for (const x of [w * 0.27, w * 0.66]) {
+    circle(ctx, x, ry - 3.6, h * 0.1);
+    fillInk(ctx, '#55555e', 1.6);
+  }
+  if (ghost) {
+    // the rider: a pale shape with its arms up
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    for (const s of [-1, 1]) {
+      ink(ctx, 2.6);
+      ctx.strokeStyle = '#e4fff8';
+      ctx.beginPath();
+      ctx.moveTo(w * 0.38 + s * 3, h * 0.34);
+      ctx.lineTo(w * 0.38 + s * 6, h * 0.08);
+      ctx.stroke();
+    }
+    circle(ctx, w * 0.38, h * 0.24, h * 0.12);
+    fillInk(ctx, '#e4fff8', 1.6);
+    ctx.restore();
+  }
+  // the serpent figurehead, reared up off the nose
+  ctx.beginPath();
+  ctx.moveTo(w * 0.76, h * 0.64);
+  ctx.quadraticCurveTo(w * 0.99, h * 0.52, w * 0.9, h * 0.22);
+  ctx.lineTo(w * 0.81, h * 0.27);
+  ctx.quadraticCurveTo(w * 0.86, h * 0.5, w * 0.68, h * 0.58);
+  ctx.closePath();
+  fillInk(ctx, body, 2);
+  ellipse(ctx, w * 0.9, h * 0.2, w * 0.1, h * 0.11, 0.35);
+  fillInk(ctx, body, 2);
+  circle(ctx, w * 0.93, h * 0.17, 1.7);
+  fillInk(ctx, bulb, 1);
+  // the car: a deep tub, gold along the top, chase bulbs down the side, the seat back at the rear
+  roundRect(ctx, w * 0.12, h * 0.26, w * 0.17, h * 0.24, h * 0.07);
+  fillInk(ctx, dark, 2);
+  roundRect(ctx, w * 0.08, h * 0.4, w * 0.72, h * 0.38, h * 0.13);
+  fillInk(ctx, shade(ctx, w * 0.42, h * 0.52, w * 0.42, lighten(body, 0.3), body), 2.4);
+  ctx.fillStyle = PAL.gold;
+  ctx.fillRect(w * 0.1, h * 0.425, w * 0.68, 1.8);
+  for (let i = 0; i < 4; i++) {
+    circle(ctx, w * (0.2 + i * 0.15), h * 0.6, 1.5);
+    fillInk(ctx, bulb, 0.8);
+  }
 }
 
 // ---------------------------------------------------------------- summons
