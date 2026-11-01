@@ -63,7 +63,7 @@ function augustus(): SculptModel {
   const b = bi(bones);
   const sc = new Sculpt(0.8, 3);
   // silver-tipped blue: the grey-blue coat with its paler tips catching the light in a fine grain
-  const coat: ColorFn = (p) => C(0x67717d).lerp(C(0xa0aab6), 0.2 + 0.5 * vnoise(p.x * 0.7, p.y * 0.7, p.z * 0.7));
+  const coat: ColorFn = (p) => C(0x535b66).lerp(C(0x86909c), 0.2 + 0.5 * vnoise(p.x * 0.7, p.y * 0.7, p.z * 0.7));
   const fur = { col: coat, surf: SURF.cloth };
   sc.add({ t: 'cap', a: [0, 12.5, -9], b: [0, 13, 5], ra: 4.6, rb: 5 }, { ...fur, bone: b('body'), k: 2 });
   sc.add({ t: 'ell', c: [0, 12.8, 6.5], r: [4.4, 4.8, 4.2] }, { ...fur, bone: b('chest'), k: 2 });
@@ -75,12 +75,12 @@ function augustus(): SculptModel {
   for (const s of [1, -1]) sc.add({ t: 'sph', c: [s * 1.15, 18.1, 17.6], r: 1.25 }, { col: 0x8a94a0, surf: SURF.cloth, bone: b('head'), k: 0.8 });
   // tall, wide-set ears, pinkish grey inside
   for (const [s, n] of LEGS) {
-    sc.detail(cone(2.4, 5.4, 8), { col: 0x6a7480, bone: b(`ear${n}`), pos: [s * 2.9, 25.2, 12], rot: [-0.15, 0, -s * 0.32], surf: SURF.cloth });
+    sc.detail(cone(2.4, 5.4, 8), { col: 0x58606c, bone: b(`ear${n}`), pos: [s * 2.9, 25.2, 12], rot: [-0.15, 0, -s * 0.32], surf: SURF.cloth });
     sc.detail(cone(1.5, 3.8, 8), { col: 0xb6a0a8, bone: b(`ear${n}`), pos: [s * 2.85, 25, 12.55], rot: [-0.15, 0, -s * 0.32], surf: SURF.skin });
   }
   // almond eyes, green-gold, the pupils narrowed; the slate nose
   for (const s of [1, -1]) {
-    sc.detail(ellipsoid(1.7, 1.15, 0.7, 12, 8), { col: 0xc4d65c, bone: b('head'), pos: [s * 1.75, 20.2, 16.3], rot: [0, s * 0.35, -s * 0.12], emit: 0.8, surf: SURF.glass });
+    sc.detail(ellipsoid(1.7, 1.15, 0.7, 12, 8), { col: 0xc4d65c, bone: b('head'), pos: [s * 1.75, 20.2, 16.3], rot: [0, s * 0.35, -s * 0.12], emit: 0.6, surf: SURF.glass });
     sc.detail(ellipsoid(0.38, 1, 0.3, 8, 6), { col: 0x101410, bone: b('head'), pos: [s * 1.78, 20.2, 16.95], rot: [0, s * 0.35, 0], surf: SURF.glass });
     sc.detail(sphere(0.26, 6, 4), { col: 0xffffff, bone: b('head'), pos: [s * 1.45, 20.6, 17.05], emit: 1.4, surf: SURF.glass });
   }

@@ -59,15 +59,27 @@ moving floor.
 **Spawning.** Station regions use the map's waves (each enemy has a home: `params.home`). The director's
 anchor is the standing player whose station has the fewest creatures per player, so a party split between
 stations each gets a fair crowd; nothing spawns inside the parked carriages. The moving train has its own
-journey spawner (`journeySpawns`): enemies board at the **front** (out of the tender's coal) and the **rear**
-(over the observation platform's railing) and advance through the cars. Nothing spawns inside the cars, or
-from above or below, and nothing boards while nobody rides.
+journey spawner (`journeySpawns`): most come aboard just out of sight to the **left or right of a rider**,
+anywhere along the carriages (D-84), so the crowd closes in from both sides at once. About 30 % still board
+over the **front** (out of the tender's coal; the Coalborn always) and the **rear** (over the observation
+platform's railing). Nothing boards in view, and nothing boards while nobody rides. From Act II the boarders
+are mostly meat: Navvies above all, Porters, Ticketless, few casters. The pace is unchanged for the first
+eleven minutes, then climbs harder (rate up to 2.6 a second, up to 110 aboard; it was 1.6 and 64).
 
 **Bosses** fight at stations (`sim/bosses/gtBoss.ts`). A boss due while every player is riding waits for the
 next platform anyone stands on. A boss holds still while nobody is in its place, and **follows the party down
 the line**: once its station has stood empty for 4 s and somebody stands at another, it is waiting there
 ("THE STOKER IS WAITING · on the platform at Stillwater"). The Night Express and the Conductor are the End of
-the Line's and never leave it.
+the Line's and never leave it. A boss quiets only its own station (D-84). The players fighting it get no new
+spawns, but players at other stations keep their crowd: the cap and the floor scale with the share of the
+party away from the boss. The riders' journeys go on too. Only the elite bursts and minibosses wait.
+
+**Edges.** Every station's side and south limits stand as something physical (D-84; they were invisible walls
+before): railings on stone piers with lamps in the line at the Junction, St. Vesper's and the End's brink, a
+yard wall at the Cinder Works, dry-stone walls at Stillwater. A locked gate stands in each south fence: green
+iron at the Junction, a churchyard gate at St. Vesper's, a yard gate at the Cinder Works, a five-bar gate at
+Stillwater. They stand just outside the walk clamp (`walkRect`), so nobody brushes them
+(`STATION_GATES`, `data/gtStations.ts`).
 
 **No lost XP.** Tickets never expire; a station's tickets wait for the party to come back round, the ones in
 the carriages ride along, and a golden ticket vacuums every ticket on the map to its finder.
@@ -108,7 +120,14 @@ Line (E) → J. The run starts with the train **approaching J through the fog**,
 - **The last train:** the first arrival at E at or after 26:00 terminates there; the train stands at E, doors
   open, for the rest of the night (27:35 normally, 29:35 with the points set). From **29:00** a **phantom
   door** stands open on every other platform, one step to E's platform, so nobody is stranded.
-- Doors open 2 s after a stop and close 3 s before departure. A bell rings at 10 s to go and the whistle at 5 s.
+- Doors open 2 s after a stop and close as the departure countdown reaches 0 (D-84: they closed 3 s early,
+  while the board still counted). A bell rings at 10 s to go and the whistle at 5 s. Pulling in, the engine
+  gives two long blasts (D-84): loud aboard and at the station it stops at, faint everywhere else, and a
+  "The train is in — doors opening" note for whoever waits on that platform.
+- Nobody is left inside a train's walls (D-84). Aboard, a player is kept in a car or a gangway (the couplings'
+  pockets between cars are walled). At a station whose train is away, a player inside the carriages'
+  footprint (shut in by the doors, or knocked in) is put back on the platform. At departure only those in a
+  car, a gangway or a doorway are carried, not someone pressed against the outside of the train.
 - Readable: the HUD's departures line under the clock (`ui/lineBoard.ts`: the next stop, the countdown,
   ALL ABOARD / DOORS CLOSED), "Check the timetable" at every station clock and the Junction's board (the next
   three trains by the night's clock), the bell, the whistle, the doors, the brakes.
@@ -118,9 +137,15 @@ Line (E) → J. The run starts with the train **approaching J through the fog**,
 | Act | Time | Arc |
 |---|---|---|
 | I — The Midnight Line | 0:00–8:00 | learn the train; first stations; light journeys (Ticketless, Coalborn, Porters) |
-| II — Passengers | 8:00–17:00 | denser journeys; Railcrawlers, Mourners and Signalmen board; station rosters fill in |
-| III — Wrong Side of the Tracks | 17:00–25:00 | heavy journeys; the stations' specialists (Pallbearers, Slag Golems, Hounds, Watchers); elites |
-| IV — The End of the Line | 25:00–35:00 | E opens for everyone; the Collected and the Ticket Punchers; the last train; the phantom doors; the Night Express |
+| II — Passengers | 8:00–17:00 | denser journeys; Navvies, Railcrawlers, Mourners and Signalmen board; station rosters fill in |
+| III — Wrong Side of the Tracks | 17:00–25:00 | heavy journeys, Navvies the biggest share; the stations' specialists (Pallbearers, Slag Golems, Hounds, Watchers); elites |
+| IV — The End of the Line | 25:00–35:00 | E opens for everyone; the Collected and the Ticket Punchers; the last train; the phantom doors; the Night Express; after it, the victory lap |
+
+After the Night Express falls, the victory lap until dawn is the heavy end of the line (D-84): Navvies 20,
+Ticketless 28, Porters, Gravebound, the Collected, Railcrawlers, Coalborn, Still Folk, at hp ×1.25. The last
+minute before dawn (34:00) is the same heavy crowd. Both were mostly Ticketless (9 hp), and the night died
+with its boss. In a god-mode bot night (seed 7), the crowd standing after the boss carried about 125–218k hp
+(it was 13–19k), about what stood in the minutes before the boss.
 
 Six scheduled bosses (the other maps have four) at 5:00, 10:00, 15:00, 20:00, 25:00 and **30:00** (the final
 boss, which holds the dawn at 35:00). Secret boss: the Conductor (Easter egg). Events: `gt_fog` (darkness,
@@ -129,7 +154,7 @@ platform, or an unguarded one in the baggage car if you're riding), `gt_processi
 pallbearers cross a station down a marked lane), `gt_late_supper` (healing plates near you, or in the dining
 car). None of them puts a creature anywhere but a station, so the train's rule holds.
 
-## 6. Enemies (20 new types + a miniboss; no reuse)
+## 6. Enemies (21 new types + a miniboss; no reuse)
 
 `data/enemies.ts` (`gt_*`), behaviours in `sim/ghostTrainAI.ts`, sculpts in `render3d/models/ghostTrainCreatures.ts`,
 Pedia art in `render/art/ghostTrainArt.ts`. Homes: **train** = boards the moving train; **any** = every
@@ -140,6 +165,7 @@ station; or a station's own.
 | The Ticketless | the shambling crowd | any, train |
 | Coalborn | fast fodder; embers on death | cinder, train |
 | The Porter | trunk-shield bruiser (soaks frontal damage) | junction, train |
+| The Navvy (D-84) | juggernaut: a wall of a man with a sledgehammer on his shoulder; no tricks, 340 hp, barely shoved, hurries when far off | any, train |
 | Railcrawler | wall-crawling pouncer | train, cinder |
 | Mourning Passenger | wailing ring caster | vesper, train |
 | The Signalman | lantern lane-caster | junction, train |
@@ -198,8 +224,10 @@ doors, chuffs, brakes, the bridge), so a guest hears exactly what the host does.
 
 ## 10. Testing and tools
 
-- `tests/ghosttrain.test.ts`: the registry, the timetable, transfers, the sealed train, journey spawns at the
-  ends only, station homes, bosses following, the phantom doors, the quest played through, co-op bytes, the save.
+- `tests/ghosttrain.test.ts`: the registry, the timetable, the doors shutting at 0, transfers, the sealed train,
+  nobody stuck in the train, journey spawns (out of sight or over the ends), station homes, a boss quieting
+  only its own station, bosses following, the phantom doors, the signal lamp, the quest played through, co-op
+  bytes, the save.
 - `scripts/gt_timetable.ts [eFrom]` prints the timetable. `scripts/gt_smoke.ts [secs]` runs a headless night
   with a bot that rides between stations. `scripts/gt_bossttk.ts [seeds]` times every boss against builds.
 - Dev states (`?devtools` / dev server): `gt-junction`, `gt-vesper`, `gt-cinder`, `gt-stillwater`, `gt-end`,
@@ -209,7 +237,10 @@ doors, chuffs, brakes, the bridge), so a guest hears exactly what the host does.
 ## 11. Known limitations (honest list)
 
 - The station nameboards and the departures board carry no lettering yet (the HUD line and the timetable
-  reading carry the information).
+  reading carry the information). The booking office (TICKETS), the signal box and the Junction's fingerpost
+  are lettered (D-84).
+- The D-84 balance (journeys, Navvies, the late crowd, the victory lap) is checked by unit tests and the
+  bot runs, not yet by a human play-through; expect a nudge or two.
 - Creature sculpts are new but simpler than the Boardwalk's hero creatures; several share the humanoid base.
 - The approaching train at a station slides in along its track; its wheels are not animated (hidden below
   the car floor at this camera angle), and the locomotive's smoke is spark particles, not a volumetric plume.

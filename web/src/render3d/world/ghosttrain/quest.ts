@@ -110,12 +110,13 @@ export class GtQuest {
     }
   }
 
-  /** The train's signal lamp's colour now (dark lamps flicker now and then), and how bright. */
+  /** The train's signal lamp's colour now (a dark lamp sputters now and then, softly: no strobe), and how bright. */
   private lampLight(ch: LastTrainChain, t: number): [number, number, number, number] {
     const s = ch.lamp();
     if (s === 2) return [0.3, 1, 0.45, 1];
     if (s === 1) return [1, 0.18, 0.12, 1];
-    return [1, 0.7, 0.35, Math.sin(t * 23.1) * Math.sin(t * 7.3) > 0.55 ? 0.45 : 0.05];
+    const f = Math.sin(t * 2.3) * Math.sin(t * 5.9 + 1.3);
+    return [1, 0.7, 0.35, 0.05 + Math.max(0, f - 0.6)];
   }
 
   /** The quest's own lights: the train's signal lamp wherever the train is, a shovel of coal, the phantom doors. */
@@ -190,7 +191,7 @@ export class GtQuest {
       {
         const lx = ox + LT_TRAIN.lamp.x, ly = oy + LT_TRAIN.lamp.y, bx = ox + LT_TRAIN.lampbox.x, by = oy + LT_TRAIN.lampbox.y;
         this.lampPost.add(lx, ly, 0, 0, 1);
-        G.draw(glow, lx, ly + 9, 162, 0.42, 0.42, 0, lamp[0], lamp[1], lamp[2], 0.9 * lamp[3]);
+        G.draw(glow, lx, ly + 9, 162, 0.62, 0.62, 0, lamp[0], lamp[1], lamp[2], 0.9 * lamp[3]);
         this.lampBox.add(bx, by, 0, 0, 1);
         if (ch.batteryIn || stage > LT.Signals) this.battery.add(bx, by + 2, 26, 0, 0.9);
         else if (stage === LT.Signals) G.draw(glow, bx, by, 50, 0.35, 0.35, 0, 0.6, 0.85, 1, 0.45 + 0.25 * Math.sin(t * 3));

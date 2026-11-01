@@ -115,6 +115,45 @@ understate that character.
 
 ---
 
+## The Undertow's dial, guests' results, the Ghost Train's edges and lamp, the late line, companions — 2026-11-01 (D-84)
+
+- `npm test`: 27 files, 405 tests pass. 10 are new:
+  - `tests/pets.test.ts` (5): each companion's passive lands on its own player only, both achievements are
+    earned (and not when they shouldn't be), the save offers only an earned companion, and a party's
+    companions reach the start config and the right players.
+  - `tests/ghosttrain.test.ts` (5): the walled coupling pocket, the rescue from inside a departed train's
+    walls, carried in a doorway but not pressed against the outside, a boss quieting only its own station,
+    the signal lamp (dark, red, a signal passed at red stays, at green clears).
+  - Two updated: the doors shut at 0, and journeys board out of sight or over the ends. The play-through
+    uses the battery and lamp box. `tsc` is clean and `npm run build` passes.
+- **In the browser** (dev server, solo, `artifacts/visual/d84gt2/`, `d84gt3/`):
+  - Milo and Augustus following on the Midway and through Ghost Train nights. The Companions panel locked
+    and unlocked, with the portraits.
+  - Ada's Conch's icon. The Undertow's dial sweeping. The Lost & Found's scroll kept (726 → 726) on a toggle.
+  - The Ghost Train gate's prompt: "E · Board the Ghost Train · a night on the Midnight Line".
+  - The Big Top: a player walking at it from five directions stops 168 from its centre (156 + their radius),
+    against the canvas.
+  - Swap Character: Carny → Strongman where they stood, the pick saved, the companion kept.
+  - The Ghost Train's edges: each station's gate, and the side fences with piers and lamps at play zoom and
+    close up (St. Vesper's, the Cinder Works, Stillwater, the End's brink).
+  - TICKETS over the booking window, the signal box's nameboard and the fingerpost.
+  - The train's signal lamp dark, red and green at the Junction stop. The battery by the signal box, then
+    carried.
+  - The Navvy beside a Porter and a Ticketless.
+- **Two windows on this PC** (Electron, real PeerJS/WebRTC, not two machines): host and guest ended a night.
+  The host pressed Back to the Midway, and the guest's results stayed up 4 s later, the button relabelled
+  "Back to the Midway" with the Midway built behind. The guest pressed it and joined the host's Midway
+  (both players there).
+- **Bots:**
+  - `scripts/gt_smoke.ts 2100`: a whole ridden night in god mode, 40 transfers, every station, no faults.
+  - A scratch run killed the bosses at 30:30 and compared the crowd after the Night Express. The new
+    victory lap: 167–272 standing, 125–218k hp. The old roster, same seed: 152–180 standing, 13–19k hp.
+- **Not checked:**
+  - Exit Game (the Windows app only; the desktop build wasn't run).
+  - The arrival whistle by ear.
+  - Swap Character, companions and the results flow across two machines.
+  - A human play-through of the new balance.
+
 ## The attacks' opacity reaching 0 — 2026-11-01 (D-83)
 
 - `npm test`: 26 files, 394 tests pass (3 new, `tests/opacity.test.ts`). A night with the mallet, bell, cannon

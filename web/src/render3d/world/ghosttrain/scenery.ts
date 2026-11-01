@@ -114,7 +114,7 @@ export class Scenery {
       for (const it of list) {
         const key = `${it.kind}:${it.v}`;
         if (this.stripBatches.has(key)) continue;
-        const b = new ActorBatch(GT_KIT[it.kind](it.v), this.mat, 60, { shadow: false });
+        const b = new ActorBatch(GT_KIT[it.kind](it.v), this.mat, it.kind === 'gt_railing' || it.kind === 'gt_barrier' ? 160 : 60, { shadow: false });
         b.rim = [0, 0, 0, 0];
         root.add(b.mesh);
         this.stripBatches.set(key, b);
@@ -190,8 +190,11 @@ export class Scenery {
       const b = this.stripBatches.get(`${it.kind}:${it.v}`);
       if (!b) continue;
       const len = it.kind === 'gt_railing' || it.kind === 'gt_barrier' ? 100 : 0;
-      if (len) b.add(x, o.y + it.dy, 0, 0, 1, it.w / len, 1, 1);
-      else b.add(x, o.y + it.dy, 0, 0, 1);
+      if (len) {
+        // in runs of about 100, as the station itself lays them (a railing's piers keep their size)
+        const n = Math.max(1, Math.round(it.w / len)), seg = it.w / n;
+        for (let k = 0; k < n; k++) b.add(x - it.w / 2 + seg * (k + 0.5), o.y + it.dy, 0, 0, 1, seg / len, 1, 1);
+      } else b.add(x, o.y + it.dy, 0, 0, 1);
     }
   }
 

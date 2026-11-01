@@ -44,6 +44,7 @@ The alpha is live on Netlify at **https://nightmare-carnival.netlify.app**. `net
 Fully complete the first night (the Last Song, through to True Dawn) and the carnival becomes your
 hub: you arrive on the grounds, visit the cast at their games, spend Lost Tickets at the ticket booth,
 and enter the Big Top for another night. Friends who join your online game walk the Midway with you.
+The Midway's menu swaps your character and chooses your companion without leaving the grounds (D-84).
 For alpha testing, add `?unlock=midway` to the URL to open it without finishing the quest. Details:
 D-60 in [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md).
 
@@ -115,6 +116,9 @@ D-pad / arrow keys.
   - four new events;
   - its own backwards waltz and ambience;
   - a ten-stage hidden quest.
+- **Companions** (D-84): Milo, a black-and-white Cavapoo (+30% pickup radius, +6% XP), and Augustus, a
+  Russian Blue (+8% move speed, +6% crit chance). Each is earned by an achievement you can finish on any
+  map. They follow you through every night and around the Midway.
 - **Accessibility:** volume buses (master/music/SFX/ambience), mute, reduced flashing, screen-shake
   slider, high-contrast telegraphs, damage-number toggle, UI scale, dyslexia-friendly font, aim
   modes, key rebinding, first-run tips (replayable), graphics quality presets.

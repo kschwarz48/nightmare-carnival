@@ -52,7 +52,7 @@ const FRUSTUM_H = 1000;
 export const ACTOR_SCALE = 1.28;
 export const ACTOR_STRETCH = 1.12;
 /** the companions' size beside their people (D-84): a little larger than life, so they read at play zoom */
-const PET_SCALE = 1.2;
+const PET_SCALE = 1.4;
 /**
  * Instances one character's batch can hold: six players with their dash afterimages, mirror clones (as
  * many as the summon pool holds) and the Midway's characters. It was 6, so a Hall of Mirrors with six
@@ -1491,7 +1491,7 @@ export class GameRenderer3D {
       const fl = Math.hypot(p.faceX, p.faceY);
       const fx = fl > 0.01 ? p.faceX / fl : 0, fy = fl > 0.01 ? p.faceY / fl : 1;
       const side = p.pet === 'milo' ? 1 : -1;
-      const tgt = { x: px - fx * 46 - fy * 30 * side, y: py - fy * 46 + fx * 30 * side };
+      const tgt = { x: px - fx * 60 - fy * 42 * side, y: py - fy * 60 + fx * 42 * side };
       WALK_CLAMP?.(tgt);
       tgt.x = clamp(tgt.x, PLAYER_BOUNDS.minX, PLAYER_BOUNDS.maxX);
       tgt.y = clamp(tgt.y, PLAYER_BOUNDS.minY, PLAYER_BOUNDS.maxY);

@@ -258,6 +258,13 @@ export const STATION_GATES: { x: number; y: number; r: number }[] = [];
       add({ kind: 'gt_gate', x, y: yS, hw: GATE_HW, hh: 10, variant: r });
       STATION_GATES.push({ x, y: yS, r });
     };
+    // lamps standing in the fences, so an edge reads in the dark (their light is the station's own, lighting.ts)
+    const lamp = (x: number, y: number) => add({ kind: 'gt_lamppost', x, y, r: 9, variant: [0, 1, 0, 2, 3][r] });
+    for (let y = yN + 220; y < (r === J ? g.cy + 700 : yS - 120); y += 650) {
+      lamp(xW, y);
+      lamp(xE, y);
+    }
+    if (r !== J) for (const dx of [-1350, 1350]) lamp(g.cx + dx, yS);
     if (r === J) {
       side(xW, yN, g.cy + 740);
       side(xE, yN, g.cy + 740);

@@ -1289,3 +1289,120 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
     the sparks over a player's own patch of fire, and the shadows of faded attacks.
 - **Co-op.** The tag travels with each effect (a spare bit of its header on the wire), PROTO 15. The setting fades
   every player's attacks on your own screen, as it always has.
+
+### D-84 · The Undertow's dial, guests reading their results, Swap Character, the Ghost Train's edges and signal lamp, a heavier late line, companions
+
+- **The asks.** From play-testing:
+  - the Undertow should show when it fires next;
+  - Ada's Conch had no icon;
+  - toggling an item in the Lost & Found jumped the list to the top;
+  - in co-op, the host leaving the results dragged the guests away from theirs;
+  - there was no Exit Game;
+  - the Midway's sleeping Big Top could be walked into;
+  - the Ghost Train's gate said "coming soon" behind an ✕ though E boarded it;
+  - no way to change character on the Midway.
+  On the Ghost Train:
+  - invisible walls at the stations' sides and bottoms;
+  - the ticket step on the wrong side of the booth, and no sign;
+  - the doors shut before the countdown ended;
+  - a player stuck between cars;
+  - no crowd for anyone away from a boss fight;
+  - no arrival sound;
+  - the Signal Box hard to find;
+  - the signal step confusing;
+  - the middle and end of the night too easy, the minutes after the 30:00 boss easiest of all.
+  And: companions, Augustus (a Russian Blue) and Milo (a black-and-white Cavapoo), from reference photos.
+- **The Undertow's dial.** Its HUD slot greys over when it fires, and the grey sweeps away clockwise as it
+  recharges, from its own cooldown each frame (a `conic-gradient` on the slot). Only the Undertow has one: it
+  is the one weapon on a long, felt timer.
+- **Ada's Conch** has its icon: a spiral shell with a pink mouth and a mint note, on a sea-teal badge.
+- **The Lost & Found keeps its place.** Toggling an item in or out of the draft pool redraws the panel. It now
+  restores the scroll, and the keyboard or pad focus stays on the same item.
+- **Guests keep reading their results.** When the host goes back to the Midway (or the lobby), a guest's
+  results stay up with the grounds built behind them. Their first button changes from "Wait for Host" to
+  "Back to the Midway" and leads after the party (MULTIPLAYER.md).
+- **Exit Game.** The Windows app has it on the title menu and the Midway's menu. A party is told goodbye
+  first, so friends see the lobby close rather than a lost line. A browser tab can't close itself, so the
+  web build has no such button. The installed shell already had the quit call; no new shell is needed.
+- **The Big Top's footprint.** Asleep (on the Midway, and the first night until 6:00) it was solid out to 120
+  from its centre, but its canvas walls stand at 156, so players walked well inside. It is now solid to 156.
+  From every side a player stops at the canvas.
+- **The Ghost Train gate.** Once the map is open its prompt reads "E · Board the Ghost Train · a night on the
+  Midnight Line" (a guest: "the host leads the way onto the platform"). Locked, it says what opens it
+  (survive the Boardwalk), like the other gates.
+- **Swap Character and Companions** on the Midway's menu. Solo, the Midway is rebuilt where you stand. In a
+  party the pick goes through the lobby and the host rebuilds the shared Midway with everyone in place.
+  Your next night starts with the new character.
+- **The Ghost Train's edges.** Every station's side and south limits stand as something physical:
+  - railings on stone piers, with lamps in the line, at the Junction, St. Vesper's and the End's brink;
+  - a yard wall at the Cinder Works;
+  - dry-stone walls at Stillwater;
+  - in each south fence a chained, padlocked gate, each station its own (green iron, a churchyard gate, a yard
+    gate, a five-bar gate). The End's brink has a railing and no gate.
+  They stand just outside the walk clamp. From this camera a railing running north–south is seen end-on, a
+  hairline, so the piers' pale caps and the lamps carry it: a row of squares and lights along the edge. The
+  platform strips that slide past at departure lay the railings in the same 100-unit runs, so the piers keep
+  their size there too.
+- **The booking office and the Signal Box.** The ticket step stands at the booking office's window (it was at
+  its back), with TICKETS lettered over the window. The Junction's signal box has a nameboard (SIGNAL BOX) on
+  posts in front of it. A fingerpost by the concourse points to the Signal Box and the Booking Office, so the
+  place is learnt before the quest sends anyone there.
+- **Doors at 0.** The doors shut as the departure countdown reaches 0 (they shut 3 s early, while the board
+  still counted down). The door slide eases over the last 0.8 s.
+- **Nobody stuck in the train.** A player on the platform got stuck between two cars when a door shut on
+  them or a smash knocked them in. They stayed stuck past the next stop, until another knockback freed them.
+  Four fixes:
+  - The couplings' pockets between cars are walled.
+  - At departure, only a player in a car, a gangway or a doorway is carried. The test was the copy's whole
+    footprint plus 14, which took someone pressed against the outside along, inside the walls.
+  - Aboard, anyone outside the cars and gangways is put back in.
+  - At a station whose train is away, anyone inside the carriages' footprint is put back on the platform.
+- **A boss quiets only its own station.** A boss fight stopped the director everywhere. Now the station
+  where the boss is gets no new spawns (as before), but players at other stations keep their crowd. The cap
+  and the floor scale with the share of the party away from the boss (half the party away: three quarters).
+  The riders' journeys go on. Elite bursts and minibosses wait for the fight to end.
+- **The arrival whistle.** Pulling in, the engine gives two long blasts (`gt_arrive`). They play at full
+  volume aboard and at the station it stops at, faint elsewhere. Whoever waits on that platform also gets a
+  note: "The train is in — doors opening".
+- **The signal step, reworked.** The guard's lantern, carried in the tender, is gone. Players missed it: a
+  light on a player says nothing about a signal outside. Now:
+  - The signal battery waits in the Junction's lamp room, in front of the signal box.
+  - The carrier fits it into the lamp box at the front of the tender (any copy of the train). The train's own
+    signal lamp, a post at the tender's front, is dark until then, now and then sputtering softly (no strobe).
+  - With the battery in, the lamp burns red. Anyone presses the lamp box to show green for 3 s.
+  - A call-out comes 2.5 s before each signal. A signal passed while the lamp shows green clears. One passed
+    at red stays at danger and comes round again.
+  - One signal per leg, as before. The chain's co-op bytes grew by two (the battery fitted; the green time
+    left), PROTO 16.
+- **A heavier middle and end.** The station crowds stayed as they were through the first act. From then on:
+  - **The Navvy** (`gt_navvy`), the new juggernaut: a big navvy with a sledgehammer over his shoulder, 340
+    hp, barely shoved (×0.08), no tricks, a straight walk that hurries when far off. Act II on, any station
+    and the train. He joins every station wave from 8:00 (weight 4 → 16 by 31:00) and Endless.
+  - **Journeys** come aboard mostly just out of sight to the left or right of a rider, anywhere along the
+    carriages. About 30 % still board over the ends (the Coalborn always out of the tender's coal). They
+    used to board only at the two ends, so a rider in the middle met a trickle from two directions. The
+    boarders are mostly meat: Navvies 12 / 22 / 28 % in Acts II–IV, few casters. The pace is unchanged to
+    11:00, then climbs harder: rate up to 2.6 a second (was 1.6), up to 110 aboard (was 64).
+  - **The last minute and the victory lap.** The wave from 34:00, and the victory lap after the Night Express
+    falls, were 64–80 % Ticketless (9 hp): the night died with its boss. Both are now the heavy end of the
+    line: Navvies 18–20, Ticketless 28, Porters, Gravebound, the Collected, Railcrawlers, Coalborn, Still Folk.
+    The victory lap has hp ×1.25, and the 34:00 wave ×1.2. In a god-mode bot night (seed 7), after the boss
+    the crowd's standing hp held at 125–218k (was 13–19k), about what stood in the minutes before the boss.
+  Bots only rule out extremes: this needs a human play-through, and a nudge or two may follow.
+- **Companions.** Two pets, each earned by an achievement any map can give (in co-op, each player's own):
+  - **Milo**, a black-and-white Cavapoo: "Fetch!", two golden tickets picked up in one night (+60 LT). His
+    passive, Fetch: +30 % pickup radius, +6 % XP.
+  - **Augustus**, a Russian Blue: "Nine Lives", the dawn seen without your health ever below half (+120 LT).
+    His passive, Feline Grace: +8 % move speed, +6 % crit chance.
+  A companion is chosen in character select (a Companion row) or from the Midway's Companions panel. It
+  follows its player through every night and around the Midway: it trots to a spot just behind and to one
+  side (Milo the right, Augustus the left), idles facing them while they stand, and is carried along by a
+  jump between places. Its passive is on that player's stats only. The Daily Run takes none (fair scores).
+- **Their look.** Rigged sculpts after the reference photos, with trot and idle clips, drawn at ×1.4 so they
+  read at play zoom:
+  - Milo: a charcoal curly head and long wavy ears, a pale muzzle and brows, a white curly body, the tip of
+    his tongue.
+  - Augustus: a short blue-grey coat with silver tipping, tall ears, green-gold almond eyes. His coat was
+    darkened after the first look, which read too pale under the stations' lamps.
+  Portraits in the same inked style as the icons.
+- **Not done.** The 12–15 s freeze on the first Ghost Train start of a session (D-82) remains.

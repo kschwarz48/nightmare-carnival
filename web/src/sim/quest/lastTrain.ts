@@ -275,7 +275,7 @@ export class LastTrainChain extends QuestChain {
     this.punchBy = pass(this.punchBy);
     this.letterBy = pass(this.letterBy);
     this.coalBy = pass(this.coalBy);
-    // the calls: a signal in sight ahead (while someone carries the lantern), the bridge coming up
+    // the calls: a signal coming up (once the battery is in the lamp), the bridge coming up
     const st = trainNow(g);
     if (st.phase !== 'travel') {
       this.called.clear();

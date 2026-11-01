@@ -257,6 +257,24 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### Companions, Swap Character, the results and the Ghost Train's bosses (D-84, PROTO 16)
+
+- **Companions travel in profiles.** Each player's companion (`pet`: `milo`, `augustus` or none) is in the
+  guest's profile and the host's own, in the lobby's players and in each player's start config. A start
+  validates it like the rest (an unknown pet is dropped). Each player's companion brings its passive to that
+  player only, and every screen draws every player's companion (cosmetic, not in the snapshots).
+- **Swap Character and Companions on the Midway.** A guest's pick goes up as a lobby pick plus a new
+  profile. The host's lobby change rebuilds the shared Midway with everyone where they stood (the party key
+  now includes characters and companions). The host's own pick does the same.
+- **The results.** When the host leaves the results for the Midway (or the lobby), a guest still reading its
+  own results keeps them. The grounds are built behind them, and the first button now says "Back to the
+  Midway" (or "Back to the Lobby") and follows the party. It used to pull the guest away at once. Checked
+  with two windows on one PC (QA_REPORT, D-84).
+- **A boss quiets only its own station** on the Ghost Train: the players at other stations keep their crowd
+  (host-side director, no wire change).
+- **PROTO 16.** Profiles and starts carry `pet`, and the Last Train chain grew two bytes (the battery fitted;
+  the green time left). Old builds can't join new lobbies.
+
 ### Rebuilding the Midway without stranding a guest (D-76, PROTO 13)
 
 Each time the host rebuilt the Midway, a guest could walk into an invisible wall and have to leave and

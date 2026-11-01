@@ -400,7 +400,14 @@ export const GT_KIT: Record<string, (variant: number) => THREE.BufferGeometry> =
     m.add(sphere(6, 8, 6), { col: GT.glass, pos: [0, 128, 20], surf: SURF.bulb, emit: 1.2 });
   }),
   gt_railing: () => B((m) => {
-    // the churchyard's iron railing: spear-topped bars every few units along a 100-long run
+    // the churchyard's iron railing: spear-topped bars every few units along a 100-long run, on a low stone plinth
+    // (D-84: its top reads from above, so a railing running away from the camera is still a clear edge, not a line)
+    m.add(box(100, 14, 18), { col: paleStone, pos: [0, 7, 0], surf: SURF.paint });
+    m.add(box(100, 2, 20), { col: stone, pos: [0, 15, 0], surf: SURF.paint });
+    // a stone pier at the head of every run, capped: from above, a fence is a row of pale squares
+    m.add(box(14, 80, 14), { col: stone, pos: [-50, 40, 0], surf: SURF.paint });
+    m.add(box(19, 5, 19), { col: paleStone, pos: [-50, 82, 0], surf: SURF.paint });
+    m.add(sphere(4.5, 8, 6), { col: paleStone, pos: [-50, 89, 0], surf: SURF.paint });
     m.add(box(100, 3, 3), { col: iron, pos: [0, 10, 0], surf: SURF.iron });
     m.add(box(100, 3, 3), { col: iron, pos: [0, 62, 0], surf: SURF.iron });
     for (let i = 0; i < 10; i++) {
