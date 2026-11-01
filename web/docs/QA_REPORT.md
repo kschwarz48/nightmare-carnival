@@ -1012,3 +1012,36 @@ screenshots inspected):
   whitelist only).
 - The scrollbars in Firefox (the web build there gets the standard thin gold bar).
 
+## Knockback, Summer's End, lit doorways, the coaster, recipes — 2026-11-01 (D-79)
+
+Scope: knockback a fifth softer, wearing off, never mid-charge; Summer's End's wording, its call heard over
+a hush on a steamship's horn, the Gala Queen alongside the pier, the hoist's ring and winch, the shelf's
+start-over rule, the rod's glint; light pouring from the Arcade's and Gift Shop's doors; the coaster's
+headlamp, its station's portals and its frosted windows with the train's shadow; evolution recipes that
+read the right player's build. Decision: D-79.
+
+**Automated:** typecheck clean; 337 tests pass in 24 files (new `recipes.test.ts`; knockback, Summer's End
+and net tests added or updated); the production build succeeds.
+
+**Checked** (the dev server in the desktop bench runner's Electron window at 1600×900; screenshots
+inspected, before and after, `artifacts/visual/d79-before|d79-after|d79-close`):
+- The Arcade's two south doors pour cold cyan light onto the boards and glow in their openings; its east
+  door, and the Gift Shop's warm amber doors, the same. A first pass was too faint to read at play zoom.
+- The station: six frosted windows, warm; the train's shadow (figurehead, cars, riders' heads) crossing
+  them as it comes home and standing while it waits; the portals lighting the track as it leaves. A first
+  pass showed only a thin band (windows too short for the steep camera) and the two promenade lamps' glow
+  hid the shadow; the windows are taller and the lamps are gone.
+- The headlamp on the lift hill and the return leg, its beam lighting the track ahead (a first pass was
+  too faint).
+- The Gala Queen alongside the end deck with the fire at her bow beside the berth, and sailing in.
+- The hoist's ring and progress arc; the overhead bar's label ("Winching up · stay by the bell (19s)"),
+  read from the page.
+- The rod's halo and sparks at the bait shop.
+- The ship's horn and the winch, rendered and measured offline (not heard): a short blast 0.5 s and a
+  long 1.4 s, energy at 92–440 Hz.
+- Five knockback-heavy weapons on the weapon bench before and after (`docs/WEAPON_AUDIT.md`): no extremes.
+
+**Not verified:**
+- How the horn, the hush and the winch sound (no audio was listened to).
+- The recipe fix in a real co-op session (covered by unit and replication tests).
+- How the softer, wearing knockback feels in real nights.

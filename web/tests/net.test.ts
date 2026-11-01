@@ -806,11 +806,15 @@ describe('a synchronized co-op run over a lossy network', () => {
     expect(gs.state).toBe('run');
     // the guest UI: answer drafts by choosing the first card, finish prize wheels immediately
     let guestDrafts = 0, guestPrizes = 0;
+    // D-79: every hand a guest is dealt carries the build it was dealt from (the host's own record of it)
+    const hostBuilds = new Set<string>(), guestBuilds: string[] = [];
+    g.bus.on('draft', (e) => e.player === 1 && hostBuilds.add(JSON.stringify(e.build)));
     gs.onEvent = (type, e) => {
       h.events.push(type);
       gs.game?.bus.emit(type as never, e as never);
       if (type === 'draft') {
         guestDrafts++;
+        guestBuilds.push(JSON.stringify((e as { build?: unknown }).build));
         gs.draft('choose', 0);
       }
       if (type === 'chest') {
@@ -842,6 +846,9 @@ describe('a synchronized co-op run over a lossy network', () => {
     expect(g.time).toBeGreaterThan(60);
     expect(g.level).toBeGreaterThan(3);
     expect(guestDrafts).toBeGreaterThanOrEqual(g.level - 2);
+    expect(guestBuilds.length).toBe(guestDrafts);
+    for (const b of guestBuilds) expect(hostBuilds.has(b)).toBe(true);
+    expect(guestBuilds.some((b) => JSON.parse(b).p.length + JSON.parse(b).w.length > 2)).toBe(true);
     expect(g.players[1].weapons.list.length + g.players[1].passives.size).toBeGreaterThan(2); // the guest's picks landed
     expect(guestPrizes).toBeGreaterThanOrEqual(1);
     expect(h.events).toContain('levelup');

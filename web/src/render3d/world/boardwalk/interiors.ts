@@ -169,6 +169,11 @@ export class Interiors {
     for (const s of this.signs) root.add(s);
   }
 
+  /** How far the local player's view has cut into building `id` (0 outside, 1 inside). */
+  cutK(id: string): number {
+    return this.cuts.find((c) => c.b.id === id)?.k ?? 0;
+  }
+
   /** Fade the roof and sink the front of whichever building the local player stands in. */
   update(px: number, py: number, dt: number): void {
     const inside = insideBuilding(px, py);

@@ -6,6 +6,9 @@
 
 import * as THREE from 'three';
 import { BENTS, KRAKEN, PLUNGE, RIDE, WHEEL, trackAt, trainU, wheelAngle } from '../../../data/boardwalk';
+
+/** Where the lead car's headlamp sits in the car's own frame (forward, up; D-79). */
+export const HEADLAMP = { fwd: 50, up: 36 };
 import { ActorBatch, StaticBatch } from '../../core/batch';
 import { C, SURF, box, cone, cyl, ellipsoid, lathe, rbox, sphere, torus, tube, weather, type V3 } from '../../core/geo';
 import { actorMaterial } from '../../core/materials';
@@ -97,6 +100,9 @@ function carGeometry(lead: boolean): THREE.BufferGeometry {
   m.add(box(62, 4, 42), { col: PAL.gold, pos: [0, 6, 0], surf: SURF.gold });
   for (const s of [-1, 1]) for (const x of [-20, 20]) m.add(cyl(6, 6, 6, 10), { col: iron, pos: [x, 4, s * 20], rot: [Math.PI / 2, 0, 0], surf: SURF.iron });
   if (lead) {
+    // a brass headlamp on the figurehead's brow (D-79: so the train can be seen coming)
+    m.add(cyl(5.5, 6.5, 7, 12), { col: PAL.brass, pos: [HEADLAMP.fwd - 4, HEADLAMP.up, 0], rot: [0, 0, Math.PI / 2], surf: SURF.brass });
+    m.add(cyl(4.6, 4.6, 1.2, 12), { col: C(0xfff4d8), pos: [HEADLAMP.fwd, HEADLAMP.up, 0], rot: [0, 0, Math.PI / 2], surf: SURF.bulb, emit: 2.2 });
     m.add(ellipsoid(16, 20, 18, 12, 8), { col: weather(0xd8c8b0, 0.4), pos: [32, 26, 0], surf: SURF.porcelain });
     eyes(m, { x: 8, y: 32, z: 0, r: 4.5, color: PAL.hotRed, glow: 1.4, part: 0 });
     m.add(box(4, 6, 20), { col: C(0x2a0408), pos: [46, 20, 0], surf: SURF.paint });
@@ -258,6 +264,19 @@ export class Rides {
     const hub = new THREE.Mesh(new ModelBuilder().add(cyl(40, 50, 90, 14), { col: weather(0x3a1e3a, 0.45), pos: [0, 45, 0], surf: SURF.paint }).add(sphere(44, 14, 10), { col: weather(0x5a2a4a, 0.45), pos: [0, 96, 0], scale: [1, 0.7, 1], surf: SURF.paint }).build({ ao: 0.2 }), armMat);
     this.kraken.add(hub);
     root.add(this.kraken);
+  }
+
+  /**
+   * The train at time t (D-79): each car's place on the track (sim x/y, the track's height), lead car first,
+   * and the lead car's heading (unit, in x/y/height).
+   */
+  static train(t: number): { cars: [number, number, number][]; dir: [number, number, number] } {
+    const { u } = trainU(t);
+    const cars: [number, number, number][] = [];
+    for (let k = 0; k < RIDE.cars; k++) cars.push(trackAt(u - k * RIDE.carGap));
+    const a = cars[0], b = trackAt(u + 0.002);
+    const dx = b[0] - a[0], dy = b[1] - a[1], dh = b[2] - a[2], l = Math.hypot(dx, dy, dh) || 1;
+    return { cars, dir: [dx / l, dy / l, dh / l] };
   }
 
   /** Where the Sea Wheel's gondola k hangs (sim x/y, height of its floor). */

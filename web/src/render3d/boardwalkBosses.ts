@@ -307,6 +307,9 @@ export class CaptainRig extends Rig {
 
 /** The Gala Queen (D-68): a 1930s excursion steamer, every porthole burning green-white (the Captain's
  *  ship offshore, and the one Summer's End brings in to the pier). */
+/** The Gala Queen's jackstaff at her stem head (in her own frame): where St. Elmo's fire burns (D-79). */
+export const GALA_STEM = { x: -236, top: 116 };
+
 export function galaQueenGeometry(): THREE.BufferGeometry {
   const sm = new ModelBuilder();
   const hull = weather(0x1a2024, 0.4, 0.05, 0x3a4a44);
@@ -320,6 +323,9 @@ export function galaQueenGeometry(): THREE.BufferGeometry {
     sm.add(cyl(13.2, 13.2, 12, 14, true), { col: PAL.ink, pos: [fx + 4, 174, 0], rot: [0, 0, -0.1], surf: SURF.paint });
   }
   sm.add(cyl(1.6, 1.6, 150, 6), { col: PAL.woodDark, pos: [-170, 120, 0], surf: SURF.wood });
+  // the jackstaff at the stem head and the iron cresset on it (D-79: Summer's End's fire burns there)
+  sm.add(cyl(1.4, 1.8, GALA_STEM.top - 50, 6), { col: PAL.woodDark, pos: [GALA_STEM.x, (GALA_STEM.top + 46) / 2, 0], surf: SURF.wood });
+  sm.add(cyl(5, 2.5, 7, 8, true), { col: PAL.iron, pos: [GALA_STEM.x, GALA_STEM.top, 0], surf: SURF.iron });
   sm.add(cyl(1.6, 1.6, 130, 6), { col: PAL.woodDark, pos: [180, 110, 0], surf: SURF.wood });
   const ghost = 0xb8ffe0;
   for (const [y, z, n, x0, dx] of [[32, 37.2, 18, -200, 23], [64, 29.2, 13, -120, 23], [93, 23.2, 8, -60, 23]] as [number, number, number, number, number][]) {

@@ -371,8 +371,10 @@ export const STAIRS: [number, number][] = [[-2900, 330], [-2000, 300], [-1100, 3
 }
 /** Is (x, y) clear of the coaster's support posts (lamps and palms never stand inside a bent)? */
 const clearOfBents = (x: number, y: number) => !BENTS.some((b) => Math.hypot(b.x - x, b.y - y) < 110);
+/** D-79: the station's front is lit by its own frosted windows (a lamp's glow there hid the train's shadow) */
+const byStation = (x: number) => x > BUILDING.station.x0 - 40 && x < BUILDING.station.x1 + 40;
 for (let x = -3800; x <= 3800; x += 400) {
-  if (clearOfBents(x, FACADE_Y + 40)) add({ kind: 'bw_lamp', x, y: FACADE_Y + 40 });
+  if (clearOfBents(x, FACADE_Y + 40) && !byStation(x)) add({ kind: 'bw_lamp', x, y: FACADE_Y + 40 });
   if (!STAIRS.some(([c, w]) => Math.abs(x - c) < w / 2 + 40) && clearOfBents(x, PROMENADE.y1 - 34)) add({ kind: 'bw_lamp', x, y: PROMENADE.y1 - 34, variant: 1 });
 }
 for (let x = -3600; x <= 3600; x += 400) {
@@ -478,9 +480,12 @@ const LIGHTS: LightDef[] = [
 // ---------------------------------------------------------------- Summer's End (the hidden quest; D-68)
 // Positions, tuning and Ada's lines. The solution is in docs/EASTER_EGG_BOARDWALK.md (developer-only).
 
-/** Ada's keepsakes: two for each of the park's four games; each night one of each pair is hers. */
+/**
+ * Ada's keepsakes: two for each of the four places in the park that kept one (two games, the shooting gallery
+ * and the Crane, and two rides, the Sea Wheel and the Undertow); each night one of each pair is hers.
+ */
 export const KEEPSAKES = ['pinwheel', 'tin pail', 'sailor doll', 'paper boat', 'silk ribbon', 'seahorse charm', 'jacks', 'kite'] as const;
-/** which game holds each keepsake: 0 the shooting gallery, 1 the Crane, 2 the Sea Wheel, 3 the Undertow */
+/** which holds each keepsake: 0 the shooting gallery, 1 the Crane, 2 the Sea Wheel, 3 the Undertow */
 export const KEEPSAKE_GAME = [2, 1, 0, 1, 3, 0, 3, 2];
 export const GAME_NAMES = ['the shooting gallery', 'the Crane', 'the Sea Wheel', 'the Undertow'];
 
@@ -508,6 +513,12 @@ export const SUMMERS_END = {
   short: { x: PIER_FIX.short.x, y: PIER_FIX.short.y - 30 },
   long: { x: PIER_FIX.long.x, y: PIER_FIX.long.y - 30 },
   berth: { x: PIER_FIX.berth.x - 50, y: PIER_FIX.berth.y },
+  /**
+   * D-79: the Gala Queen comes alongside the end deck's east edge, bow to the shore, with St. Elmo's fire at
+   * the head of her bow right beside the berth (here), after `arrive` seconds sailing in from the south.
+   */
+  bow: { x: PIER.end.x1 + 42, y: PIER_FIX.berth.y, h: 58 },
+  arrive: 4,
   fireTime: 120,
   /** the four tide lamps: the bait platform, the second lifeguard tower, the Pavilion stairs, the lift hill */
   lamps: [{ x: -2650, y: 1900 }, { x: 300, y: 610 }, { x: 250, y: -170 }, { x: 2290, y: -1700 }],
@@ -518,6 +529,20 @@ export const SUMMERS_END = {
   strikeCool: 1.3,
   finaleDelay: 4,
 };
+
+/**
+ * The Gala Queen's call sign as her horn sounds it and the lighthouse flashes it (seconds): a pause after the
+ * foghorn's press, then each blast (short or long) and a gap after it. D-79: real steamship blasts, longer
+ * than the old honks, alone over a hush (the app's `spotlight`).
+ */
+export const CALL = { lead: 0.4, short: 0.5, long: 1.4, gap: 0.45 };
+
+/** How long a call sign of `len` blasts (bit k set: blast k is long) takes, from the press to its last gap. */
+export function callLength(bits: number, len: number): number {
+  let t = CALL.lead;
+  for (let k = 0; k < len; k++) t += ((bits >> k) & 1 ? CALL.long : CALL.short) + CALL.gap;
+  return t;
+}
 
 /** Ada, through the shells (and Madame Marina's cards). Never instructions: what she remembers. */
 export const ADA = {
@@ -531,8 +556,10 @@ export const ADA = {
   ] as [string, string][],
   photo: ['That was me, the summer I was nine.', 'I had my things with me. Those ones, not the others.'],
   shelfTrue: (n: number): [string, string] => ['Yes… that one was mine.', `${n} of four`],
-  shelfFalse: ['That isn\'t mine.', 'mine is in the photograph'],
-  gamesOpen: ['The games kept the real ones. They always keep something.', 'win them back'],
+  /** D-79: a wrong souvenir puts back every one taken: all four, without a mistake */
+  shelfFalse: (n: number): [string, string] => (n > 0 ? ['That isn\'t mine. Everything goes back on the shelves.', 'start over: all four of mine, and not one other'] : ['That isn\'t mine.', 'start over: take all four of mine without a mistake']),
+  /** (D-79: two of the four are rides, not games) */
+  gamesOpen: ['The park kept the real ones. It always keeps something.', 'two games and two rides: win them back'],
   gameWon: (name: string, n: number): [string, string] => [`${name} gives it back.`, n < 4 ? `${n} of four` : 'all four'],
   galleryStart: ['Six ducks.', 'knock them all down before they get away'],
   galleryLost: ['They got away.', 'try again'],

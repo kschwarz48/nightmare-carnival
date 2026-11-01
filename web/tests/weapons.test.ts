@@ -22,6 +22,54 @@ function dummy(g: Game, x: number, y: number, id = 'possessed_stuffie'): Enemy {
   return e;
 }
 
+describe('knockback (D-79)', () => {
+  /** How far a push carries (its speed for its stagger). */
+  const reach = (e: Enemy) => e.kbT * Math.hypot(e.kbX, e.kbY);
+
+  it('lands a fifth softer, wears off under a stream of pushes, and recovers when left alone', () => {
+    const g = quiet();
+    const e = dummy(g, g.player.x + 200, g.player.y);
+    g.knockback(e, e.x - 10, e.y, 1);
+    // speed 0: pushed at the 60 floor, a fifth softer, for the full 0.12 s
+    expect(reach(e)).toBeCloseTo(0.12 * 60 * 0.8, 3);
+    const first = reach(e);
+    const seen = [first];
+    for (let i = 0; i < 4; i++) {
+      g.knockback(e, e.x - 10, e.y, 1);
+      seen.push(reach(e));
+    }
+    for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeLessThan(seen[i - 1]);
+    // five at once: a fifth of the wear-off's way per push (fatigue 5 → 5^-0.75 ≈ 0.3)
+    expect(seen[4]).toBeLessThan(first * 0.35);
+    // a few seconds left alone and it is nearly fresh again
+    for (let i = 0; i < 60 * 8; i++) g.tick();
+    e.kbT = 0;
+    g.knockback(e, e.x - 10, e.y, 1);
+    expect(reach(e)).toBeGreaterThan(first * 0.95);
+  });
+
+  it("nothing is knocked off a charge it has committed to (the Coaster Wraith rides its rail to the end)", () => {
+    const g = quiet();
+    const cases: [string, number[], number[]][] = [
+      ['coaster_wraith', [1, 2, 3], [0, 4]],
+      ['carousel_horse', [1, 2], [0, 3]],
+      ['shore_crawler', [2], [0, 1, 3]],
+    ];
+    for (const [id, braced, loose] of cases) {
+      for (const st of [...braced, ...loose]) {
+        const e = dummy(g, g.player.x + 300, g.player.y, id);
+        e.state = st;
+        e.kbT = 0;
+        e.kbFatigue = 0;
+        g.damageEnemy(e, 1, false, 3, e.x - 20, e.y, 'test');
+        if (braced.includes(st)) expect(e.kbT, `${id} state ${st}`).toBe(0);
+        else expect(e.kbT, `${id} state ${st}`).toBeGreaterThan(0);
+        g.despawnEnemy(e);
+      }
+    }
+  });
+});
+
 describe('the weapon audit (D-74)', () => {
   it('the Crystal Orbs shove what they hit straight out, and less each time the same creature is shoved again', () => {
     const g = quiet();

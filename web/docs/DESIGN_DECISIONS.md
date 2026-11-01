@@ -1096,3 +1096,78 @@ and teleports, and the prize wheel dull and see-through.
   and Full House; Mira's halo cutting with only the mirror, and nobody else's mirror doing so),
   `content.test.ts`, `overhaul.test.ts` (migration).
 
+### D-79 · Softer knockback that wears off and never breaks a charge, a clearer Summer's End, lit doorways, the coaster's headlamp and windows, recipes that read your own build
+- **The request** (the owner):
+  - knockback is a little too strong on every ability; it should have diminishing returns, and nothing
+    should be knocked back mid-charge (the Boardwalk's ghost coaster riders);
+  - Summer's End: the hint calls the four keepsake holders "games", but two are rides; the ship's call
+    can't be heard over a fight, and should sound like a ship's horn; the ship should come in beside the
+    pier, its bow by the fire you take; the hoist needs a live progress ring and a winch sound; taking a
+    wrong souvenir should put everything back ("start over") so all four must be taken without a mistake;
+    the fishing rod should sparkle;
+  - players don't see that the Arcade and the Gift Shop can be entered: light should pour out of their
+    doorways, in the colours of the lamps inside, by the lighting rules used so far;
+  - the coaster needs a headlamp, light spilling from its station's entrance and exit, and windows on the
+    station that show the train's shadow inside, to time the brake;
+  - some evolution recipes still don't show items the player has.
+- **Knockback** (`sim/game.ts`, `sim/constants.ts`, `sim/enemyAI.ts bracing`, `sim/weapons.ts`):
+  - a fifth softer on every source (`KB_SCALE` 0.8: weapons, the Strongman's shove, the Crystal Orbs);
+  - it wears off: every push adds one to the creature's fatigue (fading over 1.2 s, the orbs' D-74 rule
+    made general and shared) and lands at fatigue^-0.75, both its distance and its stagger. A creature pushed
+    4 / 2 / 1 / 0.5 times a second is moved 29 / 45 / 65 / 86% as far as a fresh one, i.e. 23 / 36 / 52 /
+    68% of before with the cut. The orbs keep their steeper ^-1.25 on the shared count;
+  - braced: nothing is knocked off a charge, leap, lunge or lash, or off the lane, rail or wedge it has drawn
+    for one (the Coaster Wraith's rail and ride, the Carousel Horse's lane and charge, the Wind-Up Monkey's
+    and Bumper Car's dash, the Jack's and Marionette's leap, the Doppelgänger's lunge, the Shore Crawler's
+    dash, the Taffy Horror's lash, the Lantern Angler's bite and lunge), and Cosmic Convergence's pull skips
+    them and anything immune to knockback (it used to drag the gallery's tin ducks off their lane).
+- **Summer's End** (`sim/quest/summersEnd.ts`, `data/boardwalk.ts`, `app.ts`, `render3d/world/boardwalk/quest.ts`,
+  solution: `docs/EASTER_EGG_BOARDWALK.md`):
+  - **The wording:** "The park kept the real ones. It always keeps something." / "two games and two rides:
+    win them back" (was "The games kept the real ones").
+  - **The call** (`audio/audio.ts spotlight`, `audio/synth.ts shipHorn`): while the Gala Queen sounds her
+    call sign, the music, effects and ambience all sink to 6% and her horn plays above them at full
+    strength (a wrong answer's replay too; the chains' answers and her arrival get a lighter hush). The horn
+    is a steamship's now (two low brassy tones a minor third apart, F♯2 and A2, with a sub, swelling in as
+    the steam comes up, a breath of steam and a soft reflection off the water), not the barker's car horn:
+    short blasts 0.5 s, long 1.4 s, gaps 0.45 s (`CALL`; the lighthouse flashes the same timing). The pier's
+    foghorn answers on the chains with the same horn pitched up.
+  - **She comes alongside:** she sails in from the south over 4 s (sounding her horn) and lies along the end
+    deck's east edge, bow to the shore, with St. Elmo's fire on a jackstaff at the head of her bow, 82 units
+    from the berth (she used to sit ~470 out in the water, her bow nowhere near the fire). The fire can't be
+    taken until she is alongside (`arriveT`, replicated).
+  - **The hoist:** the ring to stand in (170 around the bell) drawn on the seabed with the winch's progress
+    filling round it live, brighter while someone is in it; an overhead bar over the bell ("Winching up ·
+    stay by the bell (19s)", "Slipping back · stand by the bell!", "Stand in the ring to winch the bell up",
+    after the Fun House projector's); the winch's ratchet, drum and chain while it rises, a slipping clack
+    and groan while it settles back.
+  - **The shelf:** a wrong souvenir puts back every one taken (they glint back onto the stands): "That isn't
+    mine. Everything goes back on the shelves." / "start over: all four of mine, and not one other".
+  - **The rod** glints at the bait shop: a warm halo, a star of light running up and down it, gold sparks.
+- **Lit doorways** (`render3d/world/boardwalk/spill.ts`, `lighting.ts`): each of the Arcade's three doors
+  and the Gift Shop's two glows in its opening and pours a fan of light across the boards, brightest at the
+  threshold and fading as it spreads, with a pool light where it lands and dust turning in it. The doorway
+  is the visible source; nothing flickers (a slow breath). Each side of a door takes the colour of the lamps
+  nearest it inside: the Arcade's south doors cold machine cyan, its east door cyan on one side and the
+  Crane's pink on the other, the Gift Shop warm amber. A doorway's glow fades while you are inside.
+- **The coaster** (`rides.ts`, `structures.ts`, `spill.ts`, `lighting.ts`):
+  - a brass headlamp on the lead car's figurehead, with a glow, a beam ahead along the track and a pool of
+    light on the track before it (it shows from across the map on the lift hill and the return leg);
+  - the station is closed in: a row of six frosted windows on the promenade, lit warm by its work lamps,
+    where the train's shadow crosses as it comes home and stands while it waits (the cars run empty; their
+    shadows carry a rider in every seat, arms up); a timber portal in each side wall where the track runs
+    in and out, pouring the same light onto the track; the two promenade lamps in front of the station are
+    gone (their glow hid the shadow), and the windows light the boards there instead.
+- **Recipes that read your own build** (`ui/recipes.ts`, `ui/hud.ts`, `sim/game.ts`, `net/session.ts`): two
+  causes. In co-op, a level-up set off by a teammate picking up the ticket was shown against the
+  teammate's weapons and passives (the bands, and the reroll/banish counts), because the hand was dealt
+  while the game's context pointed at them. And a guest's next hand could arrive before the snapshot
+  carrying the pick just made. Now every hand carries the build it was dealt from (`DraftBuild`), the
+  bands read that build of the player it is shown to (`kitOf`), and the tray's tooltips read the local
+  player explicitly. Solo was never affected.
+- **Tests:** `weapons.test.ts` (a fifth softer, wearing off, recovering; braced states for the Coaster Wraith,
+  the Carousel Horse and the Shore Crawler), `summersEnd.test.ts` (a wrong souvenir puts back two taken; the
+  Gala Queen sails in before her fire can be taken, within reach of the berth; `arriveT` reaches a guest's
+  mirror), `recipes.test.ts` (new: a teammate's level-up shows each player their own build; a guest's hand
+  counts the pick it carries; every evolution reads right; a passive's card), `net.test.ts` (every guest
+  hand carries the host's build).

@@ -175,3 +175,21 @@ and Demolition Derby is **the Last Lap**. Their numbers are the ones above; only
 and sound changed. The Undertow is sold in the Lost & Found after the Leviathan, and evolves with Running
 Shoes, which beating the Commodore unlocks. The Funhouse Mirror now evolves with Mira's Hand Mirror.
 
+## D-79: knockback a fifth softer, wearing off, never mid-charge
+
+Every push now lands at 80% and wears off with repeated pushes on the same creature (fatigue^-0.75, fading
+over 1.2 s; see DESIGN_DECISIONS D-79). The knockback-heavy weapons, two seeds, before → after (horde dps ·
+night kills/min · night hits taken/min; boss dps is unchanged, since bosses never took knockback):
+
+| Weapon | Base Lv 8 | Evo Lv 1 | Evo Lv 8 + kit |
+|---|---|---|---|
+| Mallet / Whack Frenzy | 2.7k → 3.8k · 76 → 62 · 8 → 6 | 7.9k → 8.0k · 91 → 86 · 8 → 9 | 25k → 26k · 142 → 160 · 16 → 9 |
+| Undertow / Last Lap | 1.2k → 1.1k · 25 → 16 · 2 → 3 | 4.9k → 6.3k · 51 → 56 · 4 → 4 | 18k → 16k · 70 → 73 · 11 → 9 |
+| Cannon / Cannonball Special | 2.9k → 3.6k · 56 → 56 · 12 → 19 | 4.0k → 4.2k · 89 → 91 · 5 → 7 | 13k → 14k · 746 → 796 · 2 → 2 |
+| Crystal Orbs / Cosmic Convergence | 1.0k → 1.0k · 52 → 45 · 5 → 5 | 5.0k → 5.1k · 62 → 86 · 17 → 4 | 18k → 17k · 64 → 82 · 12 → 7 |
+| Strongman Bell / High Striker | 3.6k → 3.7k · 72 → 77 · 6 → 7 | 5.6k → 4.3k · 94 → 90 · 17 → 8 | 28k → 27k · 442 → 482 · 6 → 6 |
+
+Weapons that used to shove the crowd out of their own reach hit more of it (the Mallet +41%, the Cannon
++24% in the horde); High Striker at Lv 1 lost 23% there; the rest moved within the bench's noise. Nothing
+swung far enough to retune here: the change is the owner's call on feel, and these numbers only rule out
+extremes.

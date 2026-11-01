@@ -4,8 +4,9 @@
 //                 Ada, the Commodore's daughter, speaks through it.
 //   1 MARINA      Hold it to the Arcade's drowned fortune machine: Madame Marina prints a card.
 //   2 PHOTOGRAPH  The 1933 photograph in the Gift Shop shows Ada with four keepsakes; the shelves hold
-//                 eight look-alike souvenirs. Take the four that are hers.
-//   3 GAMES       The park's games kept the real ones: knock down the shooting gallery's six ducks in
+//                 eight look-alike souvenirs. Take the four that are hers, without a mistake: a wrong one
+//                 puts every souvenir back on the shelves (D-79).
+//   3 GAMES       Two games and two rides kept the real ones: knock down the shooting gallery's six ducks in
 //                 time, drop the Crane's claw on its prize, catch the Sea Wheel's green-lantern car at the
 //                 bottom, brake the Undertow as it comes home. Any order.
 //   4 WRECK       At low tide, set each keepsake in the Gala Queen's porthole engraved with it (each
@@ -14,8 +15,8 @@
 //                 dock (cast, wait for the bite, pull).
 //   6 FOGHORN     Unlock the foghorn: the drowned ship answers with her call sign (short and long blasts,
 //                 a new one every night; the lighthouse flashes it too). Answer on the SHORT/LONG chains.
-//   7 GALA QUEEN  She moors at the pier's end. Take St. Elmo's fire from her bow and carry it to the four
-//                 tide lamps before it burns out (lit lamps stay lit; more fire waits on the ship).
+//   7 GALA QUEEN  She sails in alongside the pier's end (D-79). Take St. Elmo's fire from her bow and carry
+//                 it to the four tide lamps before it burns out (lit lamps stay lit; more fire waits on the ship).
 //   8 LOW WATER   The sea goes out, all the way out, and stays out: the seabed shows the founder's bell.
 //   9 BELL        Stay with the bell while the pier's hoist winches it up (it settles back when left).
 //  10 LEDGER      Read the Commodore's ledger in the Gift Shop's back cabinet; the bell follows its reader.
@@ -89,6 +90,8 @@ export class SummersEndChain extends QuestChain {
   cast = 0;
   castT = 0;
   biteAt = 0;
+  /** seconds until the Gala Queen is alongside the berth after she answers (D-79: she sails in first) */
+  arriveT = 0;
   /** who carries St. Elmo's fire, and how long it has left; which tide lamps are lit */
   fireBy = 255;
   fireT = 0;
@@ -197,7 +200,7 @@ export class SummersEndChain extends QuestChain {
         list.push({ kind: 'long', i: 1, x: S.long.x, y: S.long.y, label: 'Pull the LONG chain' });
         break;
       case SE.GalaQueen:
-        if (this.fireBy === 255 || this.fireBy === who) list.push({ kind: 'fire', i: 0, x: S.berth.x, y: S.berth.y, label: this.fireBy === who ? 'Take fresh fire' : "Take St. Elmo's fire" });
+        if (this.arriveT <= 0 && (this.fireBy === 255 || this.fireBy === who)) list.push({ kind: 'fire', i: 0, x: S.berth.x, y: S.berth.y, label: this.fireBy === who ? 'Take fresh fire' : "Take St. Elmo's fire" });
         if (this.fireBy === who) S.lamps.forEach((L, i) => { if (!(this.lit & (1 << i))) list.push({ kind: 'lamp', i, x: L.x, y: L.y, label: 'Light the tide lamp' }); });
         break;
       case SE.Ledger:
@@ -266,6 +269,7 @@ export class SummersEndChain extends QuestChain {
         }
         break;
       case SE.GalaQueen:
+        if (this.arriveT > 0) this.arriveT = Math.max(0, this.arriveT - dt);
         if (this.fireBy !== 255) {
           this.fireT -= dt;
           if (this.fireT <= 0) {
@@ -345,7 +349,12 @@ export class SummersEndChain extends QuestChain {
             this.stage = SE.Games;
             this.cue('se_games', {});
           }
-        } else this.cue('se_shelf_false', { x: it.x, y: it.y, a: it.i });
+        } else {
+          // D-79: one wrong souvenir and every one taken goes back on the shelves (b: those that do)
+          const back = this.taken;
+          this.taken = 0;
+          this.cue('se_shelf_false', { x: it.x, y: it.y, a: it.i, b: back });
+        }
         break;
       }
       case 'gallery':
@@ -415,6 +424,7 @@ export class SummersEndChain extends QuestChain {
           this.heard++;
           if (this.heard >= this.callLen) {
             this.stage = SE.GalaQueen;
+            this.arriveT = S.arrive;
             this.cue('se_moored', { x: S.berth.x, y: S.berth.y });
           }
         } else {
@@ -539,7 +549,7 @@ export class SummersEndChain extends QuestChain {
       this.stage, this.conch, this.keepsakes, this.taken, (this.photoSeen ? 1 : 0) | (this.bound ? 2 : 0), this.won, pack(this.engraved), pack(this.holes),
       this.greenCar, this.callSign, this.callLen, this.heard, this.rodBy, this.cast, this.galleryHit, Math.max(0, Math.round(this.galleryT * 8)),
       this.fireBy, Math.max(0, Math.round(this.fireT)), this.lit, Math.round(this.retreat * 250), Math.round((this.bellT / SUMMERS_END.bell.hold) * 250),
-      this.bellBy, this.strikes, this.galleryT >= 0 ? 1 : 0,
+      this.bellBy, this.strikes, this.galleryT >= 0 ? 1 : 0, Math.round(this.arriveT * 8),
     ];
   }
 
@@ -570,6 +580,7 @@ export class SummersEndChain extends QuestChain {
     this.bellT = (v[20] / 250) * SUMMERS_END.bell.hold;
     this.bellBy = v[21];
     this.strikes = v[22];
+    this.arriveT = (v[24] ?? 0) / 8;
   }
 }
 

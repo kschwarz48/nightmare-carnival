@@ -115,13 +115,22 @@ describe("Summer's End, solo (D-68)", () => {
     // 1: Madame Marina
     pressWhen(g, S.marina.x, S.marina.y);
     expect(ch.stage).toBe(SE.Photograph);
-    // 2: the photograph, then the four souvenirs that are hers (a look-alike is refused)
+    // 2: the photograph, then the four souvenirs that are hers, without a mistake (D-79: a look-alike puts
+    // back every one taken)
     pressWhen(g, S.photo.x, S.photo.y);
     expect(ch.photoSeen).toBe(true);
+    const mine = [0, 1, 2, 3, 4, 5, 6, 7].filter((i) => ch.keepsakes & (1 << i));
     const wrong = [0, 1, 2, 3, 4, 5, 6, 7].find((i) => !(ch.keepsakes & (1 << i)))!;
+    const backs: number[] = [];
+    g.bus.on('quest', (q) => q.event === 'se_shelf_false' && backs.push(q.b ?? -1));
+    pressWhen(g, S.shelf[mine[0]][0], S.shelf[mine[0]][1]);
+    pressWhen(g, S.shelf[mine[1]][0], S.shelf[mine[1]][1]);
+    expect(ch.taken).toBe((1 << mine[0]) | (1 << mine[1]));
     pressWhen(g, S.shelf[wrong][0], S.shelf[wrong][1]);
     expect(ch.taken).toBe(0);
-    for (let i = 0; i < 8; i++) if (ch.keepsakes & (1 << i)) pressWhen(g, S.shelf[i][0], S.shelf[i][1]);
+    expect(ch.stage).toBe(SE.Photograph);
+    expect(backs).toEqual([(1 << mine[0]) | (1 << mine[1])]);
+    for (const i of mine) pressWhen(g, S.shelf[i][0], S.shelf[i][1]);
     expect(ch.stage).toBe(SE.Games);
     // 3a: the shooting gallery: knock down all six ducks in time
     pressWhen(g, S.gallery.x, S.gallery.y);
@@ -179,8 +188,12 @@ describe("Summer's End, solo (D-68)", () => {
       pressWhen(g, at.x, at.y);
     }
     expect(ch.stage).toBe(SE.GalaQueen);
-    // 7: St. Elmo's fire to the four tide lamps
-    pressWhen(g, S.berth.x, S.berth.y);
+    // 7: she sails in to the berth (D-79: her fire can't be taken until she is alongside), then St. Elmo's
+    // fire to the four tide lamps
+    expect(ch.arriveT).toBeGreaterThan(0);
+    step(g, S.berth.x, S.berth.y, 0, true);
+    expect(ch.fireBy).toBe(255);
+    pressWhen(g, S.berth.x, S.berth.y, () => ch.arriveT <= 0, 0, S.arrive + 1);
     expect(ch.fireBy).toBe(0);
     for (const L of S.lamps) pressWhen(g, L.x, L.y);
     expect(ch.stage).toBe(SE.LowWater);
@@ -291,6 +304,7 @@ describe("Summer's End in co-op (D-68)", () => {
     ch.retreat = 0.6;
     ch.won = 5;
     ch.lit = 3;
+    ch.arriveT = 2.5;
     // the snapshot carries it all to a guest's mirror
     const mirror = new Game({ ...host.cfg, godMode: false });
     const rep = new Replica(mirror, 1);
@@ -310,5 +324,26 @@ describe("Summer's End in co-op (D-68)", () => {
     expect(m.won).toBe(5);
     expect(m.lit).toBe(3);
     expect(m.retreat).toBeCloseTo(0.6, 2);
+    expect(m.arriveT).toBeCloseTo(2.5, 1);
+  });
+});
+
+describe("Summer's End: the Gala Queen comes alongside (D-79)", () => {
+  it('sails in for a few seconds, then offers her fire at the berth, beside her bow', () => {
+    const g = bw({ seed: 5 });
+    const ch = chainOf(g);
+    ch.stage = SE.Foghorn;
+    for (let k = 0; k < ch.callLen; k++) {
+      const at = (ch.callSign >> k) & 1 ? S.long : S.short;
+      pressWhen(g, at.x, at.y);
+    }
+    expect(ch.stage).toBe(SE.GalaQueen);
+    expect(ch.arriveT).toBeGreaterThan(0);
+    expect(ch.interaction(S.berth.x, S.berth.y)).toBeNull();
+    stand(g, S.berth.x, S.berth.y, S.arrive);
+    expect(ch.arriveT).toBe(0);
+    expect(ch.interaction(S.berth.x, S.berth.y)?.kind).toBe('fire');
+    // her bow (where the fire burns) lies just off the end deck's edge, within reach of the berth
+    expect(Math.hypot(S.bow.x - S.berth.x, S.bow.y - S.berth.y)).toBeLessThan(110);
   });
 });

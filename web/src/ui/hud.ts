@@ -8,10 +8,14 @@ import { PASSIVES, WEAPONS } from '../data/weapons';
 import { EVENTS } from '../data/events';
 import type { Assets } from '../render/assets';
 import type { Game } from '../sim/game';
+import type { Player } from '../sim/player';
 import type { DraftOption } from '../sim/draft';
-import { isUnlocked, readyEvolutions } from '../sim/draft';
+import { readyEvolutions } from '../sim/draft';
+import { kitOf, passiveFeeds, recipeState, type Kit } from './recipes';
 import { UR, type UnreflectedChain } from '../sim/quest/unreflected';
+import { SE, type SummersEndChain } from '../sim/quest/summersEnd';
 import { UNREFLECTED } from '../data/funhouse';
+import { SUMMERS_END } from '../data/boardwalk';
 import { FocusNav, fmtTime, h, uiZoom } from './dom';
 
 /** Player colours for UI (Player 1 lamp-gold, 2 ghost-teal, 3 rose, 4 lime, 5 violet, 6 tangerine); match PLAYER_COLS and `.p1`…`.p6` in style.css. */
@@ -57,17 +61,14 @@ export interface CoopHud {
  * with their names, each requirement ticked once it's met (only this player's own passive counts, D-74); the
  * band lights up gold when it's ready. A weapon you own is lit even below its top level (D-75), dim if you
  * don't have it. `levelAfter` is the weapon's level once an offered card is taken; `passiveAfter` marks a
- * recipe shown on the passive's own card (taking it brings the passive).
+ * recipe shown on the passive's own card (taking it brings the passive). D-79: read from the kit of the
+ * player it is shown to (see `recipes.ts`).
  */
-export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?: number, passiveAfter = false): HTMLElement | null {
-  const d = WEAPONS[weaponId];
-  if (!d?.evolvesTo || !d.evoPassive) return null;
-  const evo = WEAPONS[d.evolvesTo], pas = PASSIVES[d.evoPassive];
-  const owned = levelAfter !== undefined || g.weapons.has(weaponId);
-  const lv = Math.min(d.maxLevel, levelAfter ?? g.weapons.get(weaponId)?.level ?? 0);
-  const haveLv = lv >= d.maxLevel;
-  const mine = passiveAfter || g.player.passiveLevel(d.evoPassive) >= 1;
-  const ready = haveLv && mine;
+export function evoRecipe(assets: Assets, kit: Kit, weaponId: string, levelAfter?: number, passiveAfter = false): HTMLElement | null {
+  const st = recipeState(kit, weaponId, levelAfter, passiveAfter);
+  if (!st) return null;
+  const d = WEAPONS[weaponId], evo = WEAPONS[d.evolvesTo!], pas = PASSIVES[d.evoPassive!];
+  const { owned, lv, haveLv, mine, ready } = st;
   const part = (icon: string, name: string, ok: boolean | null | 'have', note: string) =>
     h('div', { class: `rp${ok === null ? ' out' : ok === 'have' ? ' have' : ok ? ' ok' : ''}` }, h('img', { src: icon, alt: '' }), h('b', {}, name), note ? h('small', {}, `${ok === true ? '✓ ' : ''}${note}`) : null);
   return h('div', { class: `recipe${ready ? ' ready' : ''}` },
@@ -75,7 +76,7 @@ export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?
     h('div', { class: 'rrow' },
       part(assets.weaponIcon(weaponId), d.name, haveLv ? true : owned ? 'have' : false, owned ? `Lv ${lv}/${d.maxLevel}` : 'not owned'),
       h('span', { class: 'op' }, '+'),
-      part(assets.passiveIcon(d.evoPassive), pas.name, mine, passiveAfter ? 'this card' : mine ? 'have it' : 'need it'),
+      part(assets.passiveIcon(d.evoPassive!), pas.name, mine, passiveAfter ? 'this card' : mine ? 'have it' : 'need it'),
       h('span', { class: 'op' }, '='),
       part(assets.weaponIcon(evo.id), evo.name, null, ''),
     ));
@@ -83,6 +84,8 @@ export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?
 
 /** The overhead bar slot the Fun House projector's warm-up uses (no creature has a negative uid). */
 const PROJECTOR_BAR = -7001;
+/** ...and the Boardwalk hoist's, winching the founder's bell up (D-79). */
+const BELL_BAR = -7002;
 
 /** A quest whisper stays on screen this many times as long as it asks for (D-71). */
 const WHISPER_HOLD = 2;
@@ -103,6 +106,8 @@ export class Hud {
   /** the equipment bar's hover tooltip, and the night it describes (D-71) */
   private tip = h('div', { class: 'tray-tip hidden' });
   private tipGame: Game | null = null;
+  /** whose build the tray's tooltips read (the local player, as the HUD last drew it; D-79) */
+  private tipWho: Player | null = null;
   private statsR: HTMLDivElement;
   private boss: HTMLDivElement;
   private toast: HTMLDivElement;
@@ -138,6 +143,8 @@ export class Hud {
   private bars = new Map<number, { el: HTMLDivElement; fill: HTMLElement; key: string }>();
   /** the Fun House projector's warm-up as last seen (D-76): its charge, rising (1) / falling (-1) / still, and when it moved */
   private proj = { v: 0, trend: 0, at: 0 };
+  /** the founder's bell on the hoist as last seen (D-79): its progress, rising / slipping / still, when it moved (ms) */
+  private bellBar = { v: 0, trend: 0, at: 0 };
   private arrowLayer: HTMLDivElement;
   private arrows: HTMLDivElement[] = [];
   private markers: HTMLDivElement[] = [];
@@ -191,6 +198,7 @@ export class Hud {
   update(g: Game, fps: number, dt: number, screen: HudScreen): void {
     this.tipGame = g;
     const p = g.player;
+    this.tipWho = p;
     this.xpFill.style.width = `${Math.min(100, (g.xp / g.xpToNext) * 100)}%`;
     this.lvl.textContent = String(g.level);
     const t = Math.min(g.time, DAWN_TIME);
@@ -395,6 +403,20 @@ export class Hud {
       const P = UNREFLECTED.projector;
       put(PROJECTOR_BAR, P.x, P.y, 230, ch.charge / UNREFLECTED.charge, '#ffcf6a', label, [0.25, 0.5, 0.75]);
     }
+    // the founder's bell (D-79): how far the hoist has winched it, live, and what it wants from you
+    const se = g.mapId === 'boardwalk' ? g.quests?.get<SummersEndChain>('summers_end') : undefined;
+    if (se && se.stage === SE.Bell) {
+      const bl = this.bellBar, now = performance.now();
+      if (se.bellT !== bl.v) {
+        bl.trend = se.bellT > bl.v ? 1 : -1;
+        bl.v = se.bellT;
+        bl.at = now;
+      } else if (now - bl.at > 600) bl.trend = 0;
+      const B = SUMMERS_END.bell;
+      const left = Math.max(1, Math.ceil(B.hold - se.bellT));
+      const label = bl.trend > 0 ? `Winching up · stay by the bell (${left}s)` : bl.trend < 0 ? 'Slipping back · stand by the bell!' : 'Stand in the ring to winch the bell up';
+      put(BELL_BAR, B.x, B.y, 190, se.bellT / B.hold, '#ffcf6a', label, [0.25, 0.5, 0.75]);
+    }
     for (const [uid, b] of this.bars) {
       if (seen.has(uid)) continue;
       b.el.remove();
@@ -598,27 +620,27 @@ export class Hud {
    * level brings, and its evolution recipe (or, for a passive, which evolutions it feeds).
    */
   private showTip(slot: HTMLElement, kind: 'weapon' | 'passive', id: string): void {
-    const g = this.tipGame;
-    if (!g) return;
-    const p = g.player;
+    const g = this.tipGame, p = this.tipWho;
+    if (!g || !p) return;
+    const kit = kitOf(g, p);
     const body: (HTMLElement | null)[] = [];
     if (kind === 'weapon') {
-      const d = WEAPONS[id], w = g.weapons.get(id), lv = w?.level ?? 1;
+      const d = WEAPONS[id], lv = kit.weapons.get(id) ?? 1;
       const next = lv < d.maxLevel ? d.levelText?.[lv + 1] : '';
       body.push(
         h('div', { class: 'tt-head' }, h('img', { src: this.assets.weaponIcon(id), alt: '' }), h('div', {}, h('b', {}, d.name), h('small', {}, `${d.isEvolution ? '✦ Evolution · ' : ''}Level ${lv} / ${d.maxLevel}`))),
         h('div', { class: 'tt-desc' }, d.desc),
         next ? h('div', { class: 'tt-next' }, h('span', {}, 'Next level'), next) : lv >= d.maxLevel ? h('div', { class: 'tt-next max' }, 'Top level reached') : null,
-        d.isEvolution && d.evolvedFrom ? h('div', { class: 'tt-note' }, `Evolved from ${WEAPONS[d.evolvedFrom].name}`) : evoRecipe(this.assets, g, id),
+        d.isEvolution && d.evolvedFrom ? h('div', { class: 'tt-note' }, `Evolved from ${WEAPONS[d.evolvedFrom].name}`) : evoRecipe(this.assets, kit, id),
       );
     } else {
-      const d = PASSIVES[id], lv = p.passiveLevel(id);
+      const d = PASSIVES[id], lv = kit.passives.get(id) ?? 0;
       const feeds = Object.values(WEAPONS).filter((wd) => wd.evoPassive === id && !wd.isEvolution);
-      const owned = feeds.filter((wd) => g.weapons.has(wd.id));
+      const owned = feeds.filter((wd) => kit.weapons.has(wd.id));
       body.push(
         h('div', { class: 'tt-head' }, h('img', { src: this.assets.passiveIcon(id), alt: '' }), h('div', {}, h('b', {}, d.name), h('small', {}, `Passive · Level ${lv} / ${d.maxLevel}`))),
         h('div', { class: 'tt-desc' }, `${d.desc} per level`),
-        ...owned.map((wd) => evoRecipe(this.assets, g, wd.id)),
+        ...owned.map((wd) => evoRecipe(this.assets, kit, wd.id)),
         !owned.length && feeds.length ? h('div', { class: 'tt-note' }, `Evolves ${feeds.map((wd) => `${wd.name} into ${WEAPONS[wd.evolvesTo!].name}`).join(' · ')}`) : null,
       );
     }
@@ -681,9 +703,13 @@ export class DraftView {
 
   private banishMode = false;
 
-  show(g: Game, options: DraftOption[]): void {
+  /**
+   * `who` is the player the hand was dealt to and `kit` their build (D-79: both used to come from the game's
+   * context, which pointed at whoever picked up the ticket that set off the level-up).
+   */
+  show(g: Game, options: DraftOption[], who: Player, kit: Kit): void {
     this.root.classList.remove('hidden');
-    const p = g.player;
+    const p = who;
     const cards = options.map((o, i) => {
       const icon = o.kind === 'passive' ? this.assets.passiveIcon(o.refId) : o.kind === 'heal' ? this.assets.passiveIcon('funnel_cake') : o.kind === 'voucher' ? this.assets.passiveIcon('coin_purse') : this.assets.weaponIcon(o.kind === 'evolution' ? WEAPONS[o.refId].evolvesTo! : o.refId);
       const evoLv = o.kind === 'level_weapon' && WEAPONS[o.refId]?.isEvolution;
@@ -691,13 +717,11 @@ export class DraftView {
       // the evolution it leads to, as a recipe band (D-71): weapon + passive = evolution, ticked as you go
       let hint = '';
       const recipes: (HTMLElement | null)[] = [];
-      if (o.kind === 'new_weapon' || o.kind === 'level_weapon') recipes.push(evoRecipe(this.assets, g, o.refId, o.level));
+      if (o.kind === 'new_weapon' || o.kind === 'level_weapon') recipes.push(evoRecipe(this.assets, kit, o.refId, o.level));
       else if (o.kind === 'passive') {
         // every evolution this passive feeds (D-75: only those of weapons already owned showed, and dim), the
         // ones whose weapon you have first and lit; a weapon that has already evolved needs it no more
-        const feeds = Object.values(WEAPONS).filter((w) => w.evoPassive === o.refId && !w.isEvolution && !g.weapons.list.some((x) => x.def.evolvedFrom === w.id) && (g.weapons.has(w.id) || isUnlocked(g, w.unlock)));
-        feeds.sort((a, b) => Number(g.weapons.has(b.id)) - Number(g.weapons.has(a.id)));
-        for (const w of feeds) recipes.push(evoRecipe(this.assets, g, w.id, undefined, true));
+        for (const w of passiveFeeds(kit, o.refId)) recipes.push(evoRecipe(this.assets, kit, w, undefined, true));
       } else if (o.kind === 'evolution') hint = `Replaces ${WEAPONS[o.refId].name}`;
       const rarityName = o.rarity === 'evolution' ? '✦ EVOLUTION ✦' : o.rarity.toUpperCase();
       return h('div', { class: `card ${o.rarity}${o.kind === 'voucher' ? ' voucher' : ''}${o.disabled ? ' disabled' : ''}`, 'data-nav': o.disabled ? undefined : '', 'data-default': i === 0 ? '' : undefined, onclick: () => (o.disabled ? undefined : this.banishMode ? this.doBanish(i) : this.onPick(i)) },

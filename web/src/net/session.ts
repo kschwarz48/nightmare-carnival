@@ -9,6 +9,7 @@ import type { MapId } from '../data/maps';
 import { BUILD } from '../platform/updates';
 import type { Game, GameEvents, RunConfig } from '../sim/game';
 import type { FxEvent } from '../sim/fx';
+import { buildOf } from '../sim/draft';
 import { StringDict, Writer } from './codec';
 import { randomToken } from './codes';
 import type { NetLink } from './link';
@@ -674,7 +675,9 @@ export class HostSession {
 
   private draftMsg(g: Game, i: number, options: unknown): HostMsg {
     const p = g.players[i];
-    return { t: 'ev', type: 'draft', e: { options, player: i, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, level: g.level } };
+    // the build the hand was dealt from rides with it (D-79): the next hand can arrive before the snapshot
+    // carrying the pick just made, and the recipe bands must count that pick
+    return { t: 'ev', type: 'draft', e: { options, player: i, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, level: g.level, build: buildOf(p) } };
   }
 
   // ------------------------------------------------------------------ the run

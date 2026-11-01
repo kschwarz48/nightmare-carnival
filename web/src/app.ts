@@ -18,6 +18,7 @@ import { WEAPONS, PASSIVES } from './data/weapons';
 import { ENEMIES } from './data/enemies';
 import { DIFFICULTIES } from './data/difficulty';
 import { DraftView, Hud, PLAYER_CSS, type HudScreen } from './ui/hud';
+import { kitOf } from './ui/recipes';
 import { ChatBox } from './ui/chat';
 import { perf, SEC } from './core/perf';
 
@@ -37,7 +38,8 @@ import { LAST_SONG } from './data/quests';
 import { QUEST_UNLOCKS, UNLOCKS } from './data/meta';
 import { MIRA, PERFORMER_NAMES, PERFORMER_NOTES } from './data/funhouse';
 import type { UnreflectedChain } from './sim/quest/unreflected';
-import { ADA, GAME_NAMES, KEEPSAKES, TIDE, nextTideTurn, shoreMix } from './data/boardwalk';
+import { ADA, CALL, GAME_NAMES, KEEPSAKES, SUMMERS_END, TIDE, callLength, nextTideTurn, shoreMix } from './data/boardwalk';
+import { SE, type SummersEndChain } from './sim/quest/summersEnd';
 import type { QuestCue } from './sim/quest';
 import { FocusNav, h, morph, uiZoom, zoomFor } from './ui/dom';
 import * as S from './ui/screens';
@@ -181,6 +183,8 @@ export class App {
   private guestPrizeAt = -1;
   /** the Boardwalk's last announced turn of the tide (its time, rounded), so each is told once */
   private tideSaid = -1;
+  /** the hoist's winch as last heard (D-79): the bell's progress, rising (1) / slipping (-1) / still, when it moved, the next sound */
+  private winch = { v: 0, trend: 0, at: 0, next: 0 };
   private chestQueue: (() => void)[] = [];
 
   constructor() {
@@ -568,7 +572,9 @@ export class App {
     g.bus.on('levelup', () => a.play('levelup', { vol: 0.55 }));
     g.bus.on('draft', (e) => {
       if (!mine(e.player)) return;
-      this.draft.show(g, e.options);
+      // the hand reads the build of the player it was dealt to, as it was dealt (D-79)
+      const who = g.players[e.player ?? this.localIndex] ?? g.player;
+      this.draft.show(g, e.options, who, kitOf(g, who, e.build));
       this.tutorial('draft', 'Pick one prize. Weapons level to <b>8</b>; a maxed weapon + its matching passive can <b>EVOLVE</b>.');
     });
     g.bus.on('player_hurt', (e) => {
@@ -972,15 +978,20 @@ export class App {
       this.renderer.fx.screenFlashCol = [r, gg, b];
     };
     const bell = (pitch: number, vol = 0.5) => a.play('bellnote', { vol, pitch, pan: pan(q.x) });
-    /** the call sign on the horn (and the lighthouse's lens), from far out on the water */
+    /**
+     * the call sign on the ship's horn (and the lighthouse's lens), from far out on the water. D-79: it could
+     * not be heard over a fight, so everything else sinks very low while it sounds, and the horn is a
+     * steamship's (it was the barker's car horn)
+     */
     const call = () => {
       const bits = q.a ?? 0, len = q.b ?? 4;
       this.renderer.playCallSign(bits, len);
-      let t = 400;
+      a.spotlight(callLength(bits, len) + 0.6);
+      let t = CALL.lead;
       for (let k = 0; k < len; k++) {
         const long = (bits >> k) & 1;
-        setTimeout(() => a.play(long ? 'conch' : 'horn', { vol: 0.7, pitch: long ? 0.8 : 0.6 }), t);
-        t += (long ? 900 : 350) + 350;
+        setTimeout(() => a.play(long ? 'shiphorn_l' : 'shiphorn_s', { vol: 1.3, spot: true }), t * 1000);
+        t += (long ? CALL.long : CALL.short) + CALL.gap;
       }
     };
     switch (q.event) {
@@ -1013,10 +1024,19 @@ export class App {
         bell(1 + (q.b ?? 1) * 0.12, 0.55);
         fx('ring', 'gravity', 70);
         break;
-      case 'se_shelf_false':
-        say(ADA.shelfFalse, 3);
+      case 'se_shelf_false': {
+        // D-79: a wrong souvenir puts every one taken back on the shelves (b: those), with a glint on each
+        const back = q.b ?? 0;
+        let n = 0;
+        for (let m = back; m; m &= m - 1) n++;
+        say(ADA.shelfFalse(n), n ? 4.5 : 4);
         a.play('sour', { vol: 0.5, pan: pan(q.x) });
+        if (n) a.play('clatter', { vol: 0.55, pan: pan(q.x) });
+        SUMMERS_END.shelf.forEach(([sx, sy], i) => {
+          if (back & (1 << i)) this.renderer.fx.handle([{ type: 'spark', x: sx, y: sy - 27, a: 8, b: 0, c: 0, style: 'gold' }]);
+        });
         break;
+      }
       case 'se_games':
         say(ADA.gamesOpen, 6);
         a.play('slot_spin', { vol: 0.6 });
@@ -1082,12 +1102,16 @@ export class App {
         break;
       case 'se_call':
         say(ADA.callSign, 5);
-        a.play('clunk', { vol: 0.7, pan: pan(q.x) });
+        a.play('clunk', { vol: 0.7, pan: pan(q.x), spot: true });
         call();
         break;
-      case 'se_chain':
-        a.play(q.a ? 'conch' : 'horn', { vol: 0.5, pan: pan(q.x), pitch: q.a ? 0.9 : 0.75 });
+      case 'se_chain': {
+        // the pier's own foghorn answering her (D-79): higher and nearer than her horn, and heard over a fight too
+        const long = !!q.a;
+        a.play(long ? 'shiphorn_l' : 'shiphorn_s', { vol: 1.1, pan: pan(q.x), pitch: 1.5, spot: true });
+        a.spotlight((long ? CALL.long : CALL.short) / 1.5 + 0.35, 0.3);
         break;
+      }
       case 'se_wrong_call':
         say(ADA.wrongCall, 3);
         a.play('sour', { vol: 0.5, pan: pan(q.x) });
@@ -1095,7 +1119,10 @@ export class App {
         break;
       case 'se_moored':
         say(ADA.moored, 7);
-        for (let k = 0; k < 3; k++) setTimeout(() => a.play('toll', { vol: 0.6 }), 300 + k * 700);
+        // she sounds her horn as she sails in to the pier (D-79), then the bells
+        a.play('shiphorn_l', { vol: 1.2, pitch: 0.94, spot: true });
+        a.spotlight(1.9, 0.25);
+        for (let k = 0; k < 3; k++) setTimeout(() => a.play('toll', { vol: 0.6 }), 1700 + k * 700);
         a.play('ghost_ticket', { vol: 0.7 });
         flash(0.5, 1, 0.95, 0.3);
         break;
@@ -2269,6 +2296,24 @@ export class App {
       this.tideSaid = at;
       this.hud.tide(turn.going);
       this.audio.play('surge', { vol: 0.3 });
+    }
+    // the pier's hoist winching the founder's bell up (D-79): its ratchet while someone stays by the bell, a
+    // slip and a groan while it settles back (a guest's copy of the progress moves in steps: a trend holds a
+    // moment between them)
+    const ch = g.quests?.get<SummersEndChain>('summers_end');
+    if (ch?.stage === SE.Bell && g.phase === 'play') {
+      const w = this.winch, now = performance.now();
+      if (ch.bellT !== w.v) {
+        w.trend = ch.bellT > w.v ? 1 : -1;
+        w.v = ch.bellT;
+        w.at = now;
+      } else if (now - w.at > 600) w.trend = 0;
+      if (w.trend !== 0 && now >= w.next) {
+        const B = SUMMERS_END.bell, r = this.renderer;
+        const near = Math.max(0, 1 - Math.hypot(B.x - r.camX, B.y - r.camY) / 1600);
+        if (near > 0) this.audio.play(w.trend > 0 ? 'winch' : 'winch_slip', { vol: (w.trend > 0 ? 0.6 : 0.42) * near, pan: Math.max(-1, Math.min(1, (B.x - r.camX) / (r.viewWidth * 0.6))) });
+        w.next = now + (w.trend > 0 ? 560 : 900);
+      }
     }
   }
 

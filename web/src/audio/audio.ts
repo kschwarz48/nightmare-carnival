@@ -85,6 +85,14 @@ export class AudioEngine {
   private musicFilter!: BiquadFilterNode;
   /** dips the whole music bus under quest chimes (separate from the volume setting) */
   private musicDuck!: GainNode;
+  /**
+   * the hush (D-79): each bus's own dip while one sound must be heard alone (the Gala Queen's call), and the
+   * bus that sound plays on, above it
+   */
+  private hushM!: GainNode;
+  private hushS!: GainNode;
+  private hushA!: GainNode;
+  private spot!: GainNode;
   private buffers = new Map<string, AudioBuffer>();
   /** samples the synth worker has rendered before audio unlocked (see prewarm) */
   private rendered = new Map<string, Float32Array>();
@@ -132,11 +140,16 @@ export class AudioEngine {
       this.musicFilter.frequency.value = 20000;
       this.music = ctx.createGain();
       this.musicDuck = ctx.createGain();
-      this.music.connect(this.musicDuck).connect(this.musicFilter).connect(this.master);
+      this.hushM = ctx.createGain();
+      this.hushS = ctx.createGain();
+      this.hushA = ctx.createGain();
+      this.music.connect(this.musicDuck).connect(this.musicFilter).connect(this.hushM).connect(this.master);
       this.sfx = ctx.createGain();
-      this.sfx.connect(this.master);
+      this.sfx.connect(this.hushS).connect(this.master);
       this.amb = ctx.createGain();
-      this.amb.connect(this.master);
+      this.amb.connect(this.hushA).connect(this.master);
+      this.spot = ctx.createGain();
+      this.spot.connect(this.master);
       this.unlocked = true;
       this.applyVolumes();
       this.buildSfx();
@@ -234,11 +247,13 @@ export class AudioEngine {
     this.master.gain.setTargetAtTime(v.muted ? 0 : v.master, t, 0.05);
     this.music.gain.setTargetAtTime(v.music * 0.75, t, 0.05);
     this.sfx.gain.setTargetAtTime(v.sfx * 0.9, t, 0.05);
+    this.spot.gain.setTargetAtTime(v.sfx * 0.9, t, 0.05);
     this.amb.gain.setTargetAtTime(v.ambience * 0.5, t, 0.05);
   }
 
   // ---------------------------------------------------------------- SFX
-  play(id: string, o: { vol?: number; pitch?: number; pan?: number } = {}): void {
+  /** `spot`: on the bus above the hush (see `spotlight`), so it is heard while everything else is low. */
+  play(id: string, o: { vol?: number; pitch?: number; pan?: number; spot?: boolean } = {}): void {
     if (!this.unlocked || this.volumes.muted) return;
     const buf = this.sample(id) ?? this.sample(ALIASES[id] ?? 'pop');
     if (!buf) return;
@@ -264,7 +279,7 @@ export class AudioEngine {
       g.connect(p);
       node = p;
     }
-    node.connect(this.sfx);
+    node.connect(o.spot ? this.spot : this.sfx);
     src.connect(g);
     src.onended = () => this.active.set(id, Math.max(0, (this.active.get(id) ?? 1) - 1));
     src.start();
@@ -290,6 +305,23 @@ export class AudioEngine {
     g.cancelScheduledValues(t);
     g.setTargetAtTime(level, t, 0.04);
     g.setTargetAtTime(1, t + sec, 0.45);
+  }
+
+  /**
+   * One sound must be heard alone (D-79: the Gala Queen's call sign could not be made out over a fight):
+   * the music, the effects and the ambience all sink to `level` for `sec` seconds while sounds played with
+   * `spot` ride above them, then everything swells back. A call during a hush extends it.
+   */
+  spotlight(sec: number, level = 0.06): void {
+    if (!this.unlocked) return;
+    const t = this.ctx!.currentTime;
+    for (const n of [this.hushM, this.hushS, this.hushA]) {
+      const g = n.gain;
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(g.value, t);
+      g.setTargetAtTime(level, t, 0.08);
+      g.setTargetAtTime(1, t + sec, 0.5);
+    }
   }
 
   setCue(cue: Cue | string): void {

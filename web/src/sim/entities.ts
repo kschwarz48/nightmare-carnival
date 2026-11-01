@@ -108,7 +108,7 @@ export class Enemy implements Target {
   kbT = 0;
   kbX = 0;
   kbY = 0;
-  /** the Crystal Orbs' shoves wear off (D-74): how much this one has been shoved lately, and when last */
+  /** knockback wears off (the orbs' shoves since D-74, every push since D-79): how much this one has been pushed lately, and when last */
   kbFatigue = 0;
   kbFatigueAt = 0;
   // statuses

@@ -6,7 +6,8 @@ import { clamp, dist2, inSector, TAU } from '../core/math';
 import { WEAPONS, weaponLevelSum, type WeaponDef } from '../data/weapons';
 import { HitTracker, type Enemy, type PlayerProjectile, type Summon, type Target } from './entities';
 import type { Game } from './game';
-import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
+import { KB_SCALE, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
+import { bracing } from './enemyAI';
 
 /** Solo slot counts (VS: six of each); co-op shrinks them per player (`Game.slots`, D-51). */
 export const MAX_WEAPONS = 6;
@@ -17,7 +18,6 @@ const CLONE_POOL_SHARE = 0.55;
 const MAX_CLONES = 4;
 /** The orb barrier's first shove (px/s for 0.14 s: about 60 px), and how fast its fatigue wears off. */
 const ORB_SHOVE = 430;
-const ORB_FATIGUE_S = 1.2;
 /** How far a Nightmare Menagerie bite tears around its target (px, at the evolution's own area). */
 const MAUL_R = 48;
 /** The Death Card's extra crit multiplier (D-74: 1.5 before). */
@@ -878,6 +878,8 @@ export class Weapons {
         const p = this.g.player;
         const ringR = this.orbRadius(w);
         this.g.forEachEnemyInCircle(p.x, p.y, ringR + 260, (e) => {
+          // (D-79: nothing immune to knockback, and nothing mid-charge, is pulled in either)
+          if (e.def.knockbackTaken <= 0 || e.def.behavior === 'rail_strafer' || bracing(e)) return;
           const dx = p.x - e.x, dy = p.y - e.y;
           const d = Math.hypot(dx, dy) || 1;
           if (d > ringR * 0.8) {
@@ -912,14 +914,12 @@ export class Weapons {
   /**
    * The Crystal Orbs' barrier (D-74): an orb shoves what it hits straight out from you. Each shove on the
    * same creature soon after the last is weaker (it wears off over about a second), so the crowd bounces
-   * off the ring while something tough leans through it unless you kill it quickly.
+   * off the ring while something tough leans through it unless you kill it quickly. D-79: the wear is the
+   * one every knockback shares (Game.kbWear), the shove a fifth softer, and never on a creature mid-charge.
    */
   private barrier(e: Enemy, px: number, py: number, power: number): void {
-    if (!e.alive || e.def.knockbackTaken <= 0 || e.def.behavior === 'rail_strafer') return;
-    const now = this.g.realTime;
-    e.kbFatigue = e.kbFatigue * Math.exp(-(now - e.kbFatigueAt) / ORB_FATIGUE_S) + 1;
-    e.kbFatigueAt = now;
-    const f = Math.pow(e.kbFatigue, -1.25) * e.def.knockbackTaken * power;
+    if (!e.alive || e.def.knockbackTaken <= 0 || e.def.behavior === 'rail_strafer' || bracing(e)) return;
+    const f = this.g.kbWear(e, 1.25) * e.def.knockbackTaken * power * KB_SCALE;
     const dx = e.x - px, dy = e.y - py;
     const l = Math.hypot(dx, dy) || 1;
     e.kbT = 0.14;

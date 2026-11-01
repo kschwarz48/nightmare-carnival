@@ -4,6 +4,7 @@
 import { Rng } from '../core/rng';
 import { PASSIVES, WEAPONS, BASE_WEAPON_IDS, PASSIVE_IDS } from '../data/weapons';
 import type { Game } from './game';
+import type { Player } from './player';
 import { HEALING, voucherValue } from '../data/progression';
 import { SECRET_UNLOCKS } from '../data/meta';
 
@@ -19,6 +20,16 @@ export interface DraftOption {
   isNew: boolean;
   /** Shown but not selectable (the voucher once the run cap is reached). */
   disabled?: boolean;
+}
+
+/** A player's build as a dealt hand carries it (D-79): weapons and passives, each with its level. */
+export interface DraftBuild {
+  w: [string, number][];
+  p: [string, number][];
+}
+
+export function buildOf(p: Player): DraftBuild {
+  return { w: p.weapons.list.map((w): [string, number] => [w.def.id, w.level]), p: [...p.passives] };
 }
 
 const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare', 'evolution'];
@@ -37,9 +48,14 @@ export function readyEvolutions(g: Game): string[] {
 
 /** Is an item with this unlock id in the acting player's draft pool? */
 export function isUnlocked(g: Game, unlock?: string): boolean {
+  return isUnlockedFor(g, g.player, unlock);
+}
+
+/** Is an item with this unlock id in player `p`'s draft pool? */
+export function isUnlockedFor(g: Game, p: Player, unlock?: string): boolean {
   if (!unlock) return true;
   if (g.cfg.daily) return !SECRET_UNLOCKS.includes(unlock); // Daily Run: full pool (D-18), secrets stay secret
-  return g.player.unlocked.has(unlock); // the acting player's own save (D-74)
+  return p.unlocked.has(unlock); // that player's own save (D-74)
 }
 
 interface Cand { opt: DraftOption; w: number; branch: boolean }

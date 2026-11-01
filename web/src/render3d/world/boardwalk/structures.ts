@@ -6,13 +6,39 @@
 // Signs are painted canvases; marquee bulbs are reported to the lighting module for their halos.
 
 import * as THREE from 'three';
-import { BUILDING, type Building } from '../../../data/boardwalk';
+import { BUILDING, trackAt, type Building } from '../../../data/boardwalk';
 import { C, SURF, box, cone, cyl, extrude, lathe, sphere, torus, vnoise, weather, type ColorFn } from '../../core/geo';
 import { ModelBuilder, PAL } from '../../models/kit';
 import { signMesh } from '../props';
+import type { Pane } from './spill';
 
 /** A bulb on a sign or a marquee: where it is (sim x/y, height) and its colour. */
 export interface Bulb { x: number; y: number; h: number; col: [number, number, number] }
+
+/** The Undertow station's front (D-79): a frosted window between each pair of its posts (the panes: spill.ts). */
+export const STATION_PANES: Pane[] = (() => {
+  const b = BUILDING.station, w = b.x1 - b.x0;
+  return Array.from({ length: 6 }, (_, k) => ({ x: b.x0 + 10 + ((k + 0.5) * (w - 20)) / 6, w: 64, h0: 30, h1: 136, z: b.y1 - 20 }));
+})();
+
+/**
+ * Where the track runs through the station's side walls (D-79), found on the track itself: the east portal
+ * the train comes home through, and the west one it leaves by. `h` is the track's height there.
+ */
+export const STATION_PORTALS: { x: number; y: number; h: number; nx: number; w: number }[] = (() => {
+  const b = BUILDING.station;
+  const cross = (x: number, u0: number, u1: number) => {
+    let prev = trackAt(u0);
+    for (let i = 1; i <= 400; i++) {
+      const p = trackAt(u0 + ((u1 - u0) * i) / 400);
+      if ((prev[0] - x) * (p[0] - x) <= 0) return p;
+      prev = p;
+    }
+    return prev;
+  };
+  const e = cross(b.x1, 0.85, 1), w = cross(b.x0, 0, 0.08);
+  return [{ x: b.x1, y: e[1], h: e[2], nx: 1, w: 120 }, { x: b.x0, y: w[1], h: w[2], nx: -1, w: 130 }];
+})();
 
 const stucco = weather(0xcfc0a2, 0.5, 0.02, 0x7a6c5c);
 const stuccoShade = weather(0x9a8c74, 0.45, 0.03);
@@ -210,27 +236,55 @@ export function buildStructures(root: THREE.Object3D): { geo: THREE.BufferGeomet
     windows.push({ x: cx, y: z1 + 40, h: 120, col: [1, 0.72, 0.42] });
   }
 
-  // ---------------------------------------------------------------- the Undertow's station: an open timber shed
+  // ---------------------------------------------------------------- the Undertow's station: a timber shed
+  // D-79: closed in, with a row of frosted windows on the promenade (the train's shadow crosses them as it
+  // comes home) and a portal in each side wall where the track runs in and out, its lamps spilling from both
   {
     const b = BUILDING.station, x0 = b.x0, x1 = b.x1, z0 = b.y0, z1 = b.y1, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = x1 - x0, d = z1 - z0;
-    m.add(box(w, 150, 40), { col: clap(0x6a5a4a), pos: [cx, 75, z0 + 20], surf: SURF.paint });
+    const siding = clap(0x6a5a4a);
+    m.add(box(w, 150, 40), { col: siding, pos: [cx, 75, z0 + 20], surf: SURF.paint });
+    // the front wall: a plinth under the windows, a band over them, piers between (the panes are their own mesh)
+    const P0 = STATION_PANES[0], zf = P0.z, th = 8, wh = P0.h1 - P0.h0;
+    m.add(box(w - 4, P0.h0, th), { col: siding, pos: [cx, P0.h0 / 2, zf], surf: SURF.paint });
+    m.add(box(w - 4, 150 - P0.h1, th), { col: siding, pos: [cx, (150 + P0.h1) / 2, zf], surf: SURF.paint });
+    let px = x0 + 2;
+    for (const p of [...STATION_PANES, { x: x1 - 2, w: 0 }]) {
+      const l = p.x - p.w / 2;
+      if (l - px > 1) m.add(box(l - px, wh, th), { col: siding, pos: [(px + l) / 2, P0.h0 + wh / 2, zf], surf: SURF.paint });
+      px = p.x + p.w / 2;
+    }
+    // each window framed in dark wood: sill, head, a mullion and a transom
+    for (const p of STATION_PANES) {
+      m.add(box(p.w + 12, 6, 14), { col: dkWood, pos: [p.x, p.h0 - 2, zf + 4], surf: SURF.wood });
+      m.add(box(p.w + 10, 6, 12), { col: dkWood, pos: [p.x, p.h1 + 2, zf + 3], surf: SURF.wood });
+      for (const s of [-1, 1]) m.add(box(4, wh, 10), { col: dkWood, pos: [p.x + s * (p.w / 2 + 1), p.h0 + wh / 2, zf + 2], surf: SURF.wood });
+      m.add(box(3, wh, 4), { col: dkWood, pos: [p.x, p.h0 + wh / 2, zf + 2], surf: SURF.wood });
+      m.add(box(p.w, 3, 4), { col: dkWood, pos: [p.x, p.h0 + wh * 0.62, zf + 2], surf: SURF.wood });
+    }
+    // the side walls, each opened by a portal where the track runs through, timber-framed with a lintel
+    for (const P of STATION_PORTALS) {
+      const wx = P.x - P.nx * 6, a0 = z0 + 40, a1 = zf - th / 2, o0 = P.y - P.w / 2, o1 = P.y + P.w / 2, ph = Math.min(140, P.h + 80);
+      for (const [s0, s1] of [[a0, o0], [o1, a1]]) if (s1 - s0 > 1) m.add(box(10, 150, s1 - s0), { col: siding, pos: [wx, 75, (s0 + s1) / 2], surf: SURF.paint });
+      m.add(box(10, 150 - ph, P.w), { col: siding, pos: [wx, (150 + ph) / 2, P.y], surf: SURF.paint });
+      for (const s of [-1, 1]) m.add(box(14, ph, 12), { col: dkWood, pos: [wx + P.nx * 4, ph / 2, P.y + s * (P.w / 2 + 5)], surf: SURF.wood });
+      m.add(box(14, 12, P.w + 22), { col: dkWood, pos: [wx + P.nx * 4, ph + 6, P.y], surf: SURF.wood });
+    }
     for (let x = x0 + 10; x <= x1 - 9; x += (w - 20) / 6) {
       for (const z of [z1 - 10, z0 + 60]) m.add(box(14, 150, 14), { col: dkWood, pos: [x, 75, z], surf: SURF.wood });
-      m.add(box(6, 70, 6), { col: dkWood, pos: [x + 20, 120, z1 - 10], rot: [0, 0, 0.7], surf: SURF.wood });
     }
     const rise = 90, half = d / 2 + 30, len = Math.hypot(half, rise), sl = Math.atan2(rise, half);
     const corr: ColorFn = (p) => C(0x4a4440).multiplyScalar(0.7 + 0.3 * Math.abs(Math.sin(p.x * 0.4)) + 0.2 * vnoise(p.x * 0.02, 0, p.z * 0.02));
     m.add(box(w + 30, 5, len), { col: corr, pos: [cx, 150 + rise / 2, cz + half / 2 - 10], rot: [sl, 0, 0], surf: SURF.iron });
     m.add(box(w + 30, 5, len), { col: corr, pos: [cx, 150 + rise / 2, cz - half / 2 - 10], rot: [-sl, 0, 0], surf: SURF.iron });
-    // the queue rails zig-zagging on the platform
-    for (let i = 0; i < 4; i++) m.add(box(w - 120, 4, 4), { col: PAL.iron, pos: [cx, 40, z1 - 40 - i * 34], surf: SURF.iron });
     // the sign: a cresting wave of a board with chasing bulbs round it
     m.add(box(360, 70, 8), { col: weather(0x1a2a3a, 0.4), pos: [cx, 205, z1 + 2], surf: SURF.paint });
     marquee(cx - 170, cx + 170, 244, z1 + 8, 17, [0.4, 0.8, 1]);
     marquee(cx - 170, cx + 170, 168, z1 + 8, 17, [0.4, 0.8, 1]);
     sign('THE UNDERTOW', 320, 40, cx, 210, z1 + 8, { glow: 0.9, color: '#a8e0ff' });
     sign('RIDE IF YOU DARE', 220, 16, cx, 182, z1 + 8, { glow: 0.4, color: '#d8e8f0' });
-    windows.push({ x: cx, y: z1 - 60, h: 100, col: [0.6, 0.8, 1] });
+    // (its windows' warm spill on the promenade, D-79: the work lamps behind the frosted glass light the boards
+    // in front, in place of the promenade's lamps)
+    for (let k = 0; k < 3; k++) windows.push({ x: (STATION_PANES[k * 2].x + STATION_PANES[k * 2 + 1].x) / 2, y: z1 + 10, h: 90, col: [1, 0.74, 0.46] });
   }
 
   // ---------------------------------------------------------------- the Starlight Ballroom: stepped deco, a great arched window

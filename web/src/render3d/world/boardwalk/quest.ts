@@ -4,18 +4,20 @@
 // the Sea Wheel's green lantern; the wreck's portholes and their engravings; the rod, the float and the
 // bubbles; the lighthouse flashing the call sign; the Gala Queen moored at the pier with St. Elmo's fire
 // on her bow; the four tide lamps; the founder's bell in the mud, on its chain, and following its ringer.
+// D-79: she sails in alongside the end deck with the fire on her bow by the berth; the ring to stand in
+// while the hoist winches the bell up, its progress filling round it; the rod glinting at the bait shop.
 
 import * as THREE from 'three';
 import type { Game } from '../../../sim/game';
 import type { GameRenderer3D } from '../../renderer3d';
-import { ARCADE_FIX, KEEPSAKES, PIER_FIX, SHOP_FIX, SUMMERS_END, isLowTide, seabedHeight, trainU, waterDepth, wheelFromBottom } from '../../../data/boardwalk';
+import { ARCADE_FIX, CALL, KEEPSAKES, PIER_FIX, SHOP_FIX, SUMMERS_END, isLowTide, seabedHeight, trainU, waterDepth, wheelFromBottom } from '../../../data/boardwalk';
 import { SE, type SummersEndChain } from '../../../sim/quest/summersEnd';
 import { ModelBuilder, SURF, box, cone, cyl, ellipsoid, extrude, sphere, torus, tube, weather, type V3 } from '../../core/geo';
 import { ActorBatch, StaticBatch } from '../../core/batch';
 import { actorMaterial, pool } from '../../core/materials';
 import { PAL } from '../../models/kit';
 import { Rides } from './rides';
-import { galaQueenGeometry } from '../../boardwalkBosses';
+import { GALA_STEM, galaQueenGeometry } from '../../boardwalkBosses';
 import { Strand } from '../../funhouseBosses';
 import type { Frame } from '../../../render/atlas';
 import { PHOTO } from './furnishings';
@@ -91,6 +93,9 @@ export class BoardwalkQuest {
   private glowF: Frame | null = null;
   /** the call sign the lighthouse is flashing: its pattern, length and when it began (render time) */
   private call: { bits: number; len: number; t0: number } | null = null;
+  /** the Gala Queen's own clock for her sail-in, resynced to the chain's when it drifts, and how far out she is */
+  private arrive = 0;
+  private shipOff = 0;
 
   constructor(root: THREE.Object3D) {
     root.add(this.group);
@@ -183,12 +188,12 @@ export class BoardwalkQuest {
   /** How bright the lighthouse lens burns right now: 1 normally, the call sign's pattern while it plays. */
   lensK(now: number): number {
     if (!this.call) return 1;
-    let t = now - this.call.t0 - 0.4;
+    // (in step with the horn: CALL is the timing the app sounds it to)
+    let t = now - this.call.t0 - CALL.lead;
     for (let k = 0; k < this.call.len; k++) {
-      const long = (this.call.bits >> k) & 1;
-      const d = long ? 0.9 : 0.35;
+      const d = (this.call.bits >> k) & 1 ? CALL.long : CALL.short;
       if (t >= 0 && t < d) return 3;
-      t -= d + 0.35;
+      t -= d + CALL.gap;
     }
     if (t > 0) this.call = null;
     return 0.25;
@@ -295,14 +300,36 @@ export class BoardwalkQuest {
       this.float.position.set(S.fishing.x, -38 - (bite ? 6 + Math.abs(Math.sin(t * 22)) * 5 : Math.sin(t * 2) * 2), S.fishing.y + 90);
     }
     if (st === SE.Key && Math.random() < dt * 4) r.fx.handle([{ type: 'spark', x: S.fishing.x + (Math.random() - 0.5) * 40, y: S.fishing.y + 90 + (Math.random() - 0.5) * 30, a: 1, b: 0, c: 0, style: 'splash' }]);
-    // ---- the Gala Queen at the pier, St. Elmo's fire on her bow
+    // the rod waiting at the bait shop glints (D-79), a star of light running up and down it now and then
+    if (st === SE.Key && !holder) {
+      const rx = PIER_FIX.rod.x, ry = PIER_FIX.rod.y - 10;
+      halo(rx - 16, ry, 50, 1, [1, 0.85, 0.55], 0.42 + 0.12 * Math.sin(t * 2.2));
+      const c = (t * 0.4) % 1, u = c < 0.5 ? c * 2 : 2 - c * 2, tw = 0.25 + 0.75 * Math.max(0, Math.sin(t * 2.9)) ** 3;
+      const sx = rx - Math.sin(0.3) * 110 * u, sh = Math.cos(0.3) * 110 * u + 2;
+      for (const rot of [0.6, 0.6 + Math.PI / 2]) G.draw(glowF, sx, ry, sh, 0.2 + 0.8 * tw, 0.09, rot, 1, 0.94, 0.78, 0.3 + 0.7 * tw);
+      halo(sx, ry, sh, 0.3 + 0.25 * tw, [1, 0.92, 0.7], 0.4 + 0.5 * tw);
+      if (Math.random() < dt * 1.5) r.fx.handle([{ type: 'spark', x: rx - 16, y: ry, a: 2, b: 0, c: 0, style: 'gold' }]);
+    }
+    // ---- the Gala Queen alongside the end deck, bow to the shore, St. Elmo's fire on her jackstaff (D-79: she
+    // lay out in the water with her bow nowhere near the fire you take; now she sails in to it and stays)
     this.ship.visible = st >= SE.GalaQueen && st <= SE.Account;
+    this.shipOff = 0;
     if (this.ship.visible) {
-      const sx = PIER_FIX.berth.x + 480, sy = PIER_FIX.berth.y + 60;
-      this.ship.position.set(sx, -46 + Math.sin(t * 0.6) * 3, sy);
-      this.ship.rotation.set(0, Math.PI / 2, Math.sin(t * 0.4) * 0.02);
-      this.ship.scale.setScalar(0.9);
-      if (st === SE.GalaQueen && ch.fireBy === 255) halo(S.berth.x + 40, S.berth.y, 110, 1.2 + 0.2 * Math.sin(t * 7), [0.45, 0.9, 1], 0.9);
+      const want = st === SE.GalaQueen ? ch.arriveT : 0;
+      this.arrive = Math.abs(this.arrive - want) > 0.4 ? want : Math.max(0, this.arrive - dt);
+      const k = this.arrive / S.arrive, scale = 0.9, bob = Math.sin(t * 0.6) * 3;
+      this.shipOff = 1000 * k * k;
+      this.ship.position.set(S.bow.x, -46 + bob, S.bow.y - GALA_STEM.x * scale + this.shipOff);
+      this.ship.rotation.set(0, -Math.PI / 2, Math.sin(t * 0.4) * 0.02);
+      this.ship.scale.setScalar(scale);
+      const fx = S.bow.x, fy = S.bow.y + this.shipOff, fh = S.bow.h + bob;
+      if (st === SE.GalaQueen && ch.fireBy === 255) {
+        // a corona of pale blue fire on the cresset, its tongues licking up
+        halo(fx, fy, fh, 1.2 + 0.2 * Math.sin(t * 7), [0.45, 0.9, 1], 0.9);
+        for (let i = 0; i < 3; i++) halo(fx + Math.sin(t * 5 + i * 2.1) * 5, fy, fh + 10 + i * 9 + Math.sin(t * 9 + i) * 3, 0.42 - i * 0.1, [0.6, 0.95, 1], 0.55);
+      }
+      // her bow wave as she comes in
+      if (k > 0.02 && Math.random() < dt * 14) r.fx.handle([{ type: 'spark', x: fx + (Math.random() - 0.5) * 70, y: fy - 20 + Math.random() * 60, a: 1, b: 0, c: 0, style: 'splash' }]);
     }
     const fireP = ch.fireBy !== 255 ? g.players[ch.fireBy] : undefined;
     if (st === SE.GalaQueen && fireP) {
@@ -342,6 +369,15 @@ export class BoardwalkQuest {
         if (st === SE.Bell) this.chain.set([[hookX, hookH + 100, hookY], [S.bell.x, y + 56, S.bell.y]]);
       }
     }
+    // the ring to stand in while the hoist winches the bell up, and the winch filling round it live (D-79:
+    // nobody could tell where it was raised from, or how close they were)
+    if (st === SE.Bell) {
+      const B = S.bell, f = ch.bellT / B.hold;
+      const held = g.players.some((p) => g.isUp(p) && (p.x - B.x) ** 2 + (p.y - B.y) ** 2 < B.r * B.r);
+      const a = held ? 0.42 : 0.26 + 0.14 * Math.sin(t * 3);
+      r.addShapes.ring(B.x, B.y, B.r - 8, B.r, 1, 0.85, 0.55, a, a);
+      if (f > 0) r.teleLine.ring(B.x, B.y, B.r - 14, B.r + 4, 1, 0.86, 0.4, 0.95, 0.95, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2);
+    }
   }
 
   addLights(g: Game): void {
@@ -354,7 +390,7 @@ export class BoardwalkQuest {
     if (st === SE.GalaQueen) {
       const f = ch.fireBy !== 255 ? g.players[ch.fireBy] : undefined;
       if (f) pool.add(f.x, f.y, 260, 1.1, 0.45, 0.9, 1, 170, 2);
-      else pool.add(S.berth.x, S.berth.y, 240, 1, 0.45, 0.9, 1, 110, 1.5);
+      else pool.add(S.bow.x, S.bow.y + this.shipOff, 240, 1, 0.45, 0.9, 1, S.bow.h + 50, 1.5);
     }
     S.lamps.forEach((L, i) => {
       if (ch.lit & (1 << i)) pool.add(L.x, L.y - 30, 240, 1, 0.45, 0.9, 1, 120, 1.2);

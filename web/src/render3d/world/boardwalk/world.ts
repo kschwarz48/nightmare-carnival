@@ -89,6 +89,7 @@ export class BoardwalkWorld {
       this.root.add(mesh);
     }
     this.lighting = new BoardwalkLighting(this.root, [...st.bulbs, ...this.interiors.bulbs, ...this.rides.bulbs], st.windows);
+    this.lighting.cut = (id) => this.interiors.cutK(id);
     this.shafts = this.lighting.shafts;
     this.motes = this.lighting.motes;
     this.quest = new BoardwalkQuest(this.root);

@@ -16,8 +16,8 @@ import { computePayout } from '../data/meta';
 import type { BossBase } from './bosses/boss';
 import { Director } from './director';
 import { Nav } from './nav';
-import { applyDraftChoice, generateDraft, grantChest, type ChestEntry, type DraftOption } from './draft';
-import { updateEnemy } from './enemyAI';
+import { applyDraftChoice, buildOf, generateDraft, grantChest, type ChestEntry, type DraftBuild, type DraftOption } from './draft';
+import { bracing, updateEnemy } from './enemyAI';
 import {
   BossPart, Enemy, EnemyBullet, Hazard, Pickup, PlayerProjectile, Summon, Zone,
   type BulletKind, type HazardShape, type PickupKind, type Target, type ZoneKind,
@@ -45,7 +45,7 @@ import { Player } from './player';
 import { Weapons } from './weapons';
 import { addHazardPull, moveBody, steer } from './movement';
 
-import { TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
+import { KB_FATIGUE_S, KB_SCALE, KB_WEAR, TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 export { TICK, VIEW_HALF_X, VIEW_HALF_Y };
 const GEM_CAP = 400;
 const IFRAMES = 0.45;
@@ -138,7 +138,8 @@ export interface RunStats {
 
 export type GameEvents = {
   levelup: { level: number };
-  draft: { options: DraftOption[]; player?: number };
+  /** `build`: the build the hand was dealt from (D-79: the recipe bands read it, not the game's context) */
+  draft: { options: DraftOption[]; player?: number; build?: DraftBuild };
   draft_done: { player: number };
   boss_warning: { id: string };
   boss_spawn: { id: string };
@@ -938,15 +939,31 @@ export class Game {
     return dmg;
   }
 
-  /** 120 ms reversed movement push (doc 06 §1). */
+  /**
+   * How hard a push still lands on `e` (D-79): every push adds one to its knockback fatigue, which fades over
+   * about a second (KB_FATIGUE_S), and the push lands at fatigue^-p. The first shove on a fresh creature is
+   * full strength; a stream of hits soon barely moves it.
+   */
+  kbWear(e: Enemy, p = KB_WEAR): number {
+    const now = this.realTime;
+    e.kbFatigue = e.kbFatigue * Math.exp(-(now - e.kbFatigueAt) / KB_FATIGUE_S) + 1;
+    e.kbFatigueAt = now;
+    return Math.pow(e.kbFatigue, -p);
+  }
+
+  /**
+   * 120 ms reversed movement push (doc 06 §1). D-79: a fifth softer; worn down by the pushes before it (the
+   * stagger shortens with the distance, so a crowd under a stream of hits is slowed but never pinned); and
+   * nothing is knocked off a charge it has committed to (`bracing`).
+   */
   knockback(e: Enemy, srcX: number, srcY: number, mult: number): void {
-    if (e.def.knockbackTaken <= 0 || e.def.behavior === 'rail_strafer') return;
+    if (e.def.knockbackTaken <= 0 || e.def.behavior === 'rail_strafer' || bracing(e)) return;
     let dx = e.x - srcX, dy = e.y - srcY;
     const l = Math.hypot(dx, dy) || 1;
     dx /= l;
     dy /= l;
-    e.kbT = 0.12;
-    const s = Math.max(60, e.speed) * mult;
+    e.kbT = 0.12 * this.kbWear(e);
+    const s = Math.max(60, e.speed) * mult * KB_SCALE;
     e.kbX = dx * s;
     e.kbY = dy * s;
   }
@@ -1847,7 +1864,7 @@ export class Game {
       this.closeDraft();
       return;
     }
-    this.drafts.forEach((hand, i) => hand && this.bus.emit('draft', { options: hand, player: i }));
+    this.drafts.forEach((hand, i) => hand && this.bus.emit('draft', { options: hand, player: i, build: buildOf(this.players[i]) }));
   }
 
   /** Has this player still to choose in the open level-up? */
@@ -1902,7 +1919,7 @@ export class Game {
     const hand = generateDraft(this);
     this.setCtx(ctx);
     this.drafts[pi] = hand;
-    this.bus.emit('draft', { options: hand, player: pi });
+    this.bus.emit('draft', { options: hand, player: pi, build: buildOf(this.players[pi]) });
   }
 
   private finishDraft(pi: number): void {

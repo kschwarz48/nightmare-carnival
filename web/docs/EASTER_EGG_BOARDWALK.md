@@ -42,8 +42,8 @@ Ada speaks through **seashells** (Mira spoke through glass, Zoltana through card
 |---|---|---|---|
 | 0 | CONCH | the beach, at low tide | pick up the conch at the waterline |
 | 1 | MARINA | the Arcade | hold it to the drowned fortune machine |
-| 2 | PHOTOGRAPH | the Gift Shop | look at the 1933 photograph, then take the four souvenirs that are hers |
-| 3 | GAMES | Arcade, Sea Wheel, the Undertow | win each keepsake back from its game (any order) |
+| 2 | PHOTOGRAPH | the Gift Shop | look at the 1933 photograph, then take the four souvenirs that are hers, without a mistake |
+| 3 | GAMES | Arcade, Sea Wheel, the Undertow | win each keepsake back from its game or ride (any order) |
 | 4 | WRECK | the beach, at low tide | set each keepsake in the porthole engraved with it |
 | 5 | KEY | the pier | take the bait shop's rod; fish the foghorn key out of the bubbling water |
 | 6 | FOGHORN | the pier's end | answer the Gala Queen's call sign on the SHORT / LONG chains |
@@ -126,9 +126,12 @@ Reaches are in sim units (`SE_REACH` in the chain): the prompt appears when a pl
   1. Press at the photograph: her four things float in front of the easel ("That was me, the summer I
      was nine…").
   2. Take each of the four from the stands.
-- **Look-alikes:** pressing on one that isn't hers just says "That isn't mine" and takes nothing. There
-  is no penalty, so the shelves can't be emptied by guessing wrong.
-- **Advance:** the fourth correct take opens GAMES ("The games kept the real ones…").
+- **Look-alikes (D-79):** taking one that isn't hers puts every souvenir taken so far back on the
+  stands (each glints as it returns): "That isn't mine. Everything goes back on the shelves." / "start
+  over: all four of mine, and not one other". All four must be taken in a row without a mistake; the
+  photograph can be looked at again any time.
+- **Advance:** the fourth correct take opens GAMES ("The park kept the real ones. It always keeps
+  something." / "two games and two rides: win them back"; D-79, it called all four "games").
 
 ### 3 · GAMES — win each keepsake back (any order)
 Each game shows its keepsake floating at the prize spot.
@@ -149,6 +152,9 @@ Each game shows its keepsake floating at the prize spot.
 - **The Undertow** (the station's brake lever, 2580, −780):
   - Press as the train comes home: track `u ≥ 0.93` while it's running.
   - The lever's lamp warms as the train approaches; too soon or too late says so.
+  - D-79: the train's headlamp shows it coming down the return leg, and its shadow crosses the station's
+    frosted windows from the east portal westward: the window opens as the lead car's shadow (the big
+    round figurehead) enters the east end and lasts until the train stands in the station.
 - **Advance:** each win says "*game* gives it back, *n* of four"; the fourth opens WRECK.
 
 ### 4 · WRECK — the Gala Queen's wreck on the beach (portholes at x 1100 / 1230 / 1360 / 1490, y ≈ 1247)
@@ -163,8 +169,8 @@ Each game shows its keepsake floating at the prize spot.
 - **Advance:** when all four match, she "remembers us now", and Ada says where Father kept a key.
 
 ### 5 · KEY — the pier
-- **Rod:** take the bait shop's rod (−2930, 1740). It follows its holder, and passes to the nearest
-  standing player if they fall.
+- **Rod:** take the bait shop's rod (−2930, 1740). It glints where it leans on the bait shop (D-79). It
+  follows its holder, and passes to the nearest standing player if they fall.
 - **Fishing:** at the little dock's east end (−2140, 2340), where the water bubbles:
   1. Press to cast.
   2. A bite comes 1.5–4 s later (the float dips; a splash and a rumble).
@@ -177,13 +183,17 @@ Each game shows its keepsake floating at the prize spot.
 - **Solve:**
   1. Press at the foghorn (−2900, 2750). The Gala Queen's horn sounds the call sign from out on the
      water, and the lighthouse lens flashes the same pattern, so it can be read with the sound off.
+     D-79: everything else sinks very low while she calls; a short blast is 0.5 s and a long one 1.4 s, with
+     0.45 s between (`CALL`).
   2. Answer it on the SHORT (−2960, 2735) and LONG (−2840, 2735) chains.
 - **Wrong answers:** "That isn't her call", the answer starts over, and the call sign replays.
-- **Advance:** the last right answer moors the ship at the pier's end ("She came in. She came back.").
+- **Advance:** the last right answer brings the ship in ("She came in. She came back."). D-79: she sails
+  in from the south for 4 s, sounding her horn, and lies along the end deck's east edge, bow to the shore.
 
 ### 7 · GALA QUEEN — St. Elmo's fire to the four tide lamps
-- **Take the fire:** press at the berth (−2490, 2660) to take the blue-green flame from her bow. It burns
-  120 s and follows its carrier (passing on if they fall).
+- **Take the fire:** once she is alongside, press at the berth (−2490, 2660) to take the blue-green flame
+  from the jackstaff at the head of her bow (−2408, 2660, just off the deck's edge). It burns 120 s and
+  follows its carrier (passing on if they fall).
 - **The four tide lamps** (iron posts, dark until lit):
   - the bait platform (−2650, 1900);
   - beside the second lifeguard tower (300, 610);
@@ -198,7 +208,9 @@ The sea goes out 650 units over 8 s and stays out for the rest of the night. The
 the waterline and wading all follow (`SEA.retreat`). The seabed by the pier shows the founder's bell.
 
 ### 9 · BELL — the seabed under the pier's hoist (−2160, 1870)
-- **Solve:** stay within 170 of the bell for 28 s while the hoist's chain winches it up.
+- **Solve:** stay within 170 of the bell for 28 s while the hoist's chain winches it up. D-79: the ring is
+  drawn on the seabed with the progress filling round it, a bar over the bell names what it wants, and the
+  winch ratchets while it rises.
 - **Decay:** when nobody is near, progress settles back at half speed (it never resets at once).
 - **Pressure:** while someone is holding it, the drowned climb out of the mud around the bell every 4.5 s.
 - **Advance:** when it's up, the bell hangs from the hoist and Ada says where the ledger is.

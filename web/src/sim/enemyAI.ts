@@ -38,6 +38,23 @@ function seek(g: Game, e: Enemy, dt: number, scale = 1, jitterAngle = 0): void {
   move(g, e, dx * sp, dy * sp, dt);
 }
 
+/**
+ * Braced (D-79): a creature in the middle of a charge, a leap, a lunge or a lash, or holding still over the
+ * lane, rail or wedge it has drawn for one, can't be knocked off it, so it goes exactly where its telegraph
+ * said (the Coaster Wraith rides its rail of light to the end).
+ */
+export function bracing(e: Enemy): boolean {
+  const s = e.state;
+  switch (e.def.behavior) {
+    case 'burst_charger': case 'bumper': case 'ambusher': case 'doppel': case 'crab': return s === 2;
+    case 'line_charger': return s === 1 || s === 2;
+    case 'marionette': case 'taffy': return s === 1;
+    case 'wraith': return s >= 1 && s <= 3;
+    case 'angler': return s === 2 || s === 3;
+    default: return false;
+  }
+}
+
 export function updateEnemy(g: Game, e: Enemy, dt: number): void {
   if (!e.alive) return;
   const slow = g.slowFactor(e);

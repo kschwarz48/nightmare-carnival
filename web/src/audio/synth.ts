@@ -84,6 +84,62 @@ function render(voices: Voice[], extra = 0.05): Float32Array {
 
 const V = (wave: Wave, f0: number, f1: number | undefined, dur: number, o: Partial<Voice> = {}): Voice => ({ wave, f0, f1, dur, ...o });
 
+/**
+ * A steamship's horn (D-79, the Gala Queen's call sign; the old one borrowed the barker's car horn): two low
+ * brassy tones a minor third apart and a sub an octave down, beating a little against each other, swelling
+ * in as the steam comes up to pressure (the pitch rising into tune with it), held, then sagging off; a breath
+ * of steam as it opens, a resonant bell, and a soft reflection off the water. `dur` includes the release.
+ */
+function shipHorn(dur: number, f0 = 92.5): Float32Array {
+  const n = Math.ceil((dur + 0.8) * SR);
+  const dry = new Float32Array(n);
+  const att = Math.min(0.16, dur * 0.3), rel = Math.min(0.24, dur * 0.35);
+  const fq = [f0, f0 * 1.1892, f0 * 0.5], amp = [1, 0.72, 0.35], ph = [0, 0, 0];
+  // state-variable filters: the bell's formant (a resonant band over a low-pass body) and the steam's hiss;
+  // a one-pole low-pass keeps some of the raw reed's buzz (it carries on small speakers, which lose the lows)
+  const fF = 2 * Math.sin((Math.PI * 520) / SR), qF = 1 / 1.1;
+  const fN = 2 * Math.sin((Math.PI * 1400) / SR), qN = 0.5;
+  const aB = 1 - Math.exp((-2 * Math.PI * 2200) / SR);
+  let low = 0, band = 0, nLow = 0, nBand = 0, buzz = 0;
+  const end = Math.floor(dur * SR);
+  for (let i = 0; i < end; i++) {
+    const t = i / SR;
+    const env = t < att ? 1 - (1 - t / att) ** 2 : t > dur - rel ? Math.max(0, (dur - t) / rel) ** 1.5 : 1;
+    const bend = (t < att ? 0.93 + 0.07 * (t / att) : t > dur - rel ? 1 - 0.03 * ((t - (dur - rel)) / rel) : 1) * (1 + 0.003 * Math.sin(t * Math.PI * 2 * 5.2));
+    let s = 0;
+    for (let k = 0; k < 3; k++) {
+      ph[k] += (fq[k] * bend * (1 + k * 0.0016)) / SR;
+      ph[k] -= Math.floor(ph[k]);
+      s += (ph[k] * 2 - 1) * amp[k];
+    }
+    const hi = s - low - qF * band;
+    band += fF * hi;
+    low += fF * band;
+    buzz += aB * (s - buzz);
+    let v = low * 0.5 + band * 1.1 + buzz * 0.22;
+    const nz = rnd() * 2 - 1, nHi = nz - nLow - qN * nBand;
+    nBand += fN * nHi;
+    nLow += fN * nBand;
+    v += nBand * (0.05 + 0.25 * Math.max(0, 1 - t / 0.12));
+    dry[i] = v * env;
+  }
+  // two quiet, darker repeats off the water
+  const out = new Float32Array(n);
+  const d1 = Math.floor(0.21 * SR), d2 = Math.floor(0.47 * SR);
+  let lp = 0, peak = 0;
+  for (let i = 0; i < n; i++) {
+    const e = (i >= d1 ? dry[i - d1] * 0.22 : 0) + (i >= d2 ? dry[i - d2] * 0.09 : 0);
+    lp += 0.2 * (e - lp);
+    out[i] = dry[i] + lp;
+    peak = Math.max(peak, Math.abs(out[i]));
+  }
+  const k = 0.9 / (peak || 1);
+  for (let i = 0; i < n; i++) out[i] = Math.tanh(out[i] * k * 1.2) * 0.85;
+  const fade = Math.floor(0.02 * SR);
+  for (let i = 0; i < fade; i++) out[n - 1 - i] *= i / fade;
+  return out;
+}
+
 /** Every SFX id used by the game → its recipe. */
 export const RECIPES: Record<string, () => Float32Array> = {
   // ---- enemy deaths & hits
@@ -255,4 +311,19 @@ export const RECIPES: Record<string, () => Float32Array> = {
   jingle: () => render([...Array.from({ length: 10 }, (_, i) => V('sine', 3000 + ((i * 211) % 1200), 2900, 0.1, { vol: 0.06, decay: 30, delay: i * 0.03 + ((i * 7) % 4) * 0.01 })), V('sine', 120, 50, 0.25, { vol: 0.5, decay: 12 })]),
   conch: () => render([V('saw', 110, 104, 1.6, { vol: 0.22, lp: 700, attack: 0.25, decay: 1.2, vib: 0.015, vibRate: 4 }), V('saw', 165, 158, 1.6, { vol: 0.1, lp: 900, attack: 0.3, decay: 1.3 }), V('noise', 1, 1, 1.4, { vol: 0.05, lp: 500, attack: 0.3, decay: 1.5 })]),
   surge: () => render([V('noise', 1, 1, 1.2, { vol: 0.32, lp: 1400, hp: 150, attack: 0.25, decay: 2 }), V('noise', 1, 1, 0.6, { vol: 0.18, hp: 2500, delay: 0.5, decay: 4 })]),
+  // (new sounds go last: the noise generator is shared, so the order keeps every earlier sound identical)
+  // the Gala Queen's call (D-79): a short and a long blast of a steamship's horn
+  shiphorn_s: () => shipHorn(0.5),
+  shiphorn_l: () => shipHorn(1.4),
+  // the pier's hoist winching the founder's bell up (a ratchet, the drum's groan, the chain), and it slipping back
+  winch: () => render([
+    ...Array.from({ length: 7 }, (_, i) => V('noise', 1, 1, 0.02, { vol: 0.32, decay: 120, hp: 1500, lp: 6000, delay: i * 0.085 })),
+    ...Array.from({ length: 7 }, (_, i) => V('square', 900, 700, 0.025, { vol: 0.08, decay: 90, lp: 3000, delay: i * 0.085 + 0.004 })),
+    V('saw', 58, 66, 0.6, { vol: 0.22, lp: 380, attack: 0.05, decay: 1.5, vib: 0.08, vibRate: 11 }),
+    ...Array.from({ length: 5 }, (_, i) => V('sine', 2600 + ((i * 331) % 700), 2400, 0.06, { vol: 0.05, decay: 40, delay: 0.05 + i * 0.11 })),
+  ]),
+  winch_slip: () => render([
+    ...Array.from({ length: 3 }, (_, i) => V('noise', 1, 1, 0.03, { vol: 0.25, decay: 80, hp: 1200, lp: 4000, delay: i * 0.22 })),
+    V('saw', 90, 60, 0.7, { vol: 0.12, lp: 500, decay: 2, vib: 0.1, vibRate: 7 }),
+  ]),
 };
