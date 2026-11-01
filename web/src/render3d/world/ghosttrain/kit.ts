@@ -306,16 +306,31 @@ export const GT_KIT: Record<string, (variant: number) => THREE.BufferGeometry> =
     m.add(box(40, 4, 60), { col: 0x0e0c0e, pos: [140, 36, 0], surf: SURF.wood });
   }),
   gt_terminal: () => B((m) => {
-    // Hollow Junction's terminal façade: soot-black brick, a great arched window, a clock tower
-    m.add(box(1800, 210, 400), { col: sootBrick, pos: [0, 105, 0], surf: SURF.paint });
-    m.add(box(1820, 14, 410), { col: paleStone, pos: [0, 214, 0], surf: SURF.paint });
-    gable(m, 1800, 400, 220, 90, slate, 16);
-    // the great arched window (lit within) and a row of tall windows either side
-    m.add(lathe([[0, 0], [110, 0], [110, 120], [100, 160], [70, 190], [0, 205]], 2, 0, 0, Math.PI), { col: 0x1a1210, pos: [0, 0, 201], rot: [Math.PI / 2, 0, 0], scale: [1, 0.02, 1], surf: SURF.wood });
-    m.add(box(190, 170, 2), { col: 0xffc070, pos: [0, 90, 202], surf: SURF.bulb, emit: 0.85 });
-    for (let i = 0; i < 6; i++) m.add(box(3, 170, 3), { col: 0x1a1210, pos: [-80 + i * 32, 90, 203], surf: SURF.wood });
-    windows(m, -880, -160, 110, 201, 7, 50, 110, [1, 4, 5], 0x1a1210);
-    windows(m, 160, 880, 110, 201, 7, 50, 110, [0, 2, 6], 0x1a1210);
+    // Hollow Junction's terminal: soot-black brick between pale stone pilasters, a cornice, arched windows lit
+    // within, the great doorway with its fanlight, and the clock tower over it
+    m.add(box(1800, 190, 400), { col: sootBrick, pos: [0, 95, 0], surf: SURF.paint });
+    for (let i = 0; i <= 12; i++) {
+      const x = -900 + i * 150;
+      m.add(box(26, 200, 14), { col: paleStone, pos: [x, 100, 203], surf: SURF.paint });
+      m.add(box(34, 14, 18), { col: paleStone, pos: [x, 7, 203], surf: SURF.paint });
+    }
+    m.add(box(1830, 16, 22), { col: paleStone, pos: [0, 206, 204], surf: SURF.paint });
+    m.add(box(1830, 8, 14), { col: paleStone, pos: [0, 64, 204], surf: SURF.paint });
+    gable(m, 1800, 400, 214, 90, slate, 18);
+    for (let i = 0; i < 12; i++) {
+      if (i === 5 || i === 6) continue;
+      const x = -825 + i * 150, lit = [1, 3, 8, 10].includes(i);
+      m.add(box(64, 100, 3), { col: 0x14100e, pos: [x, 128, 202], surf: SURF.wood });
+      m.add(cyl(32, 32, 3, 16, false), { col: 0x14100e, pos: [x, 178, 202], rot: [Math.PI / 2, 0, 0], surf: SURF.wood });
+      m.add(box(54, 92, 1), { col: lit ? 0xffc070 : 0x101418, pos: [x, 128, 204], surf: lit ? SURF.bulb : SURF.glass, emit: lit ? 0.75 : 0 });
+      m.add(box(3, 92, 2), { col: 0x14100e, pos: [x, 128, 205], surf: SURF.wood });
+    }
+    // the great doorway: an arch of stone, the doors ajar on warm light, the fanlight above
+    m.add(box(250, 190, 26), { col: paleStone, pos: [0, 95, 210], surf: SURF.paint });
+    m.add(box(190, 160, 4), { col: 0xffb860, pos: [0, 80, 224], surf: SURF.bulb, emit: 0.9 });
+    m.add(cyl(95, 95, 4, 20, false), { col: 0xffd090, pos: [0, 160, 224], rot: [Math.PI / 2, 0, 0], surf: SURF.bulb, emit: 0.8 });
+    for (let i = 0; i < 7; i++) m.add(box(3, 90, 4), { col: 0x1a1210, pos: [0, 200, 226], rot: [0, 0, (i - 3) * 0.42], surf: SURF.wood });
+    for (const s of [-1, 1]) m.add(box(70, 150, 6), { col: weather(0x3a1a12, 0.35), pos: [s * 70, 76, 228], rot: [0, s * 0.5, 0], surf: SURF.wood });
     // the clock tower above the arch, its face lit
     m.add(box(160, 260, 160), { col: sootBrick, pos: [0, 340, -60], surf: SURF.paint });
     m.add(cyl(56, 56, 6, 28), { col: 0xf0e8c8, pos: [0, 400, 22], rot: [Math.PI / 2, 0, 0], surf: SURF.porcelain, emit: 0.9 });
@@ -520,6 +535,19 @@ export const GT_KIT: Record<string, (variant: number) => THREE.BufferGeometry> =
     m.add(cyl(1.4, 1.4, 180, 5), { col: 0x5a5856, pos: [40, 220, 0], surf: SURF.iron });
     m.add(torus(14, 3.6, 6, 12, Math.PI * 1.4), { col: iron, pos: [40, 124, 0], rot: [0, 0, Math.PI * 0.7], surf: SURF.iron });
   }, 0.2),
+  gt_headframe: () => B((m) => {
+    // a pit-head winding frame: an A-frame of riveted girders, the great sheave wheel at its top, the engine house
+    m.add(box(180, 90, 140), { col: sootBrick, pos: [0, 45, 0], surf: SURF.paint });
+    gable(m, 180, 140, 90, 40, slate, 8);
+    for (const s of [-1, 1]) {
+      m.add(box(12, 280, 12), { col: rust, pos: [s * 60, 140, -40], rot: [0, 0, s * 0.2], surf: SURF.iron });
+      m.add(box(12, 300, 12), { col: rust, pos: [s * 40, 150, 50], rot: [-0.32, 0, s * 0.12], surf: SURF.iron });
+    }
+    for (let k = 0; k < 4; k++) m.add(box(130 - k * 18, 8, 8), { col: rust, pos: [0, 60 + k * 60, -40], surf: SURF.iron });
+    m.add(torus(44, 4, 6, 24), { col: iron, pos: [0, 286, -30], surf: SURF.iron });
+    for (let k = 0; k < 6; k++) m.add(box(4, 84, 4), { col: iron, pos: [0, 286, -30], rot: [0, 0, (k * Math.PI) / 6], surf: SURF.iron });
+    m.add(box(60, 34, 2), { col: 0xff9a40, pos: [0, 50, 71], surf: SURF.bulb, emit: 1.1 });
+  }, 0.35),
   gt_pipe: () => B((m) => {
     // a run of steam pipe on trestles (a unit 100 long along X; the world stretches it)
     m.add(cyl(13, 13, 100, 12), { col: rust, pos: [0, 40, 0], rot: [0, 0, Math.PI / 2], surf: SURF.iron });
@@ -653,6 +681,51 @@ export const GT_KIT: Record<string, (variant: number) => THREE.BufferGeometry> =
     }
   }, 0.2),
 };
+
+// ---------------------------------------------------------------- dressing (decorative, scattered by the data)
+Object.assign(GT_KIT, {
+  gt_crate: (v: number) => B((m) => {
+    m.add(rbox(34, 30, 34, 2), { col: weather(v === 1 ? 0x5a4630 : 0x4a3a28, 0.45, 0.06), pos: [0, 15, 0], surf: SURF.wood });
+    for (const s of [-1, 1]) m.add(box(36, 3, 3), { col: darkWood, pos: [0, 15 + s * 10, 17.5], surf: SURF.wood });
+    if (v === 2) m.add(rbox(26, 22, 26, 2), { col: weather(0x4a3a28, 0.45), pos: [4, 41, -2], rot: [0, 0.5, 0], surf: SURF.wood });
+  }),
+  gt_barrel: (v: number) => B((m) => {
+    m.add(cyl(14, 13, 40, 14), { col: weather(v === 2 ? 0x3a2a1c : 0x4a3424, 0.45, 0.06), pos: [0, 20, 0], surf: SURF.wood });
+    for (const y of [6, 20, 34]) m.add(torus(14.2, 1.2, 4, 14), { col: 0x2a2826, pos: [0, y, 0], rot: [Math.PI / 2, 0, 0], surf: SURF.iron });
+    if (v === 1) m.add(cyl(13, 13, 2, 14), { col: 0x101010, pos: [0, 40, 0], surf: SURF.rubber });
+  }),
+  gt_sack: (v: number) => B((m) => {
+    for (let i = 0; i <= (v % 2); i++) m.add(ellipsoid(16, 12, 12, 10, 6), { col: weather(0x6a5a3a, 0.5, 0.08), pos: [i * 18 - 9 * (v % 2), 10, i * 6], rot: [0, i * 0.8, 0], surf: SURF.canvas });
+  }, 0.4),
+  gt_paper: () => B((m) => {
+    for (let i = 0; i < 4; i++) m.add(box(14, 0.6, 10), { col: 0xd0c8b0, pos: [Math.cos(i * 2.1) * 16, 0.5 + i * 0.3, Math.sin(i * 2.1) * 12], rot: [0, i * 1.3, 0], surf: SURF.cloth });
+  }, 0),
+  gt_lily: () => B((m) => {
+    m.add(cyl(1, 1, 22, 4), { col: 0x2a3a1e, pos: [0, 11, 0], surf: SURF.cloth });
+    for (let k = 0; k < 3; k++) m.add(cone(4, 8, 6), { col: 0xe8e4d8, pos: [Math.cos(k * 2.1) * 4, 24, Math.sin(k * 2.1) * 4], rot: [Math.PI + 0.5, k * 2.1, 0], surf: SURF.cloth, emit: 0.15 });
+  }, 0),
+  gt_grave_flowers: () => B((m) => {
+    m.add(cyl(6, 5, 10, 8), { col: 0x5a5a54, pos: [0, 5, 0], surf: SURF.paint });
+    for (let k = 0; k < 6; k++) m.add(sphere(3, 6, 4), { col: k % 2 ? 0x6a2030 : 0xd8d0c0, pos: [Math.cos(k) * 4, 14 + (k % 3) * 2, Math.sin(k) * 4], surf: SURF.cloth });
+  }, 0),
+  gt_leaves: () => B((m) => {
+    for (let k = 0; k < 9; k++) m.add(ellipsoid(4, 0.6, 2.4, 6, 3), { col: k % 3 ? 0x5a3418 : 0x3a2a14, pos: [Math.cos(k * 1.7) * (8 + k * 3), 0.6, Math.sin(k * 1.7) * (6 + k * 2)], rot: [0, k, 0], surf: SURF.cloth });
+  }, 0),
+  gt_rubble: (v: number) => B((m) => {
+    for (let k = 0; k < 5 + v; k++) m.add(rbox(10 + (k % 3) * 5, 6 + (k % 2) * 4, 8 + (k % 4) * 3, 2, 1), { col: weather(v === 1 ? 0x3a3430 : 0x6a665e, 0.45, 0.06), pos: [Math.cos(k * 2.3) * (6 + k * 4), 3, Math.sin(k * 2.3) * (5 + k * 3)], rot: [k * 0.3, k, k * 0.2], surf: SURF.paint });
+  }, 0.3),
+  gt_coalpile: () => B((m) => {
+    m.add(ellipsoid(34, 16, 28, 12, 6), { col: coalCol, pos: [0, 0, 0], surf: SURF.rubber });
+    for (let k = 0; k < 6; k++) m.add(rbox(8, 6, 7, 2, 1), { col: coalCol, pos: [Math.cos(k) * 18, 8 + (k % 2) * 3, Math.sin(k) * 14], rot: [k, k * 2, 0], surf: SURF.rubber });
+  }, 0.4),
+  gt_flowerbox: () => B((m) => {
+    m.add(box(44, 14, 16), { col: weather(0x4a3a28, 0.45), pos: [0, 7, 0], surf: SURF.wood });
+    for (let k = 0; k < 7; k++) m.add(sphere(3.4, 6, 4), { col: [0x8a2a3a, 0xd8c070, 0x6a4a8a][k % 3], pos: [-18 + k * 6, 17 + (k % 2) * 2, (k % 2) * 3 - 1.5], surf: SURF.cloth });
+  }, 0.2),
+  gt_ticketpile: () => B((m) => {
+    for (let k = 0; k < 14; k++) m.add(box(6, 0.5, 3.4), { col: k % 4 ? 0xe8dcb8 : 0xc8a050, pos: [Math.cos(k * 2.4) * (k * 2), 0.4 + k * 0.15, Math.sin(k * 2.4) * (k * 1.6)], rot: [0, k * 1.1, 0], surf: SURF.cloth, emit: 0.2 });
+  }, 0),
+});
 
 /** Kinds the world stretches along their length (`w`) rather than placing at a fixed size. */
 export const GT_STRETCH: Record<string, number> = { gt_railing: 100, gt_picket: 100, gt_barrier: 100, gt_pipe: 100 };

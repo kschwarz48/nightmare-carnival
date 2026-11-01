@@ -1171,3 +1171,48 @@ and teleports, and the prize wheel dull and see-through.
   mirror), `recipes.test.ts` (new: a teammate's level-up shows each player their own build; a guest's hand
   counts the pick it carries; every evolution reads right; a passive's card), `net.test.ts` (every guest
   hand carries the host's build).
+
+### D-80 · The Ghost Train, the fourth map: the Midnight Line, five stations, a train you board and ride, 21 creatures, seven bosses, The Last Train Home
+
+Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EASTER_EGG_GHOST_TRAIN.md`.
+
+- **The train is a timetable, not a moving body.** Five stations and the moving train are six places far apart
+  in one world; each station has a parked copy of the carriages and the moving train's place one more. The
+  train is `trainAt(time, eFrom)`, a pure function of sim time and one replicated number, so a guest predicts
+  the same doors and the same train as the host. At departure the host moves everything inside a station's
+  copy (players, creatures, pickups, projectiles, bullets, hazards, summons) into the moving copy at the same
+  local position, and at arrival into the next station's. Nothing ever moves on a moving floor: no jitter,
+  no broken targeting, and a moving train is sealed because its doors are walls and its place has no exit.
+  The camera carries over the jump; the world outside the moving copy is a scenery conveyor, and each
+  station's real platform fixtures slide in alongside before the swap, so the stop looks continuous.
+- **Timetable:** the Junction at 0:30, then J 45 s → V 40 s → C 40 s → S 40 s, 35 s between stations and
+  60 s from Stillwater back to the Junction through the End of the Line (a 5:30 loop). The End of the Line
+  is a stop from the final act (25:00) for everyone, earlier with the quest; the last train terminates there
+  (27:35, or 29:35 with the quest), and from 29:00 a phantom door on every other platform leads to it, so
+  nobody is stranded for the Night Express at 30:00. Doors open 2 s after a stop, close 3 s before it leaves;
+  a bell at 10 s, the whistle at 5 s. The HUD's departures line, the station clocks' timetables, and the
+  train's sounds make the timing readable.
+- **A 35-minute night** (`MapDef.dawn`, `actGates`; `DAWN_TIME` and `ACT_GATES` became live bindings): acts at
+  8:00, 17:00 and 25:00; six scheduled bosses (5:00 … 30:00) instead of four. The payout counts the clock to
+  the map's own dawn.
+- **Where creatures come from:** the stations by the waves, each creature only at the stations it belongs to
+  (`params.home`), anchored on the standing player whose station has the fewest creatures per player (a split
+  party each gets a fair crowd), never inside the parked carriages; the moving train by its own journey
+  spawner, boarding only at the tender and the rear platform, scaled to the riders. Events keep the same
+  rule (a trunk in the baggage car or plates in the dining car when you're riding, nothing aboard).
+- **Bosses fight at stations** and follow the party down the line: a boss whose station has stood empty for 4 s
+  while somebody stands at another is waiting there. A boss due while everyone rides waits for the next
+  platform; a boss holds still while nobody is in its place. The End of the Line's two never leave it.
+  First tuning from the bot's time-to-kill (`scripts/gt_bossttk.ts`, god-mode bot, strong builds): the
+  Stationmaster 6800 (58 s with a two-weapon build), the Stoker 17500 (67 s), the Widow 46000 → 39000 (50 s
+  before the trim), the Iron Foreman 112000 → 84000 (118 s before the trim: twice its peers), the Hour Thief
+  160000 → 145000 (54 s), the Night Express 230000 → 185000 (84 s before the trims; a ridden bot night could
+  not finish it with its own drafting), the Conductor 240000 → 220000 (78 s). These are first values, to be
+  moved in small steps from play-tests.
+- **The Last Train Home** (15 stages, about one and a half times Summer's End): most steps can only be done
+  while the train stands at a particular station or at a particular moment of a journey (a signal in sight
+  ahead of the tender, the bridge over the drop), so the timetable is part of the puzzle; a miss waits for
+  the next time round. Solo-completable inside the night (the test plays it through), co-op synced in 27
+  bytes including `eFrom`.
+- **Scope honesty:** see `GHOST_TRAIN.md` §11 for what is simpler than the Boardwalk's art (lettering on the
+  boards, the creature sculpts' detail, the locomotive's smoke).

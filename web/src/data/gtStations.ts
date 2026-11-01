@@ -169,8 +169,7 @@ export const CINDER = (() => {
   add({ kind: 'gt_cokeovens', x: cx + 1350, y: cy - 220, hw: 300, hh: 62 });
   add({ kind: 'gt_cokeovens', x: cx - 1500, y: cy - 330, hw: 260, hh: 62, variant: 1 });
   for (const [x, y, v] of [[-420, -360, 0], [400, 240, 1], [-1950, 300, 0], [1150, 480, 1], [-900, 1080, 0]]) add({ kind: 'gt_minecart', x: cx + x, y: cy + y, hw: 36, hh: 22, variant: v });
-  for (const [x, y] of [[-560, 100], [-60, 100], [-560, 520], [-60, 520]]) add({ kind: 'gt_gantryleg', x: cx + x, y: cy + y, r: 16 });
-  add({ kind: 'gt_gantry', x: cx - 310, y: cy + 310 });
+  add({ kind: 'gt_headframe', x: cx - 310, y: cy + 420, hw: 90, hh: 70 });
   for (const [x, y, hw, hh] of [[700, -420, 220, 14], [-2000, 640, 14, 200], [1900, 520, 14, 160]]) add({ kind: 'gt_pipe', x: cx + x, y: cy + y, hw, hh });
   for (const [x, y] of [[300, -380], [-1100, -40], [1000, 150], [-200, 800], [1650, 620], [-1650, 700]]) add({ kind: 'gt_brazier', x: cx + x, y: cy + y, r: 14 });
 }
@@ -227,6 +226,46 @@ export const END = (() => {
   // the edge of the world (decorative; the ground simply ends)
   add({ kind: 'gt_edge_world', x: cx, y: cy + END_EDGE });
 }
+
+// ---------------------------------------------------------------- dressing (decorative: no colliders)
+/** A deterministic scatter for each station's clutter. */
+function scatter(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+/** Is (x, y) clear of every solid prop by `m`? (so dressing never pokes out of a wall) */
+function clear(x: number, y: number, m: number): boolean {
+  for (const p of props) {
+    if (p.r && (p.x - x) ** 2 + (p.y - y) ** 2 < (p.r + m) ** 2) return false;
+    if (p.hw && p.hh && Math.abs(p.x - x) < p.hw + m && Math.abs(p.y - y) < p.hh + m) return false;
+  }
+  return true;
+}
+const DRESS: [number, Prop['kind'][], number][] = [
+  [J, ['gt_crate', 'gt_barrel', 'gt_sack', 'gt_paper'], 40],
+  [V, ['gt_lily', 'gt_grave_flowers', 'gt_leaves', 'gt_rubble'], 70],
+  [C, ['gt_coalpile', 'gt_barrel', 'gt_rubble', 'gt_sack', 'gt_crate'], 70],
+  [S, ['gt_leaves', 'gt_crate', 'gt_barrel', 'gt_flowerbox'], 46],
+  [E, ['gt_paper', 'gt_rubble', 'gt_ticketpile'], 50],
+];
+for (const [r, kinds, n] of DRESS) {
+  const g = REGIONS[r], rnd = scatter(9001 + r * 77);
+  const top = trackY(r) + PLATFORM_DEPTH + 40, bottom = r === E ? g.cy + END_EDGE - 60 : g.cy + 1200;
+  for (let i = 0, made = 0; i < n * 6 && made < n; i++) {
+    const x = g.cx - 2150 + rnd() * 4300, y = top + rnd() * (bottom - top);
+    // keep the bosses' ground (round the station's middle) a little clearer
+    if (Math.abs(x - g.cx) < 500 && Math.abs(y - (trackY(r) + 820)) < 320 && rnd() < 0.7) continue;
+    if (!clear(x, y, 30)) continue;
+    add({ kind: kinds[Math.floor(rnd() * kinds.length)], x, y, variant: Math.floor(rnd() * 3), yaw: rnd() * Math.PI * 2 });
+    made++;
+  }
+}
+// more light where the yards were darkest: lamp posts along the Works' tub rails and the churchyard's paths
+for (const [x, y] of [[-1700, -200], [-800, 300], [200, -60], [900, 400], [1700, 300], [-1300, 900], [500, 1100]]) add({ kind: 'gt_lamppost', x: REGIONS[C].cx + x, y: REGIONS[C].cy + y, r: 9, variant: 0 });
+for (const [x, y] of [[-1600, -150], [1600, 300], [-1500, 650], [1000, 900]]) add({ kind: 'gt_lamppost', x: REGIONS[V].cx + x, y: REGIONS[V].cy + y, r: 9, variant: 1 });
 
 // ---------------------------------------------------------------- the quest's fixtures in the carriages
 /** In the train's own frame. Pages: two hiding places in each of four cars (one used a night). */

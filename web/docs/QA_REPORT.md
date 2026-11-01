@@ -115,6 +115,46 @@ understate that character.
 
 ---
 
+## The Ghost Train, a fourth map — 2026-11-01 (D-80)
+
+- **Automated:** `npm test` 25 files, 382 tests pass, among them `tests/ghosttrain.test.ts` (19): the registry and
+  the 35-minute night; the timetable (first arrival, doors, the End of the Line from the final act and from the
+  points, the terminus, an `eFrom` set mid-run never rewrites the timetable already run); a player, a creature
+  and a ticket carried from the Junction to Saint Vesper's at the same spot to the unit; a moving train sealed;
+  journey creatures boarding only within 40 units of the tender's coal and the rear platform's railing, none
+  while nobody rides; station creatures only of their home, never in the carriages; the Stationmaster meeting
+  the party and following it to the Cinder Works; the Night Express the End of the Line's; the phantom doors;
+  The Last Train Home played through solo stage by stage, its last ticket punched before dawn, to the
+  Conductor and the true dawn; timing-bound steps refused outside their moment and retried; the co-op bytes
+  (stage, `eFrom`, levers, bells, hour, carriers) reaching a guest's mirror, whose timetable equals the host's;
+  the save (`beat_leviathan` or `?unlock=ghosttrain` opens it) and the payout to the map's own dawn.
+  `tsc --noEmit` clean; `npm run build` builds.
+- **Accelerated runs:** `scripts/gt_smoke.ts 2300` (a god-mode bot that boards at every station, rides, and
+  takes the phantom door after 29:00): 40 transfers, every boss spawned where the bot stood and followed it
+  (the Stationmaster, the Stoker, the Widow, the Iron Foreman, the Hour Thief all fell), the last train
+  terminated at the End of the Line at 27:35 and the bot stayed there; the Night Express came at 30:00 and the
+  bot's own weak drafting could not finish it before 35:00 (it trimmed afterwards; see D-80). At most 138
+  creatures alive; at most 136 aboard (a station's crowd that followed the bot into the parked carriages
+  rides along with it).
+- **Boss time-to-kill** (`scripts/gt_bossttk.ts 1`, bot in god mode with strong builds, before the trims):
+  Stationmaster 58 s (two weapons), Stoker 67 s, Widow 50 s, Iron Foreman 118 s, Hour Thief 54 s, Night Express
+  84 s, Conductor 78 s; the Boardwalk for scale: the Last Ride 34 s, the Leviathan 42 s, the Commodore 58 s.
+- **Performance** (Electron on the RTX 2070, 3440×1440, High; `desktop/bench.js --only=ghost,boardwalk`):
+  the Ghost Train late with 400 creatures 100 fps (frame p95 12.3 ms, p99 18.2 ms, GPU 9.1 ms mean,
+  240 draw calls, 12.4 M triangles; sim 1.9 ms a tick, of it collisions 1.46 ms: the crowd packs tighter in
+  a station than on an open map); the Night Express fight with 150 creatures 131 fps. The Boardwalk late
+  with 400, the same run: 85 fps, GPU 11.2 ms. Boot: the 21 new sculpts add about 1.6 s of worker time.
+- **Visual inspection** (screenshots in `artifacts/visual/gt1…gt5`, inspected): every station at its dwell,
+  the coach, the dining car, Car 13, the tender, the observation car, a station sliding in alongside the
+  moving train with its signal at clear, all seven bosses. Fixed from them: a haze over the moving train
+  (the carriages' lights were too strong and too high; lowered, fewer), unreadable carriage floors
+  (brighter, patterned), an over-bright church clock and fountain, the Cinder Works' gantry (it read as a
+  dark frame from above; now a pit-head winding frame), a flat terminal façade (pilasters, cornice, arched
+  windows lit within, the great doorway), sparse station grounds (dressing and more lamp posts).
+- **Not done here:** a human play-test of the full 35 minutes, solo or co-op, and a cross-network co-op
+  session on the new map (the co-op logic is covered by the tests above, locally). Known limitations:
+  `GHOST_TRAIN.md` §11.
+
 ## Engineering optimization pass — 2026-10-31 (D-73)
 
 **Changed:**

@@ -44,6 +44,7 @@ export class GtLighting {
           break;
         }
         case 'gt_brazier': add({ x: p.x, y: p.y, h: 52, r: 300, k: 1.15, col: [1, 0.48, 0.18], halo: 0.8, flick: 0.4, fire: true }); break;
+        case 'gt_headframe': add({ x: p.x, y: p.y + 110, h: 50, r: 260, k: 0.9, col: [1, 0.6, 0.28], halo: 0.5, flick: 0.1 }); break;
         case 'gt_furnace': add({ x: p.x, y: p.y + 170, h: 40, r: 420, k: 1.4, col: [1, 0.45, 0.15], halo: 1.2, flick: 0.3, fire: true }); break;
         case 'gt_cokeovens': for (let i = 0; i < 8; i += 2) add({ x: p.x - 262 + i * 75, y: p.y + 90, h: 36, r: 200, k: 0.8, col: [1, 0.42, 0.12], halo: 0.5, flick: 0.3, fire: true }); break;
         case 'gt_slagheap': add({ x: p.x, y: p.y, h: 30, r: (p.r ?? 100) + 120, k: 0.55, col: [1, 0.42, 0.14], halo: 0, flick: 0.2 }); break;
@@ -55,7 +56,7 @@ export class GtLighting {
           add({ x: p.x, y: p.y + 260, h: 90, r: 420, k: 1, col: [1, 0.72, 0.42], halo: 0.9, flick: 0.04 });
           add({ x: p.x, y: p.y + 120, h: 400, r: 260, k: 0.5, col: [1, 0.95, 0.8], halo: 1.1, flick: 0 });
           break;
-        case 'gt_fountain': add({ x: p.x, y: p.y, h: 176, r: 260, k: 0.8, col: [1, 0.85, 0.6], halo: 0.5, flick: 0.05 }); break;
+        case 'gt_fountain': add({ x: p.x, y: p.y, h: 176, r: 240, k: 0.55, col: [1, 0.85, 0.6], halo: 0.28, flick: 0.05 }); break;
         case 'gt_chapel':
           for (const dx of [-170, 170]) add({ x: p.x + dx, y: p.y + 260, h: 120, r: 240, k: 0.75, col: [0.8, 0.7, 1], halo: 0.5, flick: 0.1 });
           break;

@@ -109,8 +109,10 @@ const REGION_GLSL = (r: number) => {
     case 2: // the Cinder Works: black cinders, coal dust, puddles, tub-wagon rails
       ground = /* glsl */ `
       col = mix(vec3(0.035, 0.032, 0.03), vec3(0.09, 0.08, 0.07), gtFbm(w * 0.02)) * (0.7 + 0.5 * gtHash(floor(w / 3.0)));
-      float slagGlow = smoothstep(0.78, 0.86, gtFbm(w * 0.006 + 11.0));
-      col = mix(col, vec3(0.4, 0.12, 0.03), slagGlow * 0.5);
+      float slagGlow = smoothstep(0.72, 0.84, gtFbm(w * 0.006 + 11.0));
+      float seam = smoothstep(0.035, 0.0, abs(gtNoise(w * 0.008 + 3.0) - 0.5)) * smoothstep(0.55, 0.7, gtFbm(w * 0.002));
+      col = mix(col, vec3(0.42, 0.13, 0.03), slagGlow * 0.55);
+      col += vec3(0.5, 0.16, 0.03) * seam * 0.6;
       float rails = 0.0;
       float ry = mod(w.y - ${(g.cy - 360).toFixed(1)}, 520.0);
       rails = smoothstep(3.0, 1.5, abs(ry - 24.0)) + smoothstep(3.0, 1.5, abs(ry - 68.0));
