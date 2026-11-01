@@ -64,6 +64,8 @@ export function morph(a: Element, b: Element): void {
  */
 export class FocusNav {
   current: HTMLElement | null = null;
+  /** where the focus was among the items, to find its place again when a click re-draws the screen (D-84) */
+  private at = -1;
   constructor(public root: HTMLElement) {}
 
   items(): HTMLElement[] {
@@ -73,6 +75,7 @@ export class FocusNav {
   focus(el: HTMLElement | null): void {
     if (this.current) this.current.classList.remove('focus');
     this.current = el;
+    this.at = el ? this.items().indexOf(el) : -1;
     if (el) {
       el.classList.add('focus');
       el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -90,7 +93,7 @@ export class FocusNav {
     const items = this.items();
     if (!items.length) return false;
     if (!this.current || !items.includes(this.current)) {
-      this.focus(items[0]);
+      this.focus(items[Math.min(Math.max(0, this.at), items.length - 1)]);
       return true;
     }
     const a = this.current.getBoundingClientRect();
@@ -122,6 +125,8 @@ export class FocusNav {
 
   activate(): void {
     this.current?.click();
+    // a click that re-drew its screen (a Lost & Found switch) keeps the focus on the item in the same place
+    if (this.current && !this.root.contains(this.current) && this.at >= 0) this.focus(this.items()[this.at] ?? null);
   }
 }
 

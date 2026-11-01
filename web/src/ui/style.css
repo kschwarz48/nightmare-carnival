@@ -159,6 +159,8 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 .hud .tray .group { display: flex; gap: 6px; background: rgba(20, 10, 32, 0.7); border: 3px solid var(--ink); border-radius: 14px; padding: 5px; }
 .hud .slot { width: 48px; height: 48px; position: relative; border-radius: 50%; }
 .hud .slot img { width: 100%; height: 100%; }
+/* a cooldown dial over a slot (D-84): the grey still to recharge, swept back clockwise from twelve o'clock */
+.hud .slot .cd { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: conic-gradient(transparent var(--cd, 360deg), rgba(14, 8, 22, 0.7) 0); }
 .hud .slot.empty { border: 2px dashed rgba(255, 255, 255, 0.25); }
 .hud .slot .lv { position: absolute; right: -4px; bottom: -4px; background: var(--ink); color: var(--gold); font-family: var(--head); font-size: 0.7em; border-radius: 8px; padding: 0 4px; border: 1px solid var(--gold-dark); }
 .hud .slot .lv.max { color: #ff7ab0; }

@@ -119,6 +119,8 @@ export class Hud {
   private fpsEl: HTMLDivElement;
   private preview: HTMLDivElement;
   private trayKey = '';
+  /** cooldown dials on the tray (the Undertow's, D-84): each weapon's slot index and its sweep */
+  private dials: { i: number; el: HTMLElement }[] = [];
   private lastHp = -1;
   private bossKey = '';
   private indicators: HTMLDivElement;
@@ -247,6 +249,7 @@ export class Hud {
     const key = `${slots.weapons}/${slots.passives}|` + g.weapons.list.map((w) => `${w.def.id}:${w.level}${ready.has(w.def.id) ? '!' : ''}`).join(',') + '|' + [...p.passives].map(([id, l]) => `${id}:${l}`).join(',');
     if (key !== this.trayKey) {
       this.trayKey = key;
+      this.dials = [];
       const wg = h('div', { class: 'group' });
       for (let i = 0; i < slots.weapons; i++) {
         const w = g.weapons.list[i];
@@ -257,7 +260,10 @@ export class Hud {
         const max = w.level >= w.def.maxLevel;
         const lv = max ? (w.def.isEvolution ? '✦MAX' : 'MAX') : w.def.isEvolution ? `✦${w.level}` : String(w.level);
         const id = w.def.id;
-        wg.append(h('div', { class: `slot${ready.has(id) ? ' evo-ready' : ''}`, onpointerenter: (ev: PointerEvent) => this.showTip(ev.currentTarget as HTMLElement, 'weapon', id), onpointerleave: () => this.hideTip() }, h('img', { src: this.assets.weaponIcon(id), alt: w.def.name }), h('span', { class: `lv${max ? ' max' : ''}${w.def.isEvolution ? ' evo' : ''}` }, lv)));
+        // the Undertow launches on its own when it's ready: its slot shows when that will be
+        const dial = id === 'bumper' ? h('div', { class: 'cd' }) : null;
+        if (dial) this.dials.push({ i, el: dial });
+        wg.append(h('div', { class: `slot${ready.has(id) ? ' evo-ready' : ''}`, onpointerenter: (ev: PointerEvent) => this.showTip(ev.currentTarget as HTMLElement, 'weapon', id), onpointerleave: () => this.hideTip() }, h('img', { src: this.assets.weaponIcon(id), alt: w.def.name }), dial, h('span', { class: `lv${max ? ' max' : ''}${w.def.isEvolution ? ' evo' : ''}` }, lv)));
       }
       const pg = h('div', { class: 'group' });
       const ps = [...p.passives];
@@ -273,6 +279,12 @@ export class Hud {
       }
       this.hideTip();
       this.tray.replaceChildren(wg, pg);
+    }
+    // the grey sweeps back clockwise as the weapon recharges, like an MMO's cooldowns (D-84)
+    for (const d of this.dials) {
+      const w = g.weapons.list[d.i];
+      const f = w ? Math.max(0, Math.min(1, w.cd / g.weapons.cooldown(w))) : 0;
+      d.el.style.setProperty('--cd', `${((1 - f) * 360).toFixed(1)}deg`);
     }
     this.statsR.replaceChildren(h('div', {}, `☠ ${g.kills.toLocaleString('en-US')}`), h('div', {}, `🎪 ${g.diff.name}${g.cfg.curse ? ' · Cursed' : ''}${g.cfg.daily ? ' · Daily' : ''}`));
     // boss bar

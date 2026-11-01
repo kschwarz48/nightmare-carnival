@@ -26,7 +26,9 @@ export class TentBoss extends BossBase {
     this.x = this.px = 0;
     this.y = this.py = -40;
     this.solid = true;
-    this.solidR = 120;
+    // solid only while it sleeps (on the Midway, and the first night until 6:00): out to its canvas walls, which
+    // stand 156 from its centre (D-84: at 120 anyone could walk a good way into the tent)
+    this.solidR = 156;
     this.moveSpeed = 120;
     this.keepDist = 330;
     this.pose = { maw: 0, leg: -1, legT: 0, collapse: 0, fire: 0, inhale: 0 };

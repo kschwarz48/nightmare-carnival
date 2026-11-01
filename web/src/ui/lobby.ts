@@ -194,6 +194,28 @@ export function menuPanel(c: UICtx, title: string, text: string, actions: { labe
   ));
 }
 
+/** Swap Character on the Midway (D-84): every performer this save owns; the one you walk as is picked. */
+export function characterPanel(c: UICtx, current: string, pick: (id: string) => void, back: () => void): HTMLElement {
+  const s = c.save;
+  const cur = CHARACTER_MAP[current as keyof typeof CHARACTER_MAP];
+  return h('div', { class: 'screen dim mp' }, h('div', { class: 'panel bulbs mp-panel' },
+    h('h2', { class: 'title-text' }, 'Swap Character'),
+    h('div', { class: 'muted' }, 'Who you walk the Midway as, and who starts your next night.'),
+    h('div', { class: 'mp-grid' }, ...CHARACTERS.map((ch) => {
+      const avail = s.characterAvailable(ch.id);
+      return h('div', {
+        class: `char-card${ch.id === current ? ' sel' : ''}${avail ? '' : ' locked'}`,
+        'data-nav': avail ? '' : undefined,
+        'data-default': ch.id === current ? '' : undefined,
+        title: avail ? ch.title : 'Locked on this save',
+        onclick: () => { if (!avail) return; c.click(); pick(ch.id); },
+      }, h('img', { src: c.assets.portrait(ch.id), alt: ch.name }), h('div', { class: `nm${avail && ch.name.replace('The ', '').length > 8 ? ' long' : ''}` }, avail ? ch.name.replace('The ', '') : '???'));
+    })),
+    cur ? h('div', { class: 'mp-detail' }, h('b', {}, cur.name), ' — ', cur.quirkName, h('div', { class: 'muted' }, `Starts with ${WEAPONS[cur.startWeapon].name}. ${cur.quirkDesc}`)) : null,
+    h('div', { class: 'menu' }, btn('Back', () => { c.click(); back(); }, 'small red')),
+  ));
+}
+
 // ===================================================================== in-run notices
 /** A small modal for network trouble: the host left, the connection dropped, a refused join. */
 export function netNotice(c: UICtx, title: string, text: string, actions: { label: string; fn: () => void; cls?: string }[]): HTMLElement {

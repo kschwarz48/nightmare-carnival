@@ -30,6 +30,8 @@ export interface UICtx {
   applySettings: () => void;
   /** the Windows app's published installer (browsers only; see App.showDownload) */
   desktopDownload?: { version: string; url: string };
+  /** close the game (the Windows app only: a browser tab can't close itself; D-84) */
+  quit?: () => void;
 }
 
 const btn = (label: string | Node, onclick: () => void, cls = '', extra: Record<string, any> = {}) => h('button', { class: `btn ${cls}`, 'data-nav': '', onclick, ...extra }, label);
@@ -64,6 +66,7 @@ export function titleScreen(c: UICtx): HTMLElement {
     btn('Lost & Found', () => { c.click(); c.go('lostfound'); }),
     btn('Carnival-pedia', () => { c.click(); c.go('pedia'); }),
     btn('Settings', () => { c.click(); c.go('settings', 'title'); }),
+    c.quit ? btn('Exit Game', () => { c.click(); c.quit!(); }, 'small red') : null,
   );
   return h('div', { class: 'screen title' },
     h('img', { class: 'logo', src: c.assets.logo(), alt: 'Nightmare Carnival' }),
@@ -333,6 +336,8 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
         h('div', { class: 'ds' }, how ? `Earned: ${how}` : 'Earned'), poolTag(id));
     });
     const unlocks = [...UNLOCKS.map(unlockItem), ...earnedItems];
+    // a click re-draws the panel: it stays scrolled where it was (D-84: a draft switch used to jump to the top)
+    const top = root.querySelector<HTMLElement>('.panel')?.scrollTop ?? 0;
     root.replaceChildren(h('div', { class: 'panel bulbs' },
       h('div', { class: 'lf-head' }, h('h2', { class: 'title-text' }, 'Lost & Found'), h('span', { class: 'ticket-count' }, fmtNum(s.data.lostTickets)), h('div', {}, btn('Refund perks', () => { const n = s.refundPerks(); c.audio.play('ui_back'); if (n) render(); }, 'small purple'), ' ', btn('Back', () => { c.click(); c.go('title'); }, 'small red', { 'data-default': '' }))),
       h('div', { class: 'muted' }, 'Spend the Lost Tickets you carry out of each night. Perks are a head start — the night is still won in the drafts.'),
@@ -346,6 +351,7 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
       h('div', { class: 'section-title' }, 'Achievements'),
       h('div', { class: 'lf-grid' }, ...ACHIEVEMENTS.map((a) => h('div', { class: `lf-item${s.hasAchievement(a.id) ? '' : ' locked'}` }, h('img', { src: c.assets.uiIcon('luck'), alt: '' }), h('div', { class: 'nm' }, a.name), h('div', { class: 'ds' }, a.desc), h('div', { class: 'cost', style: { gridColumn: '2' } }, s.hasAchievement(a.id) ? '✓ Earned' : `+${a.reward} LT`)))),
     ));
+    root.querySelector<HTMLElement>('.panel')!.scrollTop = top;
   };
   render();
   return root;

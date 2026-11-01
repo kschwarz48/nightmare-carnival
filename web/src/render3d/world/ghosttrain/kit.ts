@@ -464,6 +464,59 @@ export const GT_KIT: Record<string, (variant: number) => THREE.BufferGeometry> =
     // the three bell ropes hanging down to the porch
     for (const x of [-120, 0, 120]) m.add(cyl(1.6, 1.6, 230, 5), { col: 0x8a7a58, pos: [x, 125, 244], surf: SURF.cloth });
   }, 0.4),
+  gt_gate: (v) => B((m) => {
+    // a station's south gate (D-84), shut and chained, in its own make: the Junction's green-painted iron between
+    // lamp-topped stone piers, Vesper's arched churchyard gate, the Works' riveted sheet-iron yard gate,
+    // Stillwater's five-bar field gate between stone posts
+    const low = v === 3;
+    for (const s of [-1, 1]) {
+      m.add(box(30, low ? 104 : 150, 30), { col: v === 0 ? paleStone : low ? stone : brick, pos: [s * 98, low ? 52 : 75, 0], surf: SURF.paint });
+      m.add(box(38, 10, 38), { col: v === 2 ? slate : paleStone, pos: [s * 98, low ? 109 : 155, 0], surf: SURF.paint });
+      if (v === 0) {
+        m.add(cyl(2, 2, 16, 6), { col: greenIron, pos: [s * 98, 168, 0], surf: SURF.iron });
+        m.add(sphere(9, 10, 8), { col: GT.glass, pos: [s * 98, 182, 0], surf: SURF.bulb, emit: 1.1 });
+      }
+      if (v === 1) {
+        m.add(box(6, 32, 6), { col: paleStone, pos: [s * 98, 176, 0], surf: SURF.paint });
+        m.add(box(20, 6, 6), { col: paleStone, pos: [s * 98, 182, 0], surf: SURF.paint });
+      }
+    }
+    if (v === 2) {
+      for (const s of [-1, 1]) {
+        m.add(box(80, 120, 4), { col: rust, pos: [s * 41, 66, 0], surf: SURF.iron });
+        for (const y of [20, 112]) m.add(box(80, 6, 6), { col: iron, pos: [s * 41, y, 2], surf: SURF.iron });
+        m.add(box(6, 118, 5), { col: iron, pos: [s * 41, 66, 2.5], rot: [0, 0, s * 0.6], surf: SURF.iron });
+        for (let i = 0; i < 6; i++) m.add(sphere(1.6, 4, 3), { col: iron, pos: [s * (10 + i * 12), 112, 5], surf: SURF.iron });
+      }
+      // an enamel plate: a red bar on cream (KEEP OUT)
+      m.add(box(44, 24, 2), { col: GT.cream, pos: [-41, 82, 3], surf: SURF.porcelain });
+      m.add(box(36, 5, 2.4), { col: 0x8a1410, pos: [-41, 82, 3.2], surf: SURF.paint });
+    } else if (low) {
+      for (const x of [-80, 80]) m.add(box(8, 92, 7), { col: darkWood, pos: [x, 50, 0], surf: SURF.wood });
+      for (let i = 0; i < 5; i++) m.add(box(166, 6, 5), { col: weather(0x5a4a36, 0.45, 0.06), pos: [0, 18 + i * 17, 0], surf: SURF.wood });
+      m.add(box(178, 6, 5), { col: weather(0x5a4a36, 0.45, 0.06), pos: [0, 52, 3], rot: [0, 0, 0.4], surf: SURF.wood });
+    } else {
+      const col = v === 0 ? greenIron : iron;
+      for (const s of [-1, 1]) {
+        for (const y of [16, 104]) m.add(box(80, 5, 5), { col, pos: [s * 41, y, 0], surf: SURF.iron });
+        for (let i = 0; i < 8; i++) {
+          const x = s * (6 + i * 10);
+          // Vesper's gate rises to an arch where its leaves meet
+          const top = v === 1 ? 118 + Math.cos(((i + 0.5) / 8) * (Math.PI / 2)) * 22 : 124;
+          m.add(cyl(1.4, 1.4, top - 10, 5), { col, pos: [x, 10 + (top - 10) / 2, 0], surf: SURF.iron });
+          m.add(cone(2.6, 7, 4), { col, pos: [x, top + 3, 0], surf: SURF.iron });
+        }
+        if (v === 0) m.add(torus(15, 1.6, 5, 16), { col: GT.gilt, pos: [s * 41, 60, 2], surf: SURF.gold });
+      }
+      if (v === 1) {
+        m.add(box(4, 28, 3), { col, pos: [0, 150, 1], surf: SURF.iron });
+        m.add(box(16, 4, 3), { col, pos: [0, 154, 1], surf: SURF.iron });
+      }
+    }
+    // the chain and padlock where the leaves meet
+    for (let k = 0; k < 5; k++) m.add(torus(3.6, 1, 4, 8), { col: iron, pos: [0, 74 - k * 6, 6], rot: [0, k % 2 ? Math.PI / 2 : 0, 0], surf: SURF.iron });
+    m.add(rbox(10, 12, 5, 1.5), { col: brass, pos: [0, 40, 6], surf: SURF.brass });
+  }, 0.25),
   gt_lychgate: () => B((m) => {
     // the lych gate: a little roofed gateway over the path through the railing
     for (const s of [-1, 1]) m.add(box(12, 120, 12), { col: darkWood, pos: [s * 90, 60, 0], surf: SURF.wood });
@@ -623,6 +676,19 @@ export const GT_KIT: Record<string, (variant: number) => THREE.BufferGeometry> =
       m.add(cone(5, 6, 4), { col: whitewash, pos: [-44 + i * 11, 53, 0], rot: [0, Math.PI / 4, 0], surf: SURF.paint });
     }
   }, 0.1),
+  gt_drystone: () => B((m) => {
+    // Stillwater's bounds (D-84): a low dry-stone wall of field stone, mossed along its top (a run 100 long)
+    m.add(rbox(100, 36, 26, 4), { col: stone, pos: [0, 18, 0], surf: SURF.paint });
+    for (let i = 0; i < 7; i++) m.add(rbox(12, 12 + (i % 3) * 2, 22, 2), { col: i % 2 ? paleStone : stone, pos: [-42 + i * 14, 41 + (i % 3), 0], rot: [0, 0, i % 2 ? 0.12 : -0.1], surf: SURF.paint });
+    m.add(box(100, 3, 27), { col: weather(GT.moss, 0.45, 0.1), pos: [0, 35, 0], surf: SURF.cloth });
+  }, 0.3),
+  gt_yardwall: () => B((m) => {
+    // the Works' yard wall (D-84): soot-black brick under a coping of blue engineering brick, spikes along the top
+    m.add(box(100, 90, 16), { col: sootBrick, pos: [0, 45, 0], surf: SURF.paint });
+    m.add(box(100, 6, 20), { col: slate, pos: [0, 93, 0], surf: SURF.paint });
+    m.add(box(16, 104, 22), { col: brick, pos: [-50, 52, 0], surf: SURF.paint });
+    for (let i = 0; i < 8; i++) m.add(cone(1.6, 10, 4), { col: iron, pos: [-42 + i * 12, 101, 0], surf: SURF.iron });
+  }, 0.3),
   gt_willow: () => B((m) => {
     // a weeping willow over the lane, its strands hanging to the ground
     m.add(cyl(12, 18, 110, 8), { col: weather(0x2a2218, 0.5), pos: [0, 55, 0], surf: SURF.wood });
@@ -728,6 +794,6 @@ Object.assign(GT_KIT, {
 });
 
 /** Kinds the world stretches along their length (`w`) rather than placing at a fixed size. */
-export const GT_STRETCH: Record<string, number> = { gt_railing: 100, gt_picket: 100, gt_barrier: 100, gt_pipe: 100 };
+export const GT_STRETCH: Record<string, number> = { gt_railing: 100, gt_picket: 100, gt_barrier: 100, gt_pipe: 100, gt_drystone: 100, gt_yardwall: 100 };
 /** Kinds drawn by other modules (the train's walls, doors and locomotive; the platform edge). */
 export const GT_SKIP = new Set(['gt_wall', 'gt_door', 'gt_loco', 'gt_edge']);

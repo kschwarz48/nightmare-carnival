@@ -265,7 +265,7 @@ export function passiveIcon(ctx: Ctx, w: number, h: number, id: string): void {
     strongman_belt: '#7a3a20', energy_drink: '#3a8a3a', spectacles: '#3a5a9a', foam_finger: '#2a5ab0', extra_token: '#a08020',
     spinning_top: '#9a3a6a', caffeine: '#5a3a20', running_shoes: '#a03030', sugar_rush: '#c06aa0', funnel_cake: '#b08040',
     safety_goggles: '#4a6a7a', magnet_glove: '#902a2a', lucky_ticket: '#3a8a5a', season_pass: '#3a4aa0', coin_purse: '#8a6a20',
-    rabbits_foot: '#6a6a6a', hand_mirror: '#2a6a7a', party_favors: '#a02a64',
+    rabbits_foot: '#6a6a6a', hand_mirror: '#2a6a7a', party_favors: '#a02a64', ada_conch: '#1f5a70',
   };
   badge(ctx, w, h, bg[id] ?? '#5a4a6a', false);
   const s = w / 64;
@@ -542,6 +542,52 @@ export function passiveIcon(ctx: Ctx, w: number, h: number, id: string): void {
       circle(ctx, 32, 11, 3);
       ctx.stroke();
       break;
+    case 'ada_conch': {
+      // Ada's Conch (D-68, an icon since D-84): a pale spiral shell, knobbed along its shoulder, its pink mouth
+      // turned to you, and the tune somebody on the other side is humming
+      ctx.save();
+      ctx.translate(31, 33);
+      ctx.rotate(0.5);
+      for (const [x, y] of [[-7, -11], [1.5, -13.6], [8.5, -14]] as [number, number][]) {
+        circle(ctx, x, y, 2.8);
+        fillInk(ctx, '#f3dcc0', 1.6);
+      }
+      ctx.beginPath();
+      ctx.moveTo(-22, 0);
+      ctx.quadraticCurveTo(-6, -15, 12, -13);
+      ctx.quadraticCurveTo(22, -12, 22, -1);
+      ctx.quadraticCurveTo(20, 12, 6, 14);
+      ctx.quadraticCurveTo(-10, 10, -22, 0);
+      ctx.closePath();
+      fillInk(ctx, shade(ctx, -2, -4, 22, '#fff6e6', '#d49a6a'), 2.4);
+      // the whorls of the spire
+      ink(ctx, 1.4);
+      for (const [x, t, b] of [[-16, -5.5, 3.5], [-11, -8.2, 6], [-5, -10.5, 8.5]] as [number, number, number][]) {
+        ctx.beginPath();
+        ctx.moveTo(x, t);
+        ctx.quadraticCurveTo(x + 3.5, (t + b) / 2, x, b);
+        ctx.stroke();
+      }
+      ellipse(ctx, 13, 1.5, 7, 10, 0.25);
+      fillInk(ctx, shade(ctx, 11, -2, 10, '#ffe0e8', '#d8607f'), 2);
+      ellipse(ctx, 14.5, 3, 3, 6, 0.25);
+      ctx.fillStyle = 'rgba(120, 30, 60, 0.45)';
+      ctx.fill();
+      ctx.restore();
+      shine(ctx, 24, 25, 4, 0.7);
+      // the humming: a note rising out of it
+      ink(ctx, 1.8);
+      ctx.strokeStyle = PAL.mint;
+      ctx.beginPath();
+      ctx.moveTo(50, 21);
+      ctx.lineTo(50, 9);
+      ctx.quadraticCurveTo(54, 11, 56, 15);
+      ctx.stroke();
+      ellipse(ctx, 47.5, 21.5, 3.2, 2.4, -0.4);
+      ctx.fillStyle = PAL.mint;
+      ctx.fill();
+      break;
+    }
   }
   ctx.restore();
 }

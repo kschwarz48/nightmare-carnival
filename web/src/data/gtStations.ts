@@ -15,7 +15,7 @@
 // docs/EASTER_EGG_GHOST_TRAIN.md (developers only).
 
 import type { Prop } from './map';
-import { C, E, GHOST_TRAIN_LAYOUT, GT_PROPS, J, REGIONS, S, TRAIN, V, trackY, trainOrigin } from './ghosttrain';
+import { C, E, GHOST_TRAIN_LAYOUT, GT_PROPS, J, REGIONS, S, TRAIN, V, trackY, trainOrigin, walkRect } from './ghosttrain';
 
 /** The platform's south edge (y offset from the track); the station's grounds begin past it. */
 export const PLATFORM_DEPTH = 270;
@@ -81,7 +81,9 @@ for (let r = 0; r < 5; r++) {
 export const JUNCTION = (() => {
   const { cx, cy } = REGIONS[J];
   return {
-    booking: { x: cx - 900, y: cy - 455 },
+    /** the booking office, and where its clerk is asked: at its window, on the south face (D-84: it was behind it) */
+    office: { x: cx - 900, y: cy - 380 },
+    booking: { x: cx - 900, y: cy - 280 },
     board: { x: cx + 40, y: cy - 520 },
     levers: { x: cx - 1850, y: cy - 420 },
     lamproom: { x: cx - 2010, y: cy - 290 },
@@ -92,7 +94,7 @@ export const JUNCTION = (() => {
   const { cx, cy } = REGIONS[J];
   // the concourse: the departures board, the booking office, waiting benches, the great iron pillars
   add({ kind: 'gt_board', x: JUNCTION.board.x, y: JUNCTION.board.y, hw: 130, hh: 12 });
-  add({ kind: 'gt_booking', x: cx - 900, y: cy - 380, hw: 150, hh: 70 });
+  add({ kind: 'gt_booking', x: JUNCTION.office.x, y: JUNCTION.office.y, hw: 150, hh: 70 });
   add({ kind: 'gt_postbox', x: JUNCTION.postbox.x, y: JUNCTION.postbox.y, r: 14 });
   for (const [x, y] of [[-1350, -150], [1350, -150], [-700, 160], [700, 160], [-1850, 160], [1850, 160]]) add({ kind: 'gt_pillar', x: cx + x, y: cy + y, r: 24 });
   for (const [x, y] of [[-460, -260], [460, -260], [-460, -40], [460, -40]]) add({ kind: 'gt_waitbench', x: cx + x, y: cy + y, hw: 80, hh: 15 });
@@ -225,6 +227,54 @@ export const END = (() => {
   for (const [x, y] of [[-600, -330], [600, -330], [-1300, 520], [1300, 520]]) add({ kind: 'gt_lamppost', x: cx + x, y: cy + y, r: 9, variant: 3 });
   // the edge of the world (decorative; the ground simply ends)
   add({ kind: 'gt_edge_world', x: cx, y: cy + END_EDGE });
+}
+
+// ---------------------------------------------------------------- the stations' bounds (D-84)
+/**
+ * Every edge a player is held at has something standing on it (it was an invisible wall): a fence down both sides
+ * from the platform's edge, and along the south a fence with a gate in its middle, shut and chained. Just outside
+ * the walk clamp (walkRect), so nobody brushes them. The Junction's terminal and corner buildings are walls of
+ * their own, its gates standing in the gaps between them; the End of the Line's brink has a railing and no gate.
+ */
+export const STATION_GATES: { x: number; y: number; r: number }[] = [];
+{
+  const FENCE: Prop['kind'][] = ['gt_railing', 'gt_railing', 'gt_yardwall', 'gt_drystone', 'gt_railing'];
+  const GATE_HW = 114;
+  for (let r = 0; r < 5; r++) {
+    const g = REGIONS[r], w = walkRect(r), kind = FENCE[r];
+    const t = kind === 'gt_railing' ? 4 : kind === 'gt_yardwall' ? 9 : 13;
+    const xW = w.minX - 24, xE = w.maxX + 24, yS = w.maxY + 26, yN = trackY(r) + TRAIN.halfW + TRAIN.wallT + 14;
+    const run = (x0: number, x1: number) => {
+      if (x1 - x0 > 20) add({ kind, x: (x0 + x1) / 2, y: yS, hw: (x1 - x0) / 2, hh: t, w: x1 - x0 });
+    };
+    const side = (x: number, y0: number, y1: number) => {
+      if (y1 - y0 > 20) add({ kind, x, y: (y0 + y1) / 2, hw: t, hh: (y1 - y0) / 2 });
+    };
+    const gate = (x: number) => {
+      add({ kind: 'gt_gate', x, y: yS, hw: GATE_HW, hh: 10, variant: r });
+      STATION_GATES.push({ x, y: yS, r });
+    };
+    if (r === J) {
+      side(xW, yN, g.cy + 740);
+      side(xE, yN, g.cy + 740);
+      for (const [a, b] of [[g.cx - 1650, g.cx - 900], [g.cx + 900, g.cx + 1650]]) {
+        const mid = (a + b) / 2;
+        run(a, mid - GATE_HW);
+        gate(mid);
+        run(mid + GATE_HW, b);
+      }
+      continue;
+    }
+    side(xW, yN, yS);
+    side(xE, yN, yS);
+    if (r === E) {
+      run(xW, xE);
+      continue;
+    }
+    run(xW, g.cx - GATE_HW);
+    gate(g.cx);
+    run(g.cx + GATE_HW, xE);
+  }
 }
 
 // ---------------------------------------------------------------- dressing (decorative: no colliders)

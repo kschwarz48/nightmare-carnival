@@ -7,6 +7,8 @@ import type { Game } from '../../../sim/game';
 import type { GameRenderer3D } from '../../renderer3d';
 import { PROPS, type Prop } from '../../../data/map';
 import { TRAIN } from '../../../data/ghosttrain';
+import { JUNCTION } from '../../../data/gtStations';
+import { signMesh } from '../props';
 import type { LastTrainChain } from '../../../sim/quest/lastTrain';
 import { trainNow } from '../../../sim/ghosttrain';
 import { StaticBatch } from '../../core/batch';
@@ -86,6 +88,10 @@ export class GhostTrainWorld {
     kb.freeze();
     this.root.add(kb.mesh);
     this.statics.push(kb);
+    // the booking office's board over its window, lettered (D-84)
+    const sign = signMesh('TICKETS', 106, 15, { color: '#3a1418', glow: 0.25 });
+    sign.position.set(JUNCTION.office.x, 136, JUNCTION.office.y + 72.6);
+    this.root.add(sign);
     this.train = new TrainRender(this.root);
     this.scenery = new Scenery(this.root);
     this.lighting = new GtLighting(this.root);

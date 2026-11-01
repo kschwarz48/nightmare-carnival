@@ -108,7 +108,7 @@ class BackgroundClock {
   }
 }
 
-type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results' | 'mp' | 'mp_join' | 'lobby' | 'netmsg' | 'hub' | 'midway';
+type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results' | 'mp' | 'mp_join' | 'lobby' | 'netmsg' | 'hub' | 'midway' | 'charswap';
 
 export class App {
   canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -289,6 +289,7 @@ export class App {
       go: (s, arg) => this.go(s as State, arg),
       startRun: (o) => this.startRun(o),
       applySettings: () => this.applySettings(),
+      quit: desktop ? () => this.exitGame() : undefined,
     };
     this.applySettings();
     window.addEventListener('resize', () => {
@@ -383,6 +384,9 @@ export class App {
         break;
       case 'midway':
         el = this.midwayMenuEl();
+        break;
+      case 'charswap':
+        el = L.characterPanel(this.ctx, this.game?.hub ? this.game.players[this.localIndex]?.char.id ?? this.hubCharacter() : this.hubCharacter(), (id) => this.swapCharacter(id), () => this.go('midway'));
         break;
       case 'press':
         this.audio.setCue('menu');
@@ -1588,7 +1592,7 @@ export class App {
       const actions = net
         ? net.role === 'host'
           ? { again: () => this.coopToLobby(), againLabel: this.save.hubUnlocked() ? 'Back to the Midway' : 'Back to the Lobby', menu: () => this.toMenu(), lostfound: () => this.coopLostFound() }
-          : { again: () => this.hud.toastMsg(`Waiting for ${g.players[0]?.name ?? 'the host'} to head back to the lobby…`), againLabel: 'Wait for Host', menu: () => this.toMenu(), lostfound: () => this.guestLostFound() }
+          : { again: () => this.guestFollow(g.players[0]?.name ?? 'the host'), againLabel: 'Wait for Host', menu: () => this.toMenu(), lostfound: () => this.guestLostFound() }
         : { again: () => this.lastRun && this.startRun(this.lastRun), menu: () => this.toMenu(), lostfound: () => this.toMenu('lostfound'), endless: canEndless ? () => this.goEndless() : undefined };
       const el = S.resultsScreen(this.ctx, st, { achievements: earned.map((a) => `${a.name} — ${a.desc} (+${a.reward} LT)`), newUnlocks: notes, dailyBest }, { ...actions, menuLabel: net ? (net.role === 'host' ? 'Close the Lobby' : 'Leave') : this.save.hubUnlocked() ? 'To the Midway' : undefined });
       this.ui.append(el);
@@ -1997,14 +2001,12 @@ export class App {
       this.boardwalkFrame(g!);
       this.ghostTrainFrame(g!, dt);
       perf.mark(SEC.hud, h0);
-    } else if (this.nightPaused || this.state === 'results') {
-      if (g) {
-        hs?.captureFx(g.fx.events);
-        useMap(g.mapId); // a night that isn't ticking doesn't take its map back by itself
-        const r0 = perf.now();
-        this.renderer.render(g, 1, dt);
-        perf.mark(SEC.render, r0);
-      }
+    } else if ((this.nightPaused || this.state === 'results') && g) {
+      hs?.captureFx(g.fx.events);
+      useMap(g.mapId); // a night that isn't ticking doesn't take its map back by itself
+      const r0 = perf.now();
+      this.renderer.render(g, 1, dt);
+      perf.mark(SEC.render, r0);
     } else if (this.demo) {
       // attract mode behind the menus
       const s0 = perf.now();
@@ -2049,13 +2051,31 @@ export class App {
     return s.characterAvailable(s.data.last.character) ? s.data.last.character : 'carny';
   }
 
-  /** Walk onto the Midway alone (a co-op host rebuilds the shared one instead). */
+  /** Walk onto the Midway alone (a co-op host rebuilds the shared one instead); a rebuilt one keeps you where you stood. */
   private startHub(): void {
     if (this.net?.role === 'host') return this.restartHub();
+    const was = this.game?.hub ? this.game.players[0] : null;
     this.endRunView();
     const ch = this.hubCharacter();
-    const g = new Game({ character: ch, difficulty: 'midway', curse: false, seed: (Math.random() * 2 ** 31) | 0, players: [{ character: ch, name: L.loadName() || 'You' }], hub: { npcs: this.hubCast() } });
+    const g = new Game({ character: ch, difficulty: 'midway', curse: false, seed: (Math.random() * 2 ** 31) | 0, players: [{ character: ch, name: L.loadName() || 'You' }], hub: { npcs: this.hubCast(), at: was ? [{ x: was.x, y: was.y }] : undefined } });
     this.beginHub(g, 0);
+  }
+
+  /**
+   * Swap Character on the Midway (D-84): you walk on as them, and your next night starts with them. Solo, the
+   * Midway is rebuilt where you stand; in a party the pick goes through the lobby, whose change rebuilds the
+   * shared Midway for everyone (refreshLobby).
+   */
+  private swapCharacter(id: string): void {
+    const n = this.net;
+    this.save.data.last.character = id;
+    this.save.save();
+    if (n?.role === 'host') n.host.setCharacter(id);
+    else if (n?.role === 'guest') {
+      n.guest.pick(id);
+      n.guest.sendProfile(this.guestProfile(n.guest.profile.name));
+    } else return this.startHub();
+    this.go('hub');
   }
 
   /**
@@ -2066,8 +2086,8 @@ export class App {
     if (this.net?.role !== 'host') return this.startHub();
     const hs = this.net.host;
     const old = this.game?.hub ? this.game : null;
-    this.hubParty = this.hubPartyKey();
     if (!hs.hostCharacter) hs.hostCharacter = this.hubCharacter();
+    this.hubParty = this.hubPartyKey();
     const names = [hs.self.name, ...hs.guests.map((s) => s.profile.name)];
     const at = names.map((nm, i) => {
       const p = old?.players.find((q) => q.name === nm);
@@ -2081,7 +2101,10 @@ export class App {
   }
 
   private hubPartyKey(): string {
-    return this.net?.role === 'host' ? this.net.host.guests.map((s) => `${s.index}:${s.profile.name}:${s.connected}`).join('|') : '';
+    if (this.net?.role !== 'host') return '';
+    const hs = this.net.host;
+    // everyone's character too: a Swap Character on the Midway rebuilds it for the whole party (D-84)
+    return `${hs.hostCharacter}|` + hs.guests.map((s) => `${s.index}:${s.profile.name}:${s.connected}:${s.character ?? ''}`).join('|');
   }
 
   /** Guest: the host is on the Midway; build the mirror the session will feed. */
@@ -2121,7 +2144,31 @@ export class App {
       if (this.lfReturn) this.lfReturn = 'party';
       return;
     }
+    // a guest still reading the night's results keeps reading: the grounds wait behind them (D-84)
+    if (keepShop && this.state === 'results') {
+      this.hubHud.root.classList.add('under');
+      this.relabelResults('Back to the Midway');
+      return;
+    }
     this.go('hub');
+  }
+
+  /** The results' first button, once the host has moved the party on (D-84): it now leads after them. */
+  private relabelResults(label: string): void {
+    const b = this.screenEl?.querySelector<HTMLButtonElement>('button[data-default]');
+    if (b) b.textContent = label;
+  }
+
+  /** Guest, from the results (D-84): follow the party once the host has moved it on; until then, wait for them. */
+  private guestFollow(host: string): void {
+    const n = this.net;
+    if (n?.role !== 'guest') return this.toMenu();
+    if (this.game?.hub) return this.go('hub');
+    if (!this.game) {
+      n.guest.setReady(false, false);
+      return this.go('lobby');
+    }
+    this.hud.toastMsg(`Waiting for ${host} to head back to the lobby…`);
   }
 
   /** Solo / host frame on the Midway: walk (menus over it leave everyone idle), tick, render, labels. */
@@ -2217,7 +2264,10 @@ export class App {
         prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Fun House', sub: 'the host leads the way in' } : { key, text: 'Enter the Fun House', sub: 'a night in the Palace of Illusions' };
       } else if (HUB_EXITS[t.i].id === 'boardwalk' && this.save.mapAvailable('boardwalk')) {
         prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Boardwalk', sub: 'the host leads the way down to the shore' } : { key, text: 'Go down to the Boardwalk', sub: "a night on Penhallow's Boardwalk" };
-      } else prompt = { key: '✕', text: HUB_EXITS[t.i].label, sub: HUB_EXITS[t.i].id === 'funhouse' ? 'chained shut — survive the first night to open it' : HUB_EXITS[t.i].id === 'boardwalk' ? 'chained shut — survive the Fun House to open it' : 'coming soon: the gates are chained shut' };
+      } else if (HUB_EXITS[t.i].id === 'train' && this.save.mapAvailable('ghost_train')) {
+        // (D-84: it said "coming soon" behind a ✕ though E already boarded it)
+        prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Ghost Train', sub: 'the host leads the way onto the platform' } : { key, text: 'Board the Ghost Train', sub: 'a night on the Midnight Line' };
+      } else prompt = { key: '✕', text: HUB_EXITS[t.i].label, sub: HUB_EXITS[t.i].id === 'funhouse' ? 'chained shut — survive the first night to open it' : HUB_EXITS[t.i].id === 'boardwalk' ? 'chained shut — survive the Fun House to open it' : 'chained shut — survive the Boardwalk to open it' };
     }
     const hs = this.net?.role === 'host' ? this.net.host : null;
     this.hubHud.root.classList.toggle('under', this.state !== 'hub');
@@ -2288,6 +2338,12 @@ export class App {
     this.go('lobby');
   }
 
+  /** Close the Windows app (D-84): a party is told goodbye first, so friends see the lobby close, not a lost line. */
+  private exitGame(): void {
+    this.leaveNet(true);
+    setTimeout(() => desktop?.quit(), 200);
+  }
+
   /** The Midway's pause menu: what the main menu used to offer, minus what the grounds already have. */
   private midwayMenuEl(): HTMLElement {
     const role = this.net?.role ?? null;
@@ -2307,6 +2363,7 @@ export class App {
         },
       });
     } else items.push({ label: 'Leave the Midway', fn: () => this.toMenu() });
+    items.push({ label: 'Swap Character', fn: () => this.go('charswap') });
     items.push({ label: 'Carnival-pedia', fn: () => this.go('pedia') }, { label: 'Settings', fn: () => this.go('settings') });
     items.push({
       label: 'Title Screen',
@@ -2318,6 +2375,7 @@ export class App {
         this.go('press');
       },
     });
+    if (desktop) items.push({ label: 'Exit Game', cls: 'small red', fn: () => this.exitGame() });
     const g = this.game;
     const text = role === 'host' ? `Lobby code ${this.net!.role === 'host' ? (this.net as Extract<NetCtx, { role: 'host' }>).host.lobby.code : ''} · ${g?.players.length ?? 1} on the Midway` : role === 'guest' ? 'You are on a friend\'s Midway.' : 'Walk the grounds: the ticket booth sells the Lost & Found, and the Big Top begins the night.';
     return L.menuPanel(this.ctx, 'The Midway', text, items);
@@ -2771,6 +2829,12 @@ export class App {
     if (this.state === 'lostfound' && this.net?.role === 'guest') {
       this.lfReturn = 'party';
       this.net.guest.setReady(false, true);
+      return;
+    }
+    // still reading the results: likewise (shown away), until their first button leads on (D-84)
+    if (this.state === 'results' && this.net?.role === 'guest') {
+      this.net.guest.setReady(false, true);
+      this.relabelResults('Back to the Lobby');
       return;
     }
     this.go('lobby');
