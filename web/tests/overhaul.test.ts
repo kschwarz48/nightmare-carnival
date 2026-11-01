@@ -139,10 +139,16 @@ describe('organic balloon drifts (D-33)', () => {
     expect(Math.min(...gaps)).toBeGreaterThanOrEqual(Math.min(...PACING.balloonMinGap) - 0.05);
     expect(sd).toBeGreaterThan(2); // no metronome
     expect(new Set(a.map((d) => d.size)).size).toBeGreaterThanOrEqual(5);
-    const sectors = new Set(a.map((d) => Math.floor(((Math.atan2(d.dy, d.dx) + Math.PI) / (Math.PI * 2)) * 8)));
-    expect(sectors.size).toBeGreaterThanOrEqual(3);
+    // the wind wanders slowly (coherent, not random per drift): within a night drifts come from at least
+    // two of eight directions, and from more across nights (a single seed's count shifts whenever the
+    // night's random stream does, e.g. when a weapon or wave changes how many draws it takes)
+    const sectors = (ds: typeof a) => new Set(ds.map((d) => Math.floor(((Math.atan2(d.dy, d.dx) + Math.PI) / (Math.PI * 2)) * 8)));
+    const b = sample(2024);
+    expect(sectors(a).size).toBeGreaterThanOrEqual(2);
+    expect(sectors(b).size).toBeGreaterThanOrEqual(2);
+    expect(new Set([...sectors(a), ...sectors(b)]).size).toBeGreaterThanOrEqual(3);
     expect(sample(4242)).toEqual(a);
-  }, 60000);
+  }, 120000);
 });
 
 describe('pacing: wave blending and recovery (D-43)', () => {

@@ -842,3 +842,60 @@ real goal, including a TURN-relayed connection); Firefox/Safari/mobile. Checklis
 - The packaged Playwright canvas inspector was not run (dependencies not installed); its metrics were
   reproduced in-page instead.
 - Mobile/touch and physical gamepads remain untested (unchanged scope).
+
+## Four-player playtest round — 2026-10-31 (D-74)
+
+**Changed:**
+- Co-op items and evolutions are personal; guests draft from their own unlocks.
+- Party Favors on the co-op prize wheel.
+- A Lost & Found button on the ready-up screen; PROTO 12.
+- Enemies walk around walls (`sim/nav.ts`).
+- The first map's musketeers halved and made sturdier.
+- A full weapon audit with mechanical fixes and new numbers (`docs/WEAPON_AUDIT.md`).
+- The UI scales to the window (1080p → 1, 1440p → 1.33, 4K → 2).
+
+Decision: D-74.
+
+**Automated:** typecheck clean; the production build passes; 321 tests pass in 23 files (14 more than
+before this round). New tests:
+- `nav.test.ts`: around a building; out of a spawn inside one; balloons through; through the Fun House maze.
+- `weapons.test.ts`: the orb barrier's outward shove and its fatigue; the orbs' uptime; mirror clones never
+  starving your shots, and at most four clones; webs not stacking but ramping; lasers cutting what they
+  sweep; the bumper's peel-out bump; the blizzard's plain hit on common creatures.
+- `coop.test.ts`: every player can take every item; evolutions are personal; Party Favors grant +1 level
+  to everyone; solo nights never see them.
+- `net.test.ts`:
+  - profiles and starts keep only draft-pool unlocks;
+  - a guest at the Lost & Found shows as away and can't be started without;
+  - its new perks and unlocks reach the host;
+  - each player drafts from their own unlocks;
+  - the guest's mirror gets the same sets.
+- `overhaul.test.ts`: the balloon-drift direction check now samples two nights. The night's random
+  stream changed, and seed 4242 alone drew 2 of 8 directions; other seeds draw 3–4.
+
+**Measured (headless bots, Node 22):**
+- **Musketeers 12:00–18:00, three seeds:** alive 29.4 → 8.8 on average (peak 127 → 40); shots 143 → 56 a
+  minute.
+- **Walls:**
+  - Cost: 60–90 µs a tick.
+  - Crowd within 300 px of the player: Carnival 3.7 → 3.5; Fun House 8.3 → 6.4; Boardwalk 4.8 → 8.8.
+  - Walkers far from every player that stayed put 8 s or more in a 10-minute night: none on the Carnival
+    or the Boardwalk, five on the Fun House. Those five were routing the long way to a maze entrance,
+    with walls between them and the player.
+  - A rail bug was found and fixed this way: a creature pressed against a thin rail was sent across it.
+- **Weapons:** `scripts/bench/weapons.ts` before and after, in `docs/WEAPON_AUDIT.md`.
+
+**Checked in the browser (dev server, the in-app browser's viewport emulation):**
+- At 1920×1080 the UI layer is 1920×1080 at zoom 1.
+- At 2560×1440 it lays out at 1920×1080 and scales 1.333: the logo and the press text 1.33× and centred;
+  the Midway's labels over the Big Top and the Carny's stall; the HUD's tray, health and XP bars in
+  proportion; the Lost & Found panel inside the window.
+- The lasers and orbs in a live run at 1440p.
+
+**Not verified:**
+- A person playing any of it: the walls' feel, the new weapon numbers, the orb barrier.
+- Party Favors on screen (the wheel's card and caption); covered by tests only.
+- The lobby's Lost & Found button in a real co-op session; covered by session tests only.
+- Ultrawide 3440×1440 itself (the zoom formula gives 1.333 there, the same as 2560×1440), 4K, Firefox and
+  Safari (container units need Firefox 110 / Safari 16).
+- Co-op across real networks after these changes.

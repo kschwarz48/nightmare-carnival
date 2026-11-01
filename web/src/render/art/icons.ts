@@ -265,7 +265,7 @@ export function passiveIcon(ctx: Ctx, w: number, h: number, id: string): void {
     strongman_belt: '#7a3a20', energy_drink: '#3a8a3a', spectacles: '#3a5a9a', foam_finger: '#2a5ab0', extra_token: '#a08020',
     spinning_top: '#9a3a6a', caffeine: '#5a3a20', running_shoes: '#a03030', sugar_rush: '#c06aa0', funnel_cake: '#b08040',
     safety_goggles: '#4a6a7a', magnet_glove: '#902a2a', lucky_ticket: '#3a8a5a', season_pass: '#3a4aa0', coin_purse: '#8a6a20',
-    rabbits_foot: '#6a6a6a', hand_mirror: '#2a6a7a',
+    rabbits_foot: '#6a6a6a', hand_mirror: '#2a6a7a', party_favors: '#a02a64',
   };
   badge(ctx, w, h, bg[id] ?? '#5a4a6a', false);
   const s = w / 64;
@@ -389,6 +389,49 @@ export function passiveIcon(ctx: Ctx, w: number, h: number, id: string): void {
       ctx.closePath();
       fillInk(ctx, '#f7eedb', 2);
       break;
+    case 'party_favors': {
+      // the co-op prize wheel's Party Favors (D-74): a striped party horn unrolling in a burst of confetti
+      const bits: [number, number, string][] = [[15, 19, PAL.yellow], [47, 15, PAL.cyan], [50, 43, PAL.candy], [19, 47, PAL.toxic], [36, 12, PAL.orange], [12, 33, PAL.violet], [44, 52, PAL.gold]];
+      for (const [x, y, c] of bits) {
+        ctx.fillStyle = c;
+        ctx.fillRect(x - 2, y - 2, 4, 4);
+      }
+      ctx.save();
+      ctx.translate(30, 36);
+      ctx.rotate(-0.55);
+      ctx.beginPath();
+      ctx.moveTo(-17, -2.5);
+      ctx.lineTo(3, -7);
+      ctx.lineTo(3, 7);
+      ctx.lineTo(-17, 2.5);
+      ctx.closePath();
+      fillInk(ctx, shade(ctx, -6, -2, 14, '#ffe08a', '#d03a3a'), 2.2);
+      ink(ctx, 2.2);
+      ctx.strokeStyle = PAL.white;
+      for (const sx of [-10, -3]) {
+        ctx.beginPath();
+        ctx.moveTo(sx, -4.5 - (sx + 17) * 0.2);
+        ctx.lineTo(sx, 4.5 + (sx + 17) * 0.2);
+        ctx.stroke();
+      }
+      // the paper tongue, outlined in ink and curling at its tip
+      const tongue = () => {
+        ctx.beginPath();
+        ctx.moveTo(3, 0);
+        ctx.bezierCurveTo(12, -9, 22, -4, 21, 4);
+        ctx.bezierCurveTo(20, 10, 13, 9, 14, 3);
+      };
+      ctx.lineCap = 'round';
+      tongue();
+      ink(ctx, 6.5);
+      ctx.stroke();
+      tongue();
+      ctx.lineWidth = 3.6;
+      ctx.strokeStyle = PAL.candy;
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
     case 'funnel_cake':
       ellipse(ctx, 32, 36, 18, 12);
       fillInk(ctx, '#fffaf0', 2);

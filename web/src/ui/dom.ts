@@ -1,5 +1,17 @@
 // Tiny DOM helpers + spatial focus navigation so every menu is fully controller/keyboard drivable.
 
+/**
+ * The interface's automatic zoom (D-74): the whole UI layer is laid out for a 1080-line screen and scaled
+ * to the window, so 1440p and 4K see the same proportions as 1080p (the Settings' UI scale multiplies on
+ * top). Screen pixels per UI pixel; anything placed from screen coordinates divides by it.
+ */
+export const uiZoom = { v: 1 };
+
+/** The zoom for a window: its height against 1080 lines (or width against 1280 on a narrow one), clamped. */
+export function zoomFor(w: number, h: number): number {
+  return Math.max(0.75, Math.min(2.5, Math.min(h / 1080, w / 1280)));
+}
+
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, any> = {}, ...children: (Node | string | null | undefined | false)[]): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {

@@ -345,7 +345,8 @@ export class RingmasterBoss extends BossBase {
     const n = Math.round(12 * this.addsMult());
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU;
-      g.spawnEnemy(fam[i % fam.length], g.player.x + Math.cos(a) * 420, g.player.y + Math.sin(a) * 330, { elite: i < 2 });
+      // (a summoned soldier keeps its old 180 HP: D-74 made the wave's own sturdier, not the finale's)
+      g.spawnEnemy(fam[i % fam.length], g.player.x + Math.cos(a) * 420, g.player.y + Math.sin(a) * 330, { elite: i < 2, hpMult: fam[i % fam.length] === 'puppet_soldier' ? 0.6 : undefined });
     }
     yield 1;
   }

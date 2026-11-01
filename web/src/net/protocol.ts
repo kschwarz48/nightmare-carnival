@@ -7,11 +7,12 @@
 import { CHARACTER_MAP } from '../data/characters';
 import { DIFFICULTY_MAP } from '../data/difficulty';
 import { PERKS } from '../data/meta';
+import { PASSIVES, WEAPONS } from '../data/weapons';
 import { Reader, Writer } from './codec';
 import { isMapId, type MapId } from '../data/maps';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 11;
+export const PROTO = 12;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
@@ -33,6 +34,8 @@ export interface LobbyPlayer {
   ready: boolean;
   connected: boolean;
   rtt: number;
+  /** browsing the Lost & Found from the lobby (D-74): not ready until they come back */
+  away?: boolean;
 }
 export interface LobbyState {
   code: string;
@@ -57,6 +60,9 @@ export interface GuestProfile {
   chars: string[];
   /** the character they last played (what they walk the Midway hub as, D-60) */
   pref?: string;
+  /** the weapons and charms their own save has added to the draft pool (D-74: bought at the Lost & Found
+   *  or found in a hidden quest); their drafts offer these, whoever hosts */
+  unlocks?: string[];
 }
 
 /** The shared run definition the host sends at start; the guest builds its mirror Game from it. */
@@ -66,7 +72,7 @@ export interface StartCfg {
   curse: boolean;
   unlocked: string[];
   questMemory: Record<string, number>;
-  players: { character: string; name: string; meta: { axis: string; value: number }[]; aimMode: AimMode; rerolls: number; banishes: number; canSkip: boolean }[];
+  players: { character: string; name: string; meta: { axis: string; value: number }[]; aimMode: AimMode; rerolls: number; banishes: number; canSkip: boolean; unlocked?: string[] }[];
   /** set when this is the Midway hub rather than a night (D-60): the cast to show and where players stand */
   hub?: { npcs: string[]; at?: { x: number; y: number }[] };
   /** the night's map (D-63); the Carnival Core when absent */
@@ -77,7 +83,9 @@ export interface StartCfg {
 export type GuestMsg =
   | { t: 'hello'; v: number; profile: GuestProfile; token?: string; sim?: string; time?: string }
   | { t: 'pick'; character: string | null }
-  | { t: 'ready'; ready: boolean }
+  | { t: 'ready'; ready: boolean; away?: boolean }
+  /** the guest's save changed (a Lost & Found visit, D-74): perks and unlocks for the next night */
+  | { t: 'profile'; profile: GuestProfile }
   | { t: 'view'; hx: number; hy: number }
   | { t: 'draft'; op: 'choose' | 'skip' | 'reroll' | 'banish'; index?: number }
   | { t: 'prize_done' }
@@ -144,6 +152,9 @@ export function cleanChat(v: unknown): string | null {
 
 /** The largest value each meta axis can legitimately reach (every perk bought to its cap). */
 const META_MAX: Record<string, number> = Object.fromEntries(PERKS.map((p) => [p.axis, p.mag * p.cap]));
+/** Unlock ids that add a weapon or a charm to the draft pool: the only ones a player's own set may carry. */
+const POOL_UNLOCKS = new Set([...Object.values(WEAPONS), ...Object.values(PASSIVES)].map((d) => d.unlock).filter((u): u is string => !!u));
+const cleanUnlocks = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((u): u is string => isStr(u, 40) && POOL_UNLOCKS.has(u)))].slice(0, 64) : []);
 const PERK_CAP = (axis: string) => PERKS.find((p) => p.axis === axis)?.cap ?? 0;
 
 export function cleanProfile(v: unknown): GuestProfile | null {
@@ -168,6 +179,7 @@ export function cleanProfile(v: unknown): GuestProfile | null {
     aimMode: v.aimMode === 'manual' || v.aimMode === 'hybrid' ? v.aimMode : 'auto',
     chars,
     pref: isStr(v.pref, 32) && CHARACTER_MAP[v.pref as keyof typeof CHARACTER_MAP] ? v.pref : undefined,
+    unlocks: cleanUnlocks(v.unlocks),
   };
 }
 
@@ -191,7 +203,11 @@ export function parseGuestMsg(raw: unknown): GuestMsg | null {
       if (m.character === null) return { t: 'pick', character: null };
       return isStr(m.character, 32) && CHARACTER_MAP[m.character as keyof typeof CHARACTER_MAP] ? { t: 'pick', character: m.character } : null;
     case 'ready':
-      return isBool(m.ready) ? { t: 'ready', ready: m.ready } : null;
+      return isBool(m.ready) ? { t: 'ready', ready: m.ready, away: isBool(m.away) ? m.away : undefined } : null;
+    case 'profile': {
+      const profile = cleanProfile(m.profile);
+      return profile ? { t: 'profile', profile } : null;
+    }
     case 'view':
       return isNum(m.hx) && isNum(m.hy) ? { t: 'view', hx: Math.max(300, Math.min(2400, m.hx)), hy: Math.max(200, Math.min(2000, m.hy)) } : null;
     case 'draft':
@@ -283,6 +299,7 @@ function cleanLobby(v: unknown): LobbyState | null {
           ready: p.ready === true,
           connected: p.connected !== false,
           rtt: isNum(p.rtt) ? Math.max(0, Math.min(9999, p.rtt)) : 0,
+          away: p.away === true,
         }
       : null,
   );
@@ -303,7 +320,7 @@ function cleanStart(v: unknown): StartCfg | null {
     if (!isObj(p) || !isStr(p.character, 32) || !CHARACTER_MAP[p.character as keyof typeof CHARACTER_MAP]) return null;
     const prof = cleanProfile({ ...p, chars: [] });
     if (!prof) return null;
-    players.push({ character: p.character, name: cleanName(p.name, 'Player'), meta: prof.meta, aimMode: prof.aimMode, rerolls: isInt(p.rerolls, 0, 99) ? p.rerolls : 0, banishes: isInt(p.banishes, 0, 99) ? p.banishes : 0, canSkip: p.canSkip === true });
+    players.push({ character: p.character, name: cleanName(p.name, 'Player'), meta: prof.meta, aimMode: prof.aimMode, rerolls: isInt(p.rerolls, 0, 99) ? p.rerolls : 0, banishes: isInt(p.banishes, 0, 99) ? p.banishes : 0, canSkip: p.canSkip === true, unlocked: Array.isArray(p.unlocked) ? cleanUnlocks(p.unlocked) : undefined });
   }
   const unlocked = Array.isArray(v.unlocked) ? v.unlocked.filter((s): s is string => isStr(s, 40)).slice(0, 256) : [];
   const questMemory: Record<string, number> = {};

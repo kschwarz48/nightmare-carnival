@@ -7,6 +7,7 @@ import { h } from './dom';
 
 const KIND_LABEL: Record<ChestEntry['type'], string> = {
   evolution: '✦ EVOLUTION ✦', level: 'LEVEL UP', passive: 'CHARM', new: 'NEW!', voucher: 'LOST & FOUND', heal: 'A SMALL MERCY',
+  party: '★ FOR EVERYONE ★',
 };
 
 export class PrizeOverlay implements PrizeUi {
@@ -37,21 +38,32 @@ export class PrizeOverlay implements PrizeUi {
     this.titleEl.style.animation = '';
   }
 
-  caption(e: ChestEntry | null, icon: string): void {
+  caption(e: ChestEntry | null, icon: string, iconOf?: (e: ChestEntry) => string): void {
     if (!e) {
       this.capEl.classList.remove('on');
       return;
     }
     this.capEl.className = `prize-cap on ${e.type}`;
-    this.capEl.replaceChildren(h('img', { src: icon, alt: '' }), h('div', {}, h('small', {}, this.who(e), KIND_LABEL[e.type]), h('b', {}, e.label)));
+    // Party Favors (D-74): each player's gift on a line of its own, in their colour
+    const gifts = e.gifts?.length
+      ? h('div', { class: 'gifts' }, ...e.gifts.map((gift) => h('span', {}, iconOf ? h('img', { src: iconOf(gift), alt: '' }) : null, this.who(gift), gift.label)))
+      : null;
+    this.capEl.replaceChildren(h('img', { src: icon, alt: '' }), h('div', {}, h('small', {}, this.who(e), KIND_LABEL[e.type]), h('b', {}, e.label), gifts));
   }
 
-  summary(entries: ChestEntry[], icons: string[]): void {
+  summary(entries: ChestEntry[], icons: string[], iconOf?: (e: ChestEntry) => string): void {
     this.root.classList.remove('hidden');
     this.capEl.classList.remove('on');
     this.titleEl.className = `prize-title ${entries.some((e) => e.type === 'evolution') ? 'evolution' : 'normal'}`;
     this.titleEl.textContent = this.owners ? 'THE WINNINGS' : entries.length > 1 ? 'YOUR WINNINGS' : 'YOUR PRIZE';
-    this.sumEl.replaceChildren(...entries.map((e, i) => h('div', { class: `item ${e.type}`, style: { animationDelay: `${0.08 + i * 0.12}s` } }, h('img', { src: icons[i], alt: '' }), h('span', {}, this.who(e), e.label))), h('div', { class: 'muted cont' }, 'Press any button to continue'));
+    const rows: HTMLElement[] = [];
+    entries.forEach((e, i) => {
+      rows.push(h('div', { class: `item ${e.type}`, style: { animationDelay: `${0.08 + rows.length * 0.12}s` } }, h('img', { src: icons[i], alt: '' }), h('span', {}, this.who(e), e.label)));
+      for (const gift of e.gifts ?? []) {
+        rows.push(h('div', { class: `item gift ${gift.type}`, style: { animationDelay: `${0.08 + rows.length * 0.12}s` } }, iconOf ? h('img', { src: iconOf(gift), alt: '' }) : null, h('span', {}, this.who(gift), gift.label)));
+      }
+    });
+    this.sumEl.replaceChildren(...rows, h('div', { class: 'muted cont' }, 'Press any button to continue'));
     this.sumEl.classList.add('on');
     this.hint.classList.add('hidden');
   }

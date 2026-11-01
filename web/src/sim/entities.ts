@@ -101,11 +101,16 @@ export class Enemy implements Target {
   /** the player whose hit landed last (a burn's ticks are credited to them; D-71) */
   lastHitBy = 0;
   noSep = false;
+  /** stands on open ground and is blocked by walls from now on (D-74; newcomers walk through until then) */
+  walled = false;
   leashExempt = false;
   // knockback
   kbT = 0;
   kbX = 0;
   kbY = 0;
+  /** the Crystal Orbs' shoves wear off (D-74): how much this one has been shoved lately, and when last */
+  kbFatigue = 0;
+  kbFatigueAt = 0;
   // statuses
   slowT = 0;
   slowF = 1;

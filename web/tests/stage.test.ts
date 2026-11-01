@@ -159,7 +159,8 @@ describe('prize cards (D-61)', () => {
     const g = makeGame({ godMode: true, seed: 3, players: [{ character: 'carny', name: 'Kevin' }, { character: 'strongman', name: 'Bo' }] });
     const res = g.openChest(6);
     expect(res.entries.length).toBe(6);
-    for (const e of res.entries) {
+    // a Party Favors spin (D-74) is the whole party's: its gifts carry the names, levels and winners
+    for (const e of res.entries.flatMap((x) => (x.type === 'party' ? x.gifts! : [x]))) {
       expect(e.name, e.label).toBeTruthy();
       expect(e.player === 0 || e.player === 1).toBe(true);
       if (e.type === 'level' || e.type === 'passive' || e.type === 'new') {

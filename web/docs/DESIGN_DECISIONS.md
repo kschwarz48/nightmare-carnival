@@ -901,3 +901,57 @@ and teleports, and the prize wheel dull and see-through.
   in-game Restart & Update card at safe moments only, asset carry-forward on deploy (`scripts/deploy.mjs`),
   CI workflows. Details and numbers: `docs/ENGINEERING_OPTIMIZATION_REPORT.md`, `docs/DESKTOP.md`.
 
+
+### D-74 · Four-player playtest round: personal builds, Party Favors, the crowd walks around walls, a weapon audit, fewer musketeers, a UI that scales
+- **The report** (the owner, after a four-player night): items and passives were one-owner-only and
+  evolutions shared across the party; the wheel should sometimes reward everyone; without the Midway the
+  ready-up screen had no way to the Lost & Found; guests drafted from the host's unlocks instead of their
+  own; enemies walked through walls ("feels unfair"); only one or two builds were viable (Royal Flush and
+  the Death Card; the bumper car, both summoners, the lasers, the crystal orbs, the grill and the blizzard
+  lagging); the musketeers after the Ferris Wheel were impossible to dodge; the UI was small at 1440p.
+- **Personal builds and unlocks** (`sim/draft.ts`, `ui/hud.ts`, `net/protocol.ts`, `net/session.ts`): every
+  player may take every item; an evolution needs your own passive; each player drafts from their own save's
+  unlocks (`Player.unlocked`, carried by the guest's profile and the start). PROTO 12. Details:
+  `docs/MULTIPLAYER.md` ("Personal builds, Party Favors, the lobby Lost & Found").
+- **Party Favors** (`sim/game.ts openChest`, `render3d/prizeWheel.ts`, `ui/prize.ts`): in co-op a spin lands on
+  "+1 level to a random item for every player" 10% of the time, at most once a chest, shown last.
+- **The lobby's Lost & Found** (`ui/lobby.ts`, `app.ts`): a button on the ready-up screen; you're shown away
+  and not ready meanwhile; Back returns to the lobby; your new perks and unlocks reach the host.
+- **The crowd walks around walls** (`sim/nav.ts`): solid props, the Fun House's moving walls and a standing
+  boss's body block enemies as they block players. A 32 px grid marks cells too close to a wall; a
+  breadth-first flow field out from every standing player, rebuilt four times a second, turns any creature
+  that can't see its target along the way round (only its motion toward its target: backing off, strafing
+  and charges away are left alone); a push-out keeps bodies out of walls. Newcomers walk through walls until
+  they first stand clear on open ground the players can reach (spawns land off-screen, sometimes inside a
+  building or past the fences), and a creature cut off from every player (a door shut on it) walks out
+  again. Balloons, the coaster snake, the Glasswalker, the Coaster Wraith and the tin ducks pass over and
+  through (`EnemyDef.phases`), as do bosses and anything burrowed. Host-only (guests mirror positions).
+  Cost: 60–90 µs a tick in bot nights on the three maps. Tests: `tests/nav.test.ts` (around a building, out
+  of a spawn inside one, balloons through, the Fun House maze).
+- **Fewer musketeers** (`data/waves.ts`, `data/enemies.ts`): the first map's Puppet Soldier weights halved
+  for Acts III–IV, at most 16 alive, each 180 → 300 HP (the Puppet King's and the Ringmaster's summoned
+  soldiers keep their old health). Measured 12:00–18:00 over three bot nights: 29.4 → 8.8 alive on average
+  (peak 127 → 40), musket shots 143 → 56 a minute, soldiers spawned 54.5 → 20.8 a minute.
+- **The weapon audit** (`scripts/bench/weapons.ts`, report `docs/WEAPON_AUDIT.md`): every weapon measured the
+  same way — a dense horde, a boss's body, and a real night — at base Lv 8, Evo Lv 1 and Evo Lv 8 with a full
+  kit. Findings beyond the numbers: Hall of Mirrors' clones starved your own shots of projectile slots (the
+  mirror made a big volley weaker); Sticky Situation's webs stacked without limit; the bumper's surge never
+  met the crowd behind a kiting player; the orbs were out 40% of the time and the crowd hugged you inside the
+  ring; the lasers only cut what lay under a 9 px beam at a strike every 0.2 s; several evolutions were weaker
+  than their own Lv 8 base. Fixes: clone shots yield the pool and carry the share of the dropped ones; webs
+  and burning patches don't stack per creature (webs ramp instead: +40% per tick in a row); the bumper peels
+  out with a bump around you; the orbs shove the crowd straight out (weaker each time on the same creature,
+  so something tough leans through) and stay out longer; the beams cut everything they sweep; the
+  Menagerie's bites and the troupe's lion and acrobats maul around their mark; the grills and the frost hit
+  bosses harder (bosses can't burn or be chilled); and number changes across the weak half, with trims to
+  the Death Card and the Sharpshooter's Bouquet. Measured result (Evo Lv 8 with a full kit, two seeds): the
+  spread of a combined horde / boss / night score from best to worst evolution went 14.1× → 3.8×; at Evo
+  Lv 1 every evolution is ahead of its own Lv 8 base in the horde and level with it or ahead on bosses; Hall
+  of Mirrors adds +41% to a Royal Flush horde (was +9%).
+  Tests: `tests/weapons.test.ts`.
+- **A UI that scales** (`ui/dom.ts zoomFor`, `ui/style.css`, `app.ts`): the whole UI layer lays out for a
+  1080-line screen and is scaled to the window (1 at 1080p, 1.33 at 1440p — ultrawide included — and 2 at
+  4K; between 0.75 and 2.5), so icons, bars and borders keep their proportion, not just the text; the
+  Settings' UI scale multiplies on top. Inside it, `cqw`/`cqh` stand in for `vw`/`vh`, and everything placed
+  from screen coordinates (overhead bars, prompts, arrows, the Midway's labels, the tray tooltip) divides by
+  the zoom.

@@ -11,6 +11,22 @@ import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 /** Solo slot counts (VS: six of each); co-op shrinks them per player (`Game.slots`, D-51). */
 export const MAX_WEAPONS = 6;
 export const MAX_PASSIVES = 6;
+/** Mirror clones stop firing projectiles once the pool is this full, leaving the rest for yours (D-74). */
+const CLONE_POOL_SHARE = 0.55;
+/** At most this many mirror clones however much Amount you have (they share one power: more is only clutter). */
+const MAX_CLONES = 4;
+/** The orb barrier's first shove (px/s for 0.14 s: about 60 px), and how fast its fatigue wears off. */
+const ORB_SHOVE = 430;
+const ORB_FATIGUE_S = 1.2;
+/** How far a Nightmare Menagerie bite tears around its target (px, at the evolution's own area). */
+const MAUL_R = 48;
+/** The Death Card's extra crit multiplier (D-74: 1.5 before). */
+const DEATH_CRIT = 0.8;
+/** Bosses can't burn or be chilled, so the grills and the frost machines hit them this much harder (D-74). */
+const UNBURNT = 1.6;
+const UNCHILLED = 2;
+/** ...and the Blizzard's storm, which never stops, three times as hard */
+const STORM_BITE = 3;
 
 export class WeaponInst {
   def: WeaponDef;
@@ -34,6 +50,8 @@ type CastFn = (ox: number, oy: number, mult: number) => void;
 export class Weapons {
   list: WeaponInst[] = [];
   private queue: { t: number; fn: () => void }[] = [];
+  /** how many of the mirror clones' shots have lately been dropped for room in the pool (smoothed, 0..1) */
+  private cloneDrop = 0;
   /** Mirror clones currently alive (positions) — attacks are replayed from them. */
   clones: Summon[] = [];
 
@@ -117,7 +135,7 @@ export class Weapons {
   roll(w: WeaponInst, base: number): { dmg: number; crit: boolean } {
     const st = this.g.player.stats;
     const crit = st.critRoll(this.g.rng.next(), w.def.critBonus ?? 0);
-    const cm = st.critDamage + (w.def.id === 'death_card' ? 1.5 : 0);
+    const cm = st.critDamage + (w.def.id === 'death_card' ? DEATH_CRIT : 0);
     return { dmg: crit ? base * cm : base, crit };
   }
 
@@ -242,6 +260,9 @@ export class Weapons {
   }
 
   private proj(w: WeaponInst, kind: PlayerProjectile['kind'], x: number, y: number, a: number, speed: number, o: { r?: number; mult?: number; life?: number; pierce?: number } = {}): PlayerProjectile | null {
+    // a mirror clone's shot (a fraction of yours) never takes a slot your own would need (D-74): with
+    // many clones and a big volley the pool filled up and your full-strength shots failed to fire
+    if ((o.mult ?? 1) < 1 && this.cloneShotDropped()) return null;
     const p = this.g.spawnProj();
     if (!p) return null;
     p.kind = kind;
@@ -253,7 +274,7 @@ export class Weapons {
     p.rot = a;
     p.r = o.r ?? 8;
     p.mult = o.mult ?? 1;
-    p.dmg = this.damage(w) * p.mult;
+    p.dmg = this.damage(w) * p.mult * (p.mult < 1 ? this.cloneBoost() : 1);
     p.pierce = o.pierce ?? this.pierce(w);
     p.life = p.maxLife = o.life ?? this.duration(w);
     p.kb = w.def.knockback;
@@ -261,10 +282,21 @@ export class Weapons {
     return p;
   }
 
+  /** Drop this clone shot? (the pool is full enough that your own shots need the room, D-74) */
+  private cloneShotDropped(): boolean {
+    const drop = this.g.projLoad > CLONE_POOL_SHARE;
+    this.cloneDrop += ((drop ? 1 : 0) - this.cloneDrop) * 0.02;
+    return drop;
+  }
+  /** The clone shots that do fire carry the share of the ones dropped (up to three times their own). */
+  private cloneBoost(): number {
+    return 1 / Math.max(1 / 3, 1 - this.cloneDrop);
+  }
+
   // ---- Whack-a-Mole Mallet / Whack Frenzy: melee arcs around the player
   private mallet(w: WeaponInst, dt: number): void {
     if (!this.ready(w, dt)) return;
-    const R = 62 * this.area(w);
+    const R = 68 * this.area(w);
     if (w.def.id === 'whack_frenzy') {
       w.n++;
       const pound = w.n % 4 === 0;
@@ -329,7 +361,7 @@ export class Weapons {
       w.tickAcc -= dt;
       if (p.moving && w.tickAcc <= 0) {
         w.tickAcc = 0.2;
-        this.g.forEachTargetInCircle(p.x, p.y, 60 * this.area(w), (t) => this.hit(w, t, this.damage(w) * 0.5, p.x, p.y));
+        this.g.forEachTargetInCircle(p.x, p.y, 85 * this.area(w), (t) => this.hit(w, t, this.damage(w) * 0.75, p.x, p.y));
       }
       // Keep `amount` phantom cars pinballing through the crowd.
       let alive = 0;
@@ -337,8 +369,10 @@ export class Weapons {
       w.cd -= dt;
       if (alive < this.amount(w) && w.cd <= 0) {
         w.cd = this.cooldown(w);
-        const a = this.g.rng.angle();
-        const pr = this.proj(w, 'derby_car', p.x, p.y, a, this.speed(w), { r: 22 * this.area(w), life: 5, pierce: 999 });
+        // launched at somebody in the crowd (D-74: a random heading mostly found nobody)
+        const t = this.g.randomTarget(p.x, p.y, 520);
+        const a = t ? Math.atan2(t.y - p.y, t.x - p.x) : this.g.rng.angle();
+        const pr = this.proj(w, 'derby_car', p.x, p.y, a, this.speed(w), { r: 28 * this.area(w), life: 5, pierce: 999 });
         if (pr) pr.rehit = 0.4;
         this.sfx('engine', 0.3);
       }
@@ -346,7 +380,7 @@ export class Weapons {
     }
     if (p.dashT > 0) {
       // during the surge: ram everything along the way
-      const R = 30 * this.area(w);
+      const R = 40 * this.area(w);
       this.g.forEachTargetInCircle(p.x, p.y, R, (t) => {
         if (w.dashHits.recent(t.uid, this.g.realTime, -1)) return;
         w.dashHits.mark(t.uid, this.g.realTime);
@@ -358,6 +392,13 @@ export class Weapons {
     if (w.cd > 0 || !p.moving) return;
     w.cd = this.cooldown(w);
     w.dashHits.reset();
+    // D-74: every surge peels out with a spin that bumps everything around you — the crowd chasing you
+    // while you kite is behind you, where the surge itself never reaches
+    const bumpR = 105 * this.area(w);
+    this.cast(w, (ox, oy, mult) => {
+      this.g.forEachTargetInCircle(ox, oy, bumpR, (t) => this.hit(w, t, this.damage(w) * 1.6 * mult, ox, oy, 0.8));
+      this.g.fx.push('ring', ox, oy, bumpR, 0, 0, 'pound');
+    });
     p.dashT = this.duration(w);
     p.dashX = p.faceX;
     p.dashY = p.faceY;
@@ -368,7 +409,11 @@ export class Weapons {
     for (let i = 0; i < escorts; i++) {
       const side = i % 2 === 0 ? 1 : -1;
       const off = 52 * (1 + Math.floor(i / 2));
-      const pr = this.proj(w, 'bumper_ghost', p.x - p.faceY * off * side, p.y + p.faceX * off * side, Math.atan2(p.faceY, p.faceX), p.dashSpeed, { r: 24 * this.area(w), life: p.dashT + 0.1, pierce: 999 });
+      // escorts peel off toward the crowd (D-74), not alongside you into empty road
+      const t = this.g.randomTarget(p.x, p.y, 460);
+      const ex = p.x - p.faceY * off * side, ey = p.y + p.faceX * off * side;
+      const a = t ? Math.atan2(t.y - ey, t.x - ex) : Math.atan2(p.faceY, p.faceX);
+      const pr = this.proj(w, 'bumper_ghost', ex, ey, a, p.dashSpeed, { r: 24 * this.area(w), life: 0.7, pierce: 999 });
       if (pr) pr.kb = 3;
     }
   }
@@ -453,13 +498,13 @@ export class Weapons {
     this.cast(w, (ox, oy, mult) => {
       for (let i = 0; i < n; i++) {
         let tx: number, ty: number;
-        const t = evo ? (this.g.rng.chance(0.6) ? this.g.randomTarget(ox, oy, 330) : null) : this.g.randomTarget(ox, oy, 460);
+        const t = evo ? (this.g.rng.chance(0.6) ? this.g.randomTarget(ox, oy, 420) : null) : this.g.randomTarget(ox, oy, 460);
         if (t) {
           tx = t.x + this.g.rng.range(-24, 24);
           ty = t.y + this.g.rng.range(-24, 24);
         } else {
           const a = this.g.rng.angle();
-          const d = this.g.rng.range(60, evo ? 320 : 260);
+          const d = this.g.rng.range(60, evo ? 400 : 260);
           tx = ox + Math.cos(a) * d;
           ty = oy + Math.sin(a) * d;
         }
@@ -470,6 +515,7 @@ export class Weapons {
   }
 
   private lob(w: WeaponInst, kind: PlayerProjectile['kind'], ox: number, oy: number, tx: number, ty: number, flight: number, mult: number): PlayerProjectile | null {
+    if (mult < 1 && this.cloneShotDropped()) return null;
     const p = this.g.spawnProj();
     if (!p) return null;
     p.kind = kind;
@@ -482,7 +528,7 @@ export class Weapons {
     p.vx = (tx - ox) / p.maxLife;
     p.vy = (ty - oy) / p.maxLife;
     p.mult = mult;
-    p.dmg = this.damage(w) * mult;
+    p.dmg = this.damage(w) * mult * (mult < 1 ? this.cloneBoost() : 1);
     p.area = this.area(w);
     p.kb = w.def.knockback;
     p.arc = kind === 'shell' ? 160 : kind === 'rocket' ? 90 : 60;
@@ -595,16 +641,16 @@ export class Weapons {
       while (w.orbHits.length < n) w.orbHits.push(new HitTracker());
       w.angle += this.speed(w) * dt;
       const p = this.g.player;
-      const size = 16 * this.area(w);
+      const size = 20 * this.area(w);
       w.tickAcc -= dt;
       for (let i = 0; i < n; i++) {
         const dir = i % 2 === 0 ? 1 : -1;
-        const R = 115 + i * 52;
+        const R = 130 + i * 60;
         const a = w.angle * dir * (1 - i * 0.12) + (i * TAU) / n;
         const x = p.x + Math.cos(a) * R, y = p.y + Math.sin(a) * R;
         const ht = w.orbHits[i];
         this.g.forEachTargetInCircle(x, y, size, (t) => {
-          if (ht.recent(t.uid, this.g.realTime, 0.35)) return;
+          if (ht.recent(t.uid, this.g.realTime, 0.3)) return;
           ht.mark(t.uid, this.g.realTime);
           this.hit(w, t, this.damage(w), x, y);
         });
@@ -619,7 +665,7 @@ export class Weapons {
       for (let i = 0; i < n; i++) {
         const a = base + (n > 1 ? (i - (n - 1) / 2) * (0.52 / Math.max(1, n - 1)) * 2 : 0);
         const p = this.proj(w, 'ring', ox, oy, a, this.speed(w), { r: 14 * this.area(w), mult, pierce: 999 });
-        if (p) p.rehit = 0.5;
+        if (p) p.rehit = 0.65;
       }
     });
     this.sfx('ringtoss', 0.35);
@@ -653,9 +699,9 @@ export class Weapons {
     if (!this.ready(w, dt)) return;
     if (w.def.id === 'blizzard') {
       const p = this.g.player;
-      const R = 140 * this.area(w);
+      const R = 170 * this.area(w);
       this.g.forEachTargetInCircle(p.x, p.y, R, (t) => {
-        this.hit(w, t, this.damage(w), p.x, p.y);
+        this.hit(w, t, this.damage(w) * (t.isBoss ? STORM_BITE : 1), p.x, p.y);
         if (!t.isBoss) this.g.applyChill(t as Enemy, 2, this.duration(w));
       });
       this.g.fx.push('ring', p.x, p.y, R, 0, 0, 'blizzard');
@@ -672,7 +718,7 @@ export class Weapons {
         const a = a0 + off;
         this.g.forEachTargetInCircle(ox, oy, R, (t) => {
           if (!inSector(t.x, t.y, ox, oy, a, 0.5, R, t.r)) return;
-          this.hit(w, t, this.damage(w) * mult, ox, oy);
+          this.hit(w, t, this.damage(w) * mult * (t.isBoss ? UNCHILLED : 1), ox, oy);
           if (!t.isBoss) this.g.applyChill(t as Enemy, 1, this.duration(w));
         });
         this.g.fx.push('slash', ox, oy, a, 0.5, R, 'frost');
@@ -694,7 +740,7 @@ export class Weapons {
           this.g.forEachTargetInCircle(p.x, p.y, r1, (t) => {
             const d = Math.sqrt(dist2(t.x, t.y, p.x, p.y));
             if (d + t.r < r0) return;
-            this.hit(w, t, this.damage(w), p.x, p.y);
+            this.hit(w, t, this.damage(w) * (t.isBoss ? UNBURNT : 1), p.x, p.y);
             if (!t.isBoss) {
               const e = t as Enemy;
               e.burnT = Math.max(e.burnT, this.duration(w));
@@ -707,7 +753,8 @@ export class Weapons {
       for (let i = 0; i < 5; i++) {
         const a = this.g.rng.angle();
         const d = this.g.rng.range(40, maxR);
-        this.g.spawnZone('burn', p0.x + Math.cos(a) * d, p0.y + Math.sin(a) * d, 46 * this.area(w), this.duration(w), this.damage(w) * 0.5, 0.5);
+        // (D-74: a burning patch's tick no longer stacks with its neighbours', so each one burns hotter)
+        this.g.spawnZone('burn', p0.x + Math.cos(a) * d, p0.y + Math.sin(a) * d, 46 * this.area(w), this.duration(w), this.damage(w) * 0.75, 0.5);
       }
       this.sfx('flame', 0.45);
       return;
@@ -725,7 +772,7 @@ export class Weapons {
             const cx = mult === 1 ? p.x : ox, cy = mult === 1 ? p.y : oy;
             this.g.forEachTargetInCircle(cx, cy, R, (t) => {
               if (!inSector(t.x, t.y, cx, cy, a, 0.38, R, t.r)) return;
-              this.hit(w, t, this.damage(w) * mult, cx, cy);
+              this.hit(w, t, this.damage(w) * mult * (t.isBoss ? UNBURNT : 1), cx, cy);
               if (!t.isBoss) {
                 const e = t as Enemy;
                 e.burnT = Math.max(e.burnT, this.duration(w));
@@ -761,16 +808,29 @@ export class Weapons {
     } else w.active = true;
     if (!w.active) return;
     w.angle += this.speed(w) * dt;
+    // the arc swept since the last strike (D-74: a strike every 0.2 s only cut what lay under a 9 px
+    // beam at that instant, so most of the crowd a beam passed over was never touched)
+    w.t += this.speed(w) * dt;
     w.tickAcc -= dt;
     if (w.tickAcc > 0) return;
-    w.tickAcc = 0.2;
+    w.tickAcc = 0.1;
+    const sweep = Math.min(w.t, Math.PI);
+    w.t = 0;
     const p = this.g.player;
     const n = this.amount(w);
     const L = 260 * this.area(w);
+    while (w.orbHits.length < n) w.orbHits.push(new HitTracker());
     for (let i = 0; i < n; i++) {
       const a = this.beamAngle(w, i, n);
-      const ex = p.x + Math.cos(a) * L, ey = p.y + Math.sin(a) * L;
-      this.g.forEachTargetOnSegment(p.x, p.y, ex, ey, 9, (t) => this.hit(w, t, this.damage(w), p.x, p.y, 0.3));
+      const dir = w.def.id === 'grand_illumination' && i % 2 === 1 ? -1 : 1;
+      const mid = a - (dir * sweep) / 2;
+      const ht = w.orbHits[i];
+      this.g.forEachTargetInCircle(p.x, p.y, L, (t) => {
+        if (!inSector(t.x, t.y, p.x, p.y, mid, sweep / 2 + 0.02, L, t.r)) return;
+        if (ht.recent(t.uid, this.g.realTime, 0.3)) return;
+        ht.mark(t.uid, this.g.realTime);
+        this.hit(w, t, this.damage(w), p.x, p.y, 0.3);
+      });
     }
   }
 
@@ -798,8 +858,9 @@ export class Weapons {
       w.activeT -= dt;
       if (w.activeT <= 0) {
         w.active = false;
-        // cooldown extended by the weapon's *base* duration (Godot: cycle = cd + base duration)
-        w.cd = this.cooldown(w) + (w.def.duration + weaponLevelSum(w.def.lv.dur, w.level));
+        // D-74: off for the cooldown only (the Godot model also added the base duration, so the orbs
+        // were out barely 40% of the time)
+        w.cd = this.cooldown(w);
         return;
       }
     } else {
@@ -827,21 +888,40 @@ export class Weapons {
     w.angle += this.speed(w) * dt;
     const p = this.g.player;
     const R = this.orbRadius(w);
-    const size = (evo ? 22 : 14) * this.area(w) / (evo ? 1.7 : 1);
+    const size = (evo ? 26 : 18) * this.area(w) / (evo ? 1.7 : 1);
     for (let i = 0; i < n; i++) {
       const a = w.angle + (i * TAU) / n;
       const x = p.x + Math.cos(a) * R, y = p.y + Math.sin(a) * R;
       const ht = w.orbHits[i];
       this.g.forEachTargetInCircle(x, y, size, (t) => {
-        if (ht.recent(t.uid, this.g.realTime, evo ? 0.6 : 1.0)) return;
+        if (ht.recent(t.uid, this.g.realTime, evo ? 0.38 : 0.8)) return;
         ht.mark(t.uid, this.g.realTime);
-        this.hit(w, t, this.damage(w), x, y);
+        this.hit(w, t, this.damage(w), x, y, 0);
+        if (!t.isBoss) this.barrier(t as Enemy, p.x, p.y, w.def.knockback);
       });
     }
   }
 
+  /**
+   * The Crystal Orbs' barrier (D-74): an orb shoves what it hits straight out from you. Each shove on the
+   * same creature soon after the last is weaker (it wears off over about a second), so the crowd bounces
+   * off the ring while something tough leans through it unless you kill it quickly.
+   */
+  private barrier(e: Enemy, px: number, py: number, power: number): void {
+    if (!e.alive || e.def.knockbackTaken <= 0 || e.def.behavior === 'rail_strafer') return;
+    const now = this.g.realTime;
+    e.kbFatigue = e.kbFatigue * Math.exp(-(now - e.kbFatigueAt) / ORB_FATIGUE_S) + 1;
+    e.kbFatigueAt = now;
+    const f = Math.pow(e.kbFatigue, -1.25) * e.def.knockbackTaken * power;
+    const dx = e.x - px, dy = e.y - py;
+    const l = Math.hypot(dx, dy) || 1;
+    e.kbT = 0.14;
+    e.kbX = (dx / l) * ORB_SHOVE * f;
+    e.kbY = (dy / l) * ORB_SHOVE * f;
+  }
+
   orbRadius(w: WeaponInst): number {
-    return w.def.id === 'cosmic_convergence' ? Math.min(260, 95 * this.area(w)) : Math.min(220, 90 * this.area(w));
+    return w.def.id === 'cosmic_convergence' ? Math.min(260, 105 * this.area(w)) : Math.min(220, 100 * this.area(w));
   }
 
   // ---- Strongman Bell / High Striker: slam → shockwave ring
@@ -895,9 +975,9 @@ export class Weapons {
       // a thunderous chord every 3 s on top of the endless spiral
       w.tickAcc -= dt;
       if (w.tickAcc <= 0) {
-        w.tickAcc = 3;
+        w.tickAcc = 2;
         const p = this.g.player;
-        const R = 200 * this.area(w) / w.def.area;
+        const R = 240 * this.area(w) / w.def.area;
         this.g.forEachTargetInCircle(p.x, p.y, R, (t) => this.hit(w, t, this.damage(w) * 2, p.x, p.y, 1.5));
         this.g.fx.push('ring', p.x, p.y, R, 0, 0, 'gravity');
         this.sfx('calliope', 0.35, 1.2);
@@ -926,11 +1006,11 @@ export class Weapons {
   private mirror(w: WeaponInst, dt: number): void {
     const p = this.g.player;
     if (w.def.id === 'hall_of_mirrors') {
-      this.syncSummons(w, this.amount(w), () => 'clone');
+      this.syncSummons(w, Math.min(MAX_CLONES, this.amount(w)), () => 'clone');
       return;
     }
     if (!this.ready(w, dt)) return;
-    const n = this.amount(w);
+    const n = Math.min(MAX_CLONES, this.amount(w));
     for (const s of this.g.summons) if (s.alive && s.weapon === w.def.id) s.alive = false;
     for (let i = 0; i < n; i++) {
       const s = this.g.spawnSummon();
@@ -1089,14 +1169,14 @@ export class Weapons {
       if (w) {
         const st = g.player.stats;
         const crit = st.critRoll(g.rng.next(), (w.def.critBonus ?? 0) + p.crit);
-        const cm = st.critDamage + (w.def.id === 'death_card' ? 1.5 : 0);
+        const cm = st.critDamage + (w.def.id === 'death_card' ? DEATH_CRIT : 0);
         const dmg = p.dmg * (crit ? cm : 1);
         g.damageTarget(t, dmg, crit, p.kb, p.x - p.vx * 0.05, p.y - p.vy * 0.05, w.def.id);
         if (crit) g.fx.push('crit', t.x, t.y);
       }
       g.fx.push('hit', t.x, t.y, 0, 0, 0, p.kind);
       if (p.kind === 'death_card') {
-        this.burst(p, w, 60 * p.area, 0.4, 'deathcard');
+        this.burst(p, w, 60 * p.area, 0.3, 'deathcard');
         p.alive = false;
         return;
       }
@@ -1242,7 +1322,7 @@ export class Weapons {
           break;
         case 'clone': {
           if (w.def.id === 'hall_of_mirrors') {
-            const a = g.realTime * 0.8 + (s.slot * TAU) / Math.max(1, this.amount(w));
+            const a = g.realTime * 0.8 + (s.slot * TAU) / Math.max(1, Math.min(MAX_CLONES, this.amount(w)));
             s.x = pl.x + Math.cos(a) * 140;
             s.y = pl.y + Math.sin(a) * 140;
           } else {
@@ -1282,6 +1362,8 @@ export class Weapons {
       s.face = dx > 0 ? 1 : -1;
       if (d < t.r + 12) {
         this.hit(w, t, this.damage(w), s.x, s.y);
+        // the Menagerie's pets maul (D-74): the bite tears into whatever crowds its target too
+        if (roam) g.forEachTargetInCircle(t.x, t.y, MAUL_R * this.area(w) / w.def.area, (o) => o !== t && this.hit(w, o, this.damage(w) * 0.6, s.x, s.y, 0.4));
         g.fx.push('hit', t.x, t.y, 0, 0, 0, 'bite');
         s.state = 0;
         s.cd = this.cooldown(w);
@@ -1307,12 +1389,13 @@ export class Weapons {
       s.vy *= 0.9;
       if (Math.abs(s.vx) + Math.abs(s.vy) < 10) s.vx = s.vy = 0;
     }
+    // `cleave`: the troupe's lion and acrobats hit around their mark too (D-74)
     const spec = {
-      rabbit: { range: 420, speed: 300, cd: 0.6, dmg: 1, r: 0, kb: 1 },
-      dove: { range: 520, speed: 420, cd: 0.7, dmg: 0.8, r: 0, kb: 0.4 },
-      acrobat: { range: 480, speed: 360, cd: 0.4, dmg: 0.6, r: 0, kb: 0.6 },
-      lion: { range: 460, speed: 380, cd: 1.1, dmg: 1.7, r: 0, kb: 2 },
-      elephant: { range: 400, speed: 150, cd: 2.0, dmg: 1.3, r: 95, kb: 3 },
+      rabbit: { range: 420, speed: 300, cd: 0.6, dmg: 1, r: 0, kb: 1, cleave: 0 },
+      dove: { range: 520, speed: 420, cd: 0.7, dmg: 0.8, r: 0, kb: 0.4, cleave: 0 },
+      acrobat: { range: 480, speed: 360, cd: 0.4, dmg: 0.6, r: 0, kb: 0.6, cleave: 36 },
+      lion: { range: 460, speed: 380, cd: 1.1, dmg: 1.7, r: 0, kb: 2, cleave: 64 },
+      elephant: { range: 400, speed: 150, cd: 2.0, dmg: 1.3, r: 110, kb: 3, cleave: 0 },
     }[s.kind as 'rabbit']!;
     let t = g.findTargetByUid(s.target);
     if (!t || Math.hypot(t.x - pl.x, t.y - pl.y) > spec.range * 1.3) {
@@ -1345,6 +1428,7 @@ export class Weapons {
         g.bus.emit('sfx', { id: 'stomp', vol: 0.3, pitch: 0.7 });
       } else {
         this.hit(w, t, this.damage(w) * spec.dmg, s.x, s.y, spec.kb);
+        if (spec.cleave) g.forEachTargetInCircle(t.x, t.y, spec.cleave, (o) => o !== t && this.hit(w, o, this.damage(w) * spec.dmg * 0.6, s.x, s.y, spec.kb * 0.5));
         g.fx.push('hit', t.x, t.y, 0, 0, 0, s.kind);
         if (s.kind === 'lion') g.bus.emit('sfx', { id: 'roar', vol: 0.3 });
         if (s.kind === 'dove') {

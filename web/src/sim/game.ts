@@ -15,7 +15,8 @@ import { ACT_GATES, DAWN_TIME } from '../data/waves';
 import { computePayout } from '../data/meta';
 import type { BossBase } from './bosses/boss';
 import { Director } from './director';
-import { applyDraftChoice, generateDraft, grantChest, type DraftOption } from './draft';
+import { Nav } from './nav';
+import { applyDraftChoice, generateDraft, grantChest, type ChestEntry, type DraftOption } from './draft';
 import { updateEnemy } from './enemyAI';
 import {
   BossPart, Enemy, EnemyBullet, Hazard, Pickup, PlayerProjectile, Summon, Zone,
@@ -38,6 +39,8 @@ const MARK_TIME = 5;
 import { HUB_NPCS } from '../data/hub';
 import { CHESTS, COOP, HEALING, TICKETS, voucherValue, xpToNext } from '../data/progression';
 import { FxQueue } from './fx';
+/** Sticky Situation's webs dissolve what stays in them (D-74): +40% per web tick in a row, up to +400%. */
+const WEB_RAMP = { step: 0.4, max: 10 };
 import { Player } from './player';
 import { Weapons } from './weapons';
 import { addHazardPull, moveBody, steer } from './movement';
@@ -62,7 +65,7 @@ export interface RunConfig {
   canSkip?: boolean;
   unlocked?: Set<string>;
   /** Co-op party (D-51): one entry per player; absent = solo with `character`. Player 0 uses the top-level meta/rerolls. */
-  players?: { character: string; name?: string; meta?: { axis: string; value: number }[]; rerolls?: number; banishes?: number; canSkip?: boolean; aimMode?: 'auto' | 'hybrid' | 'manual' }[];
+  players?: { character: string; name?: string; meta?: { axis: string; value: number }[]; rerolls?: number; banishes?: number; canSkip?: boolean; aimMode?: 'auto' | 'hybrid' | 'manual'; unlocked?: Set<string> }[];
   /** Test hooks */
   godMode?: boolean;
   /** Persistent quest memory from the save (e.g. how often the Last Song was completed). */
@@ -199,6 +202,8 @@ export class Game {
   enemies: Enemy[] = [];
   active: Enemy[] = []; // active enemies (unordered)
   projs: PlayerProjectile[] = [];
+  /** how full the projectile pool was at the start of this tick (0..1): mirror clones yield to you (D-74) */
+  projLoad = 0;
   bullets: EnemyBullet[] = [];
   hazards: Hazard[] = [];
   pickups: Pickup[] = [];
@@ -210,6 +215,8 @@ export class Game {
 
   grid: SpatialGrid;
   director: Director;
+  /** the crowd and the walls (D-74) */
+  nav: Nav;
   weapons: Weapons;
   events: CarnivalEvents;
 
@@ -289,6 +296,7 @@ export class Game {
     this.mapId = cfg.hub ? 'carnival_core' : cfg.map ?? 'carnival_core';
     this.map = MAPS[this.mapId];
     useMap(this.mapId);
+    this.nav = new Nav();
     this.rng = new Rng(cfg.seed);
     this.diff = DIFFICULTY_MAP[cfg.difficulty] ?? DIFFICULTY_MAP.midway;
     const party = cfg.players?.length ? cfg.players.slice(0, COOP.maxPlayers) : [{ character: cfg.character }];
@@ -306,6 +314,8 @@ export class Game {
       pl.banishes = (i === 0 ? cfg.banishes : pc.banishes) ?? 0;
       pl.canSkip = !!(i === 0 ? cfg.canSkip : pc.canSkip);
       pl.aimMode = (i === 0 ? cfg.aimMode : pc.aimMode) ?? 'auto';
+      // the draft pool's unlocks are each player's own (D-74); a config without them shares the top-level set
+      pl.unlocked = pc.unlocked ?? cfg.unlocked ?? new Set();
       pl.initHp();
       const at = cfg.hub?.at?.[i];
       pl.x = pl.px = at?.x ?? PLAYER_SPAWN.x + (i - (party.length - 1) / 2) * 70;
@@ -487,17 +497,20 @@ export class Game {
     this.setCtx(p0);
     this.quests.update(dt);
     if (P) pt = perf.sysMark(SYS.director, pt);
+    this.nav.update(this, dt);
     for (let i = 0; i < this.active.length; i++) {
       const e = this.active[i];
       e.px = e.x;
       e.py = e.y;
       if (multi) this.setCtx(this.nearestLiving(e.x, e.y));
       updateEnemy(this, e, dt);
+      if (e.alive) this.nav.steer(this, e, dt);
       this.updateStatuses(e, dt);
     }
     this.setCtx(p0);
     if (P) pt = perf.sysMark(SYS.enemies, pt);
     this.separate(dt);
+    this.nav.collide(this);
     if (P) pt = perf.sysMark(SYS.collide, pt);
     for (const b of this.bosses) {
       if (multi) this.setCtx(this.bossTargetFor(b));
@@ -506,6 +519,9 @@ export class Game {
     this.setCtx(p0);
     if (this.bosses.length) this.bosses = this.bosses.filter((b) => !b.removed);
     if (P) pt = perf.sysMark(SYS.bosses, pt);
+    let live = 0;
+    for (const pr of this.projs) if (pr.alive) live++;
+    this.projLoad = live / this.projs.length;
     for (const pl of this.players) {
       this.setCtx(pl);
       if (this.isUp(pl)) pl.weapons.update(dt);
@@ -775,8 +791,10 @@ export class Game {
     e.illusion = false;
     e.illusionOf = -1;
     e.noSep = false;
+    e.walled = false;
     e.leashExempt = false;
     e.kbT = 0;
+    e.kbFatigue = 0;
     e.slowT = 0;
     e.slowF = 1;
     e.chill = 0;
@@ -861,9 +879,9 @@ export class Game {
     const bzOwner = e.frozenT > 0 ? this.players.find((pl) => pl.weapons.has('blizzard')) : undefined;
     if (bzOwner) {
       const w = bzOwner.weapons.get('blizzard')!;
-      const dmg = 40 * this.player.stats.might;
-      this.fx.push('explosion', e.x, e.y, 70, 0, 0, 'frost');
-      this.forEachTargetInCircle(e.x, e.y, 70, (t) => this.damageTarget(t, dmg, false, 0.5, e.x, e.y, w.def.id));
+      const dmg = 80 * this.player.stats.might;
+      this.fx.push('explosion', e.x, e.y, 90, 0, 0, 'frost');
+      this.forEachTargetInCircle(e.x, e.y, 90, (t) => this.damageTarget(t, dmg, false, 0.5, e.x, e.y, w.def.id));
     }
     if (d.behavior === 'thief') dispelDecoys(this, e.uid);
     if (e.loot > 0) payBack(this, e);
@@ -1550,7 +1568,23 @@ export class Game {
     return z;
   }
 
+  /**
+   * When each target last took a damage zone's tick, by kind (D-74): overlapping webs or burning patches of
+   * one kind don't stack, so a creature standing in five of them burns like it stands in one.
+   */
+  private zoneHits = new Map<number, number>();
+  /** Sticky Situation (D-74): how many web ticks in a row each target has taken (they dissolve faster) */
+  private webRamp = new Map<number, number>();
+
   private updateZones(dt: number): void {
+    if (this.tickCount % 600 === 0) {
+      for (const [k, t] of this.zoneHits) {
+        if (this.realTime - t <= 5) continue;
+        this.zoneHits.delete(k);
+        this.webRamp.delete(k);
+      }
+    }
+    const ZK: Record<string, number> = { web: 1, burn: 2, spark: 3 };
     for (const z of this.zones) {
       if (!z.alive) continue;
       z.life -= dt;
@@ -1564,7 +1598,20 @@ export class Game {
       z.tickAcc = z.tick;
       const src = z.kind === 'spark' ? 'spark_trail' : z.kind === 'burn' ? 'inferno_grill' : z.kind === 'web' ? 'sticky_situation' : z.kind;
       this.credit = z.owner;
+      const zk = ZK[z.kind] ?? 0;
       this.forEachTargetInCircle(z.x, z.y, z.r, (t) => {
+        let mult = 1;
+        if (zk) {
+          const key = t.uid * 4 + zk;
+          const last = this.zoneHits.get(key);
+          if (last !== undefined && this.realTime - last < z.tick - 0.02) return;
+          this.zoneHits.set(key, this.realTime);
+          if (z.kind === 'web') {
+            const ramp = last !== undefined && this.realTime - last < 1 ? Math.min(WEB_RAMP.max, (this.webRamp.get(key) ?? 0) + 1) : 0;
+            this.webRamp.set(key, ramp);
+            mult = 1 + WEB_RAMP.step * ramp;
+          }
+        }
         if (!t.isBoss) {
           const e = t as Enemy;
           if (z.slow > 0) {
@@ -1576,7 +1623,7 @@ export class Game {
             e.burnDps = Math.max(e.burnDps, z.dmg);
           }
         }
-        this.damageTarget(t, z.dmg, false, 0, z.x, z.y, src);
+        this.damageTarget(t, z.dmg * mult, false, 0, z.x, z.y, src);
       });
       this.credit = -1;
     }
@@ -1711,12 +1758,16 @@ export class Game {
    * Chest contents (D-34, D-51, D-54). Solo: every roll for the player. Co-op: each roll goes to whoever
    * has been dealt the fewest chest prizes so far tonight, ties going round from the opener (so a duo
    * still alternates, opener first, and a party of six shares 1–5-roll chests evenly over the night);
-   * every entry is tagged with its owner, so every prize wheel shows the same wedges.
+   * every entry is tagged with its owner, so every prize wheel shows the same wedges. Now and then one
+   * spin lands on Party Favors instead (D-74): +1 level to a random item of every player's, shown last.
    */
   openChest(rolls: number): ReturnType<typeof grantChest> {
     const opener = this.player;
     if (this.players.length === 1) return grantChest(this, rolls);
     const n = this.players.length;
+    let favor = false;
+    for (let k = 0; k < rolls && !favor; k++) favor = this.rng.chance(CHESTS.partyFavor);
+    if (favor) rolls--;
     const share = this.players.map(() => 0);
     for (let k = 0; k < rolls; k++) {
       let pick = opener.index, best = Infinity;
@@ -1738,6 +1789,18 @@ export class Game {
       out.items.push(...r.items);
       out.entries.push(...r.entries);
       if (r.evolution && !out.evolution) out.evolution = r.evolution;
+    }
+    if (favor) {
+      // a chest's roll for each player (a random item not yet maxed, with the usual fallbacks)
+      const gifts: ChestEntry[] = [];
+      for (let k = 0; k < n; k++) {
+        const pl = this.players[(opener.index + k) % n];
+        this.setCtx(pl);
+        const r = grantChest(this, 1);
+        for (const e of r.entries) gifts.push({ ...e, player: pl.index });
+        out.items.push(...r.items);
+      }
+      out.entries.push({ type: 'party', id: 'party_favors', label: 'Party Favors: +1 level for everyone', name: 'Party Favors', note: '+1 level for everyone', gifts });
     }
     this.setCtx(opener);
     return out;

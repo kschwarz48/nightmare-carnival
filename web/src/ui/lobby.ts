@@ -87,6 +87,8 @@ export interface LobbyActions {
   leave: () => void;
   /** host with the Midway unlocked: take everyone back to the hub instead of starting (D-60) */
   midway?: () => void;
+  /** step into the Lost & Found and come back to this lobby, seat kept (D-74) */
+  lostfound?: () => void;
 }
 
 export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canStart: boolean; status: string; tone: 'info' | 'warn'; actions: LobbyActions }): HTMLElement {
@@ -113,7 +115,7 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
       ch ? h('img', { class: 'mp-portrait', src: c.assets.portrait(ch.id), alt: '' }) : h('div', { class: 'mp-portrait none' }, '?'),
       h('div', { class: 'mp-name' }, p.name),
       h('div', { class: 'mp-char' }, ch ? ch.name : 'Choosing…'),
-      h('div', { class: `mp-badge${p.ready ? ' on' : ''}` }, !p.connected ? 'Reconnecting…' : p.ready ? 'READY' : 'Not ready'),
+      h('div', { class: `mp-badge${p.ready ? ' on' : ''}${p.away ? ' away' : ''}` }, !p.connected ? 'Reconnecting…' : p.away ? 'At the Lost & Found' : p.ready ? 'READY' : 'Not ready'),
       i !== me && p.rtt ? h('div', { class: 'mp-ping' }, `${p.rtt} ms`) : null,
     );
   };
@@ -149,6 +151,7 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
   const actions = h('div', { class: 'cs-actions' },
     btn('Leave', () => { c.click(); o.actions.leave(); }, 'small red'),
     o.actions.midway ? btn('Back to the Midway', () => { c.click(); o.actions.midway!(); }, 'small') : null,
+    o.actions.lostfound ? btn('Lost & Found', () => { c.click(); o.actions.lostfound!(); }, 'small purple', { title: 'Spend Lost Tickets without leaving the lobby' }) : null,
     btn(ready ? 'Not Ready' : 'Ready!', () => { if (!myChar) return; c.click(); o.actions.ready(!ready); }, ready ? 'small' : 'purple', { disabled: !myChar || undefined, 'data-default': host ? undefined : '' }),
     host ? btn('Start the Night!', () => { if (!o.canStart) return; c.click(); o.actions.start(); }, '', { disabled: !o.canStart || undefined, 'data-default': '' }) : null,
   );

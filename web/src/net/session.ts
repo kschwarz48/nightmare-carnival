@@ -49,6 +49,8 @@ interface Seat {
   token: string;
   character: string | null;
   ready: boolean;
+  /** browsing the Lost & Found from the lobby (D-74) */
+  away: boolean;
   connected: boolean;
   lastHeard: number;
   /** something arrived since the last update (stamped there, so a stalled tab never fakes a timeout) */
@@ -143,7 +145,7 @@ export function runConfigFromStart(c: StartCfg): RunConfig {
     aimMode: p0.aimMode,
     unlocked: new Set(c.unlocked),
     questMemory: c.questMemory,
-    players: c.players.map((p) => ({ character: p.character, name: p.name, meta: p.meta, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, aimMode: p.aimMode })),
+    players: c.players.map((p) => ({ character: p.character, name: p.name, meta: p.meta, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, aimMode: p.aimMode, unlocked: p.unlocked ? new Set(p.unlocked) : undefined })),
     hub: c.hub,
     map: c.map,
   };
@@ -164,6 +166,8 @@ export class HostSession {
   startCfg: StartCfg | null = null;
   hostCharacter: string | null = null;
   hostReady = false;
+  /** the host is browsing the Lost & Found from the lobby (D-74) */
+  hostAway = false;
   hostPaused = false;
   /** the party is walking the Midway hub (D-60): joining stays open, drops just leave */
   inHub = false;
@@ -190,7 +194,7 @@ export class HostSession {
   onGuestPause: (paused: boolean, name: string) => void = () => {};
   onClosed: (reason: string) => void = () => {};
 
-  constructor(code: string, readonly self: HostProfile) {
+  constructor(code: string, public self: HostProfile) {
     this.lobby = { code, players: [this.lobbyHost(), ...Array.from({ length: MAX_PLAYERS - 1 }, () => null)], map: 'carnival_core', difficulty: 'midway', curse: false, inRun: false };
   }
 
@@ -215,14 +219,14 @@ export class HostSession {
   }
 
   private lobbyHost() {
-    return { name: this.self.name, character: this.hostCharacter, ready: this.hostReady, connected: true, rtt: 0 };
+    return { name: this.self.name, character: this.hostCharacter, ready: this.hostReady, connected: true, rtt: 0, away: this.hostAway };
   }
 
   private broadcastLobby(): void {
     this.lobby.players[0] = this.lobbyHost();
     for (let i = 1; i < MAX_PLAYERS; i++) {
       const s = this.seats[i];
-      this.lobby.players[i] = s ? { name: s.profile.name, character: s.character, ready: s.ready, connected: s.connected, rtt: Math.round(s.rtt) } : null;
+      this.lobby.players[i] = s ? { name: s.profile.name, character: s.character, ready: s.ready, connected: s.connected, rtt: Math.round(s.rtt), away: s.away } : null;
     }
     // each guest also learns its own seat (seats close up when someone leaves the lobby)
     for (const s of this.live) this.sendTo(s, { t: 'lobby', lobby: this.lobby, you: s.index });
@@ -249,6 +253,17 @@ export class HostSession {
     this.hostReady = r && !!this.hostCharacter;
     this.broadcastLobby();
   }
+  /** The host steps into the Lost & Found from the lobby, or back out of it (D-74): not ready meanwhile. */
+  setAway(on: boolean): void {
+    if (this.lobby.inRun) return;
+    this.hostAway = on;
+    this.hostReady = false;
+    this.broadcastLobby();
+  }
+  /** The host's own perks changed (a Lost & Found visit): the next night uses the new ones. */
+  setSelf(p: HostProfile): void {
+    this.self = { ...p, name: this.self.name };
+  }
   setDifficulty(id: string, curse: boolean): void {
     if (this.lobby.inRun) return;
     this.lobby.difficulty = id;
@@ -270,7 +285,8 @@ export class HostSession {
   start(o: { seed: number; unlocked: string[]; questMemory: Record<string, number> }): StartCfg | null {
     if (!this.canStart()) return null;
     const me = this.self;
-    const entry = (character: string, name: string, p: HostProfile | GuestProfile) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip });
+    // every player drafts from their own save's unlocks (D-74): the host's, and each guest's
+    const entry = (character: string, name: string, p: HostProfile | GuestProfile, unlocked: string[]) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, unlocked });
     this.startCfg = {
       seed: o.seed >>> 0,
       map: this.lobby.map,
@@ -279,7 +295,7 @@ export class HostSession {
       unlocked: o.unlocked,
       questMemory: o.questMemory,
       // seats are compact in the lobby, so seat index = player index
-      players: [entry(this.hostCharacter!, me.name, me), ...this.guests.map((s) => entry(s.character!, s.profile.name, s.profile))],
+      players: [entry(this.hostCharacter!, me.name, me, o.unlocked), ...this.guests.map((s) => entry(s.character!, s.profile.name, s.profile, s.profile.unlocks ?? []))],
     };
     this.lobby.inRun = true;
     this.broadcastLobby();
@@ -293,7 +309,7 @@ export class HostSession {
    */
   startHub(o: { seed: number; unlocked: string[]; questMemory: Record<string, number>; npcs: string[]; at?: { x: number; y: number }[] }): StartCfg {
     const me = this.self;
-    const entry = (character: string, name: string, p: HostProfile | GuestProfile) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip });
+    const entry = (character: string, name: string, p: HostProfile | GuestProfile, unlocked: string[]) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, unlocked });
     this.startCfg = {
       seed: o.seed >>> 0,
       difficulty: this.lobby.difficulty,
@@ -301,7 +317,7 @@ export class HostSession {
       unlocked: o.unlocked,
       questMemory: o.questMemory,
       hub: { npcs: o.npcs, at: o.at },
-      players: [entry(this.hostCharacter ?? 'carny', me.name, me), ...this.guests.map((s) => entry(s.character ?? s.profile.pref ?? s.profile.chars[0] ?? 'carny', s.profile.name, s.profile))],
+      players: [entry(this.hostCharacter ?? 'carny', me.name, me, o.unlocked), ...this.guests.map((s) => entry(s.character ?? s.profile.pref ?? s.profile.chars[0] ?? 'carny', s.profile.name, s.profile, s.profile.unlocks ?? []))],
     };
     this.inHub = true;
     this.lobby.inRun = false;
@@ -314,7 +330,7 @@ export class HostSession {
     this.detachGame();
     this.inHub = false;
     this.startCfg = null;
-    for (const s of this.guests) s.ready = false;
+    for (const s of this.guests) s.ready = s.away = false;
     this.broadcast({ t: 'to_lobby' });
     this.broadcastLobby();
   }
@@ -377,7 +393,7 @@ export class HostSession {
     const index = this.seats.findIndex((s, i) => i > 0 && !s);
     if (index < 0) return this.refuse(link, 'full');
     const seat: Seat = {
-      index, link: null, profile: { ...m.profile, name: this.uniqueName(m.profile.name) }, token: randomToken(), character: null, ready: false, connected: false, lastHeard: this.now, heard: false, rtt: 0, jitter: 0, owed: 0, fast: false,
+      index, link: null, profile: { ...m.profile, name: this.uniqueName(m.profile.name) }, token: randomToken(), character: null, ready: false, away: false, connected: false, lastHeard: this.now, heard: false, rtt: 0, jitter: 0, owed: 0, fast: false,
       view: { hx: 900, hy: 700 }, queue: [], lastQueued: 0, lastApplied: 0, lastInput: null, lastIa: -1, ackSnap: 0, dictAck: 0, invalid: 0,
       limiter: new RateLimiter(40, 80, this.now), binLimiter: new RateLimiter(180, 240, this.now), paused: false, goneAt: 0, deepTicks: 0, lastInputAt: 0, repeats: 0,
       waitUntil: 0, prize: 0, enc: new SnapshotEncoder(), snapSeq: 0, snapAcc: 0, fx: [], sfx: [],
@@ -534,7 +550,12 @@ export class HostSession {
       case 'ready':
         if (this.lobby.inRun) return;
         s.ready = m.ready && !!s.character;
+        if (m.away !== undefined) s.away = m.away;
         return this.broadcastLobby();
+      case 'profile':
+        // perks and unlocks for the next night; the seat keeps its name
+        s.profile = { ...m.profile, name: s.profile.name };
+        return;
       case 'view':
         s.view = { hx: m.hx, hy: m.hy };
         return;
@@ -973,7 +994,7 @@ export class GuestSession {
   /** a chat line from anyone in the party, this guest's own included once the host relays it (D-65) */
   onChat: (from: number, name: string, text: string) => void = () => {};
 
-  constructor(readonly link: NetLink, readonly profile: GuestProfile, token?: string | null, now = 0) {
+  constructor(readonly link: NetLink, public profile: GuestProfile, token?: string | null, now = 0) {
     this.token = token ?? null;
     this.now = this.lastHeard = now;
     link.onMsg = (raw) => this.onMsg(raw);
@@ -990,8 +1011,13 @@ export class GuestSession {
   pick(character: string | null): void {
     this.send({ t: 'pick', character });
   }
-  setReady(ready: boolean): void {
-    this.send({ t: 'ready', ready });
+  setReady(ready: boolean, away?: boolean): void {
+    this.send({ t: 'ready', ready, away });
+  }
+  /** This save changed (a Lost & Found visit, D-74): the host uses the new perks and unlocks next night. */
+  sendProfile(p: GuestProfile): void {
+    this.profile = p;
+    this.send({ t: 'profile', profile: p });
   }
   sendView(hx: number, hy: number): void {
     this.send({ t: 'view', hx, hy });

@@ -296,7 +296,7 @@ export class PuppetBoss extends BossBase {
       this.hz('circle', 'puppet_drop', x, y, {
         r: 34, tele: this.tele(1.0), active: 0.1, dmg: 12,
         onActivate: () => {
-          const e = g.spawnEnemy('puppet_soldier', x, y, { hpMult: 0.35 });
+          const e = g.spawnEnemy('puppet_soldier', x, y, { hpMult: 0.21 }); // 63 HP, as before D-74 raised the soldier's own
           if (e) e.group = -1;
           g.fx.push('dust', x, y, 0.6);
         },

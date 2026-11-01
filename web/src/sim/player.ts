@@ -22,6 +22,8 @@ export class Player {
   aimMode: 'auto' | 'hybrid' | 'manual' = 'auto';
   /** Draft cards this player has banished. */
   banished = new Set<string>();
+  /** Lost & Found / hidden-quest unlocks this player's own save has added to their draft pool (D-74). */
+  unlocked = new Set<string>();
   char: CharacterDef;
   stats = new PlayerStats();
   x = 0;

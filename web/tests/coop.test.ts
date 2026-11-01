@@ -1,10 +1,10 @@
 // Co-op simulation (D-51): two independently controlled players in one authoritative Game, with
 // Vampire Survivors rules — shared XP, a draft for each player with the night paused until both have
-// chosen, party-sized slots, exclusive items, team evolutions, coffin revives, split chests.
+// chosen, party-sized slots, personal items and evolutions (D-74), coffin revives, split chests.
 
 import { describe, expect, it } from 'vitest';
 import { makeGame, runFor } from './helpers';
-import { COOP } from '../src/data/progression';
+import { CHESTS, COOP } from '../src/data/progression';
 import { WEAPONS } from '../src/data/weapons';
 import { generateDraft, readyEvolutions } from '../src/sim/draft';
 import { TICK } from '../src/sim/constants';
@@ -50,28 +50,28 @@ describe('co-op party', () => {
     expect(g.phase).toBe('play');
   });
 
-  it('keeps items exclusive: what one player owns never appears in the other’s draft', () => {
+  it('lets every player take every item: what one owns still appears in the other’s draft (D-74)', () => {
     const g = duo({ godMode: true });
     g.weapons.add('fireworks');
     g.player.addPassive('spectacles');
     g.setCtx(g.players[1]);
-    for (let k = 0; k < 120; k++) {
-      for (const o of generateDraft(g)) {
-        expect(o.refId).not.toBe('fireworks');
-        expect(o.refId).not.toBe('throwing_cards');
-        if (o.kind === 'passive') expect(o.refId).not.toBe('spectacles');
-      }
-    }
+    const seen = new Set<string>();
+    for (let k = 0; k < 400; k++) for (const o of generateDraft(g)) seen.add(`${o.kind}:${o.refId}`);
+    expect(seen.has('new_weapon:fireworks')).toBe(true);
+    expect(seen.has('new_weapon:throwing_cards')).toBe(true);
+    expect(seen.has('passive:spectacles')).toBe(true);
     g.setCtx(g.players[0]);
   });
 
-  it('lets an evolution use a teammate’s passive', () => {
+  it('keeps evolutions personal: a teammate’s passive does not count (D-74)', () => {
     const g = duo({ godMode: true });
     const mallet = WEAPONS.mallet;
     g.setCtx(g.players[1]);
     for (let i = 0; i < 10; i++) g.weapons.levelUp('mallet');
     expect(readyEvolutions(g)).toEqual([]);
     g.players[0].addPassive(mallet.evoPassive!);
+    expect(readyEvolutions(g)).toEqual([]);
+    g.players[1].addPassive(mallet.evoPassive!);
     expect(readyEvolutions(g)).toEqual(['mallet']);
     g.setCtx(g.players[0]);
   });
@@ -135,10 +135,39 @@ describe('co-op party', () => {
 
   it('splits a chest between the players and tags every prize with its owner', () => {
     const g = duo({ godMode: true });
+    const was = CHESTS.partyFavor;
+    CHESTS.partyFavor = 0;
     const res = g.openChest(4);
+    CHESTS.partyFavor = was;
     expect(res.entries.length).toBe(4);
     expect(res.entries.filter((e) => e.player === 0).length).toBe(2);
     expect(res.entries.filter((e) => e.player === 1).length).toBe(2);
+  });
+
+  it('lands on Party Favors now and then: +1 level to a random item for every player (D-74)', () => {
+    const g = duo({ godMode: true });
+    const levels = () => g.players.map((p) => p.weapons.list.reduce((a, w) => a + w.level, 0) + [...p.passives.values()].reduce((a, v) => a + v, 0));
+    const before = levels();
+    const was = CHESTS.partyFavor;
+    CHESTS.partyFavor = 1;
+    const res = g.openChest(3);
+    CHESTS.partyFavor = was;
+    // two spins split between the players, then the favor (shown last)
+    expect(res.entries.length).toBe(3);
+    const favor = res.entries[2];
+    expect(favor.type).toBe('party');
+    expect(favor.player).toBeUndefined();
+    expect(favor.gifts?.map((e) => e.player).sort()).toEqual([0, 1]);
+    for (const gift of favor.gifts!) expect(gift.level).toBeGreaterThan(0);
+    const after = levels();
+    for (let i = 0; i < 2; i++) expect(after[i] - before[i]).toBe(1 + res.entries.filter((e) => e.player === i).length);
+    expect(g.player).toBe(g.players[0]);
+    // solo nights never see it
+    const solo = makeGame({ godMode: true });
+    CHESTS.partyFavor = 1;
+    const r = solo.openChest(3);
+    CHESTS.partyFavor = was;
+    expect(r.entries.some((e) => e.type === 'party')).toBe(false);
   });
 
   it('a one-shot hazard strikes each player once', () => {

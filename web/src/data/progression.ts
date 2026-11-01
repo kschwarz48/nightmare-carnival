@@ -69,6 +69,12 @@ export const CHESTS = {
   eliteChance: 0.016,
   clownCarChance: 0.8,
   eventRolls: 2,
+  /**
+   * Co-op (D-74): the chance that a spin lands on Party Favors (+1 level to a random item for every
+   * player) instead of one player's prize: rolled per spin, at most one per chest, so a boss chest
+   * shows it about two times in five and a brute's chest one time in ten.
+   */
+  partyFavor: 0.1,
 };
 
 /**

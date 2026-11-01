@@ -18,6 +18,7 @@ import {
 import { GuestSession, HostSession, LINK_TIMEOUT, RECONNECT_WAIT, runConfigFromStart, type HostProfile } from '../src/net/session';
 import { COOP } from '../src/data/progression';
 import { addHazardPull } from '../src/sim/movement';
+import { generateDraft } from '../src/sim/draft';
 import { createBoss } from '../src/sim/bosses';
 import { BOSS_MAP } from '../src/data/bosses';
 
@@ -395,6 +396,17 @@ describe('protocol validation', () => {
     expect(p.chars).toEqual(['carny']);
   });
 
+  it('keeps only draft-pool unlocks in a guest profile, and in each player of a start (D-74)', () => {
+    const p = cleanProfile({ name: 'Bo', meta: [], chars: [], unlocks: ['w_laser', 'f_skip', 'bogus', 'w_laser', 'p_ada_conch', 42] })!;
+    expect(p.unlocks).toEqual(['w_laser', 'p_ada_conch']);
+    expect(cleanProfile({ name: 'Old', meta: [], chars: [] })!.unlocks).toEqual([]);
+    const m = parseHostMsg(JSON.stringify({ t: 'start', cfg: { seed: 1, difficulty: 'midway', unlocked: [], players: [{ character: 'carny', name: 'A', unlocked: ['w_orbs', 'nope'] }, { character: 'carny', name: 'B' }] } }));
+    expect(m && m.t === 'start' && m.cfg.players.map((x) => x.unlocked)).toEqual([['w_orbs'], undefined]);
+    const r = parseGuestMsg(JSON.stringify({ t: 'profile', profile: { name: 'Bo', meta: [], chars: ['carny'], unlocks: ['w_bell'] } }));
+    expect(r && r.t === 'profile' && r.profile.unlocks).toEqual(['w_bell']);
+    expect(parseGuestMsg(JSON.stringify({ t: 'ready', ready: false, away: true }))).toEqual({ t: 'ready', ready: false, away: true });
+  });
+
   it('only replays whitelisted host events', () => {
     expect(parseHostMsg(JSON.stringify({ t: 'ev', type: 'banner', e: { text: 'hi' } }))).not.toBeNull();
     expect(parseHostMsg(JSON.stringify({ t: 'ev', type: 'eval', e: 'alert(1)' }))).toBeNull();
@@ -500,6 +512,55 @@ class Harness {
     if (g.phase === 'draft' && g.draftPending(0)) g.chooseDraft(0, 0);
   };
 }
+
+describe('personal unlocks and the lobby Lost & Found (D-74)', () => {
+  it("shows a guest at the Lost & Found as away, takes their new perks and unlocks, and drafts each player from their own", () => {
+    const h = new Harness();
+    h.run(300);
+    // the guest steps into the Lost & Found from the lobby: away, and not ready, on every screen
+    h.guest.pick('strongman');
+    h.guest.setReady(true);
+    h.run(200);
+    h.guest.setReady(false, true);
+    h.run(200);
+    expect(h.host.lobby.players[1]?.away).toBe(true);
+    expect(h.host.lobby.players[1]?.ready).toBe(false);
+    expect(h.guest.lobby?.players[1]?.away).toBe(true);
+    expect(h.host.canStart()).toBe(false);
+    // ... buys the Laser Light Show and a perk, and comes back
+    h.guest.sendProfile({ ...guestProfile(), meta: [{ axis: 'might', value: 0.2 }], unlocks: ['w_laser', 'p_ada_conch', 'f_skip'] });
+    h.guest.setReady(false, false);
+    h.run(200);
+    expect(h.host.lobby.players[1]?.away).toBe(false);
+    // the host's own save has the orbs but not the laser
+    h.host.setCharacter('carny');
+    h.host.setReady(true);
+    h.guest.setReady(true);
+    h.run(200);
+    const cfg = h.host.start({ seed: 77, unlocked: ['w_orbs', 'f_skip'], questMemory: {} })!;
+    expect(cfg.players[0].unlocked).toEqual(['w_orbs', 'f_skip']);
+    expect(cfg.players[1].unlocked).toEqual(['w_laser', 'p_ada_conch']);
+    expect(cfg.players[1].meta).toEqual([{ axis: 'might', value: 0.2 }]);
+    const g = new Game({ ...runConfigFromStart(cfg), godMode: true });
+    expect([...g.players[1].unlocked].sort()).toEqual(['p_ada_conch', 'w_laser']);
+    const offered = (i: number) => {
+      g.setCtx(g.players[i]);
+      const s = new Set<string>();
+      for (let k = 0; k < 400; k++) for (const o of generateDraft(g)) s.add(o.refId);
+      g.setCtx(g.players[0]);
+      return s;
+    };
+    const host = offered(0), guest = offered(1);
+    expect(host.has('orbs')).toBe(true);
+    expect(host.has('laser')).toBe(false);
+    expect(guest.has('laser')).toBe(true);
+    expect(guest.has('ada_conch')).toBe(true);
+    expect(guest.has('orbs')).toBe(false);
+    // the guest's mirror is built with the same sets
+    h.run(300);
+    expect([...(h.guest.game?.players[1].unlocked ?? [])].sort()).toEqual(['p_ada_conch', 'w_laser']);
+  });
+});
 
 describe('interact over the network (D-67)', () => {
   it("a guest's press reaches the host's sim exactly once, over a lossy link, and only when pressed", () => {
@@ -1182,7 +1243,7 @@ describe('parties of up to six players (D-54)', () => {
     for (let k = 0; k < 12; k++) {
       g.setCtx(g.players[k % 2]); // the same two players keep opening the chests
       const r = g.openChest([1, 3, 5][k % 3]);
-      for (const e of r.entries) got[e.player!]++;
+      for (const e of r.entries) if (e.player !== undefined) got[e.player]++;
     }
     expect(Math.max(...got) - Math.min(...got)).toBeLessThanOrEqual(1);
   });

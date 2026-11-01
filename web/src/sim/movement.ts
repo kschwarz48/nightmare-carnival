@@ -109,7 +109,8 @@ export function collideBody(p: Player, bodies: readonly SolidBody[]): void {
   p.y = clamp(p.y, PLAYER_BOUNDS.minY, PLAYER_BOUNDS.maxY);
 }
 
-function pushOut(p: Player, pr: Prop): void {
+/** Push a body (a player, or a creature that walks the ground, D-74) out of one solid prop. */
+export function pushOut(p: { x: number; y: number; r: number }, pr: Prop): void {
   if (pr.r) {
     const rr = pr.r + p.r;
     const dx = p.x - pr.x, dy = p.y - pr.y;

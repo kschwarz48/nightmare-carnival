@@ -26,8 +26,9 @@ export interface PrizeUi {
   /** Co-op: player names by slot (null in solo) */
   owners: string[] | null;
   title(text: string, style: 'normal' | 'bonus' | 'evolution' | 'voucher'): void;
-  caption(entry: ChestEntry | null, icon: string): void;
-  summary(entries: ChestEntry[], icons: string[]): void;
+  /** `iconOf` paints a Party Favors entry's gifts (D-74) */
+  caption(entry: ChestEntry | null, icon: string, iconOf?: (e: ChestEntry) => string): void;
+  summary(entries: ChestEntry[], icons: string[], iconOf?: (e: ChestEntry) => string): void;
   hide(): void;
 }
 
@@ -50,6 +51,7 @@ const CARD_W = 512, CARD_H = 700;
 const KIND: Record<ChestEntry['type'], [string, string]> = {
   new: ['NEW!', '#c8283a'], level: ['LEVEL UP', '#a8781e'], passive: ['CHARM', '#22807a'],
   evolution: ['EVOLUTION', '#6a3fc0'], voucher: ['LOST & FOUND', '#7a4f22'], heal: ['A SMALL MERCY', '#8a3a4a'],
+  party: ['FOR EVERYONE', '#b8326e'],
 };
 /** midway bulbs in every colour (D-62): red, orange, yellow, green, cyan, blue, violet, pink; saturated, so
  *  the hue survives the glow and tone mapping instead of washing out to white */
@@ -386,6 +388,7 @@ export class PrizeWheel {
       case 'passive': return this.assets.passiveIcon(e.id);
       case 'voucher': return this.assets.passiveIcon('coin_purse');
       case 'heal': return this.assets.passiveIcon('funnel_cake');
+      case 'party': return this.assets.passiveIcon('party_favors');
       default: return this.assets.weaponIcon(e.id);
     }
   }
@@ -448,7 +451,7 @@ export class PrizeWheel {
       this.t = 0;
       this.card.visible = false;
       this.highlight.material.opacity = 0;
-      this.ui.summary(this.entries, this.icons);
+      this.ui.summary(this.entries, this.icons, this.iconOf);
       this.sfx.play('fanfare', { vol: 0.5 });
       return;
     }
@@ -485,7 +488,7 @@ export class PrizeWheel {
     this.winT = 0;
     this.card.visible = true;
     this.drawCard(e, this.icons[this.spinIdx]);
-    this.ui.caption(e, this.icons[this.spinIdx]);
+    this.ui.caption(e, this.icons[this.spinIdx], this.iconOf);
     // the jackpot: a bell, a shower of coins, the fanfare
     this.sfx.play('slot_win', { vol: 0.6 });
     if (e.type === 'evolution') {
@@ -495,11 +498,17 @@ export class PrizeWheel {
     } else if (e.type === 'voucher') {
       this.sfx.play('coin_shower', { vol: 0.7 });
       this.sfx.play('fanfare', { vol: 0.45, pitch: 0.9 });
+    } else if (e.type === 'party') {
+      this.sfx.play('coin_shower', { vol: 0.75 });
+      this.sfx.play('fanfare', { vol: 0.6, pitch: 1.2 });
+      this.flash = 0.5;
     } else {
       this.sfx.play('coin_shower', { vol: 0.5 });
       this.sfx.play('fanfare', { vol: 0.5, pitch: e.type === 'new' ? 1.12 : 1 });
     }
   }
+
+  private iconOf = (e: ChestEntry): string => this.iconFor(e);
 
   private image(url: string): HTMLImageElement {
     let im = this.images.get(url);
@@ -577,7 +586,23 @@ export class PrizeWheel {
     x.fillText(lvl, W / 2, 506);
     // and whose it is
     const owner = this.ui.owners && e.player !== undefined ? this.ui.owners[e.player] ?? `Player ${e.player + 1}` : null;
-    if (owner) {
+    if (e.type === 'party') {
+      // Party Favors (D-74): won by the whole party, lettered in every player's colour
+      x.fillStyle = '#1c1218';
+      rr(52, 560, W - 104, 96, 16);
+      x.fill();
+      x.fillStyle = '#d8c8a8';
+      x.font = '600 22px Oswald, "Arial Narrow", sans-serif';
+      x.fillText('WON BY', W / 2, 584);
+      x.font = '600 40px Oswald, "Arial Narrow", sans-serif';
+      const label = 'THE WHOLE PARTY';
+      const tw = x.measureText(label).width;
+      const n = Math.max(2, e.gifts?.length ?? 2);
+      const grad = x.createLinearGradient(W / 2 - tw / 2, 0, W / 2 + tw / 2, 0);
+      for (let i = 0; i < n; i++) grad.addColorStop(i / (n - 1), PLAYER_HEX[i % PLAYER_HEX.length]);
+      x.fillStyle = grad;
+      x.fillText(label, W / 2, 626);
+    } else if (owner) {
       x.fillStyle = '#1c1218';
       rr(52, 560, W - 104, 96, 16);
       x.fill();
@@ -706,9 +731,10 @@ export class PrizeWheel {
           if (this.spinIdx >= this.entries.length) {
             this.phase = 'summary';
             this.t = 0;
-            this.ui.summary(this.entries, this.icons);
+            this.ui.summary(this.entries, this.icons, this.iconOf);
           } else {
-            this.ui.title(this.entries[this.spinIdx].type === 'evolution' ? 'EVOLUTION!' : 'BONUS SPIN!', this.entries[this.spinIdx].type === 'evolution' ? 'evolution' : 'bonus');
+            const next = this.entries[this.spinIdx].type;
+            this.ui.title(next === 'evolution' ? 'EVOLUTION!' : next === 'party' ? 'PARTY FAVORS!' : 'BONUS SPIN!', next === 'evolution' ? 'evolution' : 'bonus');
             this.ui.caption(null, '');
             this.prepareSpin();
             this.phase = 'crank';

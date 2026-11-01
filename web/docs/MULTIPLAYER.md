@@ -32,9 +32,9 @@ The rules follow Vampire Survivors co-op:
 |---|---|
 | Experience | **Shared.** Either player's tickets fill one bar and level the whole party. |
 | Level-ups | Each player drafts **their own** card. The night stays frozen until **everyone** has chosen. A "Waiting for …" note names who is still choosing. |
-| Builds | **Independent.** An item one player owns never appears in the others' drafts. An evolution may use a teammate's passive. |
+| Builds | **Personal (D-74).** Every player can take every weapon and passive, whatever the others hold, and drafts from their **own** save's unlocks (Lost & Found buys and hidden-quest rewards), whoever hosts. An evolution needs **your own** passive. |
 | Slots | Weapons + passives each, by party size: **6 / 4 / 3 / 2 / 2 / 2** for 1–6 players. VS stops at four (2); five and six hold there. |
-| Prize chests | **One wheel, split prizes.** Everyone watches the same wheel; each prize is tagged with its owner's name. Prizes go to whoever has had the fewest so far tonight. The night resumes when everyone has finished watching. |
+| Prize chests | **One wheel, split prizes.** Everyone watches the same wheel; each prize is tagged with its owner's name. Prizes go to whoever has had the fewest so far tonight. Now and then a spin lands on **Party Favors** instead: +1 level to a random item for **every** player (D-74). The night resumes when everyone has finished watching. |
 | Falling | A player at 0 HP drops into a **coffin**. It opens by itself in 40 s, or in 6 s with a teammate standing next to it. The revived player gets back half their health. If everyone is down, the night ends. |
 | Pause | Anyone can pause. It pauses the night for **everyone**, and the others see "Paused by …". |
 | Rewards | Each player banks **their own** Lost Tickets and achievements into their own save. The Last Song's reward unlocks for both. |
@@ -251,6 +251,31 @@ Anything in this file is public.
   snapshots (>3 KB) drop to 15 Hz. The host should be the player with the best upload.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
+
+### Personal builds, Party Favors, the lobby Lost & Found (D-74, PROTO 12)
+
+From the owner's four-player night:
+- **Personal builds.** Drafts no longer leave out what a teammate owns (`draft.ts candidates`), the
+  everything-maxed chest fallback only looks at your own arsenal, and an evolution needs your own passive
+  (`readyEvolutions`; the tray's recipe says "need it" until you have it).
+- **Each player's own unlocks.** A guest's profile carries the draft-pool unlocks of its own save
+  (`GuestProfile.unlocks`, validated against the weapons' and passives' unlock ids). The host puts each
+  player's set in the start (`StartCfg.players[].unlocked`); the host's own comes from its save. Every
+  `Player` keeps its set and the draft checks the acting player's (`Player.unlocked`). A guest no longer
+  drafts from the host's unlocks.
+- **Party Favors.** In co-op, each spin of a chest has a 10% chance (`CHESTS.partyFavor`, at most one per
+  chest) of being Party Favors instead of one player's prize: every player gets a chest roll of their
+  own (+1 level to a random item that isn't maxed, with the usual fallbacks). It's shown last, as a
+  `party` entry whose `gifts` list each player's prize; the card reads FOR EVERYONE, and the caption and
+  the summary list what everyone got.
+- **The Lost & Found from the lobby.** The ready-up screen has a **Lost & Found** button for everyone. Your
+  card shows "At the Lost & Found" and you're not ready meanwhile (so the night can't start without you).
+  Back returns to the lobby. Leaving the Lost & Found sends the host your current perks and unlocks (a new
+  `profile` message; the host's own perks are refreshed the same way), so what you bought counts the next
+  night. That works from the Midway's booth too.
+- **PROTO 12.** `ready` carries `away`; lobby players carry `away`; profiles carry `unlocks`; a start
+  carries each player's `unlocked`; there's a `profile` message. Old builds can't join new lobbies (they
+  are refused and offered the update).
 
 ### Latency, versions and diagnostics (engineering optimization pass, D-73, PROTO 11)
 

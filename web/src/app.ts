@@ -17,7 +17,7 @@ import { PERKS } from './data/meta';
 import { WEAPONS, PASSIVES } from './data/weapons';
 import { ENEMIES } from './data/enemies';
 import { DIFFICULTIES } from './data/difficulty';
-import { DraftView, Hud, PLAYER_CSS } from './ui/hud';
+import { DraftView, Hud, PLAYER_CSS, type HudScreen } from './ui/hud';
 import { ChatBox } from './ui/chat';
 import { perf, SEC } from './core/perf';
 
@@ -39,7 +39,7 @@ import { MIRA, PERFORMER_NAMES, PERFORMER_NOTES } from './data/funhouse';
 import type { UnreflectedChain } from './sim/quest/unreflected';
 import { ADA, GAME_NAMES, KEEPSAKES, TIDE, nextTideTurn, shoreMix } from './data/boardwalk';
 import type { QuestCue } from './sim/quest';
-import { FocusNav, h, morph } from './ui/dom';
+import { FocusNav, h, morph, uiZoom, zoomFor } from './ui/dom';
 import * as S from './ui/screens';
 import { dailyInfo } from './ui/screens';
 import * as L from './ui/lobby';
@@ -174,6 +174,8 @@ export class App {
   private hubParty = '';
   /** this night unlocked the Midway (announced on the results) */
   private hubJustUnlocked = false;
+  /** where the Lost & Found's Back returns to when it was opened from the co-op lobby (D-74) */
+  private lfReturn: State | null = null;
   /** guest: finished its prize wheel at this mirror time, waiting for the host's night to resume */
   private guestPrizeAt = -1;
   /** the Boardwalk's last announced turn of the tide (its time, rounded), so each is told once */
@@ -289,6 +291,22 @@ export class App {
     const q = this.save.data.settings.quality;
     const pr = Math.min(window.devicePixelRatio || 1, q === 'high' ? 2 : q === 'medium' ? 1.5 : 1);
     this.renderer.resize(w, hgt, pr);
+    // the UI layer's automatic zoom (D-74): 1 at 1080p, 1.33 at 1440p, 2 at 4K
+    uiZoom.v = zoomFor(w, hgt);
+    document.documentElement.style.setProperty('--ui-zoom', uiZoom.v.toFixed(4));
+  }
+
+  /** The HUD's view of the screen, in UI pixels (the layer is zoomed to the window, D-74). */
+  private hudScreen(cssW: number, cssH: number): HudScreen {
+    const z = uiZoom.v;
+    return {
+      w: cssW / z,
+      h: cssH / z,
+      toScreen: (x, y, hh) => {
+        const s = this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0);
+        return { x: s.x / z, y: s.y / z };
+      },
+    };
   }
 
   applySettings(): void {
@@ -313,6 +331,13 @@ export class App {
     if (state === 'settings') {
       const from = arg;
       this.settingsBack = from === 'pause' ? () => this.go('paused') : () => this.go('title');
+    }
+    // leaving the Lost & Found (D-74): back to the co-op lobby it was opened from, and whatever was bought
+    // there reaches the session (the host uses everyone's current perks and unlocks for the next night)
+    if (this.state === 'lostfound' && state !== 'lostfound') {
+      if (state === 'title' && this.lfReturn && this.net) state = this.lfReturn;
+      this.lfReturn = null;
+      this.syncProfile(state === 'lobby');
     }
     // once the first night is fully completed, the Midway takes the main menu's place (D-60)
     // (and backing out of any menu opened on a Midway, yours or a friend's, returns to it)
@@ -1604,7 +1629,7 @@ export class App {
       this.stageTug(g!);
       this.updateCoopHud();
       this.hud.padKeys = this.input.usingGamepad;
-      this.hud.update(g!, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
+      this.hud.update(g!, this.fps, dt, this.hudScreen(cssW, cssH));
       this.boardwalkFrame(g!);
       perf.mark(SEC.hud, h0);
     } else if (this.state === 'paused' || this.state === 'results') {
@@ -1642,7 +1667,8 @@ export class App {
   }
 
   private guestProfile(name: string): GuestProfile {
-    return { ...this.profileBase(name), chars: CHARACTERS.filter((c) => this.save.characterAvailable(c.id)).map((c) => c.id), pref: this.hubCharacter() };
+    // `unlocks`: the host keeps the draft-pool ones (D-74: a guest drafts from their own save's unlocks)
+    return { ...this.profileBase(name), chars: CHARACTERS.filter((c) => this.save.characterAvailable(c.id)).map((c) => c.id), pref: this.hubCharacter(), unlocks: [...this.save.unlockedSet()] };
   }
 
   // =================================================================== the Midway hub (D-60)
@@ -1784,6 +1810,11 @@ export class App {
         const s = toS(p.x, p.y, 100);
         if (shown(s)) labels.push({ x: s.x, y: s.y, text: p.name, kind: 'player', cls: `p${i + 1}` });
       });
+    }
+    // the labels are placed in the UI layer, which is zoomed to the window (D-74)
+    for (const l of labels) {
+      l.x /= uiZoom.v;
+      l.y /= uiZoom.v;
     }
     this.hubTarget = best;
     if (this.hubTalk) {
@@ -2074,8 +2105,32 @@ export class App {
         start: () => this.startHostRun(),
         leave: () => this.leaveNet(false, 'mp'),
         midway: n.role === 'host' && this.save.hubUnlocked() ? () => this.restartHub() : undefined,
+        lostfound: () => this.lobbyLostFound(),
       },
     });
+  }
+
+  /** From the co-op lobby into the Lost & Found, keeping the seat (D-74): shown as away, not ready, meanwhile. */
+  private lobbyLostFound(): void {
+    const n = this.net;
+    if (!n) return;
+    if (n.role === 'host') n.host.setAway(true);
+    else n.guest.setReady(false, true);
+    this.lfReturn = 'lobby';
+    this.go('lostfound');
+  }
+
+  /** Tell the co-op session this save's current perks and unlocks; `back` clears the lobby's away badge. */
+  private syncProfile(back: boolean): void {
+    const n = this.net;
+    if (!n) return;
+    if (n.role === 'host') {
+      n.host.setSelf(this.profileBase(n.host.self.name));
+      if (back) n.host.setAway(false);
+    } else {
+      n.guest.sendProfile(this.guestProfile(n.guest.profile.name));
+      if (back) n.guest.setReady(false, false);
+    }
   }
 
   /** Lobby changed: rebuild the screen if anything but the latency readout changed. */
@@ -2231,7 +2286,7 @@ export class App {
     if (this.state === 'playing') {
       this.updateCoopHud();
       this.hud.padKeys = this.input.usingGamepad;
-      this.hud.update(g, this.fps, dt, { w: cssW, h: cssH, toScreen: (x, y, hh) => this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0) });
+      this.hud.update(g, this.fps, dt, this.hudScreen(cssW, cssH));
       this.boardwalkFrame(g);
     } else if (g.hub) this.updateHubHud(cssW, cssH);
     perf.mark(SEC.hud, h0);

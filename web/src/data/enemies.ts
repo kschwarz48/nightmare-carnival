@@ -77,6 +77,8 @@ export interface EnemyDef {
   splitCount?: number;
   /** a sea creature (D-68): swims fast in water, comes up out of it, a little slower on land */
   aquatic?: boolean;
+  /** floats, flies or phases (D-74): walls and buildings don't stop it (everything else walks around them) */
+  phases?: boolean;
   /** claws its way up out of the sand or the surf when it appears, whether or not it's a swimmer (D-68) */
   rises?: boolean;
   /**
@@ -91,14 +93,14 @@ const E = (d: EnemyDef) => d;
 export const ENEMIES: Record<string, EnemyDef> = {
   living_balloon: E({
     id: 'living_balloon', name: 'Living Balloon', hp: 4, speed: 120, contact: 3, tickets: 1,
-    behavior: 'chaser', radius: 11, sep: 16, knockbackTaken: 1, canElite: true, eliteName: 'Lead Balloon',
+    behavior: 'chaser', phases: true, radius: 11, sep: 16, knockbackTaken: 1, canElite: true, eliteName: 'Lead Balloon',
     params: {}, deathFx: 'pop', hitSfx: 'squeak', deathSfx: 'pop', drawScale: 3.1, act: 1, role: 'Swarm',
     lore: 'A helium balloon that learned to bite. Trivial alone, lethal in a wall.',
     tell: 'Bobs as it floats straight at you.',
   }),
   swarm_balloon: E({
     id: 'swarm_balloon', name: 'Balloon Swarm', hp: 4, speed: 560, contact: 3, tickets: 1,
-    behavior: 'flyby', radius: 10, sep: 10, knockbackTaken: 0.3, canElite: false,
+    behavior: 'flyby', phases: true, radius: 10, sep: 10, knockbackTaken: 0.3, canElite: false,
     params: {}, deathFx: 'pop', hitSfx: 'squeak', deathSfx: 'pop', drawScale: 3.0, act: 1, role: 'Flyby',
     lore: 'A whole bouquet let go at once. They never look back.',
     tell: 'A yellow caution lane flashes across the screen — then a school of balloons streaks straight along it.',
@@ -158,8 +160,9 @@ export const ENEMIES: Record<string, EnemyDef> = {
     tell: 'Winds back its arm — then lobs a pie where you are going.',
   }),
   puppet_soldier: E({
-    id: 'puppet_soldier', name: 'Puppet Soldier', hp: 180, speed: 50, contact: 10, tickets: 5,
-    behavior: 'formation', radius: 14, sep: 18, knockbackTaken: 0.6, canElite: true, eliteName: 'Puppet Officer',
+    // D-74: half as many (weights halved, at most 16 alive) but sturdier, 180 → 300 HP
+    id: 'puppet_soldier', name: 'Puppet Soldier', hp: 300, speed: 50, contact: 10, tickets: 5,
+    behavior: 'formation', radius: 14, sep: 18, knockbackTaken: 0.6, canElite: true, eliteName: 'Puppet Officer', maxAlive: 16,
     params: { fire: 2.6, projSpeed: 260, projDmg: 8, projLife: 4.5, keep: 380, windup: 0.7, proj: 'musket', rank: 5 },
     deathFx: 'wood', hitSfx: 'knock', deathSfx: 'wood', drawScale: 3.3, act: 3, role: 'Formation ranged',
     lore: 'A tin-toy regiment on unseen strings. They volley in unison.',
@@ -191,7 +194,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   }),
   roller_coaster_snake: E({
     id: 'roller_coaster_snake', name: 'Roller-Coaster Snake', hp: 1200, speed: 250, contact: 20, tickets: 12,
-    behavior: 'rail_strafer', radius: 18, sep: 20, knockbackTaken: 0, canElite: false, maxAlive: 2,
+    behavior: 'rail_strafer', phases: true, radius: 18, sep: 20, knockbackTaken: 0, canElite: false, maxAlive: 2,
     params: { railSpeed: 720, telegraph: 1.1, segments: 9, rest: 1.8 },
     deathFx: 'derail', hitSfx: 'clank', deathSfx: 'derail', drawScale: 2.6, act: 4, role: 'Screen strafer',
     lore: 'A length of track that became a serpent. It rides rails no one laid.',
@@ -240,7 +243,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   }),
   glasswalker: E({
     id: 'glasswalker', name: 'Glasswalker', hp: 172, speed: 90, contact: 16, tickets: 6,
-    behavior: 'glasswalker', radius: 14, sep: 16, knockbackTaken: 0.6, canElite: true, eliteName: 'Cathedral Glass',
+    behavior: 'glasswalker', phases: true, radius: 14, sep: 16, knockbackTaken: 0.6, canElite: true, eliteName: 'Cathedral Glass',
     params: { hop: 3.2, emerge: 0.9, slash: 22, slashR: 95 },
     deathFx: 'glass', hitSfx: 'glass_hit', deathSfx: 'shatter', drawScale: 3.6, act: 3, role: 'Mirror stepper',
     lore: 'It lives in the space behind the glass and visits.',
@@ -336,7 +339,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   }),
   coaster_wraith: E({
     id: 'coaster_wraith', name: 'Coaster Wraith', hp: 270, speed: 70, contact: 18, tickets: 9,
-    behavior: 'wraith', radius: 16, sep: 20, knockbackTaken: 0.4, canElite: true, eliteName: 'Front-Car Rider', maxAlive: 4,
+    behavior: 'wraith', phases: true, radius: 16, sep: 20, knockbackTaken: 0.4, canElite: true, eliteName: 'Front-Car Rider', maxAlive: 4,
     params: { range: 520, tele: 1, charge: 620, kink: 170, over: 260, recover: 0.8 },
     deathFx: 'ecto', hitSfx: 'clank', deathSfx: 'scream', drawScale: 2.9, act: 3, role: 'Rail charger',
     lore: 'A rider who never got off the Undertow. It still screams on the drop.',
@@ -378,7 +381,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   // the Barker's shooting gallery (boss add, never in waves)
   tin_duck: E({
     id: 'tin_duck', name: 'Tin Duck', hp: 22, speed: 150, contact: 10, tickets: 1,
-    behavior: 'duckline', radius: 13, sep: 6, knockbackTaken: 0, canElite: false,
+    behavior: 'duckline', phases: true, radius: 13, sep: 6, knockbackTaken: 0, canElite: false,
     params: { life: 9 },
     deathFx: 'tokens', hitSfx: 'clank', deathSfx: 'ding', drawScale: 2.6, act: 1, role: 'Boss add',
     lore: 'Shot ten thousand times a summer. They kept score.',

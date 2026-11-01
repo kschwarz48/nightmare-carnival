@@ -11,7 +11,7 @@ import type { Game } from '../sim/game';
 import type { DraftOption } from '../sim/draft';
 import { readyEvolutions } from '../sim/draft';
 import type { UnreflectedChain } from '../sim/quest/unreflected';
-import { FocusNav, fmtTime, h } from './dom';
+import { FocusNav, fmtTime, h, uiZoom } from './dom';
 
 /** Player colours for UI (Player 1 lamp-gold, 2 ghost-teal, 3 rose, 4 lime, 5 violet, 6 tangerine); match PLAYER_COLS and `.p1`…`.p6` in style.css. */
 export const PLAYER_CSS = ['#ffd27a', '#8af4ff', '#ff8fb0', '#a8ff7a', '#c7a2ff', '#ffb066'];
@@ -53,7 +53,7 @@ export interface CoopHud {
 
 /**
  * An evolution recipe at a glance (D-71): the weapon at its top level + the passive = the evolution, as icons
- * with their names, each requirement ticked once it's met (a teammate's passive counts, as in the draft); the
+ * with their names, each requirement ticked once it's met (only this player's own passive counts, D-74); the
  * band lights up gold when it's ready. `levelAfter` is the weapon's level once an offered card is taken.
  */
 export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?: number): HTMLElement | null {
@@ -63,8 +63,7 @@ export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?
   const lv = Math.min(d.maxLevel, levelAfter ?? g.weapons.get(weaponId)?.level ?? 0);
   const haveLv = lv >= d.maxLevel;
   const mine = g.player.passiveLevel(d.evoPassive) >= 1;
-  const party = g.players.some((pl) => pl.passiveLevel(d.evoPassive!) >= 1);
-  const ready = haveLv && party;
+  const ready = haveLv && mine;
   const part = (icon: string, name: string, ok: boolean | null, note: string) =>
     h('div', { class: `rp${ok === null ? ' out' : ok ? ' ok' : ''}` }, h('img', { src: icon, alt: '' }), h('b', {}, name), note ? h('small', {}, `${ok ? '✓ ' : ''}${note}`) : null);
   return h('div', { class: `recipe${ready ? ' ready' : ''}` },
@@ -72,7 +71,7 @@ export function evoRecipe(assets: Assets, g: Game, weaponId: string, levelAfter?
     h('div', { class: 'rrow' },
       part(assets.weaponIcon(weaponId), d.name, haveLv, `Lv ${lv}/${d.maxLevel}`),
       h('span', { class: 'op' }, '+'),
-      part(assets.passiveIcon(d.evoPassive), pas.name, party, party ? (mine ? 'have it' : 'a friend has it') : 'need it'),
+      part(assets.passiveIcon(d.evoPassive), pas.name, mine, mine ? 'have it' : 'need it'),
       h('span', { class: 'op' }, '='),
       part(assets.weaponIcon(evo.id), evo.name, null, ''),
     ));
@@ -596,9 +595,11 @@ export class Hud {
     this.tip.replaceChildren(...body.filter((x): x is HTMLElement => !!x));
     this.tip.classList.remove('hidden');
     if (!this.tip.isConnected) this.root.append(this.tip);
+    // (rects are in screen pixels; the UI layer is zoomed to the window, D-74)
+    const z = uiZoom.v;
     const r = slot.getBoundingClientRect(), t = this.tip.getBoundingClientRect();
-    this.tip.style.left = `${Math.max(8, Math.min(innerWidth - t.width - 8, r.left + r.width / 2 - t.width / 2))}px`;
-    this.tip.style.top = `${Math.max(8, r.top - t.height - 12)}px`;
+    this.tip.style.left = `${Math.max(8, Math.min(innerWidth - t.width - 8, r.left + r.width / 2 - t.width / 2)) / z}px`;
+    this.tip.style.top = `${Math.max(8, r.top - t.height - 12) / z}px`;
   }
 
   private hideTip(): void {

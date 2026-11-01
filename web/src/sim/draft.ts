@@ -28,8 +28,8 @@ export function readyEvolutions(g: Game): string[] {
   for (const w of g.weapons.list) {
     const d = w.def;
     if (!d.evolvesTo || w.level < d.maxLevel) continue;
-    // co-op (VS): a teammate's passive counts toward the evolution
-    if (d.evoPassive && !g.players.some((pl) => pl.passiveLevel(d.evoPassive!) >= 1)) continue;
+    // every build is personal (D-74): only this player's own passive counts toward the evolution
+    if (d.evoPassive && g.player.passiveLevel(d.evoPassive) < 1) continue;
     out.push(d.id);
   }
   return out;
@@ -38,7 +38,7 @@ export function readyEvolutions(g: Game): string[] {
 function isUnlocked(g: Game, unlock?: string): boolean {
   if (!unlock) return true;
   if (g.cfg.daily) return !SECRET_UNLOCKS.includes(unlock); // Daily Run: full pool (D-18), secrets stay secret
-  return !!g.cfg.unlocked?.has(unlock);
+  return g.player.unlocked.has(unlock); // the acting player's own save (D-74)
 }
 
 interface Cand { opt: DraftOption; w: number; branch: boolean }
@@ -50,16 +50,7 @@ function candidates(g: Game): Cand[] {
   const owned = g.weapons.list;
   const ownedIds = new Set(owned.map((w) => w.def.id));
   const evolvedFrom = new Set(owned.filter((w) => w.def.isEvolution).map((w) => w.def.evolvedFrom));
-  // co-op (VS): an item one player owns leaves everyone else's pool
-  const taken = new Set<string>();
-  for (const pl of g.players) {
-    if (pl === g.player) continue;
-    for (const w of pl.weapons.list) {
-      taken.add(w.def.id);
-      if (w.def.evolvedFrom) taken.add(w.def.evolvedFrom);
-    }
-    for (const id of pl.passives.keys()) taken.add(id);
-  }
+  // co-op (D-74): every player may take every item, whatever the others hold (it used to be one owner each)
   const banished = g.player.banished;
   const slots = g.slots;
 
@@ -80,7 +71,7 @@ function candidates(g: Game): Cand[] {
   if (owned.length < slots.weapons) {
     for (const id of BASE_WEAPON_IDS) {
       const d = WEAPONS[id];
-      if (ownedIds.has(id) || evolvedFrom.has(id) || taken.has(id) || banished.has(id) || !isUnlocked(g, d.unlock)) continue;
+      if (ownedIds.has(id) || evolvedFrom.has(id) || banished.has(id) || !isUnlocked(g, d.unlock)) continue;
       const rarity: Rarity = d.weight < 1 ? 'uncommon' : 'common';
       // signature weapons of other characters are a little rarer
       const sig = d.signature && d.signature !== g.player.char.id ? 0.7 : 1;
@@ -96,7 +87,7 @@ function candidates(g: Game): Cand[] {
     const d = PASSIVES[id];
     const lvl = g.player.passiveLevel(id);
     if (lvl >= d.maxLevel || banished.has(id) || !isUnlocked(g, d.unlock)) continue;
-    if (lvl === 0 && (heldPassives >= slots.passives || taken.has(id))) continue;
+    if (lvl === 0 && heldPassives >= slots.passives) continue;
     let rel = 1;
     if (lvl === 0) {
       for (const w of owned) if (w.def.evoPassive === id) rel = 2.5;
@@ -202,7 +193,7 @@ export function applyDraftChoice(g: Game, opt: DraftOption): void {
 
 /** VS-style chest (doc 03 §6, D-06): N random upgrades to equipped items. Evolutions only come from level-up cards (D-57). */
 export interface ChestEntry {
-  type: 'evolution' | 'level' | 'passive' | 'new' | 'voucher' | 'heal';
+  type: 'evolution' | 'level' | 'passive' | 'new' | 'voucher' | 'heal' | 'party';
   id: string;
   label: string;
   /** for the prize card (D-61): the item's name, its new level, whether that's its last, or what it paid */
@@ -212,6 +203,8 @@ export interface ChestEntry {
   note?: string;
   /** Co-op: the player this prize went to (D-51). */
   player?: number;
+  /** Party Favors (D-74): what each player got from it, each tagged with its player */
+  gifts?: ChestEntry[];
 }
 
 export function grantChest(g: Game, rolls: number): { items: string[]; evolution?: string; entries: ChestEntry[] } {
@@ -245,7 +238,7 @@ export function grantChest(g: Game, rolls: number): { items: string[]; evolution
     }
     // Everything maxed: a new weapon if there's room, else a heal.
     if (g.weapons.hasRoom()) {
-      const cands = BASE_WEAPON_IDS.filter((id) => !g.players.some((pl) => pl.weapons.has(id) || pl.weapons.list.some((w) => w.def.evolvedFrom === id)) && isUnlocked(g, WEAPONS[id].unlock));
+      const cands = BASE_WEAPON_IDS.filter((id) => !g.weapons.has(id) && !g.weapons.list.some((w) => w.def.evolvedFrom === id) && isUnlocked(g, WEAPONS[id].unlock));
       if (cands.length) {
         const id = g.rng.pick(cands);
         g.weapons.add(id);

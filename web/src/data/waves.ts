@@ -27,14 +27,15 @@ export const CARNIVAL_WAVES: WaveDef[] = [
   { id: 'w_0600', start: 360, enemies: [['possessed_stuffie', 35], ['evil_clown', 30], ['cotton_candy_slime', 20], ['whack_a_mole', 15]], minAlive: 60, maxAlive: 220, interval: 0.85, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 6, size: 30 } },
   { id: 'w_0800', start: 480, enemies: [['possessed_stuffie', 28], ['evil_clown', 26], ['cotton_candy_slime', 16], ['jack_in_the_box', 12], ['dunk_tank_clown', 18]], minAlive: 68, maxAlive: 240, interval: 0.8, batch: 4, swarm: { enemy: 'swarm_balloon', interval: 5.5, size: 34 } },
   { id: 'w_1000', start: 600, enemies: [['evil_clown', 30], ['possessed_stuffie', 24], ['dunk_tank_clown', 20], ['whack_a_mole', 14], ['jack_in_the_box', 12]], minAlive: 78, maxAlive: 260, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 38 }, eliteBurst: 3 },
-  // Act III — The Parade
-  { id: 'w_1200', start: 720, enemies: [['puppet_soldier', 26], ['carousel_horse', 22], ['bumper_car', 20], ['evil_clown', 20], ['walking_ticket_booth', 12]], minAlive: 80, maxAlive: 270, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 40 } },
-  { id: 'w_1400', start: 840, enemies: [['puppet_soldier', 24], ['carousel_horse', 22], ['bumper_car', 20], ['cotton_candy_slime', 16], ['possessed_stuffie', 18]], minAlive: 86, maxAlive: 280, interval: 0.7, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 44 } },
-  { id: 'w_1600', start: 960, enemies: [['carousel_horse', 24], ['puppet_soldier', 22], ['bumper_car', 22], ['evil_clown', 20], ['walking_ticket_booth', 12]], minAlive: 92, maxAlive: 280, interval: 0.68, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 48 }, eliteBurst: 4 },
+  // Act III — The Parade. D-74: half as many Puppet Soldier ranks (weights halved; at most 16 alive, each
+  // sturdier): the firing lines after the Ferris Wheel were too many to dodge
+  { id: 'w_1200', start: 720, enemies: [['puppet_soldier', 13], ['carousel_horse', 22], ['bumper_car', 20], ['evil_clown', 20], ['walking_ticket_booth', 12]], minAlive: 80, maxAlive: 270, interval: 0.75, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 5, size: 40 } },
+  { id: 'w_1400', start: 840, enemies: [['puppet_soldier', 12], ['carousel_horse', 22], ['bumper_car', 20], ['cotton_candy_slime', 16], ['possessed_stuffie', 18]], minAlive: 86, maxAlive: 280, interval: 0.7, batch: 5, swarm: { enemy: 'swarm_balloon', interval: 4.5, size: 44 } },
+  { id: 'w_1600', start: 960, enemies: [['carousel_horse', 24], ['puppet_soldier', 11], ['bumper_car', 22], ['evil_clown', 20], ['walking_ticket_booth', 12]], minAlive: 92, maxAlive: 280, interval: 0.68, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 48 }, eliteBurst: 4 },
   // Act IV — Last Call
-  { id: 'w_1800', start: 1080, enemies: [['roller_coaster_snake', 14], ['carousel_horse', 22], ['puppet_soldier', 22], ['evil_clown', 22], ['possessed_stuffie', 20]], minAlive: 96, maxAlive: 280, interval: 0.66, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 52 } },
-  { id: 'w_2000', start: 1260, enemies: [['roller_coaster_snake', 18], ['bumper_car', 22], ['puppet_soldier', 22], ['evil_clown', 20], ['carousel_horse', 18], ['jack_in_the_box', 8]], minAlive: 100, maxAlive: 280, interval: 0.62, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 3.5, size: 56 }, eliteBurst: 4 },
-  { id: 'w_2200', start: 1380, enemies: [['roller_coaster_snake', 20], ['carousel_horse', 22], ['bumper_car', 22], ['puppet_soldier', 18], ['evil_clown', 18], ['walking_ticket_booth', 6]], minAlive: 108, maxAlive: 280, interval: 0.6, batch: 7, swarm: { enemy: 'swarm_balloon', interval: 3, size: 60 }, eliteBurst: 5 },
+  { id: 'w_1800', start: 1080, enemies: [['roller_coaster_snake', 14], ['carousel_horse', 22], ['puppet_soldier', 11], ['evil_clown', 22], ['possessed_stuffie', 20]], minAlive: 96, maxAlive: 280, interval: 0.66, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 4, size: 52 } },
+  { id: 'w_2000', start: 1260, enemies: [['roller_coaster_snake', 18], ['bumper_car', 22], ['puppet_soldier', 11], ['evil_clown', 20], ['carousel_horse', 18], ['jack_in_the_box', 8]], minAlive: 100, maxAlive: 280, interval: 0.62, batch: 6, swarm: { enemy: 'swarm_balloon', interval: 3.5, size: 56 }, eliteBurst: 4 },
+  { id: 'w_2200', start: 1380, enemies: [['roller_coaster_snake', 20], ['carousel_horse', 22], ['bumper_car', 22], ['puppet_soldier', 9], ['evil_clown', 18], ['walking_ticket_booth', 6]], minAlive: 108, maxAlive: 280, interval: 0.6, batch: 7, swarm: { enemy: 'swarm_balloon', interval: 3, size: 60 }, eliteBurst: 5 },
   { id: 'w_2400', start: 1440, enemies: [['living_balloon', 70], ['evil_clown', 20], ['possessed_stuffie', 10]], minAlive: 140, maxAlive: 280, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 2.5, size: 70 } },
 ];
 
@@ -47,7 +48,7 @@ export const CARNIVAL_VICTORY: WaveDef = {
 /** Endless / Lock-In loops a dense Act IV mix (D-17). */
 export const CARNIVAL_ENDLESS: WaveDef = {
   id: 'endless', start: 0,
-  enemies: [['roller_coaster_snake', 10], ['carousel_horse', 18], ['bumper_car', 16], ['puppet_soldier', 18], ['evil_clown', 18], ['possessed_stuffie', 12], ['dunk_tank_clown', 8], ['walking_ticket_booth', 4]],
+  enemies: [['roller_coaster_snake', 10], ['carousel_horse', 18], ['bumper_car', 16], ['puppet_soldier', 9], ['evil_clown', 18], ['possessed_stuffie', 12], ['dunk_tank_clown', 8], ['walking_ticket_booth', 4]],
   minAlive: 130, maxAlive: 400, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 3, size: 64 }, eliteBurst: 6,
 };
 
