@@ -30,7 +30,9 @@ export type PropKind =
   | 'fh_curtain' | 'fh_stage' | 'fh_clock' | 'fh_vanity' | 'fh_crystal' | 'fh_mark' | 'fh_mural' | 'fh_bench'
   | 'fh_piston' | 'fh_pivot' | 'fh_lamp' | 'fh_rope' | 'fh_trunk' | 'fh_chandelier'
   // the Boardwalk (D-68): buildings, the entered interiors' fixtures, the promenade, the rides, beach and pier
-  | `bw_${string}`;
+  | `bw_${string}`
+  // the Ghost Train (D-80): the carriages' walls and furniture, the stations and what stands in them
+  | `gt_${string}`;
 
 export interface Prop {
   kind: PropKind;
@@ -211,6 +213,11 @@ export function setDynamicWalls(w: Prop[]): void {
  */
 export let CAMERA_BOUNDS: { minX: number; maxX: number; minY: number; maxY: number } | null = null;
 /**
+ * A map made of separate places (the Ghost Train's stations and its moving train, D-80) bounds the camera
+ * to whichever one the watched player stands in; null elsewhere (CAMERA_BOUNDS or the square map applies).
+ */
+export let CAMERA_FOR: ((x: number, y: number) => { minX: number; maxX: number; minY: number; maxY: number }) | null = null;
+/**
  * The ground a player may stand on beyond props and bounds (D-68): the Boardwalk keeps players out of
  * deep water except on the pier. Pure (movement and a guest's prediction both call it); null elsewhere.
  */
@@ -233,6 +240,8 @@ export interface MapLayout {
   /** optional camera bounds and walkable-ground clamp (D-68) */
   camera?: { minX: number; maxX: number; minY: number; maxY: number };
   walkClamp?: (p: { x: number; y: number }) => void;
+  /** optional per-place camera bounds (D-80) */
+  cameraFor?: (x: number, y: number) => { minX: number; maxX: number; minY: number; maxY: number };
 }
 
 /** The Carnival Core's layout, as declared above. */
@@ -258,6 +267,7 @@ export function applyLayout(l: MapLayout): void {
   TILT_A_WHIRL = l.tiltAWhirl;
   GREASE_SLICKS = l.greaseSlicks;
   CAMERA_BOUNDS = l.camera ?? null;
+  CAMERA_FOR = l.cameraFor ?? null;
   WALK_CLAMP = l.walkClamp ?? null;
   DYNAMIC_WALLS = [];
 }

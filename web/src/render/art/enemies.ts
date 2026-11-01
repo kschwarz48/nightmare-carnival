@@ -7,6 +7,7 @@ import { DANGER, INK, PAL, circle, ellipse, fillInk, glove, grin, hose, ink, lig
 export type EnemyMode = 'walk' | 'windup' | 'alt';
 import { FUNHOUSE_ART, drawFunhouseEnemy } from './funhouseEnemies';
 import { BOARDWALK_ART, drawBoardwalkEnemy } from './boardwalkEnemies';
+import { GHOST_TRAIN_ART, drawGhostTrainEnemy } from './ghostTrainArt';
 
 /** Frame box (world units) + anchor for each enemy art key. */
 export const ENEMY_ART: Record<string, { w: number; h: number; ay: number }> = {
@@ -28,6 +29,7 @@ export const ENEMY_ART: Record<string, { w: number; h: number; ay: number }> = {
   carnival_brute: { w: 116, h: 124, ay: 0.93 },
   ...FUNHOUSE_ART,
   ...BOARDWALK_ART,
+  ...GHOST_TRAIN_ART,
 };
 
 export function drawEnemy(ctx: Ctx, id: string, w: number, h: number, phase: number, mode: EnemyMode): void {
@@ -35,6 +37,7 @@ export function drawEnemy(ctx: Ctx, id: string, w: number, h: number, phase: num
   const c = Math.cos(phase * Math.PI * 2);
   if (drawFunhouseEnemy(ctx, id, w, h, s, c, mode)) return;
   if (drawBoardwalkEnemy(ctx, id, w, h, s, c, mode)) return;
+  if (drawGhostTrainEnemy(ctx, id, w, h, s, c, mode)) return;
   switch (id) {
     case 'living_balloon': return balloon(ctx, w, h, s, mode, '#e8384f', '#ff8a9a');
     case 'swarm_balloon': return balloon(ctx, w, h, s, mode, '#d42a8a', '#ff86c8');

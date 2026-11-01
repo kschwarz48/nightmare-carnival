@@ -15,6 +15,7 @@ import type { Game } from '../sim/game';
 import { addHazardPull, addRingPull, moveBody, steer } from '../sim/movement';
 import { addConveyorPush, refreshFunhouseWalls } from '../sim/funhouse';
 import { refreshSea } from '../sim/boardwalk';
+import { refreshTrainDoors } from '../sim/ghosttrain';
 import { PlayerStats } from '../sim/stats';
 import { WeaponInst } from '../sim/weapons';
 import { TICK } from '../sim/constants';
@@ -462,6 +463,8 @@ export class Replica {
     }
     // the Boardwalk's water: the same tide and low water as the host (D-68)
     if (this.g.mapId === 'boardwalk') refreshSea(this.g);
+    // the Ghost Train's doors: the same timetable as the host (D-80)
+    if (this.g.mapId === 'ghost_train') refreshTrainDoors(this.g);
     moveBody(p, mx, my, p.stats.moveSpeed() * this.slowF, TICK, this.g.bosses, false);
     if (p.moving) p.animT += TICK * ((p.stats.moveSpeed() * this.slowF) / 220);
     else p.animT += TICK * 0.4;

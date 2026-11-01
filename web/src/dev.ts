@@ -13,6 +13,7 @@ import { SEARCHLIGHTS } from './render3d/renderer3d';
 import { isLowTide, shoreY } from './data/boardwalk';
 import type { SummersEndChain } from './sim/quest/summersEnd';
 import { refreshSea } from './sim/boardwalk';
+import { TRANSIT, trackY, trainOrigin } from './data/ghosttrain';
 import { gpuProbe, runBenchScenario, type BenchScenario } from './devBench';
 import { BUILD } from './platform/updates';
 
@@ -299,6 +300,7 @@ export function installDevTools(app: App): void {
       app.renderer.inspect = null;
       if (map === 'fun_house') app.save.data.funhouseTester = true;
       if (map === 'boardwalk') app.save.data.boardwalkTester = true;
+      if (map === 'ghost_train') app.save.data.ghosttrainTester = true;
       app.startRun({ character: char, difficulty: 'midway', curse: false, seed, map });
       app.game!.cfg.godMode = true;
       return app.game!;
@@ -375,6 +377,22 @@ export function installDevTools(app: App): void {
       app.renderer.post.bloomScale = 0.35;
       app.renderer.overlayFocus = 1;
     };
+    // ---- the Ghost Train (D-80): a night on the Midnight Line `t` seconds in, the player stood at (x, y)
+    const line = (t: number, x?: number, y?: number) => {
+      const g = run('carny', 'ghost_train');
+      api.advance(t);
+      if (x !== undefined && y !== undefined) {
+        g.player.x = g.player.px = x;
+        g.player.y = g.player.py = y;
+      }
+      api.advance(0.5);
+      return g;
+    };
+    /** aboard the moving train (it left the Junction at 1:15), in car-local spot (lx, ly) */
+    const aboard = (lx: number, ly: number, t = 88) => {
+      const o = trainOrigin(TRANSIT);
+      return line(t, o.x + lx, o.y + ly);
+    };
     const STATES: Record<string, () => void> = {
       /** a minute into a night: the opening crowd around the player on the plaza */
       'active-play-desktop': () => { run(); api.advance(60); },
@@ -420,6 +438,28 @@ export function installDevTools(app: App): void {
       /** the midway's crowd on the promenade, the undertow's on the beach: the new enemies fighting */
       'bw-midway-combat': () => melee(-600, -480, { drowned: 8, ticket_taker: 4, taffy_horror: 3, arcade_automaton: 4, evil_clown: 4, shore_crawler: 5 }),
       'bw-beach-combat': () => melee(1200, 700, { coaster_wraith: 3, barnacle_brute: 3, lantern_angler: 3, prize_collector: 2, tidecaller: 2, drowned: 6 }),
+      // the Ghost Train (D-80): stations at their dwell, the carriages on the move, the bosses
+      'gt-junction': () => line(40, 0, trackY(0) + 300),
+      'gt-junction-forecourt': () => line(40, 0, 520),
+      'gt-vesper': () => line(118, 6400, trackY(1) + 420),
+      'gt-cinder': () => line(200, 0, 4800 - 150),
+      'gt-stillwater': () => line(268, 6400, 4800 + 150),
+      'gt-end': () => line(1670, 0, 9600 - 300),
+      'gt-tender': () => aboard(1500, 40),
+      'gt-baggage': () => aboard(1100, 20),
+      'gt-coach': () => aboard(630, 0),
+      'gt-dining': () => aboard(120, 0),
+      'gt-funeral': () => aboard(-380, 70),
+      'gt-sleeper': () => aboard(-880, 60),
+      'gt-observation': () => aboard(-1400, 0),
+      'gt-arriving': () => aboard(300, 0, 107),
+      'gt-boss-stationmaster': () => { line(40, 0, trackY(0) + 600); api.spawnBoss('stationmaster', 0, 300); api.advance(7); },
+      'gt-boss-stoker': () => { line(200, 0, 4800 - 150); api.spawnBoss('stoker', 0, 300); api.advance(7); },
+      'gt-boss-widow': () => { line(118, 6400, trackY(1) + 600); api.spawnBoss('widow', 0, 300); api.advance(7); },
+      'gt-boss-foreman': () => { line(200, 0, 4800 - 150); api.spawnBoss('foreman', 0, 320); api.advance(7); },
+      'gt-boss-hourthief': () => { line(268, 6400, 4800 + 150); api.spawnBoss('hour_thief', 0, 300); api.advance(7); },
+      'gt-boss-express': () => { line(1670, 0, 9600 - 300); api.spawnBoss('night_express', 0, 360); api.advance(7); },
+      'gt-boss-conductor': () => { line(1670, 0, 9600 - 300); api.spawnBoss('conductor', 0, 300); api.advance(7); },
       /** the prize wheel mid-spin, and as it lands */
       'prize-wheel': () => wheel(80),
       'prize-wheel-landed': () => wheel(330),

@@ -4,8 +4,10 @@
 // the Midway hub a hushed, broken carousel waltz of its own (D-61), and the Fun House a waltz that runs
 // backwards over glass harmonics, with an indoor ambience of its own (D-63), and the Boardwalk a slow
 // detuned seaside waltz with a bell buoy tolling under it, over three ambiences that crossfade with where
-// the listener stands: the promenade, the beach, the pier (D-68). Quest chimes dip the music so they
-// always carry. SFX are synthesized at boot.
+// the listener stands: the promenade, the beach, the pier (D-68); the Ghost Train a lonely railway waltz
+// over the clack of the rail joints with a whistle far down the line, and two ambiences, the stations'
+// night and the carriages' rattle, that crossfade as you board and alight (D-80). Quest chimes dip the
+// music so they always carry. SFX are synthesized at boot.
 
 import { RECIPES, SR } from './synth';
 import { LEGACY } from '../core/flags';
@@ -28,6 +30,8 @@ interface NightTheme {
   glass?: number;
   /** 0..1: a bell buoy tolling low every few bars, and the sea breathing under the chords (the Boardwalk) */
   buoy?: number;
+  /** 0..1: the clack of wheels over the rail joints, and a whistle far down the line (the Ghost Train) */
+  rails?: number;
 }
 
 const MINOR = [0, 2, 3, 5, 7, 8, 11, 12, 14, 15];
@@ -45,6 +49,10 @@ const HOUSE_BASS = [0, 8, 5, 1, 0, 8, 6, 7];
 const SEASIDE = [0, -1, 2, 4, -1, 3, 2, -1, 1, 0, -1, -1, 4, -1, 5, 7, -1, 6, 4, 3, 2, 1, -1, -1];
 const SEASIDE_LOW = [0, -1, 1, 2, -1, 0, 6, -1, 4, 3, -1, -1, 2, -1, 3, 4, -1, 2, 1, 0, 6, 4, -1, -1];
 const SHORE_BASS = [0, 5, 3, 7, 0, 8, 5, 7];
+/** The Ghost Train (D-80): a railway waltz that keeps leaving the station, falling a step every phrase. */
+const LINE = [4, -1, 3, 4, -1, 2, 1, -1, 0, -1, 6, -1, 2, -1, 3, 2, 1, -1, 0, 6, 4, -1, -1, -1];
+const LINE_LOW = [0, -1, 6, 0, -1, 4, 3, -1, 2, -1, 1, -1, 0, -1, 1, 0, 6, -1, 4, 3, 2, -1, -1, -1];
+const LINE_BASS = [0, 8, 5, 7, 0, 3, 8, 7];
 const NIGHT: Record<string, NightTheme> = {
   act1: { bpm: 72, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0, pulse: 0, warp: 0.002, vol: 0.9 },
   act2: { bpm: 76, root: 57, melody: WALTZ, bass: WALTZ_BASS, counter: 0.5, pulse: 0.25, warp: 0.004, vol: 0.95 },
@@ -66,6 +74,12 @@ const NIGHT: Record<string, NightTheme> = {
   bw_act3: { bpm: 72, root: 54, melody: SEASIDE_LOW, bass: SHORE_BASS, counter: 0.8, pulse: 0.5, warp: 0.014, vol: 0.95, buoy: 0.9 },
   bw_act4: { bpm: 78, root: 53, melody: SEASIDE_LOW, bass: [0, 1, 3, 7, 0, 1, 6, 7], counter: 1, pulse: 0.8, warp: 0.018, vol: 1, buoy: 1 },
   bw_endless: { bpm: 82, root: 53, melody: SEASIDE_LOW, bass: [0, 1, 3, 7, 0, 1, 6, 7], counter: 1, pulse: 1, warp: 0.02, vol: 1, buoy: 1 },
+  // the Ghost Train (D-80): a little faster than the Boardwalk, the rails under it, the whistle far off
+  gt_act1: { bpm: 70, root: 54, melody: LINE, bass: LINE_BASS, counter: 0.25, pulse: 0, warp: 0.006, vol: 0.85, rails: 0.7 },
+  gt_act2: { bpm: 74, root: 54, melody: LINE, bass: LINE_BASS, counter: 0.5, pulse: 0.2, warp: 0.009, vol: 0.9, rails: 0.8 },
+  gt_act3: { bpm: 78, root: 53, melody: LINE_LOW, bass: LINE_BASS, counter: 0.8, pulse: 0.5, warp: 0.013, vol: 0.95, rails: 0.9 },
+  gt_act4: { bpm: 84, root: 52, melody: LINE_LOW, bass: [0, 1, 8, 7, 0, 1, 6, 7], counter: 1, pulse: 0.8, warp: 0.017, vol: 1, rails: 1 },
+  gt_endless: { bpm: 88, root: 52, melody: LINE_LOW, bass: [0, 1, 8, 7, 0, 1, 6, 7], counter: 1, pulse: 1, warp: 0.02, vol: 1, rails: 1 },
 };
 /** Bradley's song (one file since his 2026-10-30 mix): menus play it from the top, then loop from the groove. */
 const SONG = 'freaky_funky_circus.mp3';
@@ -356,7 +370,7 @@ export class AudioEngine {
     else if (night) this.fadeOutTrack(2);
     else if (c === 'silence') this.duckTrack(0);
     // dread drone grows with the Act (doc 02 §9: motifs bent darker as the night deepens)
-    const act = c.replace('fh_', '').replace('bw_', '');
+    const act = c.replace('fh_', '').replace('bw_', '').replace('gt_', '');
     const dread = act === 'act2' ? 0.15 : act === 'act3' ? 0.28 : act === 'act4' ? 0.38 : act === 'endless' ? 0.4 : 0;
     this.setDrone(dread);
   }
@@ -540,6 +554,23 @@ export class AudioEngine {
     }
   }
 
+  /** A wheel over a rail joint: a dull double knock. */
+  private clack(t: number, vol: number): void {
+    const ctx = this.ctx!;
+    for (const dt of [0, 0.09]) {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(180, t + dt);
+      o.frequency.exponentialRampToValueAtTime(90, t + dt + 0.06);
+      g.gain.setValueAtTime(vol, t + dt);
+      g.gain.exponentialRampToValueAtTime(0.0005, t + dt + 0.08);
+      o.connect(g).connect(this.scoreGain!);
+      o.start(t + dt);
+      o.stop(t + dt + 0.1);
+    }
+  }
+
   private heartbeat(t: number, vol: number): void {
     const ctx = this.ctx!;
     for (const [dt, v] of [[0, 1], [0.24, 0.6]] as const) {
@@ -581,6 +612,14 @@ export class AudioEngine {
       this.chime(b, t, beat * 5, 0.07 * th.buoy * th.vol);
       this.chime(b * 2.76, t + 0.01, beat * 2, 0.02 * th.buoy * th.vol);
     }
+    // the Ghost Train: two clacks over each rail joint on every bar, and every eighth bar a whistle far down the line
+    if (th.rails) {
+      if (inBar === 0 || inBar === 2) this.clack(t + (inBar === 2 ? beat * 0.45 : 0), 0.05 * th.rails * th.vol);
+      if (inBar === 0 && bar % 8 === 6) {
+        const w = mtof(chord + 12);
+        for (const [iv, v] of [[0, 1], [3, 0.8], [7, 0.6]] as const) this.note(w * Math.pow(2, iv / 12), t, beat * 2.6, 'sawtooth', 0.012 * th.rails * th.vol * v, 1400, 0.004);
+      }
+    }
     // the Fun House: a wet finger round a glass rim, two octaves up, on the off-bars
     if (th.glass && inBar === 2 && bar % 2 === 1) {
       const g = mtof(chord + 31) * (1 + (Math.random() - 0.5) * th.warp * 0.5);
@@ -590,13 +629,13 @@ export class AudioEngine {
   }
 
   // ---------------------------------------------------------------- ambience & dread drone
-  private ambKind: 'carnival' | 'funhouse' | 'boardwalk' = 'carnival';
+  private ambKind: 'carnival' | 'funhouse' | 'boardwalk' | 'ghosttrain' = 'carnival';
   private ambBufs = new Map<string, AudioBuffer>();
   /** the Boardwalk's three beds (promenade, beach, pier) and their crossfade gains (D-68) */
   private shore: { src: AudioBufferSourceNode; gain: GainNode }[] = [];
 
   /** Which place's ambience plays (D-63). Built the first time it is needed, crossfaded in. */
-  setAmbience(kind: 'carnival' | 'funhouse' | 'boardwalk'): void {
+  setAmbience(kind: 'carnival' | 'funhouse' | 'boardwalk' | 'ghosttrain'): void {
     if (kind === this.ambKind) return;
     this.ambKind = kind;
     if (!this.unlocked || !this.ctx) return;
@@ -623,6 +662,18 @@ export class AudioEngine {
     const t = this.ctx.currentTime;
     const w = [promenade * 1.0, beach * 0.85, pier * 0.95];
     this.shore.forEach((b, i) => b.gain.gain.setTargetAtTime(w[i], t, 0.6));
+  }
+
+  /**
+   * The Ghost Train (D-80): how much of the carriages' rattle against the stations' night (1 riding, 0 standing
+   * at a station), and how fast the train is going (0..1: the rattle's rate and weight). Called every frame.
+   */
+  setLineMix(riding: number, speed: number): void {
+    if (this.ambKind !== 'ghosttrain' || !this.ctx || this.shore.length < 2) return;
+    const t = this.ctx.currentTime;
+    this.shore[0].gain.gain.setTargetAtTime(1 - riding * 0.75, t, 0.5);
+    this.shore[1].gain.gain.setTargetAtTime(riding * (0.25 + 0.75 * speed), t, 0.3);
+    this.shore[1].src.playbackRate.setTargetAtTime(0.55 + 0.45 * speed, t, 0.4);
   }
 
   private stopShore(): void {
@@ -821,8 +872,80 @@ export class AudioEngine {
     return buf;
   }
 
+  /** The stations' night: wind through the cutting, telegraph wires singing, a clock ticking somewhere, a far bell. */
+  private stationBed(): AudioBuffer {
+    return this.bed(14, (d, ch, len) => {
+      let lp = 0;
+      for (let i = 0; i < len; i++) {
+        const t = i / SR;
+        lp += 0.015 * (Math.random() * 2 - 1 - lp);
+        d[i] = lp * 0.55 * (0.6 + 0.4 * Math.sin(t * 0.37 + ch));
+        // the wires' hum, beating slowly
+        d[i] += Math.sin(2 * Math.PI * 182 * t) * 0.004 * (0.5 + 0.5 * Math.sin(t * 0.8 + ch)) + Math.sin(2 * Math.PI * 184.5 * t) * 0.003;
+      }
+      // a clock ticking far off (one side), and a bell tolling once
+      for (let k = 0; k < 14; k++) {
+        const st = Math.floor((k + 0.3) * SR);
+        for (let i = 0; i < SR * 0.02 && st + i < len; i++) d[st + i] += (Math.random() * 2 - 1) * Math.exp(-i / (SR * 0.004)) * 0.05 * (ch ? 0.4 : 1);
+      }
+      const st = Math.floor(6.2 * SR);
+      for (let i = 0; i < SR * 4 && st + i < len; i++) {
+        const tt = i / SR;
+        d[st + i] += (Math.sin(2 * Math.PI * 147 * tt) + 0.4 * Math.sin(2 * Math.PI * 147 * 2.4 * tt)) * Math.exp(-tt / 1.4) * 0.03;
+      }
+    });
+  }
+
+  /** The carriages: the clack of the wheels over the joints (four to a bar), the body's creak, the roar under it. */
+  private rideBed(): AudioBuffer {
+    return this.bed(8, (d, ch, len) => {
+      let lp = 0, lp2 = 0;
+      for (let i = 0; i < len; i++) {
+        const t = i / SR;
+        const n = Math.random() * 2 - 1;
+        lp += 0.03 * (n - lp);
+        lp2 += 0.004 * (n - lp2);
+        d[i] = lp * 0.35 + lp2 * 1.2 * (0.8 + 0.2 * Math.sin(t * 3.1));
+      }
+      // clackety-clack: pairs of knocks, a bar of four every second
+      for (let k = 0; k < 8 * 4; k++) {
+        const st = Math.floor((k * 0.25 + (k % 2) * 0.06 + ch * 0.004) * SR);
+        const f = 140 + (k % 4) * 9;
+        for (let i = 0; i < SR * 0.07 && st + i < len; i++) {
+          const tt = i / SR;
+          d[st + i] += Math.sin(2 * Math.PI * f * tt * (1 - tt * 3)) * Math.exp(-tt / 0.018) * 0.22 + (Math.random() * 2 - 1) * Math.exp(-tt / 0.006) * 0.12;
+        }
+      }
+      // the carriage body creaking now and then
+      for (const at of [1.7, 5.3]) {
+        const st = Math.floor(at * SR);
+        for (let i = 0; i < SR * 0.5 && st + i < len; i++) {
+          const tt = i / SR;
+          d[st + i] += Math.sin(2 * Math.PI * (320 + 40 * Math.sin(tt * 30)) * tt) * Math.sin((Math.PI * i) / (SR * 0.5)) * 0.02;
+        }
+      }
+    });
+  }
+
   private startAmbience(): void {
     const ctx = this.ctx!;
+    if (this.ambKind === 'ghosttrain') {
+      this.stopShore();
+      const beds: [string, () => AudioBuffer][] = [['gt_station', () => this.stationBed()], ['gt_ride', () => this.rideBed()]];
+      for (const [key, make] of beds) {
+        const b = this.ambBufs.get(key) ?? make();
+        this.ambBufs.set(key, b);
+        const src = ctx.createBufferSource();
+        src.buffer = b;
+        src.loop = true;
+        const gain = ctx.createGain();
+        gain.gain.value = key === 'gt_station' ? 1 : 0;
+        src.connect(gain).connect(this.amb);
+        src.start();
+        this.shore.push({ src, gain });
+      }
+      return;
+    }
     if (this.ambKind === 'boardwalk') {
       this.stopShore();
       const beds: [string, () => AudioBuffer][] = [['bw_prom', () => this.promenadeBed()], ['bw_beach', () => this.beachBed()], ['bw_pier', () => this.pierBed()]];

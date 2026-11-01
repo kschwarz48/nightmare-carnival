@@ -34,13 +34,19 @@ export type BehaviorId =
   | 'angler'
   | 'collector'
   | 'tidecaller'
-  | 'duckline';
+  | 'duckline'
+  // the Ghost Train (D-80)
+  | 'gt_ticketless' | 'gt_coalborn' | 'gt_porter' | 'gt_railcrawler' | 'gt_mourner' | 'gt_signalman'
+  | 'gt_commuter' | 'gt_newsboy' | 'gt_mimic' | 'gt_gravebound' | 'gt_moth' | 'gt_pallbearer'
+  | 'gt_slag' | 'gt_riveter' | 'gt_hound' | 'gt_stillfolk' | 'gt_watcher' | 'gt_bellwraith'
+  | 'gt_collected' | 'gt_puncher' | 'gt_inspector';
 
 export type DeathFx =
   | 'pop' | 'springs' | 'stuffing' | 'sugar' | 'bonk' | 'deflate' | 'confetti' | 'splash'
   | 'wood' | 'ceramic' | 'boards' | 'derail' | 'crumple' | 'brute'
   | 'porcelain' | 'glass' | 'strings' | 'goo'
-  | 'brine' | 'shell' | 'taffy' | 'tokens' | 'ecto' | 'ink' | 'prizes';
+  | 'brine' | 'shell' | 'taffy' | 'tokens' | 'ecto' | 'ink' | 'prizes'
+  | 'cinders' | 'soot' | 'paper' | 'bone' | 'slag' | 'dust' | 'veil' | 'brass' | 'stubs';
 
 export interface EnemyDef {
   id: string;
@@ -387,6 +393,177 @@ export const ENEMIES: Record<string, EnemyDef> = {
     deathFx: 'tokens', hitSfx: 'clank', deathSfx: 'ding', drawScale: 2.6, act: 1, role: 'Boss add',
     lore: 'Shot ten thousand times a summer. They kept score.',
     tell: 'March in a row along a lit lane. Knock them down or step aside.',
+  }),
+  // ================================================================ the Ghost Train (D-80)
+  // `params.home`: the stations a creature may come at ('any', or a list of region ids); what boards the moving
+  // train is chosen by the journey spawner (sim/ghosttrain.ts).
+  gt_ticketless: E({
+    id: 'gt_ticketless', name: 'The Ticketless', hp: 9, speed: 105, contact: 4, tickets: 1,
+    behavior: 'gt_ticketless', radius: 11, sep: 15, knockbackTaken: 1, canElite: true, eliteName: 'Unpunched',
+    params: { home: 'any', drift: 0.35 },
+    deathFx: 'stubs', hitSfx: 'ghostgasp', deathSfx: 'ghostsigh', drawScale: 3.3, act: 1, role: 'Swarm',
+    lore: 'Passengers whose tickets were never punched. They have been waiting on the platform since 1899.',
+    tell: 'Shuffles toward you in loose crowds, clutching a blank ticket. Alone, nothing; together, a tide.',
+  }),
+  gt_coalborn: E({
+    id: 'gt_coalborn', name: 'Coalborn', hp: 14, speed: 185, contact: 5, tickets: 2,
+    behavior: 'gt_coalborn', radius: 10, sep: 13, knockbackTaken: 1, canElite: true, eliteName: 'Firebox Imp',
+    params: { home: 'cinder,junction', dart: 0.45, rest: 0.35, ember: 2.4 },
+    deathFx: 'cinders', hitSfx: 'sizzle', deathSfx: 'cinderpop', drawScale: 2.5, act: 1, role: 'Fast darter',
+    lore: "Lumps of coal from the Midnight Line's tender that learned to want the fire inside you.",
+    tell: "Darts, stops, darts again, always closer. Leaves a scatter of embers where it bursts: don't stand in it.",
+  }),
+  gt_porter: E({
+    id: 'gt_porter', name: 'The Porter', hp: 120, speed: 55, contact: 12, tickets: 6,
+    behavior: 'gt_porter', radius: 18, sep: 24, knockbackTaken: 0.25, canElite: true, eliteName: 'Head Porter',
+    params: { home: 'junction,end', shield: 0.4, arc: 1.05, reach: 80, windup: 0.6, shove: 520, bashDmg: 10, cool: 2.2 },
+    deathFx: 'wood', hitSfx: 'knock', deathSfx: 'trunkslam', drawScale: 2.9, act: 2, role: 'Shielded tank',
+    lore: 'He carries a steamer trunk in front of him and never sets it down. Nobody has ever seen what is inside.',
+    tell: 'The trunk soaks hits from the front; get round him. Lowers his shoulder to bash you out of the way.',
+  }),
+  gt_railcrawler: E({
+    id: 'gt_railcrawler', name: 'Railcrawler', hp: 60, speed: 150, contact: 9, tickets: 4,
+    behavior: 'gt_railcrawler', radius: 14, sep: 18, knockbackTaken: 0.7, canElite: true, eliteName: 'Derailer',
+    params: { home: 'cinder,end', hug: 60, range: 300, tele: 0.55, lunge: 640, lungeT: 0.32, cool: 2.4 },
+    deathFx: 'soot', hitSfx: 'clatter', deathSfx: 'crunch', drawScale: 2.7, act: 2, role: 'Wall-crawling lunger',
+    lore: 'Too many limbs, all of them jointed the wrong way. It goes along the walls of the carriages, never down the middle.',
+    tell: 'Scuttles along the walls, then freezes: a line marks its pounce straight across at you.',
+  }),
+  gt_mourner: E({
+    id: 'gt_mourner', name: 'Mourning Passenger', hp: 70, speed: 70, contact: 8, tickets: 5,
+    behavior: 'gt_mourner', radius: 13, sep: 17, knockbackTaken: 0.6, canElite: true, eliteName: "Widow's Weeds",
+    params: { home: 'vesper,stillwater', blink: 150, blinkCd: 3.4, wailTele: 0.8, wailR: 230, wailHalf: 0.5, wailDmg: 6, slow: 0.45, slowT: 1.6, cool: 4.5 },
+    deathFx: 'veil', hitSfx: 'ghostgasp', deathSfx: 'wail', drawScale: 3.3, act: 2, role: 'Blinker & wail',
+    lore: 'Veiled, in black, always a seat away. She is going to a funeral; she will not say whose.',
+    tell: 'Flickers forward a few steps at a time, leaving an afterimage. Lifts her veil: a cone of grief slows what it touches.',
+  }),
+  gt_signalman: E({
+    id: 'gt_signalman', name: 'The Signalman', hp: 55, speed: 85, contact: 6, tickets: 5,
+    behavior: 'gt_signalman', radius: 13, sep: 16, knockbackTaken: 0.9, canElite: true, eliteName: 'Danger Signal', maxAlive: 4,
+    params: { home: 'any', keep: 330, fire: 3.6, tele: 0.85, flareSpeed: 720, flareDmg: 11, laneW: 18 },
+    deathFx: 'brass', hitSfx: 'clank', deathSfx: 'lampsmash', drawScale: 3.3, act: 2, role: 'Ranged (lanes)',
+    lore: 'He still swings his lantern at trains that are not there, and the trains still come.',
+    tell: 'Raises his red lantern: a lane lights up from him to you. Get out of it before the flare comes down it.',
+  }),
+  gt_commuter: E({
+    id: 'gt_commuter', name: 'Clockwork Commuter', hp: 32, speed: 150, contact: 6, tickets: 3,
+    behavior: 'gt_commuter', radius: 12, sep: 16, knockbackTaken: 0.8, canElite: true, eliteName: 'Season Ticket Holder',
+    params: { home: 'junction', beat: 0.7, stride: 0.38 },
+    deathFx: 'tokens', hitSfx: 'clank', deathSfx: 'wood', drawScale: 3.4, act: 1, role: 'Rhythm marcher',
+    lore: 'Bowler hats, umbrellas, a key in every back. They ran the 8:15 to the city for forty years and never once arrived.',
+    tell: 'They all step on the same beat: a tick, a stride, a stop. Move in the stops.',
+  }),
+  gt_newsboy: E({
+    id: 'gt_newsboy', name: 'Newsboy Specter', hp: 26, speed: 165, contact: 5, tickets: 3,
+    behavior: 'gt_newsboy', radius: 11, sep: 14, knockbackTaken: 1, canElite: true, eliteName: 'Late Edition',
+    params: { home: 'junction,stillwater', orbit: 280, throwCd: 2.6, flight: 0.9, blast: 60, blastDmg: 9 },
+    deathFx: 'paper', hitSfx: 'papercrinkle', deathSfx: 'paperburst', drawScale: 3, act: 2, role: 'Fast lobber',
+    lore: "EXTRA! EXTRA! Midnight train lost with all hands! He has been shouting it since 1899. It is always today's paper.",
+    tell: 'Runs rings round you and flings a bundle of newspapers: the spot it lands on is marked.',
+  }),
+  gt_mimic: E({
+    id: 'gt_mimic', name: 'Luggage Mimic', hp: 85, speed: 120, contact: 10, tickets: 6,
+    behavior: 'gt_mimic', radius: 15, sep: 18, knockbackTaken: 0.6, canElite: true, eliteName: 'Steamer Trunk', maxAlive: 6,
+    params: { home: 'junction', wake: 170, snap: 0.45, hop: 380, hopT: 0.28, rest: 0.42 },
+    deathFx: 'wood', hitSfx: 'knock', deathSfx: 'trunkslam', drawScale: 2.6, act: 2, role: 'Ambusher',
+    lore: 'Left luggage. Unclaimed since the night the last train left. Something in it got hungry.',
+    tell: 'Sits still among the bags until you come close; its lid snaps open — then it bounds after you, biting.',
+  }),
+  gt_gravebound: E({
+    id: 'gt_gravebound', name: 'Gravebound', hp: 48, speed: 80, contact: 8, tickets: 4,
+    behavior: 'gt_gravebound', radius: 13, sep: 17, knockbackTaken: 0.7, canElite: true, eliteName: 'Sexton', rises: true,
+    params: { home: 'vesper,end', grab: 120, tele: 0.5, lunge: 420, lungeT: 0.25, cool: 2.8 },
+    deathFx: 'bone', hitSfx: 'bonehit', deathSfx: 'bonecrumble', drawScale: 3.3, act: 1, role: 'Rising shambler',
+    lore: "Saint Vesper's took in the passengers nobody claimed. The churchyard is very full.",
+    tell: 'Claws its way out of the ground where you stand. Hunches — then lunges to grab.',
+  }),
+  gt_moth: E({
+    id: 'gt_moth', name: 'Shroud Moth', hp: 6, speed: 115, contact: 3, tickets: 1,
+    behavior: 'gt_moth', phases: true, radius: 10, sep: 10, knockbackTaken: 0.4, canElite: false,
+    params: { home: 'vesper,stillwater,junction', flutter: 70 },
+    deathFx: 'dust', hitSfx: 'mothflap', deathSfx: 'mothpuff', drawScale: 3.2, act: 1, role: 'Drift swarm',
+    lore: 'Pale moths as wide as your hand, drawn to lamps, to lanterns, to anything still warm.',
+    tell: 'Drift across the station in fluttering clouds. They do not chase; they just come through.',
+  }),
+  gt_pallbearer: E({
+    id: 'gt_pallbearer', name: 'The Pallbearers', hp: 260, speed: 45, contact: 14, tickets: 10,
+    behavior: 'gt_pallbearer', radius: 26, sep: 30, knockbackTaken: 0.15, canElite: false, maxAlive: 3,
+    params: { home: 'vesper', slamEvery: 4.4, slamTele: 1, slamR: 130, slamDmg: 16, release: 3 },
+    deathFx: 'wood', hitSfx: 'knock', deathSfx: 'coffinbreak', drawScale: 2.8, act: 3, role: 'Procession tank',
+    lore: 'Four of them, black-gloved, carrying a coffin with no name plate. They have been looking for the grave for a long time.',
+    tell: 'Plods on; sets the coffin down hard — a circle marks the slam. Break the coffin and whoever is in it gets out.',
+  }),
+  gt_slag: E({
+    id: 'gt_slag', name: 'Slag Golem', hp: 230, speed: 42, contact: 14, tickets: 8,
+    behavior: 'gt_slag', radius: 22, sep: 26, knockbackTaken: 0.2, canElite: true, eliteName: 'Crucible', maxAlive: 4,
+    params: { home: 'cinder', pool: 1.5, poolR: 46, poolLife: 4, poolDmg: 6, slamEvery: 5, slamTele: 0.9, slamR: 120, slamDmg: 18 },
+    deathFx: 'slag', hitSfx: 'sizzle', deathSfx: 'slagcrack', drawScale: 2.7, act: 3, role: 'Burning tank',
+    lore: "What ran out of the Cinder Works' furnaces on the last night, and set, and got up.",
+    tell: 'Drips molten slag where it walks: the pools burn. Raises both fists for a slam.',
+  }),
+  gt_riveter: E({
+    id: 'gt_riveter', name: 'Riveter', hp: 70, speed: 70, contact: 7, tickets: 5,
+    behavior: 'gt_riveter', radius: 14, sep: 18, knockbackTaken: 0.7, canElite: true, eliteName: 'Steam Riveter', maxAlive: 5,
+    params: { home: 'cinder,end', keep: 300, fire: 3.4, tele: 0.7, shots: 3, gap: 0.12, speed: 560, dmg: 7 },
+    deathFx: 'brass', hitSfx: 'clank', deathSfx: 'steamhiss', drawScale: 3.2, act: 2, role: 'Ranged (bursts)',
+    lore: 'A works automaton with a rivet gun for an arm. It is still trying to finish the boiler it started in 1899.',
+    tell: 'Plants its feet; a line ticks out toward you — then three red-hot rivets down it.',
+  }),
+  gt_hound: E({
+    id: 'gt_hound', name: 'Furnace Hound', hp: 90, speed: 120, contact: 12, tickets: 6,
+    behavior: 'gt_hound', radius: 16, sep: 20, knockbackTaken: 0.5, canElite: true, eliteName: 'Hellhound',
+    params: { home: 'cinder', range: 460, tele: 0.75, charge: 560, over: 240, recover: 0.8, trail: 0.08, trailDmg: 5 },
+    deathFx: 'cinders', hitSfx: 'clank', deathSfx: 'firebox', drawScale: 2.8, act: 3, role: 'Burning charger',
+    lore: 'An iron dog with a firebox for a belly, kept to guard the works yard. The fire never went out.',
+    tell: 'Crouches and glows: a lane lights ahead of it — then it runs it, leaving fire behind.',
+  }),
+  gt_stillfolk: E({
+    id: 'gt_stillfolk', name: 'Still Folk', hp: 40, speed: 230, contact: 7, tickets: 3,
+    behavior: 'gt_stillfolk', radius: 12, sep: 16, knockbackTaken: 0.8, canElite: true, eliteName: 'Village Elder',
+    params: { home: 'stillwater', toll: 2.4, lurch: 0.55 },
+    deathFx: 'dust', hitSfx: 'thud', deathSfx: 'crumble', drawScale: 3.3, act: 1, role: 'Bell-bound lurcher',
+    lore: 'Stillwater stopped at one minute to midnight. So did its people. When the bell tolls, they remember how to move.',
+    tell: 'Frozen mid-step — until the bell tolls. Then they all lurch at once.',
+  }),
+  gt_watcher: E({
+    id: 'gt_watcher', name: 'The Watcher', hp: 140, speed: 0, contact: 0, tickets: 7,
+    behavior: 'gt_watcher', radius: 14, sep: 18, knockbackTaken: 0, canElite: true, eliteName: 'The Unblinking', maxAlive: 3,
+    params: { home: 'stillwater,end', keep: 380, near: 190, gazeT: 3.2, track: 0.9, dps: 14, width: 16, rest: 2 },
+    deathFx: 'veil', hitSfx: 'glass_hit', deathSfx: 'wail', drawScale: 3.6, act: 3, role: 'Gaze (zone control)',
+    lore: 'Tall, thin, at the end of the lane, in the window, in the doorway. It never moves while you are looking at it.',
+    tell: 'Stands at a distance and stares: its gaze is a beam that follows you, slowly. Come close and it is somewhere else.',
+  }),
+  gt_bellwraith: E({
+    id: 'gt_bellwraith', name: 'Bell Wraith', hp: 50, speed: 75, contact: 5, tickets: 5,
+    behavior: 'gt_bellwraith', phases: true, radius: 13, sep: 16, knockbackTaken: 0.8, canElite: true, eliteName: 'Passing Bell', maxAlive: 3,
+    params: { home: 'stillwater,vesper', keep: 360, ring: 6, tele: 0.9, haste: 1.35, hasteT: 3.5, reach: 360, call: 2 },
+    deathFx: 'brass', hitSfx: 'bellding', deathSfx: 'bellcrack', drawScale: 3.3, act: 2, role: 'Support caster',
+    lore: 'Something in a shroud that rings a hand-bell for the dead. The dead come.',
+    tell: 'Hangs back and rings its bell: everything near it hurries, and the ground gives up more.',
+  }),
+  gt_collected: E({
+    id: 'gt_collected', name: 'The Collected', hp: 380, speed: 50, contact: 16, tickets: 12,
+    behavior: 'gt_collected', radius: 24, sep: 30, knockbackTaken: 0.15, canElite: false, maxAlive: 4,
+    params: { home: 'end', shed: 0.25, sweepEvery: 3.8, sweepTele: 0.8, sweepR: 150, sweepHalf: 1.1, sweepDmg: 15 },
+    deathFx: 'ecto', hitSfx: 'squelch', deathSfx: 'wail', drawScale: 2.8, act: 4, role: 'Shedding tank',
+    lore: 'The payments, as the End of the Line keeps them: everyone who rode the last train, pressed into one.',
+    tell: 'Sheds a passenger every time it is hurt badly enough. Draws back its arms — a wide wedge for the sweep.',
+  }),
+  gt_puncher: E({
+    id: 'gt_puncher', name: 'The Ticket Puncher', hp: 160, speed: 90, contact: 10, tickets: 9,
+    behavior: 'gt_puncher', radius: 14, sep: 18, knockbackTaken: 0.5, canElite: true, eliteName: 'Chief Clerk', maxAlive: 3,
+    params: { home: 'end,junction', keep: 260, mark: 1.5, lock: 0.7, punchR: 70, punchDmg: 18, cool: 4.2 },
+    deathFx: 'stubs', hitSfx: 'punch', deathSfx: 'punch', drawScale: 3.4, act: 4, role: 'Marker',
+    lore: "The Conductor's clerks. They punch a hole in whatever they are owed.",
+    tell: 'Points its punch at you: a mark follows you a moment, then stops — get off it before it closes.',
+  }),
+  gt_inspector: E({
+    id: 'gt_inspector', name: 'The Ticket Inspector', hp: 1100, speed: 62, contact: 18, tickets: 16,
+    behavior: 'gt_inspector', radius: 30, sep: 34, knockbackTaken: 0.1, canElite: false, dropsChest: true, chestMin: 1, chestMax: 2,
+    params: { home: 'any', every: 4.6, sweepTele: 0.9, sweepR: 240, sweepW: 30, punchTele: 0.8, punchR: 120, punchDmg: 20, sweepDmg: 14 },
+    deathFx: 'stubs', hitSfx: 'thump', deathSfx: 'lampsmash', drawScale: 2.8, act: 2, role: 'Miniboss',
+    lore: 'Tickets, please. He will check every one, on every platform, forever.',
+    tell: 'Sweeps his lantern in a long beam — step over it — or brings his punch down in a circle.',
   }),
   great_barnacle: E({
     id: 'great_barnacle', name: 'The Great Barnacle', hp: 960, speed: 75, contact: 14, tickets: 15,

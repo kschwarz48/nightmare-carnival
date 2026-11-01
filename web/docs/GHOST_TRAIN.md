@@ -1,0 +1,214 @@
+# The Ghost Train — Map 4 design (D-80)
+
+The fourth and final map. A haunted 1890s steam train, **the Midnight Line**, runs a fixed timetable between
+five places. Players board, ride, fight their way through the carriages, get off, explore, and catch it when
+it comes back. This document is the design of record and the engineering notes; the developer-only Easter
+egg solution is `docs/EASTER_EGG_GHOST_TRAIN.md`.
+
+## 1. Lore
+
+In 1899 the railway man **Silas Marrow** opened the Midnight Line: one railway that carried the crowds to
+every carnival along it and, at the end of every night, carried home whoever was left. Business failed. Marrow
+made a bargain with the thing every carnival owner in this game bargained with (the Boardwalk's ledger lists
+the accounts: Penhallow, paid in guests; Grinwell, paid in reflections; the Ringmaster, paid in song). The
+line would never stop running; in return its **last train of every night** would not go home. It would go
+to **the End of the Line**, and its passengers would be the payment. The thing that punches their tickets
+is **the Conductor**.
+
+So every carnival's lost souls ride the Midnight Line. The Ticketless are passengers whose tickets were never
+punched. Ada Penhallow (the Boardwalk), Mira (the Fun House), Theo Fairweather, the boy who played the
+calliope (the Carnival Core), and Eli Marrow, Silas's own son, are among them. The hidden quest, **The Last
+Train Home**, reroutes the line and runs the cancelled train at last.
+
+## 2. Architecture: regions, copies and the train
+
+**Problem.** A train that moves through world space would drag every projectile, hazard, pickup, summon and
+enemy along with it, and the host-authoritative, snapshot-interpolated co-op model would jitter on a fast
+moving floor.
+
+**Solution: logical movement between regions.** The map is six rectangles ("regions") far apart in one world:
+
+| Region | Index | Centre | Notes |
+|---|---|---|---|
+| Hollow Junction | 0 | (0, 0) | the start; the grand terminal |
+| Saint Vesper's Halt | 1 | (6400, 0) | the graveyard |
+| The Cinder Works | 2 | (0, 4800) | the foundry |
+| Stillwater | 3 | (6400, 4800) | the village where the clocks stopped |
+| The End of the Line | 4 | (0, 9600) | the terminus that should not exist |
+| The train in transit | 5 | (6400, 9600) | the moving train |
+
+- Each station has a **parked copy** of the train interior on its track (walls and furniture are static props).
+  The transit region holds one more copy. The copies are identical in layout.
+- The train itself is a **deterministic schedule** (`trainAt(time, eFrom)`, pure, in `data/ghosttrain.ts`).
+  The doors are dynamic walls derived from it every tick, on the host and in a guest's mirror alike.
+- **Departure** (dwell → travel): the host moves everything inside the station's copy (players, enemies,
+  pickups, projectiles, bullets, hazards, summons) into the transit copy at the same local position.
+  **Arrival** (travel → dwell): everything in the transit copy moves into the destination station's copy.
+  The picture is identical before and after (same carriage, same spot). Only what is outside changes.
+- While travelling, the world outside the transit copy is a **scenery conveyor** (`render3d/world/ghosttrain/
+  scenery.ts`): the track bed, telegraph poles, signals, the country of each leg, the bridge over the drop, all
+  streaming past at the train's speed. Pulling in and out, the **real station's platform fixtures, cloned**,
+  slide past and stop exactly where the real ones stand, so the swap at the stop is invisible.
+- The camera carries over any jump of the local player larger than 1500 units (a transfer or a phantom
+  door), and is bounded to the local player's place (`layout.cameraFor`). The replica already snaps
+  interpolation on jumps.
+- Players can't leave a moving train because they are inside closed walls in a place with no exit. Enemies
+  path through the carriages with the existing nav grid (the corridors are just walls). `confine` keeps
+  anything that slips (flyers, shoves) on the ground of the place it is in.
+
+**Spawning.** Station regions use the map's waves (each enemy has a home: `params.home`). The director's
+anchor is the standing player whose station has the fewest creatures per player, so a party split between
+stations each gets a fair crowd; nothing spawns inside the parked carriages. The moving train has its own
+journey spawner (`journeySpawns`): enemies board at the **front** (out of the tender's coal) and the **rear**
+(over the observation platform's railing) and advance through the cars. Nothing spawns inside the cars, or
+from above or below, and nothing boards while nobody rides.
+
+**Bosses** fight at stations (`sim/bosses/gtBoss.ts`). A boss due while every player is riding waits for the
+next platform anyone stands on. A boss holds still while nobody is in its place, and **follows the party down
+the line**: once its station has stood empty for 4 s and somebody stands at another, it is waiting there
+("THE STOKER IS WAITING · on the platform at Stillwater"). The Night Express and the Conductor are the End of
+the Line's and never leave it.
+
+**No lost XP.** Tickets never expire; a station's tickets wait for the party to come back round, the ones in
+the carriages ride along, and a golden ticket vacuums every ticket on the map to its finder.
+
+## 3. The train
+
+Front (east) to rear (west), walkable carriages, interior width 220:
+
+| Car | Length | Character |
+|---|---|---|
+| Tender | 300 | iron plates, coal heaps, the firebox and whistle cord; **front boarding mouth** |
+| Baggage car | 460 | trunks and crates in staggered stacks (narrow lanes), Luggage Mimics |
+| Coach | 480 | velvet seat pairs along both walls, a red runner down the aisle |
+| Dining car | 480 | tables in two rows with pink-shaded lamps, a lattice carpet |
+| Car 13 (funeral car) | 460 | a catafalque and sealed casket (two lanes round it), candle stands, violet light |
+| Sleeper | 480 | panelled compartments to the north, a corridor along the south wall |
+| Observation car | 540 | parquet, armchairs, a rug; the open rear platform: **rear boarding mouth** |
+
+Gangways (100 wide) join the cars. The locomotive (not walkable) is east of the tender. Doors: two per car on
+the south (platform) side, one on the tender and Car 13. The roof over the copy you are in is cut away.
+
+## 4. Timetable
+
+Station order: Hollow Junction (J) → Saint Vesper's (V) → Cinder Works (C) → Stillwater (S) → End of the
+Line (E) → J. The run starts with the train **approaching J through the fog**, arriving at **0:30**.
+
+| | Dwell | Next leg |
+|---|---|---|
+| J | 45 s | 35 s to V |
+| V | 40 s | 35 s to C |
+| C | 40 s | 35 s to S |
+| S | 40 s | 60 s to J, **passing through E without stopping**, or 35 s to E |
+| E (when a stop) | 50 s | 35 s to J |
+
+- A loop is **330 s** (5:30) with E passed, **390 s** (6:30) with E a stop.
+- E becomes a stop for a loop when that loop's departure from S is at or after `eFrom`: the final act
+  (25:00) for everyone, or earlier once the Easter egg's points are set.
+- **The last train:** the first arrival at E at or after 26:00 terminates there; the train stands at E, doors
+  open, for the rest of the night (27:35 normally, 29:35 with the points set). From **29:00** a **phantom
+  door** stands open on every other platform, one step to E's platform, so nobody is stranded.
+- Doors open 2 s after a stop and close 3 s before departure. A bell rings at 10 s to go and the whistle at 5 s.
+- Readable: the HUD's departures line under the clock (`ui/lineBoard.ts`: the next stop, the countdown,
+  ALL ABOARD / DOORS CLOSED), "Check the timetable" at every station clock and the Junction's board (the next
+  three trains by the night's clock), the bell, the whistle, the doors, the brakes.
+
+## 5. Pacing (35:00)
+
+| Act | Time | Arc |
+|---|---|---|
+| I — The Midnight Line | 0:00–8:00 | learn the train; first stations; light journeys (Ticketless, Coalborn, Porters) |
+| II — Passengers | 8:00–17:00 | denser journeys; Railcrawlers, Mourners and Signalmen board; station rosters fill in |
+| III — Wrong Side of the Tracks | 17:00–25:00 | heavy journeys; the stations' specialists (Pallbearers, Slag Golems, Hounds, Watchers); elites |
+| IV — The End of the Line | 25:00–35:00 | E opens for everyone; the Collected and the Ticket Punchers; the last train; the phantom doors; the Night Express |
+
+Six scheduled bosses (the other maps have four) at 5:00, 10:00, 15:00, 20:00, 25:00 and **30:00** (the final
+boss, which holds the dawn at 35:00). Secret boss: the Conductor (Easter egg). Events: `gt_fog` (darkness,
+Still Folk at stations), `gt_rush_hour` (spawns and tickets +50 %), `gt_lost_luggage` (a guarded trunk on the
+platform, or an unguarded one in the baggage car if you're riding), `gt_procession` (mourners and
+pallbearers cross a station down a marked lane), `gt_late_supper` (healing plates near you, or in the dining
+car). None of them puts a creature anywhere but a station, so the train's rule holds.
+
+## 6. Enemies (20 new types + a miniboss; no reuse)
+
+`data/enemies.ts` (`gt_*`), behaviours in `sim/ghostTrainAI.ts`, sculpts in `render3d/models/ghostTrainCreatures.ts`,
+Pedia art in `render/art/ghostTrainArt.ts`. Homes: **train** = boards the moving train; **any** = every
+station; or a station's own.
+
+| Creature | Role | Home |
+|---|---|---|
+| The Ticketless | the shambling crowd | any, train |
+| Coalborn | fast fodder; embers on death | cinder, train |
+| The Porter | trunk-shield bruiser (soaks frontal damage) | junction, train |
+| Railcrawler | wall-crawling pouncer | train, cinder |
+| Mourning Passenger | wailing ring caster | vesper, train |
+| The Signalman | lantern lane-caster | junction, train |
+| Clockwork Commuter | marching lancers | junction |
+| Newsboy Specter | paper-bundle thrower | junction, stillwater |
+| Luggage Mimic | ambush hopper | train, junction |
+| Gravebound | rises from the ground | vesper, end |
+| Shroud Moth | swarm (replaces the balloon drift) | any |
+| The Pallbearers | slow coffin-slam tank; releases mourners | vesper |
+| Slag Golem | molten pools | cinder |
+| Riveter | rivet volleys | cinder |
+| Furnace Hound | charging lane, fire trail | cinder |
+| Still Folk | stop-motion sprinters | stillwater |
+| The Watcher | stationary gaze caster | stillwater, end |
+| Bell Wraith | phasing tolls | vesper, stillwater |
+| The Collected | fused mass; splits | end, train |
+| The Ticket Puncher | punch-mark lunger | end, train |
+| The Ticket Inspector | miniboss (chest) | any station |
+
+## 7. Bosses
+
+| Gate | Boss | Signature attacks |
+|---|---|---|
+| 5:00 | The Stationmaster | Mind the Gap (phantom trains down lanes), whistle cone, lantern beams, the timetable dial, porters, the express charge |
+| 10:00 | The Stoker | lobbed coal (embers), furnace blast, fire-trail charge, heat rings, cinder rain, Coalborn, boiler burst |
+| 15:00 | The Widow of Saint Vesper's | wail rings, soul lights, veil sweeps, the dead rise, a cross of lilies, the procession |
+| 20:00 | The Iron Foreman | steam hammer + shockwave, rivet fans, chain sweep, girders, steam vents, riveters, slag pools |
+| 25:00 | The Hour Thief | clock hands, chimes on a dial, pendulum, stopped time, the rewind, thirteen strikes |
+| 30:00 | The Night Express | runs down lanes, whistle shockwave, cinders, phantom carriages, firebox breath, passengers put off |
+| secret | The Conductor | punches under each of you, ticket spirals, lantern beams, "All aboard" pull, terminus (only near him is safe) |
+
+## 8. Rendering (`render3d/world/ghosttrain/`)
+
+- `floor.ts`: one shader, a mesh per place: track beds, platforms, the Junction's tiles and cobbles, the
+  churchyard, the cinder yard and its tub rails, the village lanes and the still pond, the End's cracked
+  marble and the brink; the moving train's conveyor (scrolling track, each leg's country, the drop on the
+  bridge).
+- `kit.ts`: every station fixture and building, and the carriages' furniture.
+- `train.ts`: the train in every place (one merged model instanced per copy), roofs cut away over the copy
+  you're in, sliding doors, station copies sliding in and out with the timetable.
+- `scenery.ts`: the conveyor's scenery, the quest signal, the bridge truss, the platforms sliding in and out.
+- `lighting.ts`: every pool from a visible fixture; the carriages' sconces; the headlamp.
+- `quest.ts`: the quest's fixtures (clock hands, pages, passengers, the gauge, the phantom doors…).
+- Bosses: `render3d/ghostTrainBosses.ts`.
+
+## 9. Audio
+
+Procedural music (`gt_act1–4`, `gt_endless`): a railway waltz over the clack of the rail joints with a
+whistle far down the line; boss fights keep Bradley's song. Two ambience beds crossfading as you board and
+alight (the stations' night: wind, wires, a clock, a far bell; the carriages: the wheels' clack quickening
+with the train, the body's creak). The train's sounds are read off the timetable each frame (bell, whistle,
+doors, chuffs, brakes, the bridge), so a guest hears exactly what the host does.
+
+## 10. Testing and tools
+
+- `tests/ghosttrain.test.ts`: the registry, the timetable, transfers, the sealed train, journey spawns at the
+  ends only, station homes, bosses following, the phantom doors, the quest played through, co-op bytes, the save.
+- `scripts/gt_timetable.ts [eFrom]` prints the timetable. `scripts/gt_smoke.ts [secs]` runs a headless night
+  with a bot that rides between stations. `scripts/gt_bossttk.ts [seeds]` times every boss against builds.
+- Dev states (`?devtools` / dev server): `gt-junction`, `gt-vesper`, `gt-cinder`, `gt-stillwater`, `gt-end`,
+  `gt-tender`, `gt-baggage`, `gt-coach`, `gt-dining`, `gt-funeral`, `gt-sleeper`, `gt-observation`,
+  `gt-arriving`, `gt-boss-*`. `?unlock=ghosttrain` opens the map on a save.
+
+## 11. Known limitations (honest list)
+
+- The station nameboards and the departures board carry no lettering yet (the HUD line and the timetable
+  reading carry the information).
+- Creature sculpts are new but simpler than the Boardwalk's hero creatures; several share the humanoid base.
+- The approaching train at a station slides in along its track; its wheels are not animated (hidden below
+  the car floor at this camera angle), and the locomotive's smoke is spark particles, not a volumetric plume.
+- Bot balance runs cover the bosses' time-to-kill and a ridden night; long human play-testing of the
+  35-minute arc (especially co-op splits across stations) is still needed.

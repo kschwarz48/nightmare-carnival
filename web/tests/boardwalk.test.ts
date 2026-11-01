@@ -28,7 +28,7 @@ function tickN(g: Game, n: number): void {
 
 describe('the map registry with three maps (D-68)', () => {
   it('lists the Boardwalk third and swaps every table to it and back', () => {
-    expect(MAP_IDS).toEqual(['carnival_core', 'fun_house', 'boardwalk']);
+    expect(MAP_IDS).toEqual(['carnival_core', 'fun_house', 'boardwalk', 'ghost_train']);
     useMap('boardwalk');
     expect(activeMapId()).toBe('boardwalk');
     expect(PROPS).toBe(MAPS.boardwalk.layout.props);

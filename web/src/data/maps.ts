@@ -7,12 +7,13 @@
 import { applyLayout, CARNIVAL_LAYOUT, type MapLayout } from './map';
 import { FUNHOUSE_LAYOUT } from './funhouse';
 import { BOARDWALK_LAYOUT } from './boardwalk';
-import { applyWaves, CARNIVAL_ACTS, CARNIVAL_ENDLESS, CARNIVAL_VICTORY, CARNIVAL_WAVES, FUNHOUSE_ACTS, FUNHOUSE_ENDLESS, FUNHOUSE_VICTORY, FUNHOUSE_WAVES, BOARDWALK_ACTS, BOARDWALK_ENDLESS, BOARDWALK_VICTORY, BOARDWALK_WAVES, type WaveDef } from './waves';
-import { applyBossSchedule, BOARDWALK_BOSSES, CARNIVAL_BOSSES, FUNHOUSE_BOSSES, type BossDef } from './bosses';
-import { applyEvents, BOARDWALK_EVENTS, BOARDWALK_SCHEDULE, CARNIVAL_EVENTS, CARNIVAL_SCHEDULE, FUNHOUSE_EVENTS, FUNHOUSE_SCHEDULE, type EventId } from './events';
+import { GHOST_TRAIN_LAYOUT } from './gtStations';
+import { applyWaves, CARNIVAL_ACTS, CARNIVAL_ENDLESS, CARNIVAL_VICTORY, CARNIVAL_WAVES, FUNHOUSE_ACTS, FUNHOUSE_ENDLESS, FUNHOUSE_VICTORY, FUNHOUSE_WAVES, BOARDWALK_ACTS, BOARDWALK_ENDLESS, BOARDWALK_VICTORY, BOARDWALK_WAVES, GHOST_ACTS, GHOST_ACT_GATES, GHOST_DAWN, GHOST_ENDLESS, GHOST_VICTORY, GHOST_WAVES, type WaveDef } from './waves';
+import { applyBossSchedule, BOARDWALK_BOSSES, CARNIVAL_BOSSES, FUNHOUSE_BOSSES, GHOST_BOSSES, type BossDef } from './bosses';
+import { applyEvents, BOARDWALK_EVENTS, BOARDWALK_SCHEDULE, CARNIVAL_EVENTS, CARNIVAL_SCHEDULE, FUNHOUSE_EVENTS, FUNHOUSE_SCHEDULE, GHOST_EVENTS, GHOST_SCHEDULE, type EventId } from './events';
 
-export type MapId = 'carnival_core' | 'fun_house' | 'boardwalk';
-export const MAP_IDS: MapId[] = ['carnival_core', 'fun_house', 'boardwalk'];
+export type MapId = 'carnival_core' | 'fun_house' | 'boardwalk' | 'ghost_train';
+export const MAP_IDS: MapId[] = ['carnival_core', 'fun_house', 'boardwalk', 'ghost_train'];
 
 export interface MapDef {
   id: MapId;
@@ -24,6 +25,9 @@ export interface MapDef {
   victoryLap: WaveDef;
   endless: WaveDef;
   acts: string[];
+  /** when the dawn comes (default 25:00) and when Acts II–IV begin (default 6:00 / 12:00 / 18:00) */
+  dawn?: number;
+  actGates?: number[];
   /** the scheduled bosses, in gate order */
   bosses: BossDef[];
   /** bosses standing as dormant scenery from the first second (the Big Top and the Ferris Wheel) */
@@ -35,7 +39,7 @@ export interface MapDef {
   events: EventId[];
   scheduledEvents: { time: number; id: EventId }[];
   /** the renderer's world builder */
-  world: 'carnival' | 'funhouse' | 'boardwalk';
+  world: 'carnival' | 'funhouse' | 'boardwalk' | 'ghosttrain';
   /** title card when a night starts */
   intro: { title: string; sub: string };
   /** the hidden quest whose progress the save remembers, and the banner while its finale holds the dawn */
@@ -100,6 +104,27 @@ export const MAPS: Record<MapId, MapDef> = {
     intro: { title: 'LAST CALL AT THE SHORE', sub: 'The rides are still running. Nobody is running them.' },
     quest: { id: 'summers_end', hold: { text: 'THE TIDE HOLDS THE DAWN…', sub: 'The sea will not give back the morning until the account is closed' } },
   },
+  ghost_train: {
+    id: 'ghost_train',
+    name: 'The Ghost Train',
+    tagline: 'The Midnight Line: five stations, one train, and it never waits. The last night of all.',
+    layout: GHOST_TRAIN_LAYOUT,
+    waves: GHOST_WAVES,
+    victoryLap: GHOST_VICTORY,
+    endless: GHOST_ENDLESS,
+    acts: GHOST_ACTS,
+    dawn: GHOST_DAWN,
+    actGates: GHOST_ACT_GATES,
+    bosses: GHOST_BOSSES,
+    scenery: [],
+    finalBoss: 'night_express',
+    miniboss: 'gt_inspector',
+    events: GHOST_EVENTS,
+    scheduledEvents: GHOST_SCHEDULE,
+    world: 'ghosttrain',
+    intro: { title: 'THE MIDNIGHT LINE', sub: 'A whistle in the fog. The last train of the night is coming in.' },
+    quest: { id: 'last_train', hold: { text: 'THE LAST TRAIN HOLDS THE DAWN…', sub: 'The morning will not come until every ticket is punched' } },
+  },
 };
 
 /** What a locked map's button says it takes to open it (the solo picker and the co-op lobby). */
@@ -107,6 +132,7 @@ export const MAP_LOCK: Record<MapId, string> = {
   carnival_core: '',
   fun_house: 'Locked — survive the first night',
   boardwalk: 'Locked — survive the Fun House',
+  ghost_train: 'Locked — survive the Boardwalk',
 };
 
 let active: MapId = 'carnival_core';
@@ -117,7 +143,7 @@ export function useMap(id: MapId): void {
   active = id;
   const m = MAPS[id];
   applyLayout(m.layout);
-  applyWaves(m.waves, m.victoryLap, m.endless, m.acts);
+  applyWaves(m.waves, m.victoryLap, m.endless, m.acts, m.dawn ?? 1500, m.actGates ?? [360, 720, 1080]);
   applyBossSchedule(m.bosses);
   applyEvents(m.events, m.scheduledEvents);
 }

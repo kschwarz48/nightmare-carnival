@@ -11,6 +11,7 @@ import type { Enemy } from './entities';
 import type { Game } from './game';
 import { CHESTS, TICKETS } from '../data/progression';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
+import { gtEventFinish, gtEventStart, gtEventTick } from './ghostTrainEvents';
 
 interface Running {
   id: EventId;
@@ -44,11 +45,11 @@ export class CarnivalEvents {
     for (const r of this.running) {
       r.t += dt;
       this.tickEvent(r, dt);
-      if (r.id === 'lights_out' || r.id === 'house_lights' || r.id === 'fog_bank') {
+      if (r.id === 'lights_out' || r.id === 'house_lights' || r.id === 'fog_bank' || r.id === 'gt_fog') {
         darknessTarget = r.t < r.dur - 1 ? 1 : 0;
         this.spawnRateMult *= 1.3;
       }
-      if (r.id === 'calliope') {
+      if (r.id === 'calliope' || r.id === 'gt_rush_hour') {
         this.spawnRateMult *= 1.5;
         this.capMult *= 1.25;
         ticketBoost = TICKETS.calliopeCrescendoMult;
@@ -93,6 +94,12 @@ export class CarnivalEvents {
     const def = EVENTS[id];
     const r: Running = { id, t: 0, dur: def.duration, x: g.player.x, y: g.player.y, members: new Set(), acc: 0, done: false };
     g.bus.emit('carnival_event', { id, banner: def.banner });
+    // the Ghost Train's own (D-80): they keep the train's rule (nothing boards except at its two ends)
+    if (id.startsWith('gt_')) {
+      gtEventStart(g, r);
+      this.running.push(r);
+      return;
+    }
     switch (id) {
       // ---------------------------------------------------------------- the Fun House (D-63)
       case 'mirror_shuffle':
@@ -314,6 +321,10 @@ export class CarnivalEvents {
   private tickEvent(r: Running, dt: number): void {
     const g = this.g;
     if (r.done) return;
+    if (r.id.startsWith('gt_')) {
+      gtEventTick(g, r, dt);
+      return;
+    }
     // ---- the Boardwalk (D-68)
     if (r.id === 'fog_bank') {
       // the Drowned walk in out of the fog
@@ -401,6 +412,7 @@ export class CarnivalEvents {
 
   private finish(r: Running): void {
     const g = this.g;
+    if (r.id.startsWith('gt_')) gtEventFinish(g, r);
     if ((r.id === 'lights_out' || r.id === 'fog_bank') && !g.player.dead) {
       g.bus.emit('banner', { text: 'YOU SURVIVED THE DARK', sub: 'Bonus Tickets!', style: 'gold' });
       const pk = g.spawnPickup('bank', g.player.x + 60, g.player.y, 12 * g.act);

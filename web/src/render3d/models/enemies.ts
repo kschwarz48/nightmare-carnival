@@ -468,7 +468,7 @@ function carnivalBrute(): THREE.BufferGeometry {
 import { CREATURE_IDS, creatureModel } from './creatures';
 
 /** Enemies big enough to cast real shadows; the crowd gets soft blob shadows (performance). */
-const BIG = new Set(['carousel_horse', 'walking_ticket_booth', 'carnival_brute', 'bumper_car', 'jack_in_the_box', 'jack_open', 'grand_mannequin', 'splitter', 'glasswalker',
+const BIG = new Set(['gt_porter', 'gt_pallbearer', 'gt_slag', 'gt_collected', 'gt_inspector', 'gt_hound', 'gt_watcher', 'carousel_horse', 'walking_ticket_booth', 'carnival_brute', 'bumper_car', 'jack_in_the_box', 'jack_open', 'grand_mannequin', 'splitter', 'glasswalker',
   'barnacle_brute', 'great_barnacle', 'prize_collector', 'coaster_wraith', 'lantern_angler', 'tidecaller']);
 
 const LEGACY_MODELS: Record<string, ModelDef> = {
@@ -515,6 +515,28 @@ const LEGACY_MODELS: Record<string, ModelDef> = {
   prize_collector: { build: () => new THREE.BufferGeometry(), rim: [1, 0.8, 0.4, 0.55], shadow: true },
   tidecaller: { build: () => new THREE.BufferGeometry(), rim: [0.45, 1, 0.85, 0.6], shadow: true },
   tin_duck: { build: () => new THREE.BufferGeometry(), rim: [1, 0.85, 0.4, 0.5], shadow: true },
+  // the Ghost Train (D-80): a pale photograph-grey rim for the passengers, warm for the works' iron and fire
+  gt_ticketless: { build: () => new THREE.BufferGeometry(), rim: [0.7, 0.8, 1, 0.55], shadow: true },
+  gt_coalborn: { build: () => new THREE.BufferGeometry(), rim: [1, 0.5, 0.2, 0.6], shadow: true },
+  gt_porter: { build: () => new THREE.BufferGeometry(), rim: [1, 0.6, 0.45, 0.55], shadow: true },
+  gt_railcrawler: { build: () => new THREE.BufferGeometry(), rim: [1, 0.7, 0.45, 0.55], shadow: true },
+  gt_mourner: { build: () => new THREE.BufferGeometry(), rim: [0.65, 0.7, 1, 0.6], shadow: true },
+  gt_signalman: { build: () => new THREE.BufferGeometry(), rim: [1, 0.45, 0.4, 0.55], shadow: true },
+  gt_commuter: { build: () => new THREE.BufferGeometry(), rim: [1, 0.85, 0.55, 0.55], shadow: true },
+  gt_newsboy: { build: () => new THREE.BufferGeometry(), rim: [0.75, 0.85, 1, 0.55], shadow: true },
+  gt_mimic: { build: () => new THREE.BufferGeometry(), rim: [1, 0.75, 0.4, 0.55], shadow: true },
+  gt_gravebound: { build: () => new THREE.BufferGeometry(), rim: [0.7, 1, 0.6, 0.55], shadow: true },
+  gt_moth: { build: () => new THREE.BufferGeometry(), rim: [1, 0.95, 0.85, 0.5], shadow: false, hover: 30 },
+  gt_pallbearer: { build: () => new THREE.BufferGeometry(), rim: [0.65, 0.7, 1, 0.6], shadow: true },
+  gt_slag: { build: () => new THREE.BufferGeometry(), rim: [1, 0.55, 0.2, 0.6], shadow: true },
+  gt_riveter: { build: () => new THREE.BufferGeometry(), rim: [1, 0.7, 0.4, 0.55], shadow: true },
+  gt_hound: { build: () => new THREE.BufferGeometry(), rim: [1, 0.55, 0.25, 0.6], shadow: true },
+  gt_stillfolk: { build: () => new THREE.BufferGeometry(), rim: [0.8, 0.85, 0.95, 0.55], shadow: true },
+  gt_watcher: { build: () => new THREE.BufferGeometry(), rim: [0.85, 0.85, 1, 0.65], shadow: true },
+  gt_bellwraith: { build: () => new THREE.BufferGeometry(), rim: [0.6, 0.85, 1, 0.65], shadow: true, hover: 10 },
+  gt_collected: { build: () => new THREE.BufferGeometry(), rim: [0.75, 0.75, 1, 0.6], shadow: true },
+  gt_puncher: { build: () => new THREE.BufferGeometry(), rim: [1, 0.85, 0.5, 0.55], shadow: true },
+  gt_inspector: { build: () => new THREE.BufferGeometry(), rim: [1, 0.85, 0.5, 0.6], shadow: true },
 };
 
 /** Sculpted, skeletal creatures replace the primitive builds; the coaster snake and mole hole stay rigid. */

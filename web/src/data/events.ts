@@ -5,7 +5,9 @@ export type EventId =
   // the Fun House (D-63)
   | 'house_lights' | 'mirror_shuffle' | 'laughing_gallery' | 'kaleidoscope'
   // the Boardwalk (D-68)
-  | 'fog_bank' | 'rogue_wave' | 'undertow_runs' | 'short_circuit' | 'washed_ashore' | 'ships_light';
+  | 'fog_bank' | 'rogue_wave' | 'undertow_runs' | 'short_circuit' | 'washed_ashore' | 'ships_light'
+  // the Ghost Train (D-80)
+  | 'gt_fog' | 'gt_rush_hour' | 'gt_lost_luggage' | 'gt_procession' | 'gt_late_supper';
 
 export interface EventDef {
   id: EventId;
@@ -36,12 +38,18 @@ export const EVENTS: Record<EventId, EventDef> = {
   undertow_runs: { id: 'undertow_runs', name: 'The Undertow Runs', banner: 'THE UNDERTOW RUNS!', duration: 4, minAct: 2, weights: [0, 0.8, 1.2, 1], desc: 'Riders spill off the coaster: a pack of Coaster Wraiths.' },
   short_circuit: { id: 'short_circuit', name: 'Short Circuit', banner: 'SHORT CIRCUIT!', duration: 12, minAct: 2, weights: [0, 1, 1, 1], desc: 'Arcs leap between the promenade\'s lamps. Keep clear of the lines.' },
   washed_ashore: { id: 'washed_ashore', name: 'Washed Ashore', banner: 'SOMETHING WASHED ASHORE!', duration: 30, minAct: 1, weights: [0.8, 1, 1, 1], desc: 'A sea-chest on the sand, and what came in with it guarding it.' },
+  gt_fog: { id: 'gt_fog', name: 'The Fog Rolls In', banner: 'THE FOG ROLLS IN!', duration: 16, minAct: 2, weights: [0, 1, 1.2, 1.2], desc: 'Railway fog to your lantern bubble; Stillfolk come out of it at the stations. Survive for bonus Tickets.' },
+  gt_rush_hour: { id: 'gt_rush_hour', name: 'Rush Hour', banner: 'RUSH HOUR!', duration: 20, minAct: 2, weights: [0, 0.6, 1, 1.4], desc: 'Every platform and carriage fills: spawn rates +50%, and Tickets +50%.' },
+  gt_lost_luggage: { id: 'gt_lost_luggage', name: 'Lost Luggage', banner: 'LOST LUGGAGE — CLAIM IT!', duration: 30, minAct: 1, weights: [0.8, 1, 1, 1], desc: 'An unclaimed trunk: on the platform with its guards, or in the baggage car.' },
+  gt_procession: { id: 'gt_procession', name: 'The Procession', banner: 'A FUNERAL PROCESSION!', duration: 6, minAct: 2, weights: [0, 0.8, 1.2, 1.2], desc: 'Mourners and pallbearers cross the platform down a marked lane.' },
+  gt_late_supper: { id: 'gt_late_supper', name: 'Late Supper', banner: 'LATE SUPPER IS SERVED!', duration: 12, minAct: 1, weights: [1.2, 1, 1, 0.8], desc: 'Healing plates laid out near you — or in the dining car, if you are riding.' },
   ships_light: { id: 'ships_light', name: "The Ship's Light", banner: 'A LIGHT OUT ON THE WATER…', duration: 14, minAct: 2, weights: [0, 0.8, 1.1, 1.2], desc: 'A ghost ship\'s searchlight hunts you across the boards. Stay out of the beam.' },
 };
 
 export const CARNIVAL_EVENTS: EventId[] = ['lights_out', 'funnel_cake', 'stampede', 'clown_car', 'last_ticket', 'carousel_spins', 'calliope', 'formation', 'mole_brigade'];
 export const FUNHOUSE_EVENTS: EventId[] = ['house_lights', 'funnel_cake', 'clown_car', 'last_ticket', 'calliope', 'mirror_shuffle', 'laughing_gallery', 'kaleidoscope'];
 export const BOARDWALK_EVENTS: EventId[] = ['fog_bank', 'funnel_cake', 'clown_car', 'last_ticket', 'calliope', 'rogue_wave', 'undertow_runs', 'short_circuit', 'washed_ashore', 'ships_light'];
+export const GHOST_EVENTS: EventId[] = ['gt_fog', 'gt_rush_hour', 'gt_lost_luggage', 'gt_procession', 'gt_late_supper'];
 
 /** Authored timeline beats (doc 03 §7.4). */
 export const CARNIVAL_SCHEDULE: { time: number; id: EventId }[] = [
@@ -64,6 +72,13 @@ export const BOARDWALK_SCHEDULE: { time: number; id: EventId }[] = [
 ];
 
 // The active map's pool and beats (maps.ts `useMap`); the Carnival Core by default.
+export const GHOST_SCHEDULE: { time: number; id: EventId }[] = [
+  { time: 180, id: 'gt_late_supper' },
+  { time: 540, id: 'gt_lost_luggage' },
+  { time: 1000, id: 'gt_procession' },
+  { time: 1380, id: 'gt_rush_hour' },
+];
+
 export let EVENT_POOL: EventId[] = CARNIVAL_EVENTS;
 export let SCHEDULED_EVENTS: { time: number; id: EventId }[] = CARNIVAL_SCHEDULE;
 export function applyEvents(pool: EventId[], scheduled: { time: number; id: EventId }[]): void {

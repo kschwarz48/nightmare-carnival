@@ -29,6 +29,7 @@ import type { StringmistressBoss } from '../sim/bosses/stringmistress';
 import type { ProprietorBoss } from '../sim/bosses/proprietor';
 import type { UnreflectedBoss } from '../sim/bosses/unreflected';
 import { BarkerRig, CaptainRig, CommodoreRig, LastRideRig, LeviathanRig, boardwalkGlow, updateBoardwalkRigs, type BoardwalkRigs } from './boardwalkBosses';
+import { GT_BOSS_IDS, ghostTrainGlow, makeGhostTrainRigs, updateGhostTrainRigs, type GhostTrainRigs } from './ghostTrainBosses';
 
 
 // ======================================================================= the Carnival Tent
@@ -672,6 +673,8 @@ export class BossRigs {
   private fh: { twins: TwinsRig; glass: GlassRig; strings: StringmistressRig; prop: ProprietorRig; unref: UnreflectedRig } | null = null;
   // the Boardwalk's (D-68): built the first time one appears
   private bw: BoardwalkRigs | null = null;
+  // the Ghost Train's (D-80): built the first time one appears
+  private gt: GhostTrainRigs | null = null;
   private wrecks = new Map<string, THREE.Mesh>();
   private wreckMat = actorMaterial({});
   /** The tent's fallen tarp: both faces (folds), nudged toward the camera so it never fights the ground. */
@@ -690,11 +693,16 @@ export class BossRigs {
     r.spot.intensity = 0;
     r.moonTint = 0;
     const shore: BossBase[] = [];
+    const line: BossBase[] = [];
     for (const b of g.bosses) {
       const x = lerp(b.px, b.x, alpha), y = lerp(b.py, b.y, alpha);
       seen.add(b.def.id);
       if (BW_IDS.has(b.def.id)) {
         shore.push(b);
+        continue;
+      }
+      if (GT_BOSS_IDS.has(b.def.id)) {
+        line.push(b);
         continue;
       }
       switch (b.def.id) {
@@ -716,6 +724,10 @@ export class BossRigs {
     if (shore.length || this.bw) {
       const bw = (this.bw ??= { barker: new BarkerRig(this.scene), captain: new CaptainRig(this.scene), ride: new LastRideRig(this.scene), leviathan: new LeviathanRig(this.scene), commodore: new CommodoreRig(this.scene) });
       updateBoardwalkRigs(bw, shore, g, r, alpha, dt);
+    }
+    if (line.length || this.gt) {
+      const gt = (this.gt ??= makeGhostTrainRigs(this.scene));
+      updateGhostTrainRigs(gt, line, g, r, alpha, dt);
     }
     if (this.fh) {
       if (!seen.has('crooked_twins')) this.fh.twins.group.visible = false;
@@ -759,7 +771,7 @@ export class BossRigs {
       case 'ferris_wheel': return [1, 0.3, 0.3];
       case 'puppet_king': return [0.75, 0.5, 1];
       case 'calliope': return [0.45, 1, 0.7];
-      default: return funhouseGlow(b.def.id) ?? boardwalkGlow(b.def.id) ?? [1, 0.6, 0.35];
+      default: return funhouseGlow(b.def.id) ?? boardwalkGlow(b.def.id) ?? ghostTrainGlow(b.def.id) ?? [1, 0.6, 0.35];
     }
   }
 

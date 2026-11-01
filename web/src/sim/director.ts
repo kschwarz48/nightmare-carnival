@@ -10,6 +10,8 @@ import { PACING } from '../data/progression';
 import { MAP_HALF, PLAYER_BOUNDS } from '../data/map';
 import { ENDLESS_WAVE, VICTORY_LAP_WAVE, WAVES, type WaveDef } from '../data/waves';
 import { createBoss } from './bosses';
+import { regionAt } from '../data/ghosttrain';
+import { bossStation, homeOk, stationAlive, stationAnchor, stationSpawnPoint } from './ghosttrain';
 import type { Enemy } from './entities';
 import type { Game } from './game';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
@@ -87,6 +89,8 @@ export class Director {
         // D-24: a gate is held while another boss is still awake — bosses never stack.
         const otherAwake = g.bosses.some((b) => b.awake && !b.dead && b.def.id !== bd.id);
         if (!this.spawned.has(bd.id) && g.time >= bd.gate && !otherAwake) {
+          // the Ghost Train (D-80): a boss due while everyone is riding waits on the next platform
+          if (g.mapId === 'ghost_train' && bossStation(g, bd.id === g.map.finalBoss) === null) continue;
           this.spawned.add(bd.id);
           g.bosses.push(createBoss(g, bd));
         }
@@ -112,12 +116,15 @@ export class Director {
     const minutes = g.minutes;
     const B = this.blended(wave);
     const cap = Math.min(B.maxAlive * (g.endless ? 1.4 : 1), this.cap);
+    // the Ghost Train (D-80): the waves fill the stations; what rides the train has its own spawner
+    const ghost = g.mapId === 'ghost_train';
+    let alive = ghost ? stationAlive(g) : g.active.length;
 
     if (wave.id !== this.currentWave) {
       this.currentWave = wave.id;
       for (let i = 0; i < (wave.eliteBurst ?? 0); i++) {
         if (g.active.length >= this.cap) break;
-        this.spawnOne(wave, true);
+        if (this.spawnOne(wave, true)) alive++;
       }
       if (wave.eliteBurst) g.bus.emit('banner', { text: 'ELITE GAUNTLET!', sub: 'Golden-rimmed horrors approach', style: 'danger' });
     }
@@ -125,20 +132,26 @@ export class Director {
     // Miniboss cadence (doc 03 §6).
     this.minibossAcc += dt;
     if (this.minibossAcc >= g.diff.minibossInterval && !g.victoryLap) {
-      this.minibossAcc = 0;
-      const pt = this.spawnPoint();
-      g.spawnEnemy(g.map.miniboss, pt.x, pt.y);
-      if (!this.bruteAnnounced) {
-        this.bruteAnnounced = true;
-        g.bus.emit('banner', { text: 'A CARNIVAL BRUTE APPROACHES', sub: 'He carries a prize chest', style: 'gold' });
+      // the Ghost Train's Inspector only walks the stations: while everyone rides he waits for the next one
+      const anchor = ghost ? stationAnchor(g) : null;
+      if (!ghost || anchor) {
+        this.minibossAcc = 0;
+        const pt = anchor ? stationSpawnPoint(g, anchor) : this.spawnPoint();
+        g.spawnEnemy(g.map.miniboss, pt.x, pt.y, { exact: ghost });
+        if (!this.bruteAnnounced) {
+          this.bruteAnnounced = true;
+          if (ghost) g.bus.emit('banner', { text: 'THE TICKET INSPECTOR IS ON HIS ROUNDS', sub: 'He carries a prize chest', style: 'gold' });
+          else g.bus.emit('banner', { text: 'A CARNIVAL BRUTE APPROACHES', sub: 'He carries a prize chest', style: 'gold' });
+        }
       }
     }
 
     // 1) baseline top-up
     let guard = 0;
     const minAlive = Math.min(B.minAlive, cap);
-    while (g.active.length < minAlive && guard++ < 40) {
+    while (alive < minAlive && guard++ < 40) {
       if (!this.spawnOne(wave)) break;
+      alive++;
     }
     // 2) steady pressure
     const mult = g.events.spawnRateMult * (g.cfg.curse ? 1 / CURSE.intervalMult : 1);
@@ -147,8 +160,9 @@ export class Director {
     while (this.intervalAcc >= interval) {
       this.intervalAcc -= interval;
       for (let i = 0; i < B.batch; i++) {
-        if (g.active.length >= cap) break;
+        if (alive >= cap || g.active.length >= this.cap) break;
         if (!this.spawnOne(wave)) break;
+        alive++;
       }
     }
     // 3) organic balloon drifts on the night wind (D-33) — irregular, never during recovery
@@ -181,8 +195,9 @@ export class Director {
     this.currentWave = '';
   }
 
-  private pickEnemy(wave: WaveDef): string | null {
-    const ws = wave.enemies.map((e) => e[1]);
+  private pickEnemy(wave: WaveDef, ok?: (id: string) => boolean): string | null {
+    const ws = wave.enemies.map((e) => (ok && !ok(e[0]) ? 0 : e[1]));
+    if (ok && !ws.some((w) => w > 0)) return null;
     for (let tries = 0; tries < 5; tries++) {
       const id = wave.enemies[this.g.rng.weighted(ws)][0];
       const def = ENEMIES[id];
@@ -194,7 +209,7 @@ export class Director {
       }
       return id;
     }
-    return 'living_balloon';
+    return this.g.mapId === 'ghost_train' ? 'gt_ticketless' : 'living_balloon';
   }
 
   eliteChance(): number {
@@ -202,6 +217,7 @@ export class Director {
   }
 
   spawnOne(wave: WaveDef, forceElite = false): boolean {
+    if (this.g.mapId === 'ghost_train') return this.spawnOneAtStation(wave, forceElite);
     const id = this.pickEnemy(wave);
     if (!id) return false;
     const pt = this.spawnPoint();
@@ -216,6 +232,23 @@ export class Director {
     }
     const elite = forceElite || this.g.rng.chance(this.eliteChance());
     return this.g.spawnEnemy(id, pt.x, pt.y, { elite, hpMult: wave.hpMult }) !== null;
+  }
+
+  /**
+   * The Ghost Train (D-80): one of the wave's creatures, at the station whose players have the fewest about them
+   * (a split party each gets a fair crowd), drawn only from the creatures that belong there. Nobody standing at
+   * a station (everyone riding): nothing.
+   */
+  private spawnOneAtStation(wave: WaveDef, forceElite: boolean): boolean {
+    const g = this.g;
+    const anchor = stationAnchor(g);
+    if (!anchor) return false;
+    const r = regionAt(anchor.x, anchor.y);
+    const id = this.pickEnemy(wave, (id) => homeOk(id, r));
+    if (!id) return false;
+    const pt = stationSpawnPoint(g, anchor);
+    const elite = forceElite || g.rng.chance(this.eliteChance());
+    return g.spawnEnemy(id, pt.x, pt.y, { elite, hpMult: wave.hpMult, exact: true }) !== null;
   }
 
   /** A marching rank of Puppet Soldiers sharing one formation controller. */
@@ -297,7 +330,9 @@ export class Director {
   private spawnBalloonDrift(wave: WaveDef): void {
     const g = this.g;
     const sw = wave.swarm!;
-    const p = g.spawnAnchor();
+    // the Ghost Train's moths come in out of the dark round a station, never into the moving train
+    const p = g.mapId === 'ghost_train' ? stationAnchor(g) : g.spawnAnchor();
+    if (!p) return;
     const r = g.rng;
     const size = Math.max(4, Math.round(sw.size * (0.22 + 0.78 * Math.pow(r.next(), 1.6))));
     // enter roughly from upwind, never from exactly the same place twice

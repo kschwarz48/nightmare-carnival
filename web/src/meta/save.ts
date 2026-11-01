@@ -66,6 +66,8 @@ export interface SaveData {
   funhouseTester?: boolean;
   /** alpha testing aid: `?unlock=boardwalk` opens the Boardwalk on this save (D-68) */
   boardwalkTester?: boolean;
+  /** alpha testing aid: `?unlock=ghosttrain` opens the Ghost Train on this save (D-80) */
+  ghosttrainTester?: boolean;
   /** owned weapons and passives the player has left out of their drafts (D-78); they stay owned */
   disabled?: string[];
   /** Lost Tickets spent at the Lost & Found since the last refund (D-78), so a later price change can refund exactly */
@@ -394,6 +396,8 @@ export class SaveManager {
     if (id === 'fun_house') return this.hasAchievement('beat_ringmaster') || this.hubUnlocked() || !!this.data.funhouseTester;
     // the Boardwalk (D-68): once the Fun House has been survived (the Proprietor beaten), or the alpha tester flag
     if (id === 'boardwalk') return this.hasAchievement('beat_proprietor') || !!this.data.boardwalkTester;
+    // the Ghost Train (D-80): once the Boardwalk has been survived (the Leviathan beaten), or the tester flag
+    if (id === 'ghost_train') return this.hasAchievement('beat_leviathan') || !!this.data.ghosttrainTester;
     return false;
   }
   dailyAvailable(): boolean {

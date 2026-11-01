@@ -8,6 +8,7 @@ import { crooked, doppel, glasswalker, mannequin, marionette, splitter, thief } 
 import { angler, automaton, barnacle, collector, crab, drowned, duckline, taffy, tidecaller, usher, wraith } from './boardwalkAI';
 import type { Game } from './game';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
+import { GT_BEHAVIORS } from './ghostTrainAI';
 
 const P = (e: Enemy, k: string, d: number): number => {
   const v = e.def.params[k];
@@ -51,6 +52,9 @@ export function bracing(e: Enemy): boolean {
     case 'marionette': case 'taffy': return s === 1;
     case 'wraith': return s >= 1 && s <= 3;
     case 'angler': return s === 2 || s === 3;
+    // the Ghost Train (D-80): a pounce or a charge down its lane, a hop, a lunge
+    case 'gt_railcrawler': case 'gt_hound': return s === 1 || s === 2;
+    case 'gt_mimic': case 'gt_gravebound': return s === 2;
     default: return false;
   }
 }
@@ -108,6 +112,7 @@ export function updateEnemy(g: Game, e: Enemy, dt: number): void {
     case 'collector': collector(g, e, dt); break;
     case 'tidecaller': tidecaller(g, e, dt); break;
     case 'duckline': duckline(g, e, dt); break;
+    default: GT_BEHAVIORS[e.def.behavior]?.(g, e, dt);
   }
   // a Reflection Thief's decoy fades after a while
   if (e.illusion && e.spawnT > 12) g.despawnEnemy(e);

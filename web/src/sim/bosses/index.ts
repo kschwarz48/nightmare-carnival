@@ -16,6 +16,13 @@ import { DrownedCaptainBoss } from './captain';
 import { LastRideBoss } from './lastRide';
 import { LeviathanBoss } from './leviathan';
 import { CommodoreBoss } from './commodore';
+import { StationmasterBoss } from './stationmaster';
+import { StokerBoss } from './stoker';
+import { WidowBoss } from './widow';
+import { ForemanBoss } from './foreman';
+import { HourThiefBoss } from './hourThief';
+import { NightExpressBoss } from './nightExpress';
+import { ConductorBoss } from './conductor';
 
 export function createBoss(g: Game, def: BossDef, opts?: BossOpts): BossBase {
   switch (def.id) {
@@ -36,5 +43,13 @@ export function createBoss(g: Game, def: BossDef, opts?: BossOpts): BossBase {
     case 'last_ride': return new LastRideBoss(g, def, opts);
     case 'leviathan': return new LeviathanBoss(g, def, opts);
     case 'commodore': return new CommodoreBoss(g, def, opts);
+    // the Ghost Train (D-80)
+    case 'stationmaster': return new StationmasterBoss(g, def, opts);
+    case 'stoker': return new StokerBoss(g, def, opts);
+    case 'widow': return new WidowBoss(g, def, opts);
+    case 'foreman': return new ForemanBoss(g, def, opts);
+    case 'hour_thief': return new HourThiefBoss(g, def, opts);
+    case 'night_express': return new NightExpressBoss(g, def, opts);
+    case 'conductor': return new ConductorBoss(g, def, opts);
   }
 }

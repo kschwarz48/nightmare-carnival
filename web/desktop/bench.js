@@ -50,6 +50,8 @@ let SCENARIOS = [
   { name: 'fun house late, crowd 400', map: 'fun_house', t: 1260, crowd: 400, seconds: 20, ...LATE },
   { name: 'boardwalk late, crowd 400', map: 'boardwalk', t: 1260, crowd: 400, seconds: 20, ...LATE },
   { name: 'boardwalk boss: Leviathan', map: 'boardwalk', t: 1380, crowd: 150, boss: 'leviathan', seconds: 20, ...LATE },
+  { name: 'ghost train late, crowd 400', map: 'ghost_train', t: 1300, crowd: 400, seconds: 20, ...LATE },
+  { name: 'ghost train boss: Night Express', map: 'ghost_train', t: 1380, crowd: 150, boss: 'night_express', seconds: 20, ...LATE },
 ];
 if (flag('qualities')) {
   SCENARIOS.push({ name: 'carnival late, crowd 400 (Medium)', map: 'carnival_core', t: 1260, crowd: 400, seconds: 12, quality: 'medium', ...LATE });

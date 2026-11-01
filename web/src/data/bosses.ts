@@ -3,7 +3,8 @@
 export interface BossDef {
   id: 'carnival_tent' | 'ferris_wheel' | 'puppet_king' | 'ringmaster' | 'calliope'
     | 'crooked_twins' | 'looking_glass' | 'stringmistress' | 'proprietor' | 'unreflected'
-    | 'barker' | 'drowned_captain' | 'last_ride' | 'leviathan' | 'commodore';
+    | 'barker' | 'drowned_captain' | 'last_ride' | 'leviathan' | 'commodore'
+    | 'stationmaster' | 'stoker' | 'widow' | 'foreman' | 'hour_thief' | 'night_express' | 'conductor';
   name: string;
   title: string;
   gate: number;
@@ -142,11 +143,69 @@ export const COMMODORE_DEF: BossDef = {
   lore: 'He built Penhallow\'s Boardwalk in 1904 and bargained with the sea to keep it full. He paid with other people.', barColor: '#e8e0c0',
 };
 
+// ---------------------------------------------------------------- the Ghost Train (D-80): six gates in 35 minutes
+// Every five minutes from 5:00; each fights at a station (the one with the most of the party standing on it),
+// waits on the next platform while everyone rides, and follows the party down the line if they leave it.
+// The final boss comes at 30:00 to the End of the Line, where the last train has terminated.
+export const GHOST_BOSSES: BossDef[] = [
+  {
+    id: 'stationmaster', name: 'The Stationmaster', title: 'Mind the Gap', gate: 300, hp: 6800, contact: 16, radius: 70, enrage: 100,
+    phases: [{ at: 1, name: 'Platform One' }, { at: 0.6, name: 'Delays Expected' }, { at: 0.25, name: 'Final Call' }],
+    intro: 'A whistle, a lantern and a watch the size of a cartwheel. "Tickets, please. The Midnight Line is never late."',
+    defeat: 'His watch stops. He looks at it as if he has never seen it before, and sits down on the platform to wait.', unlocks: '—',
+    lore: 'Hollow Junction\'s stationmaster kept the Midnight Line to the second for forty years. It never occurred to him to ask where it went.', barColor: '#e8c070',
+  },
+  {
+    id: 'stoker', name: 'The Stoker', title: 'Feed the Fire', gate: 600, hp: 17500, contact: 20, radius: 82, enrage: 100,
+    phases: [{ at: 1, name: 'Banked Coals' }, { at: 0.66, name: 'Full Steam' }, { at: 0.33, name: 'Blowback' }],
+    intro: 'The Cinder Works\' furnace doors fly open. Something with a shovel and a fire where its heart should be climbs out of the coal.',
+    defeat: 'The fire in his chest gutters, and goes out. What is left is cold slag in the shape of a man.', unlocks: '—',
+    lore: 'Every train needs a fireman. The Midnight Line\'s has been shovelling for a hundred years, and what he burns is not coal.', barColor: '#ff7a3a',
+  },
+  {
+    id: 'widow', name: 'The Widow of Saint Vesper\'s', title: 'Bury Them Deep', gate: 900, hp: 39000, contact: 22, radius: 75, enrage: 160,
+    phases: [{ at: 1, name: 'The Vigil' }, { at: 0.66, name: 'The Wake' }, { at: 0.33, name: 'The Procession' }],
+    intro: 'Out of the graveyard mist, in black that has never faded, she comes to meet the train. She has met every one.',
+    defeat: 'Her veil lifts on the wind and is gone. Under it there was nobody at all, only the smell of lilies.', unlocks: '—',
+    lore: 'She came to Saint Vesper\'s to meet her husband off the last train in 1899. The train came. He was not on it. She has waited on that platform ever since.', barColor: '#9a8ac8',
+  },
+  {
+    id: 'foreman', name: 'The Iron Foreman', title: 'The Works Never Close', gate: 1200, hp: 84000, contact: 24, radius: 92, enrage: 200,
+    phases: [{ at: 1, name: 'First Shift' }, { at: 0.66, name: 'Overtime' }, { at: 0.33, name: 'Meltdown' }],
+    intro: 'The works siren howls. A man-shaped boiler of rivets and plate, a steam hammer for a fist, clocks in for the night shift.',
+    defeat: 'His boiler splits along every seam at once. The siren winds down, and for the first time in a century the Cinder Works is quiet.', unlocks: '—',
+    lore: 'He built the Midnight Line\'s engines, and the men who built them with him are in the furnace. He never let anybody clock off.', barColor: '#d8a050',
+  },
+  {
+    id: 'hour_thief', name: 'The Hour Thief', title: 'Stillwater Keeps No Time', gate: 1500, hp: 145000, contact: 24, radius: 80, enrage: 220,
+    phases: [{ at: 1, name: 'Tick' }, { at: 0.66, name: 'Tock' }, { at: 0.33, name: 'The Stopped Hour' }],
+    intro: 'Every clock in Stillwater strikes thirteen. Something long and brass, with hands for fingers, steps out of the church tower\'s face.',
+    defeat: 'The hands spin backwards, faster and faster, and fly apart. All over Stillwater, the clocks start ticking again.', unlocks: '—',
+    lore: 'Stillwater sold Marrow its hours so the Midnight Line could keep its timetable. The thing he sent to collect them never stopped.', barColor: '#c8d8a0',
+  },
+  {
+    id: 'night_express', name: 'The Night Express', title: 'The End of the Line', gate: 1800, hp: 185000, contact: 26, radius: 100, enrage: 260,
+    phases: [{ at: 1, name: 'Departure' }, { at: 0.66, name: 'Full Steam Ahead' }, { at: 0.33, name: 'Runaway' }],
+    intro: 'Out of the dark past the buffers, a locomotive comes on without a track, its headlamp an eye and its smokebox a mouth. The dawn will have to get past it.',
+    defeat: 'The Night Express screams, jumps the edge of the world, and falls. Far below, its headlamp goes out. Grey light is coming up behind the buffers.', unlocks: 'The Conductor · Endless',
+    lore: 'Engine No. 13. Marrow\'s bargain made flesh of iron: every night it runs the last train to the End of the Line, and every night it comes back empty.', barColor: '#ff5040',
+  },
+];
+
+/** Secret boss — only reachable through The Last Train Home (the Ghost Train's hidden quest). */
+export const CONDUCTOR_DEF: BossDef = {
+  id: 'conductor', name: 'The Conductor', title: 'All Tickets Punched', gate: 99999, hp: 220000, contact: 26, radius: 80, enrage: 280,
+  phases: [{ at: 1, name: 'Tickets, Please' }, { at: 0.66, name: 'Final Destination' }, { at: 0.33, name: 'Terminus' }],
+  intro: 'The lamps on the End of the Line go out one by one. In the dark, a punch clicks. "This train terminates here. All passengers must alight."',
+  defeat: 'His punch falls from his hand. The Midnight Line has no conductor, and the last train of the night is free to go home.', unlocks: 'True Dawn',
+  lore: 'Silas Marrow, who sold the line\'s passengers to keep it running, and was made to punch their tickets for ever after.', barColor: '#f0e0b0',
+};
+
 // The active map's schedule (maps.ts `useMap`); the Carnival Core by default.
 export let BOSSES: BossDef[] = CARNIVAL_BOSSES;
 export function applyBossSchedule(list: BossDef[]): void {
   BOSSES = list;
 }
 
-export const ALL_BOSSES: BossDef[] = [...CARNIVAL_BOSSES, CALLIOPE_DEF, ...FUNHOUSE_BOSSES, UNREFLECTED_DEF, ...BOARDWALK_BOSSES, COMMODORE_DEF];
+export const ALL_BOSSES: BossDef[] = [...CARNIVAL_BOSSES, CALLIOPE_DEF, ...FUNHOUSE_BOSSES, UNREFLECTED_DEF, ...BOARDWALK_BOSSES, COMMODORE_DEF, ...GHOST_BOSSES, CONDUCTOR_DEF];
 export const BOSS_MAP = Object.fromEntries(ALL_BOSSES.map((b) => [b.id, b])) as Record<BossDef['id'], BossDef>;

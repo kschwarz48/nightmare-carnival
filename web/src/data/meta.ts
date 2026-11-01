@@ -103,11 +103,20 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'beat_last_ride', name: 'End of the Line', desc: 'Defeat the Last Ride.', reward: 80 },
   { id: 'beat_leviathan', name: 'Low Tide', desc: "Defeat the Leviathan and see the Boardwalk's dawn.", reward: 150 },
   { id: 'summers_end', name: "Summer's End", desc: 'Close the Commodore\'s account.', reward: 400 },
+  // the Ghost Train (D-80)
+  { id: 'beat_stationmaster', name: 'Mind the Gap', desc: 'Defeat the Stationmaster.', reward: 40 },
+  { id: 'beat_stoker', name: 'Banked', desc: 'Defeat the Stoker.', reward: 50 },
+  { id: 'beat_widow', name: 'Laid to Rest', desc: "Defeat the Widow of Saint Vesper's.", reward: 60 },
+  { id: 'beat_foreman', name: 'Clocked Off', desc: 'Defeat the Iron Foreman.', reward: 80 },
+  { id: 'beat_hour_thief', name: 'Thirteen O\'Clock', desc: 'Defeat the Hour Thief.', reward: 100 },
+  { id: 'beat_night_express', name: 'End of the Line', desc: "Defeat the Night Express and see the Ghost Train's dawn.", reward: 180 },
+  { id: 'last_train', name: 'The Last Train Home', desc: 'Punch every ticket, and see the Conductor off.', reward: 500 },
 ];
 
 /** End-of-run payout (doc 01 §8). */
-export function computePayout(o: { seconds: number; bosses: number; kills: number; won: boolean; greed: number; endlessExtraSeconds?: number }): number {
-  const base = Math.floor(Math.min(o.seconds, 1500) / 6) + 50 * o.bosses + Math.floor(o.kills / 25) + (o.won ? 100 : 0)
+export function computePayout(o: { seconds: number; bosses: number; kills: number; won: boolean; greed: number; endlessExtraSeconds?: number; dawn?: number }): number {
+  // D-80: the clock pays to the night's own dawn (the Ghost Train's is 35:00)
+  const base = Math.floor(Math.min(o.seconds, o.dawn ?? 1500) / 6) + 50 * o.bosses + Math.floor(o.kills / 25) + (o.won ? 100 : 0)
     + Math.floor((o.endlessExtraSeconds ?? 0) / 4);
   return Math.round(base * o.greed);
 }

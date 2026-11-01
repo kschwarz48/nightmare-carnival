@@ -30,6 +30,9 @@ import { placeSpawn, refreshSea, updateBoardwalk, wadeFactor } from './boardwalk
 import { crackShell, EMERGE, MARKED_HASTE, payBack } from './boardwalkAI';
 import { WADE, waterDepth } from '../data/boardwalk';
 import { dispelDecoys } from './funhouseAI';
+import { gtDeath, porterShield } from './ghostTrainAI';
+import { anyoneIn, updateGhostTrain, refreshTrainDoors } from './ghosttrain';
+import { regionAt as gtRegionAt, openGround as gtOpenGround, nearGround as gtNearGround } from '../data/ghosttrain';
 import type { BehaviorId } from '../data/enemies';
 
 /** Behaviours that lay down telegraphed hazards of their own: those go when the enemy does (D-68). */
@@ -164,6 +167,8 @@ export type GameEvents = {
   quest: QuestCue;
   meta_currency: { amount: number; source: string; player?: number };
   balloon_drift: { x: number; y: number; dirX: number; dirY: number; size: number };
+  /** the Ghost Train (D-80): it left a station (`at`) or arrived at one, and where it goes next */
+  train: { what: 'depart' | 'arrive'; at: number; to: number };
 };
 
 type Phase = 'play' | 'draft' | 'dawn' | 'ended';
@@ -372,6 +377,7 @@ export class Game {
     this.quests = new QuestSystem(this, this.mapId);
     if (this.mapId === 'fun_house') refreshFunhouseWalls(this);
     if (this.mapId === 'boardwalk') refreshSea(this);
+    if (this.mapId === 'ghost_train') refreshTrainDoors(this);
   }
 
   // ------------------------------------------------------------------ party
@@ -514,6 +520,8 @@ export class Game {
     this.nav.collide(this);
     if (P) pt = perf.sysMark(SYS.collide, pt);
     for (const b of this.bosses) {
+      // the Ghost Train (D-80): a boss holds still while nobody is in its place (it waits on its platform)
+      if (this.mapId === 'ghost_train' && !b.dead && !anyoneIn(this, gtRegionAt(b.x, b.y))) continue;
       if (multi) this.setCtx(this.bossTargetFor(b));
       b.update(dt);
     }
@@ -546,6 +554,7 @@ export class Game {
     this.setCtx(p0);
     if (this.mapId === 'fun_house') this.updateFunhouse(dt);
     if (this.mapId === 'boardwalk') updateBoardwalk(this, dt);
+    if (this.mapId === 'ghost_train') updateGhostTrain(this, dt);
     this.updateTimers(dt);
     this.cleanupDead();
     if (P) perf.sysMark(SYS.map, pt);
@@ -810,7 +819,7 @@ export class Game {
     e.windup = 0;
     e.trail = null;
     // the Boardwalk (D-68): risers climb up out of the sand, sea things up out of the surf; crusts; loot
-    e.emerge = this.mapId === 'boardwalk' && (def.rises || (def.aquatic && waterDepth(e.x, e.y) > 30)) ? EMERGE : 0;
+    e.emerge = this.mapId === 'boardwalk' && (def.rises || (def.aquatic && waterDepth(e.x, e.y) > 30)) ? EMERGE : this.mapId === 'ghost_train' && def.rises ? EMERGE : 0;
     e.cracked = false;
     e.shellLeft = def.shell ? def.shell.soak * e.maxHp : 0;
     e.loot = 0;
@@ -853,7 +862,8 @@ export class Game {
       return;
     }
     this.kills++;
-    if (d.behavior === 'ambusher' || d.behavior === 'brute' || d.behavior === 'line_charger' || d.behavior === 'rail_strafer' || TELEGRAPHERS.has(d.behavior)) this.clearHazardsOf(e.uid);
+    if (d.behavior === 'ambusher' || d.behavior === 'brute' || d.behavior === 'line_charger' || d.behavior === 'rail_strafer' || TELEGRAPHERS.has(d.behavior) || d.behavior.startsWith('gt_')) this.clearHazardsOf(e.uid);
+    if (d.behavior.startsWith('gt_')) gtDeath(this, e);
     this.dropTickets(e.x, e.y, e.tickets);
     this.fx.push('death', e.x, e.y, e.scale * (d.drawScale * d.radius) / 34, e.elite ? 1 : 0, 0, d.deathFx);
     this.bus.emit('sfx', { id: d.deathSfx, x: e.x, y: e.y, vol: e.elite ? 1 : 0.55 });
@@ -913,6 +923,8 @@ export class Game {
     }
     let dmg = amount;
     if (e.frozenT > 0) dmg *= 1.25;
+    // the Ghost Train's Porter (D-80): his trunk soaks what comes at him from the front
+    if (e.def.behavior === 'gt_porter') dmg *= porterShield(e, srcX, srcY);
     // a crust (D-68) soaks most of each hit until it has taken its share, then cracks
     const sh = e.def.shell;
     if (sh) {
@@ -1966,14 +1978,16 @@ export class Game {
       const d = this.rng.range(minD, maxD);
       const x = clamp(p.x + Math.cos(a) * d, PLAYER_BOUNDS.minX + 40, PLAYER_BOUNDS.maxX - 40);
       const y = clamp(p.y + Math.sin(a) * d, PLAYER_BOUNDS.minY + 40, PLAYER_BOUNDS.maxY - 40);
-      // the Boardwalk (D-68): never out in water deeper than a wade
-      let ok = this.mapId !== 'boardwalk' || waterDepth(x, y) < WADE - 50;
+      // the Boardwalk (D-68): never out in water deeper than a wade; the Ghost Train (D-80): on the ground of
+      // the place the player is in (the platform and the station's grounds, or inside the carriages)
+      let ok = this.mapId === 'boardwalk' ? waterDepth(x, y) < WADE - 50 : this.mapId === 'ghost_train' ? gtOpenGround(p.x, p.y, x, y) : true;
       for (const pr of PROPS) {
         if (pr.r && dist2(pr.x, pr.y, x, y) < (pr.r + 30) ** 2) ok = false;
         else if (pr.hw && pr.hh && Math.abs(x - pr.x) < pr.hw + 30 && Math.abs(y - pr.y) < pr.hh + 30) ok = false;
       }
       if (ok) return { x, y };
     }
+    if (this.mapId === 'ghost_train') return gtNearGround(p.x, p.y);
     return { x: p.x + 220, y: p.y };
   }
 
@@ -2104,7 +2118,7 @@ export class Game {
     const p = this.player;
     const greed = p.stats.greed + this.diff.greed + (this.cfg.curse ? CURSE.payoutMult - 1 : 0);
     const endlessExtra = this.endless ? this.time - this.endlessStart : 0;
-    let lt = computePayout({ seconds: this.time, bosses: this.bossKills, kills: this.kills, won: won || this.endless, greed, endlessExtraSeconds: endlessExtra });
+    let lt = computePayout({ seconds: this.time, bosses: this.bossKills, kills: this.kills, won: won || this.endless, greed, endlessExtraSeconds: endlessExtra, dawn: DAWN_TIME });
     if (this.endless) lt = Math.max(0, lt - this.wonPayoutBanked); // only the extra beyond what was banked at dawn
     if (this.time >= 720) this.achievementsHit.add('reach_12');
     if (won) {

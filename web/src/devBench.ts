@@ -58,6 +58,7 @@ export async function runBenchScenario(app: App, advance: (sec: number) => unkno
     // a fresh benchmark profile hasn't unlocked the later maps
     app.save.data.funhouseTester = true;
     app.save.data.boardwalkTester = true;
+    app.save.data.ghosttrainTester = true;
     const s0 = performance.now();
     app.startRun({ character: sc.char ?? 'carny', difficulty: 'midway', curse: false, map: sc.map ?? 'carnival_core', seed: sc.seed ?? 777 });
     startRunMs = performance.now() - s0;

@@ -40,6 +40,12 @@ import { MIRA, PERFORMER_NAMES, PERFORMER_NOTES } from './data/funhouse';
 import type { UnreflectedChain } from './sim/quest/unreflected';
 import { ADA, CALL, GAME_NAMES, KEEPSAKES, SUMMERS_END, TIDE, callLength, nextTideTurn, shoreMix } from './data/boardwalk';
 import { SE, type SummersEndChain } from './sim/quest/summersEnd';
+import { LT, type LastTrainChain } from './sim/quest/lastTrain';
+import { LT_TEXT } from './data/lastTrain';
+import { PASSENGERS } from './data/gtStations';
+import { CRUISE, REGIONS as GT_REGIONS, TRANSIT, legSpeed, nextArrival, regionAt as gtRegionAt, trainAt, type TrainState } from './data/ghosttrain';
+import { eFromOf } from './sim/ghosttrain';
+import { LineBoard, lineText } from './ui/lineBoard';
 import type { QuestCue } from './sim/quest';
 import { FocusNav, h, morph, uiZoom, zoomFor } from './ui/dom';
 import * as S from './ui/screens';
@@ -185,6 +191,10 @@ export class App {
   private tideSaid = -1;
   /** the hoist's winch as last heard (D-79): the bell's progress, rising (1) / slipping (-1) / still, when it moved, the next sound */
   private winch = { v: 0, trend: 0, at: 0, next: 0 };
+  /** the Ghost Train's departures line under the clock, and what the timetable last was (for its sounds) */
+  private lineBoard = new LineBoard();
+  private lastTrain: TrainState | null = null;
+  private chuffAcc = 0;
   private chestQueue: (() => void)[] = [];
 
   constructor() {
@@ -255,6 +265,11 @@ export class App {
     // alpha testing aid: ?unlock=boardwalk opens the Boardwalk on this save (D-68)
     if (new URLSearchParams(location.search).get('unlock') === 'boardwalk') {
       this.save.data.boardwalkTester = true;
+      this.save.save();
+    }
+    // alpha testing aid: ?unlock=ghosttrain opens the Ghost Train on this save (D-80)
+    if (new URLSearchParams(location.search).get('unlock') === 'ghosttrain') {
+      this.save.data.ghosttrainTester = true;
       this.save.save();
     }
     // alpha testing aid: ?unlock=midway opens the hub on this save without finishing the Last Song
@@ -536,7 +551,10 @@ export class App {
     this.go('playing');
     this.prewarmPrize();
     this.audio.endBossSong();
-    this.audio.setCue(this.game?.mapId === 'fun_house' ? 'fh_act1' : this.game?.mapId === 'boardwalk' ? 'bw_act1' : 'act1');
+    this.audio.setCue(this.game?.mapId === 'fun_house' ? 'fh_act1' : this.game?.mapId === 'boardwalk' ? 'bw_act1' : this.game?.mapId === 'ghost_train' ? 'gt_act1' : 'act1');
+    this.lastTrain = null;
+    if (!this.lineBoard.el.isConnected) this.hud.root.append(this.lineBoard.el);
+    this.lineBoard.update(null);
     this.hud.banner(title, sub, 'gold', 3);
     this.tutorial('move', 'Move with <b>WASD</b>, the <b>arrow keys</b> or the <b>left stick</b>. Your weapons fire on their own.');
   }
@@ -615,9 +633,9 @@ export class App {
       // first-ever kill unlocks are awarded at run end via achievements
     });
     // a Fun House night has its own score between bosses (D-63); boss fights keep Bradley's song
-    const prefix = g.mapId === 'fun_house' ? 'fh_' : g.mapId === 'boardwalk' ? 'bw_' : '';
+    const prefix = g.mapId === 'fun_house' ? 'fh_' : g.mapId === 'boardwalk' ? 'bw_' : g.mapId === 'ghost_train' ? 'gt_' : '';
     const houseCue = (c: string) => (prefix && /^(act[1-4]|endless)$/.test(c) ? `${prefix}${c}` : c);
-    a.setAmbience(g.mapId === 'fun_house' ? 'funhouse' : g.mapId === 'boardwalk' ? 'boardwalk' : 'carnival');
+    a.setAmbience(g.mapId === 'fun_house' ? 'funhouse' : g.mapId === 'boardwalk' ? 'boardwalk' : g.mapId === 'ghost_train' ? 'ghosttrain' : 'carnival');
     g.bus.on('music', (e) => a.setCue(houseCue(e.cue)));
     g.bus.on('act', (e) => {
       a.setCue(houseCue(`act${e.act}`));
@@ -723,6 +741,10 @@ export class App {
     }
     if (q.chain === 'summers_end') {
       this.onSummersEnd(g, q);
+      return;
+    }
+    if (q.chain === 'last_train' || q.chain === 'gt_line') {
+      this.onLastTrain(g, q);
       return;
     }
     const a = this.audio;
@@ -963,6 +985,290 @@ export class App {
    * Summer's End (D-68): Ada answers through the shells, the machines and bells answer for themselves,
    * and nothing ever reads like a checklist. The lighthouse flashes the call sign as the horn sounds it.
    */
+  /**
+   * The Ghost Train each frame (D-80): the departures line under the clock, the ambience's mix (the stations'
+   * night against the carriages' rattle, quickening with the train), and the train's own sounds, read off the
+   * timetable (so a guest hears exactly what the host does): the bell ten seconds before it goes, the whistle
+   * at five, the doors, the chuff pulling out, the brakes coming in, the rush over the bridge. Heard full aboard
+   * and at the station it stands at or is pulling into or out of; a far whistle everywhere else.
+   */
+  private ghostTrainFrame(g: Game, dt: number): void {
+    if (g.mapId !== 'ghost_train') return;
+    const me = g.players[this.localIndex] ?? g.player;
+    const eFrom = eFromOf(g);
+    this.lineBoard.update(g.phase === 'play' ? lineText(g.time, eFrom, me.x, me.y) : null);
+    const st = trainAt(g.time, eFrom);
+    const here = gtRegionAt(me.x, me.y);
+    const riding = here === TRANSIT;
+    const speed = st.phase === 'travel' ? legSpeed(st.t, st.len) / CRUISE : 0;
+    this.audio.setLineMix(riding ? 1 : 0, speed);
+    const prev = this.lastTrain;
+    this.lastTrain = st;
+    if (!prev || g.phase !== 'play') return;
+    const a = this.audio;
+    // how loud the train is where I am
+    const near = riding || (st.phase === 'dwell' && st.at === here) || (st.phase === 'travel' && (st.at === here || (st.to === here && st.arriveIn < 12)));
+    const vol = near ? 1 : 0.2;
+    const crossed = (p: number, c: number, at: number) => p > at && c <= at;
+    if (st.phase === 'dwell' && prev.phase === 'dwell' && st.at === prev.at) {
+      if (crossed(prev.departIn, st.departIn, 10)) a.play('gt_bell', { vol: 0.7 * vol });
+      if (crossed(prev.departIn, st.departIn, 5)) {
+        a.play('gt_whistle', { vol: 0.9 * vol });
+        if (near && !riding && st.at === here) this.hud.toastMsg('All aboard!');
+      }
+      if (crossed(prev.departIn, st.departIn, 3)) a.play('gt_doors', { vol: 0.8 * (near ? 1 : 0) });
+      if (prev.t < 2 && st.t >= 2) a.play('gt_doors', { vol: 0.7 * (near ? 1 : 0) });
+    }
+    if (st.phase === 'travel') {
+      if (prev.phase === 'dwell') a.play('gt_chuff', { vol: 0.8 * vol });
+      // chuffs quickening as it pulls away, then the run
+      if (st.t < 9 && near) {
+        this.chuffAcc += dt * (0.8 + speed * 5);
+        if (this.chuffAcc >= 1) {
+          this.chuffAcc = 0;
+          a.play('gt_chuff', { vol: 0.55 * vol, pitch: 0.9 + speed * 0.3 });
+        }
+      }
+      if (crossed(prev.arriveIn, st.arriveIn, 6.5) && (riding || st.to === here)) a.play('gt_brake', { vol: 0.75 });
+      if (riding && st.at === 3 && st.t >= 13 && prev.t < 13) a.play('gt_rush', { vol: 0.8 });
+    }
+    if (st.phase === 'approach' && st.arriveIn < 18 && prev.arriveIn >= 18) a.play('gt_whistle', { vol: 0.5 });
+  }
+
+  /** The Last Train Home's cues (and the line's: the timetable read at a clock, the phantom doors). */
+  private onLastTrain(g: Game, q: QuestCue): void {
+    const a = this.audio;
+    const pan = (x?: number) => (x === undefined ? 0 : Math.max(-1, Math.min(1, (x - this.renderer.camX) / (this.renderer.viewWidth * 0.6))));
+    const fx = (type: string, style: string, aa = 1) => {
+      if (q.x !== undefined && q.y !== undefined) this.renderer.fx.handle([{ type: type as never, x: q.x, y: q.y, a: aa, b: 0, c: 0, style }]);
+    };
+    const say = (line: string[], dur = 5) => {
+      a.duckMusic(Math.min(3, dur * 0.5));
+      this.hud.whisper(line[0], line[1] || undefined, dur);
+    };
+    const card = (line: string[], who: string, dur = 10) => {
+      a.duckMusic(3);
+      a.play('fortune', { vol: 0.7 });
+      this.fortune.show(`${line[0]} ${line[1] ?? ''}`, dur, who);
+      this.chat.add({ kind: 'fortune', who, text: line[1] || line[0] });
+    };
+    const ch = g.quests?.get<LastTrainChain>('last_train');
+    const lever = (m: number) => [m % 5, Math.floor(m / 5) % 5, Math.floor(m / 25) % 5];
+    const place = (r: number) => GT_REGIONS[r]?.name ?? '';
+    switch (q.event) {
+      // ---- the line's own
+      case 'gt_timetable': {
+        if ((q.b ?? 0) !== this.localIndex) break;
+        const r = q.a ?? 0, eFrom = eFromOf(g);
+        const lines: string[] = [];
+        let t = g.time;
+        for (let k = 0; k < 3; k++) {
+          const at = nextArrival(r, t, eFrom, 1800);
+          if (!Number.isFinite(at)) break;
+          const s = trainAt(at + 0.5, eFrom);
+          const clock = (v: number) => `${Math.floor(v / 60)}:${String(Math.floor(v % 60)).padStart(2, '0')}`;
+          lines.push(`${clock(at)} → ${Number.isFinite(s.departIn) ? GT_REGIONS[s.to].short : 'terminates'}`);
+          t = at + 1;
+        }
+        a.play('gt_tick', { vol: 0.6 });
+        this.hud.whisper(`${place(r)} — the timetable`, lines.length ? lines.join('   ') : 'No more trains call here tonight.', 6);
+        break;
+      }
+      case 'gt_phantom_open':
+        this.hud.banner('THE DOORS HAVE OPENED', 'On every platform, a door stands open to the End of the Line', 'danger', 4);
+        a.play('gt_toll', { vol: 0.8 });
+        break;
+      case 'gt_phantom_through':
+        a.play('gt_doors', { vol: 0.8, pan: pan(q.x) });
+        fx('ring', 'frost', 120);
+        break;
+      // ---- the quest
+      case 'lt_ticket':
+        card(LT_TEXT.ticket, 'THE BOOKING OFFICE');
+        a.play('gt_punch', { vol: 0.4 });
+        break;
+      case 'lt_hint': {
+        const [who, text] = LT_TEXT.hint[q.a ?? 0] ?? LT_TEXT.hint[0];
+        card([text, ''], who, 9);
+        break;
+      }
+      case 'lt_board_torn':
+        say(LT_TEXT.boardTorn(q.a ?? 4), 5);
+        a.play('papercrinkle', { vol: 0.6, pan: pan(q.x) });
+        break;
+      case 'lt_board_levers':
+        say(LT_TEXT.boardLevers(lever(q.b ?? 0)), 7);
+        a.play('papercrinkle', { vol: 0.6, pan: pan(q.x) });
+        break;
+      case 'lt_page':
+        say(LT_TEXT.page(q.b ?? 1), 4);
+        a.play('papercrinkle', { vol: 0.8, pan: pan(q.x) });
+        fx('spark', 'gold', 6);
+        break;
+      case 'lt_pages':
+        card(LT_TEXT.pagesDone(lever(q.a ?? 0)), 'THE MENDED TIMETABLE', 12);
+        a.play('gt_chime', { vol: 0.7 });
+        break;
+      case 'lt_clock_no':
+        say(q.a === 1 ? LT_TEXT.clockJunction : LT_TEXT.clockNo, 4);
+        a.play('sour', { vol: 0.4, pan: pan(q.x) });
+        break;
+      case 'lt_clock':
+        say(LT_TEXT.clock(place(q.a ?? 0), q.b ?? 1), 4);
+        a.play('gt_tick', { vol: 0.8, pan: pan(q.x) });
+        setTimeout(() => a.play('gt_chime', { vol: 0.7, pan: pan(q.x) }), 300);
+        fx('ring', 'gold', 90);
+        break;
+      case 'lt_clocks':
+        this.hud.banner('THE LINE KEEPS TIME', 'Every station clock is running again', 'gold', 3.5);
+        a.play('gt_chime', { vol: 0.9 });
+        break;
+      case 'lt_lantern':
+        say(LT_TEXT.lantern, 7);
+        a.play('glint', { vol: 0.7, pan: pan(q.x) });
+        break;
+      case 'lt_signal_ahead':
+        if (ch && ch.lanternBy === this.localIndex) say(LT_TEXT.signalAhead, 3);
+        a.play('gt_bell', { vol: 0.5 });
+        break;
+      case 'lt_signal_none':
+        say(LT_TEXT.signalNone, 3);
+        break;
+      case 'lt_signal':
+        say(LT_TEXT.signal(q.b ?? 1), 4);
+        a.play('clank', { vol: 0.7 });
+        a.play('bellnote', { vol: 0.5, pitch: 1.5 });
+        break;
+      case 'lt_signals':
+        card(LT_TEXT.signalsDone, 'THE LINE IS CLEAR', 8);
+        break;
+      case 'lt_lever':
+        say(LT_TEXT.lever(q.b ?? 1), 4);
+        a.play('clank', { vol: 0.8, pan: pan(q.x) });
+        break;
+      case 'lt_lever_wrong':
+        say(LT_TEXT.leverWrong, 4);
+        a.play('gt_chain', { vol: 0.7, pan: pan(q.x) });
+        break;
+      case 'lt_points':
+        this.hud.banner('THE POINTS ARE SET', 'The next train from Stillwater calls at the End of the Line', 'gold', 4);
+        a.play('gt_whistle', { vol: 0.9 });
+        break;
+      case 'lt_bridge_ahead':
+        say(LT_TEXT.bridgeAhead, 4);
+        break;
+      case 'lt_bridge':
+        card(LT_TEXT.bridge, 'THE BRIDGE', 7);
+        a.play('gt_whistle', { vol: 1.1 });
+        setTimeout(() => a.play('gt_toll', { vol: 0.6 }), 1200);
+        break;
+      case 'lt_whistle':
+        a.play('gt_whistle', { vol: 1 });
+        break;
+      case 'lt_punch':
+        say(LT_TEXT.punch, 7);
+        a.play('gt_punch', { vol: 0.8, pan: pan(q.x) });
+        break;
+      case 'lt_passenger_wait':
+        say(LT_TEXT.passengerWait, 3);
+        break;
+      case 'lt_passenger':
+        say(LT_TEXT.passenger(PASSENGERS[q.a ?? 0], q.b ?? 1), 5);
+        a.play('gt_punch', { vol: 0.8, pan: pan(q.x) });
+        a.play('bellnote', { vol: 0.5, pitch: 1 + (q.b ?? 1) * 0.12 });
+        fx('ring', 'frost', 80);
+        break;
+      case 'lt_passengers':
+        card(LT_TEXT.tasksIntro(q.a ?? 3, [(q.b ?? 0) % 3, Math.floor((q.b ?? 0) / 3) % 3, Math.floor((q.b ?? 0) / 9) % 3]), 'FOUR LOST PASSENGERS', 16);
+        break;
+      case 'lt_letter':
+        say(LT_TEXT.letter, 6);
+        a.play('papercrinkle', { vol: 0.6 });
+        break;
+      case 'lt_posted':
+        say(LT_TEXT.posted, 4);
+        a.play('bellnote', { vol: 0.5, pitch: 0.9 });
+        break;
+      case 'lt_chute_wait':
+        say(['The chute is empty.', 'It only runs while a train stands at the Works.'], 3);
+        break;
+      case 'lt_chute':
+        a.play('gt_shovel', { vol: 0.8, pan: pan(q.x) });
+        break;
+      case 'lt_coal':
+        say(LT_TEXT.coal(q.a ?? 1), 4);
+        a.play('gt_shovel', { vol: 0.8, pan: pan(q.x) });
+        fx('spark', 'fire', 6);
+        break;
+      case 'lt_stoke':
+        say(LT_TEXT.stoke(q.a ?? 1), 3);
+        a.play('gt_furnace', { vol: 0.8 });
+        fx('spark', 'fire', 10);
+        break;
+      case 'lt_stoke_bad':
+        say(LT_TEXT.stokeBad, 3);
+        a.play('steam_hiss', { vol: 0.6 });
+        break;
+      case 'lt_hour_wait':
+        say(LT_TEXT.hourWait, 3);
+        break;
+      case 'lt_hour':
+        say(LT_TEXT.hour(q.a ?? 12), 2.5);
+        a.play('gt_chime', { vol: 0.6, pitch: 0.8 + (q.a ?? 12) * 0.02 });
+        break;
+      case 'lt_bell_wait':
+        say(LT_TEXT.bellWait, 3);
+        break;
+      case 'lt_bell':
+        a.play('gt_toll', { vol: 0.8, pitch: [0.8, 1, 1.2][q.a ?? 0] });
+        break;
+      case 'lt_bell_wrong':
+        say(LT_TEXT.bellWrong, 4);
+        a.play('sour', { vol: 0.5 });
+        break;
+      case 'lt_task':
+        say(LT_TEXT.task(PASSENGERS[q.a ?? 0], q.b ?? 1), 5);
+        for (const [k, p] of [[0, 1], [1, 1.26], [2, 1.5]] as const) setTimeout(() => a.play('bellnote', { vol: 0.5, pitch: p }), k * 160);
+        fx('ring', 'gold', 140);
+        break;
+      case 'lt_deliveries':
+        card(['Every passenger has done what they came to do.', 'Punch the last ticket at the End of the Line, while a train stands there.'], 'THE LAST TRAIN HOME', 9);
+        break;
+      case 'lt_ticket_wait':
+        say(LT_TEXT.lastTicketWait, 3);
+        break;
+      case 'lt_last_ticket':
+        card(LT_TEXT.lastTicket, 'THE LAST TICKET', 10);
+        a.play('gt_punch', { vol: 1 });
+        a.play('fanfare', { vol: 0.5 });
+        break;
+      case 'lt_finale':
+        this.hud.banner(LT_TEXT.finale[0].toUpperCase(), LT_TEXT.finale[1], 'danger', 5);
+        a.play('rumble', { vol: 0.9 });
+        break;
+      case 'lt_conductor':
+        a.play('demon', { vol: 0.5 });
+        a.play('gt_punch', { vol: 1 });
+        break;
+      case 'lt_homeward':
+        this.hud.banner(LT_TEXT.homeward[0].toUpperCase(), LT_TEXT.homeward[1], 'gold', 6);
+        a.play('gt_whistle', { vol: 1 });
+        break;
+      case 'lt_complete': {
+        const s = this.save;
+        for (const id of QUEST_UNLOCKS.last_train ?? []) if (!s.data.unlocks.includes(id)) s.data.unlocks.push(id);
+        const rec = (s.data.quests[q.chain] ??= { completions: 0, bestStage: 0 });
+        rec.completions++;
+        rec.bestStage = Math.max(rec.bestStage, LT.Complete);
+        s.save();
+        this.hud.banner(LT_TEXT.complete[0], LT_TEXT.complete[1], 'gold', 6);
+        a.play('fanfare', { vol: 0.8 });
+        break;
+      }
+    }
+  }
+
+
   private onSummersEnd(g: Game, q: QuestCue): void {
     const a = this.audio;
     const pan = (x?: number) => (x === undefined ? 0 : Math.max(-1, Math.min(1, (x - this.renderer.camX) / (this.renderer.viewWidth * 0.6))));
@@ -1677,6 +1983,7 @@ export class App {
       this.hud.padKeys = this.input.usingGamepad;
       this.hud.update(g!, this.fps, dt, this.hudScreen(cssW, cssH));
       this.boardwalkFrame(g!);
+      this.ghostTrainFrame(g!, dt);
       perf.mark(SEC.hud, h0);
     } else if (this.state === 'paused' || this.state === 'results') {
       if (g) {
@@ -2361,6 +2668,7 @@ export class App {
       this.hud.padKeys = this.input.usingGamepad;
       this.hud.update(g, this.fps, dt, this.hudScreen(cssW, cssH));
       this.boardwalkFrame(g);
+      this.ghostTrainFrame(g, dt);
     } else if (g.hub) this.updateHubHud(cssW, cssH);
     perf.mark(SEC.hud, h0);
     this.perfHud?.update(g, gs.diag);

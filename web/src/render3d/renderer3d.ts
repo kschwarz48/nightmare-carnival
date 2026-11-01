@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { clamp, lerp } from '../core/math';
-import { CAMERA_BOUNDS, LIGHTS, MAP_HALF, PROPS, SEA_Y } from '../data/map';
+import { CAMERA_BOUNDS, CAMERA_FOR, LIGHTS, MAP_HALF, PROPS, SEA_Y } from '../data/map';
 import type { Assets } from '../render/assets';
 import type { Frame } from '../render/atlas';
 import { FxSystem } from '../render/fx';
@@ -21,6 +21,7 @@ import { Ground3D } from './world/ground';
 import { LightShafts, Motes } from './world/atmosphere';
 import { FunhouseWorld } from './world/funhouse/world';
 import { BoardwalkWorld } from './world/boardwalk/world';
+import { GhostTrainWorld } from './world/ghosttrain/world';
 import { seaSurfaceHeight, seabedHeight, waterDepth } from '../data/boardwalk';
 import { EMERGE } from '../sim/boardwalkAI';
 import { miraHaloRadius } from '../sim/weapons';
@@ -77,6 +78,8 @@ const OUTDOOR = { sky: 0x34477a, ground: 0x2a1a10, hemiK: 1, fill: [0.045, 0.06,
 const INDOOR = { sky: 0x3d3052, ground: 0x1e1412, hemiK: 0.62, fill: [0.046, 0.036, 0.074], mist: [0.062, 0.046, 0.074], edge: [1e5, 1e5], mistK: 0.7 };
 /** The Boardwalk (D-68): a colder sea air, no thickening toward the map's far edges, the haze gathering over the water instead. */
 const COASTAL = { sky: 0x2c3a5a, ground: 0x1c1712, hemiK: 0.85, fill: [0.04, 0.055, 0.105], mist: [0.045, 0.06, 0.085], edge: [1e5, 1450], mistK: 0.78 };
+/** The Ghost Train (D-80): railway fog, a little green in the dark; no edge thickening (its places lie far apart). */
+const LINESIDE = { sky: 0x28344a, ground: 0x16130f, hemiK: 0.8, fill: [0.038, 0.05, 0.085], mist: [0.05, 0.06, 0.075], edge: [1e5, 1e5], mistK: 0.95 };
 
 /** Theatre searchlights (D-46): mounted on the gate towers, their discs wander over the plaza and midway. */
 export const SEARCHLIGHTS = [
@@ -90,7 +93,7 @@ const newCorpse = (): Corpse => ({ key: '', x: 0, y: 0, h: 0, yaw: 0, s: 1, row:
 /** Everything that belongs to one map's world (D-63): built once per map, swapped when the map changes. */
 interface WorldParts {
   root: THREE.Group;
-  ground: { mesh: THREE.Mesh; update(time: number, dawn: number): void };
+  ground: { update(time: number, dawn: number): void };
   shafts: { update(time: number, darkness: number, dawn: number, lampLevel: (x: number, y: number) => number, played: (x: number, y: number) => boolean): void };
   /** the world's own light motes (the renderer's default ones drift round the Carnival Core's lamps) */
   motes?: Motes;
@@ -99,6 +102,7 @@ interface WorldParts {
   indoor: boolean;
   funhouse?: FunhouseWorld;
   boardwalk?: BoardwalkWorld;
+  ghosttrain?: GhostTrainWorld;
   /** the world's own ambient settings (the Boardwalk's sea air), instead of outdoors/indoors */
   ambient?: typeof OUTDOOR;
 }
@@ -244,6 +248,9 @@ export class GameRenderer3D {
     this.world.boardwalk?.quest.playCall(bits, len, this.time);
   }
   private worldId: MapId | null = null;
+  /** the local player's position last frame (a big jump is a teleport: the camera goes with it) */
+  private lastLocalX = 0;
+  private lastLocalY = 0;
 
   /** The world for `id` (built the first time), swapped into the scene in place of the current one. */
   private setWorld(id: MapId): void {
@@ -258,6 +265,9 @@ export class GameRenderer3D {
         const bw = new BoardwalkWorld();
         bw.setQuality(this.settings?.quality ?? 'high');
         w = { root: bw.root, ground: bw.ground, shafts: bw.shafts, motes: bw.motes, props: bw, indoor: false, boardwalk: bw, ambient: COASTAL };
+      } else if (id === 'ghost_train') {
+        const gw = new GhostTrainWorld();
+        w = { root: gw.root, ground: gw.ground, shafts: gw.shafts, motes: gw.motes, props: gw, indoor: false, ghosttrain: gw, ambient: LINESIDE };
       } else {
         const root = new THREE.Group();
         const ground = new Ground3D(this.renderer);
@@ -526,6 +536,14 @@ export class GameRenderer3D {
       }
       break;
     }
+    // a jump between places (the Ghost Train's carriages swapped at a stop, a phantom door, D-80) carries the
+    // camera with it, so the picture stays where it was rather than sweeping across the dark between places
+    if (Math.hypot(px - this.lastLocalX, py - this.lastLocalY) > 1500) {
+      this.camX += px - this.lastLocalX;
+      this.camY += py - this.lastLocalY;
+    }
+    this.lastLocalX = px;
+    this.lastLocalY = py;
     const k = 1 - Math.exp(-dt * (opts.menu ? 1.5 : 7));
     this.camX += (px + lookX - this.camX) * k;
     this.camY += (py + lookY - this.camY) * k;
@@ -534,7 +552,7 @@ export class GameRenderer3D {
       this.camY = this.inspect.y;
     }
     const halfGroundH = this.viewH / 2 / SIN_EL;
-    const CB = CAMERA_BOUNDS;
+    const CB = CAMERA_FOR ? CAMERA_FOR(px, py) : CAMERA_BOUNDS;
     if (CB) {
       // a map that bounds its own camera (the Boardwalk, D-68)
       this.camX = clamp(this.camX, CB.minX + this.viewW / 2, CB.maxX - this.viewW / 2);
@@ -1098,7 +1116,8 @@ export class GameRenderer3D {
       // the Boardwalk (D-68): wading, swimming and climbing up out of the sand or the surf
       const bw = !!this.world.boardwalk;
       const depth = bw ? waterDepth(x, y) : 0;
-      const rising = bw && e.spawnT < EMERGE && (!!e.def.rises || (!!e.def.aquatic && depth > 30));
+      const gtw = !!this.world.ghosttrain;
+      const rising = (bw && e.spawnT < EMERGE && (!!e.def.rises || (!!e.def.aquatic && depth > 30))) || (gtw && e.spawnT < EMERGE && !!e.def.rises);
       let key = id;
       if (id === 'whack_a_mole' && e.hidden) key = 'mole_hole';
       if (id === 'jack_in_the_box' && e.state === 2) key = 'jack_open';
@@ -1116,6 +1135,12 @@ export class GameRenderer3D {
       let s = e.scale * (0.35 + 0.65 * pop) * (e.elite ? 1.18 : 1);
       let h = (def.hover ?? 0) + (flyer ? Math.sin(this.time * 2 + e.idx) * 5 : 0);
       if (bw) h += this.seaLift(e, x, y, depth, s, rising);
+      else if (gtw && rising) {
+        // up out of the grave: soil thrown aside as it comes
+        const kk = Math.min(1, e.spawnT / EMERGE);
+        h -= (1 - kk * kk * (3 - 2 * kk)) * 90 * s * ACTOR_SCALE * ACTOR_STRETCH;
+        this.zoneShapes.circle(x, y, e.r * s * (1.4 + 0.8 * kk), 0.12, 0.09, 0.06, 0.6 * (1 - kk), 0.3 * (1 - kk));
+      }
       if (id === 'jack_in_the_box' && e.state === 2) h += Math.sin(Math.min(1, 1 - e.t / 0.45) * Math.PI) * 30;
       if (id === 'whack_a_mole' && !e.hidden) h -= (1 - Math.min(1, e.t * 6)) * 20;
       if (e.def.behavior === 'marionette' && e.state === 1) h += Math.sin(Math.max(0, Math.min(1, 1 - e.t / 0.55)) * Math.PI) * 55;
@@ -1143,7 +1168,7 @@ export class GameRenderer3D {
         const rate = flyer ? 0.55 : Math.max(0.7, Math.min(2.4, e.speed / 85));
         // a watched mannequin is a statue: one stride, held (D-63)
         const statue = e.def.behavior === 'mannequin' && e.state === 1;
-        const special = bw ? boardwalkRow(e, rig, rising, this.time) : null;
+        const special = bw ? boardwalkRow(e, rig, rising, this.time) : gtw && rising && rig.has('rise') ? rig.row('rise', Math.min(1, e.spawnT / EMERGE)) : null;
         const rowA = special ?? rig.row('move', statue ? 0.21 + e.idx * 0.37 : (moving || flyer ? e.animT * rate : this.time * 0.25) + e.idx * 0.37);
         if (telegraph > 0.02 && rig.has('attack')) b.anim(i, rowA, rig.row('attack', telegraph), flash, Math.min(1, telegraph * 2.5));
         else b.anim(i, rowA, rowA, flash, 0);

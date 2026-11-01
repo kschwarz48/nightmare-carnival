@@ -3,6 +3,7 @@
 
 import { drawFunhousePortrait } from './art/funhouseBosses';
 import { drawBoardwalkPortrait } from './art/boardwalkBosses';
+import { drawGhostTrainPortrait } from './art/ghostTrainArt';
 import { AtlasBuilder, paintToDataURL } from './atlas';
 import { CHAR_H, CHAR_W, drawCharacter, drawShieldBalloon } from './art/characters';
 import { ENEMY_ART, drawEnemy, drawSnakeSegment } from './art/enemies';
@@ -126,7 +127,7 @@ export class Assets {
 
 function drawBossPortrait(ctx: Ctx, id: string): void {
   ctx.save();
-  if (drawFunhousePortrait(ctx, id) || drawBoardwalkPortrait(ctx, id)) {
+  if (drawFunhousePortrait(ctx, id) || drawBoardwalkPortrait(ctx, id) || drawGhostTrainPortrait(ctx, id)) {
     ctx.restore();
     return;
   }

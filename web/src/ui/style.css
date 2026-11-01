@@ -391,6 +391,11 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 }
 
 .hud.boss-on .act { display: none; }
+/* the Ghost Train's departures line (D-80): under the clock, quiet until the train is about to go */
+.hud .line-board { position: absolute; top: 96px; left: 50%; transform: translateX(-50%); font-family: var(--head); font-size: 0.8em; letter-spacing: 0.06em; color: #d8ccb0; background: rgba(12, 14, 12, 0.62); border: 1px solid rgba(216, 204, 176, 0.35); border-radius: 3px; padding: 0.22em 0.8em; white-space: nowrap; text-shadow: 1px 1px 0 var(--ink); pointer-events: none; }
+.hud .line-board.urgent { color: #ffb070; border-color: rgba(255, 176, 112, 0.6); }
+.hud .line-board.hidden { display: none; }
+.hud.boss-on .line-board { top: 118px; }
 .hud.under { opacity: 0; transition: opacity 0.3s; }
 
 /* ---------------------------------------------------------------- prize wheel (D-34) */

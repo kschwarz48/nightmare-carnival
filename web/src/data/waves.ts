@@ -52,8 +52,12 @@ export const CARNIVAL_ENDLESS: WaveDef = {
   minAlive: 130, maxAlive: 400, interval: 0.5, batch: 8, swarm: { enemy: 'swarm_balloon', interval: 3, size: 64 }, eliteBurst: 6,
 };
 
-export const ACT_GATES = [360, 720, 1080];
-export const DAWN_TIME = 1500;
+/**
+ * When each Act begins after the first, and when the dawn comes. D-80: live bindings like the waves (the Ghost
+ * Train's night is 35 minutes, its acts longer); the other maps keep 25:00 and 6:00 / 12:00 / 18:00.
+ */
+export let ACT_GATES = [360, 720, 1080];
+export let DAWN_TIME = 1500;
 export const CARNIVAL_ACTS = ['Act I — Warm-Up', 'Act II — The Crowd', 'Act III — The Parade', 'Act IV — Last Call'];
 
 // ---------------------------------------------------------------- the Fun House (D-63)
@@ -134,14 +138,58 @@ export const BOARDWALK_ENDLESS: WaveDef = {
 };
 export const BOARDWALK_ACTS = ['Act I — Low Tide', 'Act II — The Midway', 'Act III — The Undertow', 'Act IV — High Water'];
 
+// ---------------------------------------------------------------- the Ghost Train (D-80)
+// A 35-minute night with its own arc (docs/GHOST_TRAIN.md §5), not the 25-minute curve stretched: the stations
+// fill more slowly (much of the night is spent riding, and the journeys have their own spawner), Act II brings
+// the ranged and the blinkers, Act III the heavy station specialists, Act IV the End of the Line's own. Each
+// creature only comes at the stations it belongs to (`params.home`): a wave's list is the whole line's roster,
+// and the director draws from the part of it that belongs where the anchor stands.
+export const GHOST_WAVES: WaveDef[] = [
+  // Act I — The Midnight Line
+  { id: 'g_0000', start: 0, enemies: [['gt_ticketless', 78], ['gt_commuter', 12], ['gt_coalborn', 6], ['gt_gravebound', 6], ['gt_stillfolk', 6]], minAlive: 18, maxAlive: 55, interval: 0.9, batch: 3 },
+  { id: 'g_0130', start: 90, enemies: [['gt_ticketless', 60], ['gt_coalborn', 16], ['gt_commuter', 14], ['gt_gravebound', 10], ['gt_stillfolk', 10]], minAlive: 22, maxAlive: 85, interval: 0.95, batch: 2, swarm: { enemy: 'gt_moth', interval: 9, size: 22 } },
+  { id: 'g_0300', start: 180, enemies: [['gt_ticketless', 50], ['gt_coalborn', 16], ['gt_commuter', 14], ['gt_gravebound', 12], ['gt_stillfolk', 12]], minAlive: 28, maxAlive: 120, interval: 0.9, batch: 3, swarm: { enemy: 'gt_moth', interval: 8, size: 26 } },
+  { id: 'g_0430', start: 270, enemies: [['gt_ticketless', 44], ['gt_coalborn', 16], ['gt_commuter', 12], ['gt_gravebound', 12], ['gt_stillfolk', 12], ['gt_newsboy', 4]], minAlive: 34, maxAlive: 160, interval: 0.86, batch: 3, swarm: { enemy: 'gt_moth', interval: 7.5, size: 30 } },
+  { id: 'g_0600', start: 360, enemies: [['gt_ticketless', 40], ['gt_coalborn', 14], ['gt_commuter', 12], ['gt_gravebound', 12], ['gt_stillfolk', 12], ['gt_newsboy', 6], ['gt_porter', 4]], minAlive: 42, maxAlive: 190, interval: 0.85, batch: 4, swarm: { enemy: 'gt_moth', interval: 6.5, size: 34 }, eliteBurst: 3 },
+  // Act II — Passengers
+  { id: 'g_0800', start: 480, enemies: [['gt_ticketless', 32], ['gt_coalborn', 10], ['gt_commuter', 8], ['gt_gravebound', 9], ['gt_stillfolk', 9], ['gt_porter', 8], ['gt_mourner', 7], ['gt_newsboy', 7], ['gt_signalman', 5], ['gt_riveter', 5], ['gt_mimic', 3]], minAlive: 52, maxAlive: 215, interval: 0.82, batch: 4, swarm: { enemy: 'gt_moth', interval: 6.5, size: 30 } },
+  { id: 'g_1030', start: 630, enemies: [['gt_ticketless', 28], ['gt_coalborn', 10], ['gt_commuter', 8], ['gt_gravebound', 8], ['gt_stillfolk', 8], ['gt_porter', 9], ['gt_mourner', 8], ['gt_newsboy', 7], ['gt_signalman', 5], ['gt_riveter', 5], ['gt_mimic', 3], ['gt_bellwraith', 4]], minAlive: 60, maxAlive: 235, interval: 0.78, batch: 4, swarm: { enemy: 'gt_moth', interval: 6, size: 34 } },
+  { id: 'g_1300', start: 780, enemies: [['gt_ticketless', 26], ['gt_coalborn', 9], ['gt_commuter', 7], ['gt_gravebound', 8], ['gt_stillfolk', 8], ['gt_porter', 9], ['gt_mourner', 8], ['gt_newsboy', 6], ['gt_signalman', 5], ['gt_riveter', 6], ['gt_railcrawler', 6], ['gt_mimic', 3], ['gt_bellwraith', 4]], minAlive: 68, maxAlive: 250, interval: 0.75, batch: 5, swarm: { enemy: 'gt_moth', interval: 5.5, size: 36 }, eliteBurst: 3 },
+  { id: 'g_1500', start: 900, enemies: [['gt_ticketless', 24], ['gt_coalborn', 9], ['gt_commuter', 7], ['gt_gravebound', 8], ['gt_stillfolk', 8], ['gt_porter', 10], ['gt_mourner', 8], ['gt_newsboy', 6], ['gt_signalman', 5], ['gt_riveter', 6], ['gt_railcrawler', 7], ['gt_mimic', 3], ['gt_bellwraith', 4]], minAlive: 74, maxAlive: 258, interval: 0.74, batch: 5, swarm: { enemy: 'gt_moth', interval: 5.5, size: 38 } },
+  // Act III — Wrong Side of the Tracks
+  { id: 'g_1700', start: 1020, enemies: [['gt_ticketless', 22], ['gt_coalborn', 8], ['gt_gravebound', 7], ['gt_stillfolk', 7], ['gt_porter', 10], ['gt_mourner', 8], ['gt_signalman', 5], ['gt_riveter', 6], ['gt_railcrawler', 8], ['gt_pallbearer', 4], ['gt_slag', 6], ['gt_hound', 6], ['gt_watcher', 4], ['gt_bellwraith', 4], ['gt_newsboy', 4]], minAlive: 80, maxAlive: 268, interval: 0.72, batch: 5, swarm: { enemy: 'gt_moth', interval: 5, size: 40 }, hpMult: 1.1 },
+  { id: 'g_1930', start: 1170, enemies: [['gt_ticketless', 20], ['gt_coalborn', 8], ['gt_gravebound', 7], ['gt_stillfolk', 7], ['gt_porter', 10], ['gt_mourner', 8], ['gt_signalman', 5], ['gt_riveter', 6], ['gt_railcrawler', 9], ['gt_pallbearer', 5], ['gt_slag', 7], ['gt_hound', 7], ['gt_watcher', 5], ['gt_bellwraith', 4], ['gt_newsboy', 4]], minAlive: 86, maxAlive: 276, interval: 0.7, batch: 5, swarm: { enemy: 'gt_moth', interval: 4.5, size: 44 }, hpMult: 1.15 },
+  { id: 'g_2200', start: 1320, enemies: [['gt_ticketless', 20], ['gt_coalborn', 8], ['gt_gravebound', 7], ['gt_stillfolk', 7], ['gt_porter', 10], ['gt_mourner', 8], ['gt_signalman', 5], ['gt_riveter', 6], ['gt_railcrawler', 9], ['gt_pallbearer', 5], ['gt_slag', 7], ['gt_hound', 7], ['gt_watcher', 5], ['gt_bellwraith', 4], ['gt_puncher', 3]], minAlive: 92, maxAlive: 280, interval: 0.68, batch: 6, swarm: { enemy: 'gt_moth', interval: 4.5, size: 46 }, eliteBurst: 4, hpMult: 1.15 },
+  // Act IV — The End of the Line
+  { id: 'g_2500', start: 1500, enemies: [['gt_ticketless', 20], ['gt_coalborn', 7], ['gt_gravebound', 8], ['gt_stillfolk', 7], ['gt_porter', 10], ['gt_mourner', 8], ['gt_signalman', 5], ['gt_riveter', 6], ['gt_railcrawler', 9], ['gt_pallbearer', 4], ['gt_slag', 6], ['gt_hound', 6], ['gt_watcher', 5], ['gt_collected', 7], ['gt_puncher', 6]], minAlive: 96, maxAlive: 280, interval: 0.66, batch: 6, swarm: { enemy: 'gt_moth', interval: 4, size: 50 }, hpMult: 1.15 },
+  { id: 'g_2800', start: 1680, enemies: [['gt_ticketless', 20], ['gt_coalborn', 7], ['gt_gravebound', 8], ['gt_stillfolk', 7], ['gt_porter', 10], ['gt_mourner', 8], ['gt_signalman', 5], ['gt_riveter', 6], ['gt_railcrawler', 9], ['gt_pallbearer', 4], ['gt_slag', 6], ['gt_hound', 6], ['gt_watcher', 5], ['gt_collected', 8], ['gt_puncher', 6]], minAlive: 100, maxAlive: 280, interval: 0.62, batch: 6, swarm: { enemy: 'gt_moth', interval: 4, size: 54 }, eliteBurst: 4, hpMult: 1.15 },
+  { id: 'g_3100', start: 1860, enemies: [['gt_ticketless', 22], ['gt_gravebound', 10], ['gt_porter', 10], ['gt_mourner', 8], ['gt_railcrawler', 9], ['gt_riveter', 6], ['gt_watcher', 5], ['gt_collected', 9], ['gt_puncher', 7], ['gt_coalborn', 6], ['gt_stillfolk', 6]], minAlive: 108, maxAlive: 280, interval: 0.6, batch: 7, swarm: { enemy: 'gt_moth', interval: 3.5, size: 58 }, eliteBurst: 5, hpMult: 1.15 },
+  { id: 'g_3400', start: 2040, enemies: [['gt_ticketless', 64], ['gt_gravebound', 14], ['gt_coalborn', 12], ['gt_stillfolk', 10]], minAlive: 130, maxAlive: 280, interval: 0.5, batch: 8, swarm: { enemy: 'gt_moth', interval: 2.5, size: 64 } },
+];
+export const GHOST_VICTORY: WaveDef = {
+  id: 'g_victory_lap', start: 0, enemies: [['gt_ticketless', 80], ['gt_gravebound', 10], ['gt_stillfolk', 10]], minAlive: 150, maxAlive: 280, interval: 0.3, batch: 10,
+  swarm: { enemy: 'gt_moth', interval: 2.2, size: 60 },
+};
+export const GHOST_ENDLESS: WaveDef = {
+  id: 'g_endless', start: 0,
+  enemies: [['gt_ticketless', 20], ['gt_porter', 12], ['gt_railcrawler', 10], ['gt_mourner', 8], ['gt_riveter', 6], ['gt_slag', 6], ['gt_hound', 6], ['gt_watcher', 4], ['gt_collected', 8], ['gt_puncher', 6], ['gt_gravebound', 8], ['gt_stillfolk', 6]],
+  minAlive: 130, maxAlive: 400, interval: 0.5, batch: 8, swarm: { enemy: 'gt_moth', interval: 3, size: 64 }, eliteBurst: 6,
+};
+export const GHOST_ACTS = ['Act I — The Midnight Line', 'Act II — Passengers', 'Act III — Wrong Side of the Tracks', 'Act IV — The End of the Line'];
+/** the Ghost Train's night: 35 minutes, Acts II–IV at 8:00, 17:00 and 25:00 */
+export const GHOST_DAWN = 2100;
+export const GHOST_ACT_GATES = [480, 1020, 1500];
+
 // The active map's (maps.ts `useMap`); the Carnival Core by default.
 export let WAVES: WaveDef[] = CARNIVAL_WAVES;
 export let VICTORY_LAP_WAVE: WaveDef = CARNIVAL_VICTORY;
 export let ENDLESS_WAVE: WaveDef = CARNIVAL_ENDLESS;
 export let ACT_NAMES: string[] = CARNIVAL_ACTS;
-export function applyWaves(w: WaveDef[], victory: WaveDef, endless: WaveDef, acts: string[]): void {
+export function applyWaves(w: WaveDef[], victory: WaveDef, endless: WaveDef, acts: string[], dawn = 1500, gates = [360, 720, 1080]): void {
   WAVES = w;
   VICTORY_LAP_WAVE = victory;
   ENDLESS_WAVE = endless;
   ACT_NAMES = acts;
+  DAWN_TIME = dawn;
+  ACT_GATES = gates;
 }
