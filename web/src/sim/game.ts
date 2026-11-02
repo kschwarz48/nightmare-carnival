@@ -19,7 +19,7 @@ import { Nav } from './nav';
 import { applyDraftChoice, buildOf, generateDraft, grantChest, type ChestEntry, type DraftBuild, type DraftOption } from './draft';
 import { bracing, updateEnemy } from './enemyAI';
 import {
-  BossPart, Enemy, EnemyBullet, Hazard, Pickup, PlayerProjectile, Summon, Zone,
+  BossPart, Enemy, EnemyBullet, Hazard, Pickup, PlayerProjectile, Summon, Zone, ignite,
   type BulletKind, type HazardShape, type PickupKind, type Target, type ZoneKind,
 } from './entities';
 import { CarnivalEvents } from './carnivalEvents';
@@ -46,10 +46,11 @@ import { FxQueue } from './fx';
 const WEB_RAMP = { step: 0.4, max: 10 };
 import { Player } from './player';
 import { Weapons } from './weapons';
+import { lineOf, type MeterPlayer } from './meter';
 import { PET_MAP } from '../data/pets';
 import { addHazardPull, moveBody, steer } from './movement';
 
-import { KB_FATIGUE_S, KB_SCALE, KB_WEAR, TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
+import { KB_FATIGUE_S, KB_SCALE, KB_WEAR, NOBODY, TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 export { TICK, VIEW_HALF_X, VIEW_HALF_Y };
 const GEM_CAP = 400;
 const IFRAMES = 0.45;
@@ -291,8 +292,13 @@ export class Game {
   endStats: RunStats | null = null;
   /** Per-player end-of-run stats (co-op: each client shows and banks its own). */
   endStatsAll: RunStats[] = [];
-  /** whose damage a hit is when it isn't the acting player's (a zone's layer; -1: the acting player) */
+  /**
+   * Whose damage a hit is when it isn't the acting player's (a zone's layer, a burn's, a shatter's); -1: the
+   * acting player's; NOBODY: the night's own (D-85: it books to no player).
+   */
   private credit = -1;
+  /** a guest's copy of the host's damage meter and Lost Tickets (D-85: the mirror never ticks), or null */
+  netMeter: MeterPlayer[] | null = null;
   tiltAngle = 0;
   achievementsHit = new Set<string>();
   maxGems = GEM_CAP;
@@ -897,10 +903,11 @@ export class Game {
     // Blizzard: frozen enemies shatter for AoE.
     const bzOwner = e.frozenT > 0 ? this.players.find((pl) => pl.weapons.has('blizzard')) : undefined;
     if (bzOwner) {
+      // its owner's damage, at their Might, whoever's hit shattered it (D-85)
       const w = bzOwner.weapons.get('blizzard')!;
-      const dmg = 80 * this.player.stats.might;
+      const dmg = 80 * bzOwner.stats.might;
       this.fx.own('explosion', e.x, e.y, 90, 0, 0, 'frost');
-      this.forEachTargetInCircle(e.x, e.y, 90, (t) => this.damageTarget(t, dmg, false, 0.5, e.x, e.y, w.def.id));
+      this.creditTo(bzOwner.index, () => this.forEachTargetInCircle(e.x, e.y, 90, (t) => this.damageTarget(t, dmg, false, 0.5, e.x, e.y, w.def.id)));
     }
     if (d.behavior === 'thief') dispelDecoys(this, e.uid);
     if (e.loot > 0) payBack(this, e);
@@ -944,15 +951,7 @@ export class Game {
     }
     e.hp -= dmg;
     e.flash = 1;
-    this.damageDealt += dmg;
-    const by = this.credit >= 0 ? this.credit : weapon === 'burn' ? e.lastHitBy : this.player.index;
-    if (weapon !== 'burn') e.lastHitBy = by;
-    const who = this.players[by];
-    if (who) {
-      who.runDmg += dmg;
-      if (e.hp <= 0) who.runKills++;
-    }
-    if (weapon) this.weaponDamage.set(weapon, (this.weaponDamage.get(weapon) ?? 0) + dmg);
+    this.book(dmg, weapon, false, e.hp <= 0);
     this.fx.push('dmgnum', e.x, e.y - e.r * 2, dmg, crit ? 1 : 0);
     if (kb > 0 && e.def.knockbackTaken > 0) this.knockback(e, srcX, srcY, kb * e.def.knockbackTaken);
     if (e.hp <= 0) this.killEnemy(e, weapon);
@@ -988,6 +987,34 @@ export class Game {
     e.kbY = dy * s;
   }
 
+  /**
+   * Book damage dealt: the night's totals, the weapon's, and the share of the player it is credited to (the
+   * results' leaderboard, D-71), by source (D-85: the damage meter; an evolution books to its base weapon).
+   */
+  private book(dmg: number, weapon: string, boss: boolean, killed: boolean): void {
+    this.damageDealt += dmg;
+    if (weapon) this.weaponDamage.set(weapon, (this.weaponDamage.get(weapon) ?? 0) + dmg);
+    const who = this.players[this.credit === -1 ? this.player.index : this.credit];
+    if (!who) return;
+    who.runDmg += dmg;
+    if (boss) who.runBossDmg += dmg;
+    if (killed) who.runKills++;
+    if (dmg <= 0) return;
+    const k = lineOf(weapon || 'other');
+    who.dmgBy.set(k, (who.dmgBy.get(k) ?? 0) + dmg);
+  }
+
+  /** Run `fn` with the damage it deals credited to player `by` (or NOBODY), whoever is acting (D-85). */
+  creditTo<T>(by: number, fn: () => T): T {
+    const c = this.credit;
+    this.credit = by;
+    try {
+      return fn();
+    } finally {
+      this.credit = c;
+    }
+  }
+
   damageTarget(t: Target, amount: number, crit: boolean, kb: number, srcX: number, srcY: number, weapon: string): number {
     if (t.isBoss) {
       const part = t as BossPart;
@@ -995,13 +1022,7 @@ export class Game {
         if (b.parts.includes(part)) {
           const d = b.takeDamage(part, amount, crit);
           if (d > 0) {
-            this.damageDealt += d;
-            const who = this.players[this.credit >= 0 ? this.credit : this.player.index];
-            if (who) {
-              who.runDmg += d;
-              who.runBossDmg += d;
-            }
-            if (weapon) this.weaponDamage.set(weapon, (this.weaponDamage.get(weapon) ?? 0) + d);
+            this.book(d, weapon, true, false);
             this.fx.push('dmgnum', part.x + this.rng.range(-20, 20), part.y - part.r * 0.6, d, crit ? 1 : 0);
           }
           return d;
@@ -1031,7 +1052,8 @@ export class Game {
       if (e.burnAcc >= 3) {
         const d = e.burnAcc;
         e.burnAcc = 0;
-        this.damageEnemy(e, d, false, 0, e.x, e.y, 'burn');
+        // a burn's ticks are whoever lit it, and the weapon they lit it with (D-85; they were the last hitter's)
+        this.creditTo(e.burnBy, () => this.damageEnemy(e, d, false, 0, e.x, e.y, e.burnSrc));
         if (this.rng.chance(0.3)) this.fx.push('spark', e.x, e.y - 10, 1, 0, 0, 'fire');
       }
     }
@@ -1041,7 +1063,7 @@ export class Game {
       if (e.burnAcc >= 3) {
         const d = e.burnAcc;
         e.burnAcc = 0;
-        this.damageEnemy(e, d, false, 0, e.x, e.y, 'cotton');
+        this.creditTo(e.stickyBy, () => this.damageEnemy(e, d, false, 0, e.x, e.y, e.stickySrc));
       }
     }
   }
@@ -1655,10 +1677,7 @@ export class Game {
             e.slowF = Math.min(e.slowF, 1 - z.slow);
             e.slowT = Math.max(e.slowT, z.tick + 0.1);
           }
-          if (z.kind === 'burn') {
-            e.burnT = Math.max(e.burnT, 1.5);
-            e.burnDps = Math.max(e.burnDps, z.dmg);
-          }
+          if (z.kind === 'burn') ignite(e, 1.5, z.dmg, src, z.owner);
         }
         this.damageTarget(t, z.dmg * mult, false, 0, z.x, z.y, src);
       });
@@ -2041,6 +2060,7 @@ export class Game {
     if (v <= 0) return 0;
     this.vouchersTaken++;
     this.voucherPaid += v;
+    this.player.runVouchers += v;
     this.bus.emit('meta_currency', { amount: v, source: 'voucher', player: this.player.index });
     this.fx.push('text', this.player.x, this.player.y - 60, 0, 0, 0, 'gold', `+${v} LT`);
     return v;
@@ -2124,11 +2144,10 @@ export class Game {
     if (this.phase === 'ended') return;
     this.phase = 'ended';
     won = won || this.ringmasterSlain;
-    const p = this.player;
-    const greed = p.stats.greed + this.diff.greed + (this.cfg.curse ? CURSE.payoutMult - 1 : 0);
     const endlessExtra = this.endless ? this.time - this.endlessStart : 0;
-    let lt = computePayout({ seconds: this.time, bosses: this.bossKills, kills: this.kills, won: won || this.endless, greed, endlessExtraSeconds: endlessExtra, dawn: DAWN_TIME });
-    if (this.endless) lt = Math.max(0, lt - this.wonPayoutBanked); // only the extra beyond what was banked at dawn
+    // each player is paid at their own Greed (D-85: everyone was paid at the acting player's); in Endless,
+    // only the extra beyond what was banked at dawn
+    const lt = (pl: Player) => (this.endless ? Math.max(0, this.payout(pl, won) - this.wonPayoutBanked) : this.payout(pl, won));
     if (this.time >= 720) this.achievementsHit.add('reach_12');
     if (won) {
       if (this.diff.id === 'carnival') this.achievementsHit.add('win_carnival');
@@ -2145,10 +2164,26 @@ export class Game {
     this.achievementsHit.add('first_night');
     if (this.cfg.daily) this.achievementsHit.add('daily_run');
     const score = this.kills + 10 * this.level + 500 * this.bossKills + Math.floor(this.time) + (won ? 2000 : 0);
-    this.endStatsAll = this.players.map((pl) => this.statsFor(pl, won, lt, score, endlessExtra));
+    this.endStatsAll = this.players.map((pl) => this.statsFor(pl, won, lt(pl), score, endlessExtra));
     const stats = this.endStatsAll[0];
     this.endStats = stats;
     this.bus.emit('run_end', { stats });
+  }
+
+  /** What the night pays `p` (at their Greed) if it ends now, before Endless takes off what dawn banked. */
+  private payout(p: Player, won: boolean): number {
+    const greed = p.stats.greed + this.diff.greed + (this.cfg.curse ? CURSE.payoutMult - 1 : 0);
+    const endlessExtra = this.endless ? this.time - this.endlessStart : 0;
+    return computePayout({ seconds: this.time, bosses: this.bossKills, kills: this.kills, won: won || this.endless, greed, endlessExtraSeconds: endlessExtra, dawn: DAWN_TIME });
+  }
+
+  /**
+   * The Lost Tickets `p` has earned so far tonight (D-85, the HUD's live count): what the night would pay
+   * them if it ended now (a win once the final boss is down, as a victory lap's is) and their vouchers, which
+   * were banked as they came. In Endless, the whole night's, what dawn banked included.
+   */
+  liveTickets(p: Player): number {
+    return this.payout(p, this.ringmasterSlain) + p.runVouchers;
   }
 
   /** End-of-run stats as one player sees them (shared run, their own build). */
@@ -2164,7 +2199,9 @@ export class Game {
       damageDealt: Math.round(this.damageDealt),
       damageTaken: Math.round(this.damageTaken),
       evolutions: this.evolutions.slice(),
-      weapons: p.weapons.list.map((w) => ({ id: w.def.id, level: w.level, damage: Math.round(this.weaponDamage.get(w.def.id) ?? 0) })),
+      // this player's own (D-85: it was the night's for that weapon id), each weapon's whole line, the mirror's
+      // clones the mirror's: as the damage meter showed it
+      weapons: p.weapons.list.map((w) => ({ id: w.def.id, level: w.level, damage: Math.round(p.dmgBy.get(lineOf(w.def.id)) ?? 0) })),
       passives: [...p.passives.entries()].map(([id, level]) => ({ id, level })),
       character: p.char.id,
       difficulty: this.diff.id,

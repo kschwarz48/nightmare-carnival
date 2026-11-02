@@ -89,7 +89,7 @@ describe('weapons', () => {
     });
   }
 
-  it('funhouse mirror clones replay attacks for extra damage', () => {
+  it('funhouse mirror clones replay attacks for extra damage, booked to the mirror (D-85)', () => {
     const base = (mirror: boolean) => {
       const g = makeGame({ godMode: true, seed: 9 });
       g.weapons.list.length = 0;
@@ -100,9 +100,12 @@ describe('weapons', () => {
       }
       surround(g, 60);
       for (let i = 0; i < 600; i++) g.tick();
-      return g.weaponDamage.get('throwing_cards') ?? 0;
+      return { cards: g.weaponDamage.get('throwing_cards') ?? 0, mirror: g.weaponDamage.get('mirror') ?? 0 };
     };
-    expect(base(true)).toBeGreaterThan(base(false) * 1.15);
+    const alone = base(false), withMirror = base(true);
+    expect(withMirror.cards + withMirror.mirror).toBeGreaterThan(alone.cards * 1.15);
+    // the clones' replays are the mirror's damage, not the cards'
+    expect(withMirror.cards).toBeLessThan(alone.cards * 1.08);
   });
 
   it('levels cap at 8, slots cap at the party size (6 solo, VS), evolution replaces the slot', () => {

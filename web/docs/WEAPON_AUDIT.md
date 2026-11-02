@@ -30,7 +30,9 @@ Three loadouts per weapon:
   and Spinning Top at Lv 5, plus its own charm at Lv 5.
 
 The Funhouse Mirror only replays your other weapons, so it's measured beside Throwing Cards (Lv 8) and
-Royal Flush (Evo Lv 8 with the kit), as the share of damage it adds.
+Royal Flush (Evo Lv 8 with the kit), as the share of damage it adds. (Since D-85 the game books the clones'
+replays to the mirror itself, so the damage meter and the results show this share as the mirror's; the
+audit's totals don't change, as they count all useful damage.)
 
 "Before" is the previous weapon code measured with this same bench in the same game build (walls and the
 first map's musketeer change included); both columns average two seeds. **Score** is the geometric mean

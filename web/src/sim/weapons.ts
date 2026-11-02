@@ -4,8 +4,9 @@
 
 import { clamp, dist2, inSector, TAU } from '../core/math';
 import { WEAPONS, weaponLevelSum, type WeaponDef } from '../data/weapons';
-import { HitTracker, type Enemy, type PlayerProjectile, type Summon, type Target } from './entities';
+import { HitTracker, ignite, stick, type Enemy, type PlayerProjectile, type Summon, type Target } from './entities';
 import type { Game } from './game';
+import { lineOf } from './meter';
 import { KB_SCALE, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 import { bracing } from './enemyAI';
 
@@ -56,7 +57,15 @@ type CastFn = (ox: number, oy: number, mult: number) => void;
 
 export class Weapons {
   list: WeaponInst[] = [];
-  private queue: { t: number; fn: () => void }[] = [];
+  /** delayed parts of attacks, each with the source it was dealt as (see `src`) */
+  private queue: { t: number; fn: () => void; src: string }[] = [];
+  /**
+   * Whose damage the attack being dealt is (D-85): '' for its weapon's own; while a mirror clone replays it,
+   * the mirror's. It follows the attack into what it schedules and the projectiles it fires (`src` on them),
+   * and their blasts, shrapnel and burns, so all the clones do is the mirror's damage and none of it the
+   * replayed weapon's.
+   */
+  private src = '';
   /** how many of the mirror clones' shots have lately been dropped for room in the pool (smoothed, 0..1) */
   private cloneDrop = 0;
   /** Mirror clones currently alive (positions) — attacks are replayed from them. */
@@ -79,6 +88,9 @@ export class Weapons {
     if (!def || this.has(id) || !this.hasRoom()) return null;
     const w = new WeaponInst(def);
     this.list.push(w);
+    // when it joined the build: its damage meter row counts its damage per second from here (D-85)
+    const since = this.g.player.dmgSince;
+    if (!since.has(lineOf(id))) since.set(lineOf(id), this.g.time);
     return w;
   }
   levelUp(id: string): void {
@@ -148,12 +160,12 @@ export class Weapons {
 
   hit(w: WeaponInst, t: Target, base: number, ox: number, oy: number, kbMult = 1): void {
     const r = this.roll(w, base);
-    this.g.damageTarget(t, r.dmg, r.crit, w.def.knockback * kbMult, ox, oy, w.def.id);
+    this.g.damageTarget(t, r.dmg, r.crit, w.def.knockback * kbMult, ox, oy, this.src || w.def.id);
     if (r.crit) this.g.fx.own('crit', t.x, t.y);
   }
 
   schedule(delay: number, fn: () => void): void {
-    this.queue.push({ t: delay, fn });
+    this.queue.push({ t: delay, fn, src: this.src });
   }
 
   /** Execute a discrete attack at the player and replay it from every mirror clone. */
@@ -167,7 +179,11 @@ export class Weapons {
       // clones (Amount) spread the reflection around without multiplying it
       const live = this.clones.filter((c) => c.alive);
       const mult = this.damage(mw) / this.g.player.stats.might / Math.max(1, live.length);
+      // what they deal is the mirror's damage, not the replayed weapon's (D-85)
+      const src = this.src;
+      this.src = mw.def.id;
       for (const c of live) fn(c.x, c.y, mult);
+      this.src = src;
     }
   }
 
@@ -199,7 +215,9 @@ export class Weapons {
       q.t -= dt;
       if (q.t <= 0) {
         this.queue.splice(i, 1);
+        this.src = q.src;
         q.fn();
+        this.src = '';
       }
     }
     this.clones = this.g.summons.filter((s) => s.alive && s.kind === 'clone');
@@ -274,6 +292,7 @@ export class Weapons {
     if (!p) return null;
     p.kind = kind;
     p.weapon = w.def.id;
+    p.src = this.src;
     p.x = p.px = p.ox = x;
     p.y = p.py = p.oy = y;
     p.vx = Math.cos(a) * speed;
@@ -527,6 +546,7 @@ export class Weapons {
     if (!p) return null;
     p.kind = kind;
     p.weapon = w.def.id;
+    p.src = this.src;
     p.x = p.px = p.ox = ox;
     p.y = p.py = p.oy = oy;
     p.tx = tx;
@@ -627,11 +647,7 @@ export class Weapons {
             this.g.forEachTargetInCircle(cx, cy, R, (t) => {
               if (!inSector(t.x, t.y, cx, cy, a, 0.45, R, t.r)) return;
               this.hit(w, t, this.damage(w) * mult, cx, cy);
-              if (!t.isBoss) {
-                const e = t as Enemy;
-                e.stickyT = Math.max(e.stickyT, this.duration(w));
-                e.stickyDps = Math.max(e.stickyDps, this.damage(w) * 0.5);
-              }
+              if (!t.isBoss) stick(t as Enemy, this.duration(w), this.damage(w) * 0.5, this.src || w.def.id, this.g.player.index);
             });
           });
         }
@@ -748,11 +764,7 @@ export class Weapons {
             const d = Math.sqrt(dist2(t.x, t.y, p.x, p.y));
             if (d + t.r < r0) return;
             this.hit(w, t, this.damage(w) * (t.isBoss ? UNBURNT : 1), p.x, p.y);
-            if (!t.isBoss) {
-              const e = t as Enemy;
-              e.burnT = Math.max(e.burnT, this.duration(w));
-              e.burnDps = Math.max(e.burnDps, this.damage(w) * 0.6);
-            }
+            if (!t.isBoss) ignite(t as Enemy, this.duration(w), this.damage(w) * 0.6, this.src || w.def.id, this.g.player.index);
           });
         });
       }
@@ -780,11 +792,7 @@ export class Weapons {
             this.g.forEachTargetInCircle(cx, cy, R, (t) => {
               if (!inSector(t.x, t.y, cx, cy, a, 0.38, R, t.r)) return;
               this.hit(w, t, this.damage(w) * mult * (t.isBoss ? UNBURNT : 1), cx, cy);
-              if (!t.isBoss) {
-                const e = t as Enemy;
-                e.burnT = Math.max(e.burnT, this.duration(w));
-                e.burnDps = Math.max(e.burnDps, this.damage(w) * 0.6 * mult);
-              }
+              if (!t.isBoss) ignite(t as Enemy, this.duration(w), this.damage(w) * 0.6 * mult, this.src || w.def.id, this.g.player.index);
             });
           });
         }
@@ -946,7 +954,7 @@ export class Weapons {
           this.g.forEachTargetInCircle(x, y, R, (tt) => {
             if (jackpot) {
               const d = this.damage(w) * this.g.player.stats.critDamage * 2.5;
-              this.g.damageTarget(tt, d, true, w.def.knockback * 1.5, x, y, w.def.id);
+              this.g.damageTarget(tt, d, true, w.def.knockback * 1.5, x, y, this.src || w.def.id);
             } else this.hit(w, tt, this.damage(w), x, y);
           });
           this.g.fx.own('ring', x, y, R, jackpot ? 1 : 0, 0, jackpot ? 'jackpot' : 'bell');
@@ -1046,6 +1054,8 @@ export class Weapons {
       p.py = p.y;
       p.life -= dt;
       const w = this.get(p.weapon);
+      // a clone's shot is the mirror's to the end: its blast, its shrapnel, its burst (D-85)
+      this.src = p.src;
       switch (p.kind) {
         case 'rocket':
         case 'shell':
@@ -1163,6 +1173,7 @@ export class Weapons {
       }
       if (p.r > 0) this.collideProj(p, w);
     }
+    this.src = '';
   }
 
   private collideProj(p: PlayerProjectile, w: WeaponInst | undefined): void {
@@ -1178,7 +1189,7 @@ export class Weapons {
         const crit = st.critRoll(g.rng.next(), (w.def.critBonus ?? 0) + p.crit);
         const cm = st.critDamage + (w.def.id === 'death_card' ? DEATH_CRIT : 0);
         const dmg = p.dmg * (crit ? cm : 1);
-        g.damageTarget(t, dmg, crit, p.kb, p.x - p.vx * 0.05, p.y - p.vy * 0.05, w.def.id);
+        g.damageTarget(t, dmg, crit, p.kb, p.x - p.vx * 0.05, p.y - p.vy * 0.05, p.src || w.def.id);
         if (crit) g.fx.own('crit', t.x, t.y);
       }
       g.fx.own('hit', t.x, t.y, 0, 0, 0, p.kind);
@@ -1228,6 +1239,7 @@ export class Weapons {
       const a = off + (i * TAU) / n;
       s.kind = 'shrapnel';
       s.weapon = w.def.id;
+      s.src = this.src;
       s.x = s.px = p.x;
       s.y = s.py = p.y;
       s.vx = Math.cos(a) * 380;

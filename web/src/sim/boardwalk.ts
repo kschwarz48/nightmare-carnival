@@ -7,6 +7,7 @@ import { BW_BOUNDS, CROSSING, PIER_DECKS, RIDE, SEA, onDeck, shoreY, trackAt, tr
 import type { EnemyDef } from '../data/enemies';
 import type { Enemy } from './entities';
 import type { Game } from './game';
+import { NOBODY } from './constants';
 
 /** Set the sea from the game: its clock and how far the quest's low water has drawn the shore out. */
 export function refreshSea(g: Game): void {
@@ -81,9 +82,10 @@ export function updateBoardwalk(g: Game, dt: number): void {
       }
     }
     // and the crowd standing on the track
-    g.forEachEnemyInCircle(c[0], c[1], 70, (e) => {
+    // (the coaster's, not whoever's turn it is: it books to no player, D-85)
+    g.creditTo(NOBODY, () => g.forEachEnemyInCircle(c[0], c[1], 70, (e) => {
       if (!e.isBoss) g.damageEnemy(e, 40 * dt * 6, false, 0, 0, 0, 'coaster');
-    });
+    }));
   }
   g.setCtx(ctx);
 }

@@ -11,9 +11,10 @@ import { PASSIVES, WEAPONS } from '../data/weapons';
 import { Reader, Writer } from './codec';
 import { isMapId, type MapId } from '../data/maps';
 import { isPetId } from '../data/pets';
+import { isSource, type MeterPlayer } from '../sim/meter';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 16;
+export const PROTO = 17;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
@@ -114,7 +115,37 @@ export type HostMsg =
   | { t: 'ping'; at: number }
   | { t: 'pong'; at: number }
   | { t: 'chat'; from: number; name: string; text: string }
+  /** the damage meter and the live Lost Tickets (D-85), about once a second through a night */
+  | { t: 'meter'; m: WireMeter }
   | { t: 'bye'; reason: string };
+
+/** The damage meter on the wire (D-85): per player, [Lost Tickets so far, [[source, damage, since], ...]]. */
+export type WireMeter = [number, [string, number, number][]][];
+
+/** Pack the meter (sources a guest would refuse are left out; damage whole, the clock to a tenth). */
+export function meterToWire(m: MeterPlayer[]): WireMeter {
+  return m.map((p) => [Math.round(p.lt), p.lines.filter((l) => isSource(l.key)).map((l): [string, number, number] => [l.key, Math.round(l.dmg), Math.round(l.since * 10) / 10])]);
+}
+
+export function meterFromWire(w: WireMeter): MeterPlayer[] {
+  return w.map(([lt, lines]) => ({ lt, lines: lines.map(([key, dmg, since]) => ({ key, dmg, since })) }));
+}
+
+function cleanMeter(v: unknown): WireMeter | null {
+  if (!Array.isArray(v) || v.length > MAX_PLAYERS) return null;
+  const out: WireMeter = [];
+  for (const p of v) {
+    if (!Array.isArray(p) || p.length !== 2 || !isInt(p[0], 0, 1e8) || !Array.isArray(p[1]) || p[1].length > 32) return null;
+    const lines: [string, number, number][] = [];
+    for (const l of p[1]) {
+      if (!Array.isArray(l) || l.length !== 3 || !isStr(l[0], 40) || !isSource(l[0])) return null;
+      if (!isNum(l[1]) || l[1] < 0 || l[1] > 1e13 || !isNum(l[2]) || l[2] < 0 || l[2] > 1e6) return null;
+      lines.push([l[0], l[1], l[2]]);
+    }
+    out.push([p[0], lines]);
+  }
+  return out;
+}
 
 export type RejectReason = 'full' | 'version' | 'in_run' | 'bad_hello' | 'kicked' | 'closed';
 /** Why the night is held (and for whom, by player index): shown as a waiting note on every screen. */
@@ -288,6 +319,10 @@ export function parseHostMsg(raw: unknown): HostMsg | null {
     case 'chat': {
       const text = cleanChat(m.text);
       return text && isInt(m.from, 0, MAX_PLAYERS - 1) ? { t: 'chat', from: m.from, name: cleanName(m.name, 'Player'), text } : null;
+    }
+    case 'meter': {
+      const meter = cleanMeter(m.m);
+      return meter ? { t: 'meter', m: meter } : null;
     }
     case 'bye':
       return { t: 'bye', reason: isStr(m.reason, 200) ? m.reason : '' };

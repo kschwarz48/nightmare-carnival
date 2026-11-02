@@ -58,6 +58,15 @@ export class Player {
   runDowns = 0;
   runRevives = 0;
   runTickets = 0;
+  /** Lost Tickets from this night's vouchers (banked as they were taken; the live count shows them, D-85) */
+  runVouchers = 0;
+  /**
+   * The damage meter (D-85): this night's damage by source — a weapon's line (an evolution's is its base
+   * weapon's; a mirror clone's replays are the mirror's) or another source ('revive', 'spark_trail') — and
+   * the night's clock when each weapon line joined this player's build.
+   */
+  dmgBy = new Map<string, number>();
+  dmgSince = new Map<string, number>();
   pullX = 0;
   pullY = 0;
   dashT = 0; // bumper-car surge remaining

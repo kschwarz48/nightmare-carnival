@@ -98,8 +98,6 @@ export class Enemy implements Target {
   cracked = false;
   /** tickets a Prize Collector has swallowed off the ground (paid back when it falls) */
   loot = 0;
-  /** the player whose hit landed last (a burn's ticks are credited to them; D-71) */
-  lastHitBy = 0;
   noSep = false;
   /** stands on open ground and is blocked by walls from now on (D-74; newcomers walk through until then) */
   walled = false;
@@ -122,6 +120,11 @@ export class Enemy implements Target {
   burnAcc = 0;
   stickyT = 0;
   stickyDps = 0;
+  /** who lit the burn and the cotton's sting, and with what (their ticks are that player's and that weapon's; D-85) */
+  burnBy = 0;
+  burnSrc = '';
+  stickyBy = 0;
+  stickySrc = '';
   // presentation
   flash = 0;
   face = 1; // -1 left, 1 right
@@ -132,6 +135,29 @@ export class Enemy implements Target {
   // segments for the roller-coaster snake (trail of previous head positions)
   trail: Float32Array | null = null;
   trailHead = 0;
+}
+
+/**
+ * Set `e` burning for `t` seconds at `dps` (a stronger burn already on it keeps its strength). Its ticks are
+ * player `by`'s and weapon `src`'s: whoever lit the burn that is burning (D-85).
+ */
+export function ignite(e: Enemy, t: number, dps: number, src: string, by: number): void {
+  if (e.burnT <= 0 || dps >= e.burnDps) {
+    e.burnSrc = src;
+    e.burnBy = by;
+  }
+  e.burnT = Math.max(e.burnT, t);
+  e.burnDps = Math.max(e.burnDps, dps);
+}
+
+/** The Cotton-Candy Gun's sticky sting, the same way (D-85). */
+export function stick(e: Enemy, t: number, dps: number, src: string, by: number): void {
+  if (e.stickyT <= 0 || dps >= e.stickyDps) {
+    e.stickySrc = src;
+    e.stickyBy = by;
+  }
+  e.stickyT = Math.max(e.stickyT, t);
+  e.stickyDps = Math.max(e.stickyDps, dps);
 }
 
 export type ProjKind =
@@ -176,6 +202,8 @@ export class PlayerProjectile {
   returning = false;
   bounces = 0;
   mult = 1; // mirror damage multiplier
+  /** whose damage its hits are when not its weapon's: a mirror clone's shot is the mirror's (D-85) */
+  src = '';
   flag = 0;
 }
 

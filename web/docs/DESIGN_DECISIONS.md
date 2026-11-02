@@ -1406,3 +1406,72 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
     darkened after the first look, which read too pale under the stations' lamps.
   Portraits in the same inked style as the icons.
 - **Not done.** The 12–15 s freeze on the first Ghost Train start of a session (D-82) remains.
+
+### D-85 · The live Lost Tickets count, the damage meter, the party frames, the mirror's own damage
+
+- **The asks.** From play-testing:
+  - a live count of the Lost Tickets earned during a night;
+  - a damage meter after World of Warcraft's: solo, a bar per weapon with its total damage and, in brackets,
+    its damage per second; in co-op, a bar per player, with that player's damage by weapon on hover;
+  - in co-op, the teammates' names and health moved from over the health bar to the upper left, with their
+    portraits, like WoW's party frames, and their items (icons and levels) on hovering a portrait;
+  - the Funhouse Mirror's damage should be the sum of everything its clones deal, and none of the clones'
+    attacks should count for the weapon they replay.
+- **The live Lost Tickets count.** It sits under the kills in the top-right corner, with the wallet's gold ticket.
+  It shows what the night would pay if it ended now (its clock, bosses and kills, at your Greed), plus the
+  vouchers taken tonight, which were banked as they came. The win counts once the final boss is down, so a
+  victory lap shows it. It bumps when a boss, a voucher or the victory lap pays. Dying pays the count less the
+  vouchers (the results list those apart, as before); reaching dawn adds the win.
+- **Each player is paid at their own Greed.** The end of a night paid every player at the Greed of whoever the
+  sim was acting for (the host, nearly always): a guest's Piggy Bank and Coin Purse counted for nothing, and
+  the host's counted for everyone. Each player's payout now uses their own Greed; the difficulty and the
+  Curse still count for all.
+- **The damage meter.** A panel in the HUD's style, top right under the Lost Tickets:
+  - **Solo:** a bar per weapon in your build, longest first, coloured by weapon. The Spare Balloon's burst
+    on a revive and the Ride Operator's Live Wire trail get bars once they deal any damage. Each bar shows its
+    damage tonight and, in brackets, its damage per second since it joined your build. A weapon taken at 20:00
+    isn't diluted by the twenty minutes before it. An evolution's bar carries on from its base weapon's (the
+    same slot and the same clock). Hover a bar for its level, damage, per second and share of yours.
+  - **Co-op:** a bar per player, in their colour, with their portrait; per second is over the night. Hover a
+    bar for that player's damage by weapon (damage, per second, share).
+  - It refreshes four times a second. Click its header to fold it to a strip. The meter key (M, rebindable)
+    or Settings' "Damage meter" hides it. Both choices are remembered.
+  - The off-screen arrows at the screen's edges step aside from the meter and the party frames.
+- **The mirror's own damage.** A clone replays your discrete attacks from where it stands, at its share of
+  your damage. Those hits used to be booked to the weapon replayed, so a Throwing Cards total grew by the
+  clones' share and the mirror showed nothing but Mira's Glass Halo. Now everything a clone deals is the
+  mirror's:
+  - its shots, its swings and their follow-ups;
+  - its lobbed kernels and rockets and their blasts;
+  - its darts' shrapnel;
+  - the burns and stings it lights.
+  The source travels with the attack (into what it schedules and the projectiles it fires) rather than being
+  guessed from the hit. Measured over ten seconds at Lv 8 with seven weapons, each alone and with the mirror:
+  - each weapon's own total with the mirror stays at 84–104 % of its total alone (the clones take some of its
+    targets);
+  - the mirror books 20–37 % on top. Its share is 30 %; the Cotton-Candy Gun's clones light full-strength
+    stings, as they always have.
+- **Other damage booked straight.**
+  - A burn's ticks used to go to the last hitter, as 'burn'. Now they go to whoever lit the burn that is
+    burning, and to the weapon they lit it with. A stronger burn takes over; a weaker one on top doesn't. The
+    Cotton-Candy Gun's sting works the same way (it was the acting player's).
+  - The Blizzard's shatter is its owner's, at their Might. It was whoever's hit killed the frozen creature, at
+    the killer's Might: in co-op, often the wrong player.
+  - The Boardwalk's coaster running the crowd down is nobody's (it was the acting player's).
+  - The results' weapon damage is each player's own, by weapon line. It used to be the night's for that weapon
+    id: two players with the same weapon both saw the sum, and an evolution lost its base weapon's share. It
+    now matches the meter.
+- **The party frames.** In co-op, a frame per teammate down the upper left (from 180 px):
+  - their portrait in a ring of their colour;
+  - their name in that colour;
+  - their health bar with numbers;
+  - what is happening to them (in a coffin, reconnecting).
+  A big party (four or five teammates) gets smaller frames. Hover a portrait for their build: their weapons and
+  charms as icons with levels (✦ marks an evolution's, MAX the top), their character and their companion. The
+  cards over the health bar are gone, and the chat box sits lower for it.
+- **On the wire (PROTO 17).** A guest's mirror never ticks. About once a second through a night, the host
+  sends `meter`: per player, their Lost Tickets so far and their damage by source, with each weapon's clock
+  (about a kilobyte at most). The guest validates it (known sources only, sane numbers) and draws from it.
+  Until the first one arrives it shows zeros, not its idle mirror's books.
+- **Health never shown past the maximum.** Health rounded up and the maximum to the nearest, so a full
+  Strongman read 187 / 186. The number shown is now capped at the maximum shown.

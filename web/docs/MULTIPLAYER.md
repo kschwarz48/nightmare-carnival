@@ -257,6 +257,25 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### The damage meter, the live Lost Tickets and the party frames (D-85, PROTO 17)
+
+- **The meter on the wire.** A guest's mirror never ticks, so it has no damage books and no payout of its own.
+  About once a second through a night, the host broadcasts `meter`: per player, their Lost Tickets so far and
+  their damage by source (`[source, damage, since]`: a weapon line, or `revive`, `spark_trail`, `other`), at
+  most about a kilobyte for six players. The guest validates it (at most six players and 32 sources each, known
+  sources only, finite non-negative numbers) and keeps the last one in `Game.netMeter`. Its HUD reads that in
+  place of its idle mirror's books, and shows zeros until the first one arrives (a second at most).
+- **Party frames** read what the snapshots already carry: each player's health, weapons and charms with
+  levels. Companions come from the start config. No wire change.
+- **Each player is paid at their own Greed** (host-side, no wire change). Every player's end-of-night payout
+  used the acting player's Greed, nearly always the host's.
+- **The damage is booked straight on the host.** Mirror clones' attacks are the mirror's; a burn's and a
+  sting's ticks go to whoever lit them; the Blizzard's shatter to its owner; the Boardwalk's coaster to nobody.
+  The results' weapon damage is each player's own (it was the night's per weapon id).
+- **PROTO 17** for the new message (and the sim's books changed). Old builds can't join new lobbies.
+- Checked with two windows on one PC: both meters, both Lost Tickets counts, both party frames, the guest's
+  breakdown of the host's bar, and the guest's results (QA_REPORT, D-85).
+
 ### Companions, Swap Character, the results and the Ghost Train's bosses (D-84, PROTO 16)
 
 - **Companions travel in profiles.** Each player's companion (`pet`: `milo`, `augustus` or none) is in the

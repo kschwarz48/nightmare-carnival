@@ -119,6 +119,12 @@ D-pad / arrow keys.
 - **Companions** (D-84): Milo, a black-and-white Cavapoo (+30% pickup radius, +6% XP), and Augustus, a
   Russian Blue (+8% move speed, +6% crit chance). Each is earned by an achievement you can finish on any
   map. They follow you through every night and around the Midway.
+- **Damage meter and party frames** (D-85):
+  - the night's Lost Tickets counted live under the kills;
+  - a damage meter after the MMO addons: a bar per weapon (solo) or per player (co-op, with their damage by
+    weapon on hover), each with its damage and, in brackets, its damage per second; M or Settings hides it;
+  - in co-op, a frame per teammate down the upper left (portrait, name, health; hover the portrait for their
+    weapons and charms with levels).
 - **Accessibility:** volume buses (master/music/SFX/ambience), mute, reduced flashing, screen-shake
   slider, high-contrast telegraphs, damage-number toggle, UI scale, dyslexia-friendly font, aim
   modes, key rebinding, first-run tips (replayable), graphics quality presets.

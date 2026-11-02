@@ -12,3 +12,5 @@ export const KB_SCALE = 0.8;
  */
 export const KB_FATIGUE_S = 1.2;
 export const KB_WEAR = 0.75;
+/** `Game.credit` for damage that is nobody's: the night's own (the Boardwalk's coaster running the crowd down; D-85). */
+export const NOBODY = -2;

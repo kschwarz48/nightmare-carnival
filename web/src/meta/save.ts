@@ -30,6 +30,9 @@ export interface Settings {
   dyslexiaFont: boolean;
   /** 0..1: how solid the players' own attacks are drawn (fade them to read enemy shots in a crowd; 0 hides them, D-83) */
   abilityOpacity: number;
+  /** the damage meter in a night (D-85): shown at all (the meter key toggles it), and unfolded (its header) */
+  damageMeter: boolean;
+  meterOpen: boolean;
 }
 
 export interface RunRecord {
@@ -93,6 +96,8 @@ export const DEFAULT_BINDINGS: Record<string, string[]> = {
   skip: ['KeyX'],
   /** open the co-op chat line (D-65) */
   chat: ['KeyT'],
+  /** show or hide the damage meter (D-85) */
+  meter: ['KeyM'],
 };
 
 export function defaultSettings(): Settings {
@@ -100,7 +105,7 @@ export function defaultSettings(): Settings {
     master: 0.8, music: 0.7, sfx: 0.8, ambience: 0.6, muted: false, reducedFlash: false, shake: 1, highContrast: false,
     uiScale: 1, damageNumbers: true, aimMode: 'auto', quality: 'high', showFps: false,
     bindings: JSON.parse(JSON.stringify(DEFAULT_BINDINGS)), tutorialsSeen: [], dyslexiaFont: false,
-    abilityOpacity: 1,
+    abilityOpacity: 1, damageMeter: true, meterOpen: true,
   };
 }
 

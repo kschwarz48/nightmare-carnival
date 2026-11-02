@@ -1,6 +1,7 @@
 // In-run HUD (doc 02 §8): XP marquee bar, level stub, moon→sun clock, Act name, HP bar, weapon /
 // passive tray, boss bar with phase segments, banners, boss warnings, toasts, coach marks, and the
-// level-up draft + chest reveal overlays.
+// level-up draft + chest reveal overlays. D-85: the live Lost Tickets count, the damage meter
+// (dmgMeter.ts) and, in co-op, the party frames down the left.
 
 import { ACT_NAMES, DAWN_TIME } from '../data/waves';
 import { BOSS_MAP } from '../data/bosses';
@@ -16,7 +17,11 @@ import { UR, type UnreflectedChain } from '../sim/quest/unreflected';
 import { SE, type SummersEndChain } from '../sim/quest/summersEnd';
 import { UNREFLECTED } from '../data/funhouse';
 import { SUMMERS_END } from '../data/boardwalk';
-import { FocusNav, fmtTime, h, uiZoom } from './dom';
+import { FocusNav, fmtNum, fmtTime, h, uiZoom } from './dom';
+import { DamageMeter } from './dmgMeter';
+import { liveLt } from '../sim/meter';
+import { CHARACTER_MAP } from '../data/characters';
+import { PET_MAP } from '../data/pets';
 
 /** Player colours for UI (Player 1 lamp-gold, 2 ghost-teal, 3 rose, 4 lime, 5 violet, 6 tangerine); match PLAYER_COLS and `.p1`…`.p6` in style.css. */
 export const PLAYER_CSS = ['#ffd27a', '#8af4ff', '#ff8fb0', '#a8ff7a', '#c7a2ff', '#ffb066'];
@@ -109,6 +114,14 @@ export class Hud {
   /** whose build the tray's tooltips read (the local player, as the HUD last drew it; D-79) */
   private tipWho: Player | null = null;
   private statsR: HTMLDivElement;
+  /** the corner's lines: kills, the Lost Tickets earned so far (D-85), the difficulty */
+  private killsEl = h('div', {});
+  private ltNum = h('span', { class: 'ticket-count' });
+  private ltEl = h('div', { class: 'lt-live' }, this.ltNum, h('small', {}, 'LT'));
+  private diffEl = h('div', {});
+  private lastLt = -1;
+  /** the damage meter (D-85) */
+  meter: DamageMeter;
   private boss: HTMLDivElement;
   private toast: HTMLDivElement;
   private bannerEl: HTMLDivElement | null = null;
@@ -124,14 +137,23 @@ export class Hud {
   private lastHp = -1;
   private bossKey = '';
   private indicators: HTMLDivElement;
-  private partner: HTMLDivElement;
+  /** co-op: the party frames (D-85: down the left, after the MMO's; they were cards over the health bar) */
+  private party: HTMLDivElement;
+  private partyKey = '';
+  private partyLive: { index: number; frame: HTMLElement; fill: HTMLElement; num: HTMLElement; st: HTMLElement }[] = [];
+  /** the build card a party portrait shows on hover: whose, and the build it was drawn from */
+  private buildTip = h('div', { class: 'tray-tip pf-tip hidden' });
+  private buildFor: number | null = null;
+  private buildKey = '';
+  /** where the meter and the party frames stand (the edge arrows keep clear of them), measured four times a second */
+  private keepOut: { x: number; y: number; w: number; h: number }[] = [];
+  private keepOutT = 0;
   private whispers: HTMLDivElement;
   private tags: HTMLDivElement;
   private statusEl: HTMLDivElement;
   private pingEl: HTMLDivElement;
   private diagEl: HTMLDivElement;
   private statusKey = '';
-  private partnerKey = '';
   coopInfo: CoopHud | null = null;
   showFps = false;
   /** numbers for the damage you take (follows the damage-numbers setting; D-65) */
@@ -150,7 +172,6 @@ export class Hud {
   private arrowLayer: HTMLDivElement;
   private arrows: HTMLDivElement[] = [];
   private markers: HTMLDivElement[] = [];
-  private partyH = 0;
   /** the interact prompt over something the local player can use (D-67) */
   private promptEl: HTMLDivElement;
   private promptKey = '';
@@ -172,12 +193,13 @@ export class Hud {
     this.extras = h('div', { class: 'extras' });
     this.hpWrap = h('div', { class: 'hp' }, h('div', { class: 'portrait' }, h('img', { alt: '' })), this.extras, h('div', { class: 'bar' }, this.hpGhost, this.hpFill, this.hpTxt));
     this.tray = h('div', { class: 'tray' });
-    this.statsR = h('div', { class: 'stats-right' });
+    this.statsR = h('div', { class: 'stats-right' }, this.killsEl, this.ltEl, this.diffEl);
+    this.meter = new DamageMeter(assets, PLAYER_CSS);
     this.boss = h('div', { class: 'boss hidden' });
     this.toast = h('div', { class: 'toast' });
     this.fpsEl = h('div', { class: 'fps hidden' });
     this.indicators = h('div', { class: 'passthrough' });
-    this.partner = h('div', { class: 'coop-party hidden' });
+    this.party = h('div', { class: 'party hidden' });
     this.whispers = h('div', { class: 'whispers' });
     this.tags = h('div', { class: 'passthrough' });
     this.statusEl = h('div', { class: 'coop-status hidden' });
@@ -188,7 +210,7 @@ export class Hud {
     this.arrowLayer = h('div', { class: 'passthrough' });
     this.promptEl = h('div', { class: 'quest-prompt hidden' });
     this.root.append(this.barLayer, this.arrowLayer, this.splats, this.promptEl);
-    this.root.append(xp, this.lvl, this.preview, clock, this.act, this.hpWrap, this.tray, this.statsR, this.boss, this.toast, this.fpsEl, this.indicators, this.partner, this.tags, this.statusEl, this.pingEl, this.diagEl);
+    this.root.append(xp, this.lvl, this.preview, clock, this.act, this.hpWrap, this.tray, this.statsR, this.boss, this.toast, this.fpsEl, this.indicators, this.party, this.meter.root, this.tags, this.statusEl, this.pingEl, this.diagEl);
   }
 
   setPortrait(charId: string): void {
@@ -213,7 +235,8 @@ export class Hud {
     const pct = Math.max(0, Math.min(100, (p.hp / maxHp) * 100));
     this.hpFill.style.width = `${pct}%`;
     this.hpGhost.style.width = `${pct}%`;
-    this.hpTxt.textContent = `${Math.max(0, Math.ceil(p.hp))} / ${Math.round(maxHp)}`;
+    // (health rounds up, never past the maximum shown: a full Strongman read 187 / 186)
+    this.hpTxt.textContent = `${Math.max(0, Math.min(Math.ceil(p.hp), Math.round(maxHp)))} / ${Math.round(maxHp)}`;
     if (this.lastHp >= 0 && p.hp < this.lastHp - 0.01) {
       this.hpWrap.classList.remove('flash');
       void this.hpWrap.offsetWidth;
@@ -286,7 +309,23 @@ export class Hud {
       const f = w ? Math.max(0, Math.min(1, w.cd / g.weapons.cooldown(w))) : 0;
       d.el.style.setProperty('--cd', `${((1 - f) * 360).toFixed(1)}deg`);
     }
-    this.statsR.replaceChildren(h('div', {}, `☠ ${g.kills.toLocaleString('en-US')}`), h('div', {}, `🎪 ${g.diff.name}${g.cfg.curse ? ' · Cursed' : ''}${g.cfg.daily ? ' · Daily' : ''}`));
+    const kills = `☠ ${g.kills.toLocaleString('en-US')}`;
+    if (this.killsEl.textContent !== kills) this.killsEl.textContent = kills;
+    const diff = `🎪 ${g.diff.name}${g.cfg.curse ? ' · Cursed' : ''}${g.cfg.daily ? ' · Daily' : ''}`;
+    if (this.diffEl.textContent !== diff) this.diffEl.textContent = diff;
+    // the Lost Tickets earned so far tonight (D-85): it bumps when a boss, a voucher or the victory lap pays
+    const local = this.coopInfo?.local ?? p.index;
+    const lt = liveLt(g, local);
+    if (lt !== this.lastLt) {
+      if (this.lastLt >= 0 && lt - this.lastLt >= 20) {
+        this.ltEl.classList.remove('bump');
+        void this.ltEl.offsetWidth;
+        this.ltEl.classList.add('bump');
+      }
+      this.lastLt = lt;
+      this.ltNum.textContent = fmtNum(lt);
+    }
+    this.meter.update(g, local, g.players.length > 1, dt);
     // boss bar
     const b = g.bosses.find((x) => x.awake && !x.dead && x.introDone);
     if (b) {
@@ -323,8 +362,14 @@ export class Hud {
     }
     this.fpsEl.classList.toggle('hidden', !this.showFps);
     if (this.showFps) this.fpsEl.textContent = `${fps.toFixed(0)} fps · ${g.active.length} enemies · ${g.projs.reduce((n, q) => n + (q.alive ? 1 : 0), 0)} proj`;
-    this.updateIndicators(g, screen);
     this.updateCoop(g, screen);
+    // (measuring reads the layout, so not every frame)
+    this.keepOutT -= dt;
+    if (this.keepOutT <= 0) {
+      this.keepOutT = 0.25;
+      this.keepOut = [this.meter.rect(), this.partyRect()].filter((r): r is NonNullable<typeof r> => !!r);
+    }
+    this.updateIndicators(g, screen);
     this.updateBars(g, screen);
     this.updateChestArrows(g, screen);
     this.updateItemMarkers(g, screen);
@@ -348,9 +393,24 @@ export class Hud {
     this.promptEl.style.top = `${Math.max(70, Math.min(screen.h - 150, s.y))}px`;
   }
 
-  /** How far up from the bottom the chat box sits: above the health bar, its portrait and any party cards. */
+  /** How far up from the bottom the chat box sits: above the health bar and its portrait. */
   chatBottom(): number {
-    return 118 + (this.partner.classList.contains('hidden') ? 0 : this.partyH + 8);
+    return 118;
+  }
+
+  /** The party frames' box in UI pixels, or null without them. */
+  private partyRect(): { x: number; y: number; w: number; h: number } | null {
+    if (this.party.classList.contains('hidden')) return null;
+    return { x: this.party.offsetLeft, y: this.party.offsetTop, w: this.party.offsetWidth, h: this.party.offsetHeight };
+  }
+
+  /** An edge arrow's x, moved in past the meter or the party frames when it would sit on them (D-85). */
+  private clearX(x: number, y: number, screenW: number): number {
+    for (const r of this.keepOut) {
+      if (y < r.y - 18 || y > r.y + r.h + 18 || x < r.x - 18 || x > r.x + r.w + 18) continue;
+      x = r.x > screenW / 2 ? r.x - 26 : r.x + r.w + 26;
+    }
+    return x;
   }
 
   private popHurt(screen: HudScreen, x: number, y: number, amount: number, big: boolean): void {
@@ -485,38 +545,21 @@ export class Hud {
     });
   }
 
-  /** Online co-op: the partner's card, name tags (or edge arrows), waiting notes, latency. */
+  /** Online co-op: the party frames, name tags (or edge arrows), waiting notes, latency. */
   private updateCoop(g: Game, screen: HudScreen): void {
     const info = this.coopInfo;
     const on = !!info && g.players.length > 1;
-    this.partner.classList.toggle('hidden', !on);
+    this.party.classList.toggle('hidden', !on);
     this.pingEl.classList.toggle('hidden', !on || info?.ping === undefined);
     this.diagEl.classList.toggle('hidden', !on || !info?.diag);
     if (!on || !info) {
       if (this.tags.childElementCount) this.tags.replaceChildren();
       this.statusEl.classList.add('hidden');
       this.statusKey = '';
+      this.hideBuild();
       return;
     }
-    // a card per teammate: portrait, health, and what is happening to them
-    const others = g.players.filter((q) => q.index !== info.local);
-    const cards = others.map((q) => {
-      const gone = !!info.gone?.includes(q.index);
-      const pct = Math.max(0, Math.min(100, (q.hp / q.stats.maxHp()) * 100));
-      const st = gone ? 'Reconnecting…' : q.downed ? (others.length > 2 ? 'In a coffin!' : 'In a coffin — stand by to revive!') : q.dead ? 'Down' : '';
-      return { q, gone, pct, st };
-    });
-    const pk = cards.map((c) => `${c.q.index}|${c.q.char.id}|${c.q.name}|${Math.round(c.pct)}|${c.st}`).join(';');
-    if (pk !== this.partnerKey) {
-      this.partnerKey = pk;
-      this.partner.classList.toggle('many', others.length > 2);
-      this.partner.replaceChildren(...cards.map(({ q, gone, pct, st }) =>
-        h('div', { class: `coop-partner p${q.index + 1}${q.downed || gone ? ' down' : ''}` },
-          h('img', { src: this.assets.portrait(q.char.id), alt: '' }),
-          h('div', {}, h('div', {}, q.name), h('div', { class: 'bar' }, h('i', { style: { width: `${pct}%` } })), st ? h('div', { class: 'st' }, st) : null),
-        )));
-      this.partyH = this.partner.offsetHeight;
-    }
+    this.updateParty(g, info);
     // name tags over the other players, or an arrow at the screen edge when they are off-screen
     const kids: HTMLElement[] = [];
     for (const q of g.players) {
@@ -526,7 +569,7 @@ export class Hud {
       if (s.x > 0 && s.x < screen.w && s.y > 60 && s.y < screen.h) kids.push(h('div', { class: `coop-tag ${cls}`, style: { left: `${s.x}px`, top: `${s.y - 74}px` } }, q.downed ? `⚰ ${q.name}` : q.name));
       else {
         const m = 30;
-        const x = Math.max(m, Math.min(screen.w - m, s.x)), y = Math.max(m + 100, Math.min(screen.h - m - 70, s.y));
+        const y = Math.max(m + 100, Math.min(screen.h - m - 70, s.y)), x = this.clearX(Math.max(m, Math.min(screen.w - m, s.x)), y, screen.w);
         kids.push(h('div', { class: 'indicator', style: { left: `${x}px`, top: `${y}px` } }, h('i', { style: { background: PLAYER_CSS[q.index % PLAYER_CSS.length], color: '#17110e' } }, q.downed ? '⚰' : q.name.slice(0, 1).toUpperCase())));
       }
     }
@@ -547,6 +590,89 @@ export class Hud {
     if (info.diag) this.diagEl.textContent = info.diag;
   }
 
+  /**
+   * A frame per teammate down the left (D-85, after the MMO party frames): their portrait, name, health and
+   * what is happening to them. Built once per party; the bars and lines update in place, so a portrait under
+   * the pointer stays put. Hover a portrait for their build.
+   */
+  private updateParty(g: Game, info: CoopHud): void {
+    const others = g.players.filter((q) => q.index !== info.local);
+    const key = others.map((q) => `${q.index}|${q.char.id}|${q.name}`).join(';');
+    if (key !== this.partyKey) {
+      this.partyKey = key;
+      this.partyLive = [];
+      this.hideBuild();
+      this.party.classList.toggle('many', others.length > 3);
+      this.party.replaceChildren(...others.map((q) => {
+        const fill = h('i');
+        const num = h('span', { class: 'pf-num' });
+        const st = h('div', { class: 'pf-st' });
+        const frame = h('div', { class: `pf p${q.index + 1}` },
+          h('div', { class: 'pf-portrait', onpointerenter: (ev: PointerEvent) => this.showBuild(ev.currentTarget as HTMLElement, q.index), onpointerleave: () => this.hideBuild() }, h('img', { src: this.assets.portrait(q.char.id), alt: '' })),
+          h('div', { class: 'pf-body' }, h('div', { class: 'pf-name' }, q.name), h('div', { class: 'pf-bar' }, fill, num), st));
+        this.partyLive.push({ index: q.index, frame, fill, num, st });
+        return frame;
+      }));
+    }
+    for (const L of this.partyLive) {
+      const q = g.players[L.index];
+      if (!q) continue;
+      const gone = !!info.gone?.includes(q.index);
+      const max = q.stats.maxHp();
+      L.fill.style.width = `${Math.max(0, Math.min(100, (q.hp / max) * 100))}%`;
+      const num = `${Math.max(0, Math.min(Math.ceil(q.hp), Math.round(max)))} / ${Math.round(max)}`;
+      if (L.num.textContent !== num) L.num.textContent = num;
+      const st = gone ? 'Reconnecting…' : q.downed ? (others.length > 2 ? 'In a coffin!' : 'In a coffin — stand by to revive!') : q.dead ? 'Down' : '';
+      if (L.st.textContent !== st) L.st.textContent = st;
+      L.frame.classList.toggle('down', q.downed || q.dead || gone);
+    }
+    if (this.buildFor !== null) this.fillBuild(g, this.buildFor);
+  }
+
+  /** A teammate's build on their portrait (D-85): their weapons and charms, each with its level. */
+  private showBuild(portrait: HTMLElement, index: number): void {
+    const g = this.tipGame;
+    if (!g) return;
+    this.buildFor = index;
+    this.buildKey = '';
+    this.fillBuild(g, index);
+    this.buildTip.classList.remove('hidden');
+    if (!this.buildTip.isConnected) this.root.append(this.buildTip);
+    // to the right of the frame, clear of its name and health (rects are screen pixels; the UI layer is zoomed, D-74)
+    const z = uiZoom.v;
+    const r = (portrait.parentElement ?? portrait).getBoundingClientRect(), t = this.buildTip.getBoundingClientRect();
+    this.buildTip.style.left = `${(r.right + 14) / z}px`;
+    this.buildTip.style.top = `${Math.max(8, Math.min(innerHeight - t.height - 8, r.top - 6)) / z}px`;
+  }
+
+  private hideBuild(): void {
+    this.buildFor = null;
+    this.buildTip.classList.add('hidden');
+  }
+
+  private fillBuild(g: Game, index: number): void {
+    const q = g.players[index];
+    if (!q) return this.hideBuild();
+    const ws = q.weapons.list, ps = [...q.passives];
+    const key = `${q.char.id}|${q.pet}|` + ws.map((w) => `${w.def.id}:${w.level}`).join(',') + '|' + ps.map(([id, l]) => `${id}:${l}`).join(',');
+    if (key === this.buildKey) return;
+    this.buildKey = key;
+    const slot = (icon: string, name: string, lv: string) => h('div', { class: 'slot', title: name }, h('img', { src: icon, alt: name }), h('span', { class: `lv${lv.includes('MAX') ? ' max' : ''}` }, lv));
+    const weapons = ws.map((w) => {
+      const max = w.level >= w.def.maxLevel;
+      return slot(this.assets.weaponIcon(w.def.id), w.def.name, max ? (w.def.isEvolution ? '✦MAX' : 'MAX') : w.def.isEvolution ? `✦${w.level}` : String(w.level));
+    });
+    const charms = ps.map(([id, l]) => slot(this.assets.passiveIcon(id), PASSIVES[id]?.name ?? id, l >= (PASSIVES[id]?.maxLevel ?? 99) ? 'MAX' : String(l)));
+    const pet = q.pet ? PET_MAP[q.pet] : undefined;
+    this.buildTip.replaceChildren(
+      h('div', { class: 'tt-head' }, h('img', { src: this.assets.portrait(q.char.id), alt: '' }), h('div', {}, h('b', { style: { color: PLAYER_CSS[q.index % PLAYER_CSS.length] } }, q.name), h('small', {}, `${CHARACTER_MAP[q.char.id]?.name ?? ''}${pet ? ` · with ${pet.name}` : ''}`))),
+      h('div', { class: 'pf-label' }, 'Weapons'),
+      h('div', { class: 'pf-slots' }, ...(weapons.length ? weapons : [h('span', { class: 'pf-none' }, 'none yet')])),
+      h('div', { class: 'pf-label' }, 'Charms'),
+      h('div', { class: 'pf-slots' }, ...(charms.length ? charms : [h('span', { class: 'pf-none' }, 'none yet')])),
+    );
+  }
+
   /** Edge arrows pointing at off-screen chests, food and bosses. */
   private updateIndicators(g: Game, screen: HudScreen): void {
     const marks: { x: number; y: number; col: string; txt: string }[] = [];
@@ -562,7 +688,7 @@ export class Hud {
     for (const mk of marks) {
       const s = screen.toScreen(mk.x, mk.y);
       if (s.x > 0 && s.x < screen.w && s.y > 0 && s.y < screen.h) continue;
-      const x = Math.max(m, Math.min(screen.w - m, s.x)), y = Math.max(m + 100, Math.min(screen.h - m - 70, s.y));
+      const y = Math.max(m + 100, Math.min(screen.h - m - 70, s.y)), x = this.clearX(Math.max(m, Math.min(screen.w - m, s.x)), y, screen.w);
       kids.push(h('div', { class: 'indicator', style: { left: `${x}px`, top: `${y}px` } }, h('i', { style: { background: mk.col, color: '#17110e' } }, mk.txt)));
     }
     if (kids.length || this.indicators.childElementCount) this.indicators.replaceChildren(...kids);
@@ -701,6 +827,10 @@ export class Hud {
     this.lastHp = -1;
     this.trayKey = '';
     this.bossKey = '';
+    this.lastLt = -1;
+    this.partyKey = '';
+    this.hideBuild();
+    this.meter.reset();
   }
 }
 

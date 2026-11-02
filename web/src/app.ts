@@ -246,6 +246,11 @@ export class App {
     if (import.meta.env.DEV) console.info(`[boot] assets ${(t1 - t0).toFixed(0)} ms, renderer ${(t2 - t1).toFixed(0)} ms`);
     this.input.aimScaleY = this.renderer.aimScaleY;
     this.hud = new Hud(this.assets);
+    // the damage meter remembers whether it was folded (D-85)
+    this.hud.meter.onFold = (open) => {
+      this.save.data.settings.meterOpen = open;
+      this.save.save();
+    };
     // the chat box (D-65): above the HUD, under the menus; whispers of the hidden quests are written in it
     this.ui.append(this.chat.root);
     this.hud.onWhisper = (text, sub) => this.chat.add({ kind: 'quest', text, sub });
@@ -347,6 +352,8 @@ export class App {
     if (this.hud) {
       this.hud.showFps = s.showFps;
       this.hud.showHurt = s.damageNumbers;
+      this.hud.meter.on = s.damageMeter;
+      this.hud.meter.open = s.meterOpen;
     }
   }
 
@@ -1855,6 +1862,17 @@ export class App {
   private onNav(e: NavEvent): void {
     if (e === 'chat') {
       this.chat.open();
+      return;
+    }
+    if (e === 'meter') {
+      // the damage meter, shown or hidden (D-85); in a night only
+      if (this.state !== 'playing' || !this.game || this.game.hub) return;
+      const st = this.save.data.settings;
+      st.damageMeter = !st.damageMeter;
+      this.save.save();
+      this.hud.meter.on = st.damageMeter;
+      this.audio.play('ui_click', { vol: 0.4 });
+      if (!st.damageMeter) this.hud.toastMsg(`Damage meter hidden \u2014 ${this.input.keyName(this.input.bindings.meter?.[0] ?? 'KeyM')} brings it back`);
       return;
     }
     if (this.state === 'press') {

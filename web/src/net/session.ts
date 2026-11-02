@@ -15,11 +15,12 @@ import { randomToken } from './codes';
 import type { NetLink } from './link';
 import {
   BIN_INPUT, BIN_SNAPSHOT, FORWARDED_EVENTS, INPUT_REDUNDANCY, MAX_PLAYERS, PROTO, REJECT_TEXT, RateLimiter, SNAPSHOT_HZ, SNAPSHOT_HZ_FAST,
-  binType, cleanChat, decodeInputPacket, encodeInputPacket, parseGuestMsg, parseHostMsg,
+  binType, cleanChat, decodeInputPacket, encodeInputPacket, meterFromWire, meterToWire, parseGuestMsg, parseHostMsg,
   type GuestMsg, type GuestProfile, type HoldWhy, type HostMsg, type LobbyState, type NetInput, type RejectReason, type StartCfg,
 } from './protocol';
 import { Replica } from './replica';
 import { SnapshotEncoder, decodeSnapshot, snapshotEpoch, type SfxEvt } from './snapshot';
+import { meterState } from '../sim/meter';
 
 /** Chat flood guard (D-65): a burst of lines, then one per this many ms. */
 const CHAT_BURST = 4;
@@ -34,6 +35,8 @@ export const LINK_TIMEOUT = 10000;
  */
 export const STALL = 1000;
 export const PING_EVERY = 1000;
+/** How often the host sends the damage meter and the live Lost Tickets through a night (ms; D-85). */
+export const METER_EVERY = 1000;
 /** How long the host's run waits (paused) for a dropped guest before carrying on without them. */
 export const RECONNECT_WAIT = 20000;
 /** Longest the host waits for the guests to finish watching a prize wheel. */
@@ -189,6 +192,7 @@ export class HostSession {
   private dict = new StringDict();
   private unsub: (() => void)[] = [];
   private lastPing = 0;
+  private lastMeter = 0;
   private now = 0;
   // prize wheel: open presentations the host still has to finish (each seat counts its own)
   private prizeHost = 0;
@@ -880,6 +884,11 @@ export class HostSession {
     }
     this.updateHold();
     this.updateDiag();
+    // the damage meter and everyone's Lost Tickets so far (D-85): the guests' mirrors never tick
+    if (g && !g.hub && this.live.length && now - this.lastMeter >= METER_EVERY) {
+      this.lastMeter = now;
+      this.broadcast({ t: 'meter', m: meterToWire(meterState(g)) });
+    }
     for (const s of this.live) this.snapshot(s, now, dtMs);
   }
 
@@ -1113,6 +1122,8 @@ export class GuestSession {
         const g = this.onStart(m.cfg, !!m.resume);
         if (!g) return;
         this.game = g;
+        // its damage meter waits on the host's (D-85): zeros until the first one, not the idle mirror's numbers
+        g.netMeter = [];
         this.replica = new Replica(g, this.slot);
         this.state = 'run';
         return;
@@ -1153,6 +1164,9 @@ export class GuestSession {
         return;
       case 'chat':
         this.onChat(m.from, m.name, m.text);
+        return;
+      case 'meter':
+        if (this.state === 'run' && this.game && !this.game.hub) this.game.netMeter = meterFromWire(m.m);
         return;
       case 'ping':
         this.link.sendMsg({ t: 'pong', at: m.at } satisfies GuestMsg);

@@ -84,6 +84,13 @@ Voucher* worth `(6 + 0.25·min) × 0.9^taken × greed` LT (min 1), banked immedi
 run**, after which the card is shown disabled. A winning night pays roughly 800–1,500 LT, so vouchers
 can add at most ~10–15%. Maxed-out chest rolls pay a voucher (or the 5% heal once capped).
 
+## The live count (D-85)
+
+The HUD counts the night's Lost Tickets live under the kills: `computePayout` for the night so far (its clock,
+bosses and kills at your Greed; the win once the final boss is down) plus the vouchers taken tonight. A loss
+pays the count less the vouchers, which were banked as they came; dawn adds the win. Each player is paid at
+their own Greed (before D-85, every player was paid at the acting player's, nearly always the host's).
+
 ## The Lost & Found's prices (D-78)
 
 What a night pays, measured with `npx vite-node scripts/payout.ts` (smart pilot and draft policy, Midway,

@@ -115,6 +115,49 @@ understate that character.
 
 ---
 
+## The live Lost Tickets count, the damage meter, the party frames, the mirror's own damage — 2026-11-02 (D-85)
+
+- `npm test`: 28 files, 418 tests pass. 13 are new, in `tests/meter.test.ts`:
+  - hits are booked to their player by weapon line (all of a player's damage is booked to some source); an
+    evolution keeps its base weapon's line and clock;
+  - the mirror: for seven weapons (shots, swings and follow-ups, lobbed blasts, shrapnel, burns, stings, the
+    bell's slams), the weapon's own total with a Lv 8 mirror stays under 108 % of its total alone, and the
+    mirror books its share;
+  - a clone's projectiles carry the mirror as their source and the player's carry none; Mira's Glass Halo is
+    the mirror's;
+  - a burn's and a sting's ticks go to whoever lit them; the Blizzard's shatter to its owner; the coaster's
+    damage to nobody;
+  - the results list each player's own weapon damage;
+  - the live Lost Tickets equal the payout when the night ends, plus the vouchers; the win counts once the
+    final boss is down; each player is paid at their own Greed;
+  - the `meter` message round trip, and malformed ones refused.
+  The old mirror test now checks that the clones' share is booked to the mirror, not the cards. `tsc` is clean
+  and `npm run build` passes.
+- **Measured (the mirror, ten seconds at Lv 8, each weapon alone and with the mirror):** each weapon's own
+  total with the mirror at 84–104 % of its total alone, the mirror 20–37 % on top (cards 104 % / +25 %, mallet
+  84 % / +20 %, popcorn 99 % / +27 %, darts 100 % / +29 %, grill 88 % / +23 %, cotton 88 % / +37 %, bell
+  88 % / +27 %).
+- **In the browser** (dev server, solo):
+  - the meter with five weapons and a Lv 8 mirror, close up: weapon icons, bars coloured by weapon, "898
+    (9.9)", the mirror's own bar;
+  - the Lost Tickets line under the kills;
+  - folding the meter from its header and M hiding it (with its note), both remembered; Settings' toggle and
+    the "Damage meter: M" binding;
+  - a local three-player night (no network): the party frames, a portrait's build card beside the frame, the
+    party meter and a player's breakdown;
+  - the edge arrows stepping aside from the meter and the frames.
+- **Two windows on this PC** (Electron, real PeerJS/WebRTC, not two machines): host and guest played 25 s.
+  - Both meters showed both players. The guest's numbers came from the host's `meter`, within a second of the
+    host's.
+  - Each window's Lost Tickets count was its own player's (10 and 10).
+  - Each saw the other's party frame. The guest's breakdown of the host's bar listed the host's weapons, and
+    the host's portrait showed their build.
+  - At the end, the guest's results listed its own weapons' damage, matching the host's books for it.
+- **Not checked:**
+  - two machines on different networks;
+  - a six-player party's frames and meter (sized and laid out for it, not seen);
+  - a human night with the meter open.
+
 ## The Undertow's dial, guests' results, the Ghost Train's edges and lamp, the late line, companions — 2026-11-01 (D-84)
 
 - `npm test`: 27 files, 405 tests pass. 10 are new:
