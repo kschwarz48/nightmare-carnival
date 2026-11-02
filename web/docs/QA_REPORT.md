@@ -115,6 +115,17 @@ understate that character.
 
 ---
 
+## The game's own cursors — 2026-11-02 (D-93)
+
+- `npm test`: 29 files, 434 tests pass; `tsc` clean; `npm run build` passes.
+- **Checked in the dev build** (an Electron window; the system cursor doesn't show in screenshots, so each drawing
+  was laid out on a test strip at 6× and at real size, on the night's colour and on parchment):
+  - the variables hold `image-set(… 1x, … 2x)` values and the page's computed cursor is the gilt arrow;
+  - the title menu's buttons show the glove; in a night, the canvas and the HUD show the sight and the tray slots
+    the "?" arrow; with the level-up draft open the sight goes and the cards show the glove.
+- **Not checked:** how the system draws them on a high-DPI Windows display or a Mac (Chromium picks the 2x image;
+  not seen on hardware), and Firefox/Safari (they fall back to a single 1x image or the browser's cursors).
+
 ## The Last Train Home's words, and the brass cogs — 2026-11-02 (D-92)
 
 - `npm test`: 29 files, 434 tests pass; `tsc` clean; `npm run build` passes.

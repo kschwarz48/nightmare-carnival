@@ -1834,3 +1834,21 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   warm pool of light with a halo, and four star glints around it that flare in turn (one every second and a half
   or so, each over half a second: a twinkle, no flashing). The cogs still on the ground now stay drawn while
   someone carries another; they had vanished until the carried one reached the crucible.
+
+### D-93 · The game's own cursors
+
+- **The ask:** a custom cursor, stylized to the game.
+- **Five cursors** in the UI's poster style (ink outlines, gilt, the 1930s cartoon glove), drawn in code at start
+  (`ui/cursors.ts`) at 1x and 2x and given to the stylesheet as CSS variables, so there are no image files and
+  they stay crisp on high-DPI screens (`image-set`):
+  - `--cur`: a gilt arrow with a bevel and a ruby, everywhere;
+  - `--cur-hand`: the white cartoon glove pointing, with its three stitches and a rolled cuff edged in gilt, over
+    anything that can be clicked (it replaces every `cursor: pointer`);
+  - `--cur-aim`: a shooting-gallery sight (a gilt ring, four ticks, a red bead) over the night while you fight,
+    since the mouse aims there (`body.aiming`, set by the app when a night is running with no draft, prize wheel
+    or menu open); what can be clicked keeps the glove;
+  - `--cur-no` and `--cur-help`: the arrow with a red "no" (what can't be used yet) or a gilt "?" tag (tray
+    slots, party portraits, meter rows: whatever has a tooltip).
+- 32 px, the largest a custom cursor can be anywhere in the window (Chromium swaps bigger ones for its own near the
+  window's edge). Text fields keep the text cursor. Until the cursors are drawn, or where a browser can't, the
+  browser's own cursors stand in (`:root` in style.css).

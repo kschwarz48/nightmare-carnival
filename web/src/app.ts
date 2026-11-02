@@ -139,6 +139,8 @@ export class App {
   game: Game | null = null;
   demo: Game | null = null;
   private screenEl: HTMLElement | null = null;
+  /** the cursor shows the sight (body.aiming) */
+  private aimCursor = false;
   private nav: FocusNav | null = null;
   private acc = 0;
   private last = performance.now();
@@ -2046,6 +2048,12 @@ export class App {
     perf.mark(SEC.net, n0);
     this.updateChat(dt);
     const playing = this.state === 'playing' && g;
+    // over the night the cursor is the shooting-gallery sight, since the mouse aims; elsewhere the arrow (D-93)
+    const aiming = !!playing && !g.hub && !this.screenEl && !this.draft.visible && !this.prize.active;
+    if (aiming !== this.aimCursor) {
+      this.aimCursor = aiming;
+      document.body.classList.toggle('aiming', aiming);
+    }
     // player screen position for mouse aim
     const cssW = window.innerWidth, cssH = window.innerHeight;
     const target = g && (playing || this.nightPaused || g.hub) ? g.player : this.demo!.player;

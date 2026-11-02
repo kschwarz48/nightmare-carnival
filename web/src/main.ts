@@ -3,6 +3,7 @@ import '@fontsource/oswald/400.css';
 import '@fontsource/oswald/600.css';
 import './ui/style.css';
 import { App } from './app';
+import { installCursors } from './ui/cursors';
 
 function fatal(msg: string): void {
   const el = document.getElementById('ui');
@@ -18,6 +19,7 @@ function hasWebGL(): boolean {
   }
 }
 
+installCursors();
 if (!hasWebGL()) fatal('Nightmare Carnival needs WebGL. Please enable hardware acceleration or try another browser.');
 else {
   const app = new App();
