@@ -183,6 +183,16 @@ export class GameRenderer3D {
   private tmpM4 = new THREE.Matrix4();
   /** Dev-only inspection zoom (1 = gameplay framing) and camera lock. */
   zoom = 1;
+  /**
+   * The character inspector (dev only, `__nc.inspect`): every actor's heading (one for all, or per yaw id:
+   * a player's -1 - index, a creature's uid), the camera's elevation, a lighting preset, a held pose, and
+   * the ink outlines on or off. Null / true: the game's own.
+   */
+  inspectYaw: number | Map<number, number> | null = null;
+  inspectEl: number | null = null;
+  inspectLight: 'studio' | 'dim' | null = null;
+  inspectAnim: { clip: string; t: number } | null = null;
+  inspectInk = true;
   inspect: { x: number; y: number } | null = null;
 
   constructor(private canvas: HTMLCanvasElement, readonly assets: Assets) {
@@ -402,8 +412,10 @@ export class GameRenderer3D {
     let b = this.batches.get(key);
     if (!b) {
       const rig = def.rig?.();
-      const mat = actorMaterial({ animA: def.anim?.a, animB: def.anim?.b, emitBoost: def.emitBoost ?? 3, boneTex: rig?.tex, matte: !!rig || key.startsWith('s_') });
-      b = new ActorBatch(geometryFor(key, def), mat, cap, { shadow: def.shadow ?? false, outline: !!rig || key.startsWith('s_'), order: ACTOR_ORDER });
+      const geo = geometryFor(key, def);
+      // (the occlusion and pattern paths only where this geometry carries them, D-86)
+      const mat = actorMaterial({ animA: def.anim?.a, animB: def.anim?.b, emitBoost: def.emitBoost ?? 3, boneTex: rig?.tex, matte: !!rig || key.startsWith('s_'), occ: !!geo.getAttribute('aOcc'), pat: !!geo.getAttribute('aPat') });
+      b = new ActorBatch(geo, mat, cap, { shadow: def.shadow ?? false, outline: !!rig || key.startsWith('s_'), order: ACTOR_ORDER });
       if (def.rim) b.rim = def.rim;
       if (b.outline) b.outline.renderOrder = ACTOR_ORDER;
       if (xray) this.scene.add(b.addXray(xrayMaterial(mat, xray), XRAY_ORDER));
@@ -490,6 +502,14 @@ export class GameRenderer3D {
   }
 
   private smoothYaw(uid: number, target: number, dt: number, rate = 10): number {
+    const iy = this.inspectYaw;
+    if (iy !== null) {
+      const v = typeof iy === 'number' ? iy : iy.get(uid);
+      if (v !== undefined) {
+        this.yaw.set(uid, v);
+        return v;
+      }
+    }
     let cur = this.yaw.get(uid);
     if (cur === undefined) cur = target;
     let d = target - cur;
@@ -567,16 +587,19 @@ export class GameRenderer3D {
     }
     const cx = this.camX + fx.shakeX, cy = this.camY + fx.shakeY;
     const D = 3000;
-    this.camera.position.set(cx, SIN_EL * D, cy + COS_EL * D);
+    // (the inspector may look from lower or higher; the game always looks down at ELEVATION)
+    const sEl = this.inspectEl === null ? SIN_EL : Math.sin(this.inspectEl), cEl = this.inspectEl === null ? COS_EL : Math.cos(this.inspectEl);
+    this.camera.position.set(cx, sEl * D, cy + cEl * D);
     this.camera.lookAt(cx, 0, cy);
     this.camera.updateMatrixWorld();
     camBasis.uCamRight.value.set(1, 0, 0);
-    camBasis.uCamUp.value.set(0, COS_EL, -SIN_EL);
-    (pool.uniforms.uViewDir.value as THREE.Vector3).set(0, SIN_EL, COS_EL);
+    camBasis.uCamUp.value.set(0, cEl, -sEl);
+    (pool.uniforms.uViewDir.value as THREE.Vector3).set(0, sEl, cEl);
 
     // ---- lighting (the map's own world first: the Fun House swaps in for the Carnival Core, D-63)
     this.setWorld(g.mapId);
     this.updateLighting(g, px, py, cx, cy, opts.menu ?? false);
+    if (this.inspectLight) this.inspectLighting(cx, cy);
     this.ground.update(this.time, this.dawn);
     shared.uMistTime.value = this.time;
     shared.uMistWind.value.set(Math.cos(g.director.wind), Math.sin(g.director.wind));
@@ -677,6 +700,7 @@ export class GameRenderer3D {
     this.overlayCam.projectionMatrix.copy(this.camera.projectionMatrix);
     this.overlayCam.projectionMatrixInverse.copy(this.camera.projectionMatrixInverse);
     this.post.setOverlay(this.overlay.children.some((o) => o.visible));
+    if (!this.inspectInk) for (const b of this.batches.values()) if (b.outline) b.outline.visible = false;
     this.post.renderFrame();
     if (timing) {
       this.gpuTimer?.end();
@@ -694,6 +718,25 @@ export class GameRenderer3D {
   }
 
   // =================================================================== lighting
+  /**
+   * The inspector's lighting presets (dev only): `studio`, a neutral key from the camera's left and a soft
+   * fill, to judge forms and materials; `dim`, the moon and sky nearly out, lamps and lantern only.
+   */
+  private inspectLighting(cx: number, cy: number): void {
+    if (this.inspectLight === 'studio') {
+      this.moon.intensity = 2.3;
+      this.moon.color.setRGB(1, 0.97, 0.92);
+      this.moon.position.set(cx - 1300, 1700, cy + 1500);
+      this.hemi.intensity = 0.95;
+      this.hemi.color.setHex(0xc8ccd8);
+      this.hemi.groundColor.setHex(0x3a3430);
+      this.lantern.intensity *= 0.35;
+    } else if (this.inspectLight === 'dim') {
+      this.moon.intensity *= 0.12;
+      this.hemi.intensity *= 0.25;
+    }
+  }
+
   private updateLighting(g: Game, px: number, py: number, cx: number, cy: number, menu: boolean): void {
     const dark = g.darkness;
     const dawn = this.dawn;
@@ -1173,8 +1216,10 @@ export class GameRenderer3D {
         // a watched mannequin is a statue: one stride, held (D-63)
         const statue = e.def.behavior === 'mannequin' && e.state === 1;
         const special = bw ? boardwalkRow(e, rig, rising, this.time) : gtw && rising && rig.has('rise') ? rig.row('rise', Math.min(1, e.spawnT / EMERGE)) : null;
-        const rowA = special ?? rig.row('move', statue ? 0.21 + e.idx * 0.37 : (moving || flyer ? e.animT * rate : this.time * 0.25) + e.idx * 0.37);
-        if (telegraph > 0.02 && rig.has('attack')) b.anim(i, rowA, rig.row('attack', telegraph), flash, Math.min(1, telegraph * 2.5));
+        const ia = this.inspectAnim;
+        const rowA = ia ? rig.row(rig.has(ia.clip) ? ia.clip : 'move', ia.t) : special ?? rig.row('move', statue ? 0.21 + e.idx * 0.37 : (moving || flyer ? e.animT * rate : this.time * 0.25) + e.idx * 0.37);
+        if (ia) b.anim(i, rowA, rowA, flash, 0);
+        else if (telegraph > 0.02 && rig.has('attack')) b.anim(i, rowA, rig.row('attack', telegraph), flash, Math.min(1, telegraph * 2.5));
         else b.anim(i, rowA, rowA, flash, 0);
         if (!def.shadow) this.zoneShapes.circle(x, y, e.r * s * 1.25 + 6, 0, 0, 0, flyer ? 0.18 : 0.42, 0);
       } else b.anim(i, e.animT * 9 + e.idx, telegraph, flash, moving || flyer ? 1 : 0.15);
@@ -1536,6 +1581,11 @@ export class GameRenderer3D {
       a.prevCd = sig.cd;
     }
     a.castT += dt / 0.42;
+    const ia = this.inspectAnim;
+    if (ia) {
+      const row = rig.row(rig.has(ia.clip) ? ia.clip : 'idle', ia.t);
+      return [row, row, 0];
+    }
     const idle = rig.row('idle', this.time / 2.8 + p.index * 0.4);
     const run = rig.row(p.dashT > 0 && rig.has('dash') ? 'dash' : 'move', a.stride);
     if (p.hurtFlash > 0) return [a.move > 0.5 ? run : idle, rig.row('hurt', 1 - p.hurtFlash / 0.3), 0.85];

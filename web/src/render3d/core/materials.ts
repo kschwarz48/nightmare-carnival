@@ -26,6 +26,8 @@ export const shared = {
   uMistWind: { value: new THREE.Vector2(1, 0.3) },
   uMistTime: { value: 0 },
   uMistEdge: { value: new THREE.Vector2(2200, 1960) },
+  /** how much of each figure's baked crevice occlusion (`aOcc`) darkens it: 1 as baked, 0 none (D-86; the inspector toggles it) */
+  uOccK: { value: 1 },
 };
 
 /**
@@ -60,6 +62,16 @@ vec3 ncFog(vec3 col, float d, vec3 lit) { return col * (1.0 - d * 0.5) + (uMistC
 
 const V_HEAD = /* glsl */ `
 attribute vec3 aSurf;   // roughness, metalness, emissive amount
+// figures (D-86): baked crevice occlusion (0 none), a costume pattern (kind, a, b, c; kind 0 none) and its second
+// colour. Declared for figures only: an instanced prop already uses nearly every vertex attribute the GPU allows
+// (declared, these took it over the limit and every prop stopped drawing, "Too many attributes")
+#ifdef NC_OCC
+attribute float aOcc;
+#endif
+#ifdef NC_PAT
+attribute vec4 aPat;
+attribute vec3 aCol2;
+#endif
 #ifndef NC_SKIN
 attribute float aPart;
 attribute vec3 aPivot;
@@ -144,6 +156,17 @@ varying vec2 vSurf;
 varying vec3 vWPos;
 varying vec3 vWNor;
 varying float vViewZ;
+// figures only, and only those whose geometry carries the data (D-86): each costs every pixel of every
+// figure that has it, and other variants are already near the GPU's limits
+#ifdef NC_OCC
+varying float vOcc;
+#endif
+#ifdef NC_PAT
+flat varying vec4 vPat;
+flat varying vec3 vCol2;
+varying vec3 vObjP;
+varying vec3 vObjN;
+#endif
 `;
 
 const V_AN = /* glsl */ `
@@ -194,6 +217,47 @@ transformed = ncAnimate(transformed, ncR, ncB, ncAn);
 `;
 
 const F_HEAD = /* glsl */ `
+#ifdef NC_OCC
+uniform float uOccK;
+varying float vOcc;
+#endif
+#ifdef NC_PAT
+flat varying vec4 vPat;
+flat varying vec3 vCol2;
+varying vec3 vObjP;
+varying vec3 vObjN;
+#endif
+// Costume patterns (D-86), in the model's rest pose so they stay on the cloth, antialiased per pixel:
+// 1 vertical stripes round the body (a: count per turn, b: share of the second colour, c: axis z);
+// 2 bands (a: period, b: share, c: phase); 3 harlequin diamonds round the body (a: count per turn,
+// b: height, c: axis z); 4 dots (a: spacing, b: size, front and side projections blended).
+float ncStripe(float u, float duty) {
+  float w = fwidth(u);
+  float f = abs(fract(u) - 0.5) * 2.0;
+  return 1.0 - smoothstep(duty - w, duty + w, f);
+}
+float ncDots(vec2 u, float size) {
+  vec2 w = fwidth(u);
+  float d = length(fract(u) - 0.5);
+  float aa = (w.x + w.y) * 0.5;
+  return 1.0 - smoothstep(size * 0.5 - aa, size * 0.5 + aa, d);
+}
+float ncPat(vec3 p, vec3 n, vec4 pat) {
+  float ang = atan(p.x, p.z - pat.w) / 6.2831853;
+  if (pat.x < 1.5) return ncStripe(ang * pat.y, pat.z);
+  if (pat.x < 2.5) return ncStripe(p.y / max(pat.y, 0.01) + pat.w, pat.z);
+  if (pat.x < 3.5) {
+    vec2 q = vec2(ang * pat.y, p.y / max(pat.z, 0.01));
+    vec2 r = vec2(q.x + q.y, q.y - q.x);
+    vec2 c = fract(r) - 0.5;
+    float s = c.x * c.y;
+    float w = fwidth(s) * 1.5;
+    return smoothstep(-w, w, s);
+  }
+  vec3 an = abs(normalize(n));
+  float wz = an.z / max(an.x + an.z, 1e-4);
+  return mix(ncDots(p.zy / pat.y, pat.z), ncDots(p.xy / pat.y, pat.z), wz);
+}
 #ifdef NC_DETAIL
 varying vec3 vLocal;
 float dHash3(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
@@ -280,6 +344,9 @@ export interface ActorMatOpts {
   boneTex?: THREE.Texture;
   /** Matte, painterly surface: no specular glints from the practicals, faint reflections. */
   matte?: boolean;
+  /** the geometry carries baked occlusion (`aOcc`) / costume patterns (`aPat`, `aCol2`) to draw (D-86) */
+  occ?: boolean;
+  pat?: boolean;
   /** Procedural surface detail for props (D-47): wood grain, weathered canvas, chipped paint, rust. */
   detail?: boolean;
   /** Wind-swept ground cover: SWAY parts move with shared time (instances need no per-frame updates). */
@@ -322,6 +389,15 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
       vViewZ = -mvPosition.z;
       vEmit = aSurf.z;
       vSurf = aSurf.xy;
+      #ifdef NC_OCC
+      vOcc = aOcc;
+      #endif
+      #ifdef NC_PAT
+      vPat = aPat;
+      vCol2 = aCol2;
+      vObjP = position;
+      vObjN = normal;
+      #endif
       #ifdef NC_DETAIL
       vLocal = transformed;
       #endif`,
@@ -342,9 +418,24 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
       }
       #endif`,
     )
-    .replace('#include <color_fragment>', `#include <color_fragment>\ndiffuseColor.rgb *= vTint.rgb;\n${F_DETAIL}`)
-    .replace('#include <roughnessmap_fragment>', '#ifdef NC_MATTE\nfloat roughnessFactor = max(roughness * vSurf.x, 0.82);\n#else\nfloat roughnessFactor = min(1.0, roughness * vSurf.x + ncRA);\n#endif')
-    .replace('#include <metalnessmap_fragment>', '#ifdef NC_MATTE\nfloat metalnessFactor = metalness * vSurf.y * 0.2;\n#else\nfloat metalnessFactor = metalness * vSurf.y * (1.0 - ncMA);\n#endif')
+    .replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>
+      #ifdef NC_PAT
+      if (vPat.x > 0.5) diffuseColor.rgb = mix(diffuseColor.rgb, vCol2, ncPat(vObjP, vObjN, vPat));
+      #endif
+      diffuseColor.rgb *= vTint.rgb;
+      #ifdef NC_OCC
+      diffuseColor.rgb *= 1.0 - vOcc * uOccK;
+      #endif
+      ${F_DETAIL}`,
+    )
+    // figures (D-86): each surface keeps its own response — cloth stays dry, skin soft, leather, brass, glass
+    // and porcelain catch the moon and the lantern — but nothing on a figure goes mirror-bright. They were all
+    // clamped to one chalky matte (roughness >= 0.82, a fifth of their metal), the same for every material,
+    // which flattened faces and costumes into one muddy surface.
+    .replace('#include <roughnessmap_fragment>', '#ifdef NC_MATTE\nfloat roughnessFactor = clamp(roughness * vSurf.x, 0.36, 1.0);\n#else\nfloat roughnessFactor = min(1.0, roughness * vSurf.x + ncRA);\n#endif')
+    .replace('#include <metalnessmap_fragment>', '#ifdef NC_MATTE\nfloat metalnessFactor = metalness * vSurf.y * 0.7;\n#else\nfloat metalnessFactor = metalness * vSurf.y * (1.0 - ncMA);\n#endif')
     .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vEmit * uEmitBoost * vTint.w;')
     .replace(
       '#include <lights_fragment_end>',
@@ -353,6 +444,9 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
         vec3 ncSpec = vec3(0.0);
         vec3 ncDiff = poolLight(vWPos, normalize(vWNor), mix(6.0, 48.0, 1.0 - roughnessFactor), ncSpec);
         reflectedLight.directDiffuse += ncDiff * material.diffuseColor;
+        // (figures take no lamp glints: their highlights come from the moon and the lantern. Using the pool's
+        // specular kept 24 lights' worth of it alive in every figure pixel, which the compiler otherwise drops:
+        // +1.3 ms in a 40-clown crowd, D-86)
         #ifndef NC_MATTE
         reflectedLight.directSpecular += ncSpec * material.specularColor * (1.15 - roughnessFactor);
         #endif
@@ -392,7 +486,7 @@ export function actorMaterial(o: ActorMatOpts = {}): THREE.MeshStandardMaterial 
     vertexColors: true,
     roughness: 1,
     metalness: 1,
-    envMapIntensity: o.matte ? 0.08 : o.envIntensity ?? 0.45,
+    envMapIntensity: o.matte ? 0.16 : o.envIntensity ?? 0.45,
     side: o.side ?? THREE.FrontSide,
     transparent: o.transparent ?? false,
     opacity: o.opacity ?? 1,
@@ -413,6 +507,8 @@ export function actorMaterial(o: ActorMatOpts = {}): THREE.MeshStandardMaterial 
   if (o.dither) m.defines.NC_DITHER = '';
   if (o.boneTex) m.defines.NC_SKIN = '';
   if (o.matte) m.defines.NC_MATTE = '';
+  if (o.occ) m.defines.NC_OCC = '';
+  if (o.pat) m.defines.NC_PAT = '';
   if (o.detail) m.defines.NC_DETAIL = '';
   if (o.wind) m.defines.NC_WIND = '';
   m.onBeforeCompile = ncCompile;
@@ -438,13 +534,14 @@ export const ink = { uInkThick: { value: 1.2 }, uInkCol: { value: new THREE.Colo
 export function outlineMaterial(src: THREE.MeshStandardMaterial): THREE.ShaderMaterial {
   const d = src.userData.nc as NcData;
   const skin = src.defines?.NC_SKIN !== undefined;
-  return new THREE.ShaderMaterial({
+  const m = new THREE.ShaderMaterial({
     defines: skin ? { NC_SKIN: '' } : {},
     // (the ink's colour and thickness are shared by every outline; its alpha is this one's: a faded attack's, D-83)
     uniforms: { ...d, ...ink, uInkA: { value: 1 } },
     vertexShader: /* glsl */ `
       ${V_HEAD}
       uniform float uInkThick;
+      attribute float aInkOff; // 1: this part draws no ink (D-86)
       void main() {
         vec3 objectNormal = normal;
         ${V_AN}
@@ -459,7 +556,7 @@ export function outlineMaterial(src: THREE.MeshStandardMaterial): THREE.ShaderMa
         // push out in world space so the line keeps a constant on-screen width under instance scale
         vec4 w = ncM * vec4(transformed, 1.0);
         vec3 wn = normalize(mat3(ncM) * objectNormal);
-        w.xyz += wn * uInkThick;
+        w.xyz += wn * uInkThick * (1.0 - aInkOff);
         gl_Position = projectionMatrix * viewMatrix * w;
       }`,
     fragmentShader: /* glsl */ `
@@ -468,6 +565,9 @@ export function outlineMaterial(src: THREE.MeshStandardMaterial): THREE.ShaderMa
       void main() { gl_FragColor = vec4(uInkCol, uInkA); }`,
     side: THREE.BackSide,
   });
+  // a figure that chose no ink-free parts doesn't carry `aInkOff` (D-86): read it as zero
+  m.defaultAttributeValues = { ...m.defaultAttributeValues, aInkOff: [0] };
+  return m;
 }
 
 /**

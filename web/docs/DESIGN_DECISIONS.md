@@ -1475,3 +1475,67 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   Until the first one arrives it shows zeros, not its idle mirror's books.
 - **Health never shown past the maximum.** Health rounded up and the maximum to the nearest, so a full
   Strongman read 187 / 186. The number shown is now capped at the maximum shown.
+
+### D-86 · The character art standard: three benchmark rebuilds, figure materials, layered sculpts, per-pixel patterns, the inspector
+
+- **The ask.** Many player and enemy models looked muddy:
+  - soft, melted forms and malformed faces;
+  - one shading for every material;
+  - noise and dirty colour;
+  - ink smudges and weak silhouettes.
+
+  The task was to close the gap to the strongest assets (the balloons) without changing the art direction,
+  starting with three benchmarks for review: a playable character, a regular enemy and a complex enemy.
+  The standard is in docs/CHARACTER_ART_QUALITY_STANDARD.md.
+- **The audit** (standard §2) found causes on both sides.
+  - **The renderer** clamped every figure to one chalky matte (roughness ≥ 0.82, metal ×0.2, no lamp
+    glints).
+  - **The sculpt pipeline** multiplied up to 60% crevice occlusion and a curvature "wear" pass into the
+    colour, blended materials over 0.8 units, and left surface-nets vertices off the surface.
+  - **The models** used noise colour functions, vertex-colour stripes, features thinner than a mesh cell,
+    ink on every small detail, and seven-head realism with hat brims hiding faces from the 50° camera.
+- **Shared fixes** (every figure):
+  - **Figure materials.** Each surface keeps its own response: roughness floor 0.36, metal ×0.7, env 0.16.
+    Skin, cloth, leather, brass and glass eyes now read differently.
+    - Highlights come from the moon and the lantern. Lamp glints were tried and dropped: they kept the pool's
+      24-light specular alive in every figure pixel, +1.3 ms in a crowd.
+    - The creature roster and a boss fight were checked for regressions.
+  - **Vertices on the true surface.** One Newton step from samples already taken (free), clamped to half a
+    cell.
+  - **Occlusion as data.** `aOcc` with shader strength `uOccK`; as baked by default, so older models look
+    the same.
+  - **Opt-in figure data.** The figure data is declared, interpolated and drawn only under `NC_OCC` /
+    `NC_PAT`, set per batch from its geometry.
+    - A first version declared it for every variant and pushed instanced props past the GPU's
+      vertex-attribute limit: every prop silently stopped drawing.
+    - The before and after comparison caught it. `__nc.inspect.shaders()` now reports any failed program.
+  - **New sculpt options**, so far used by the benchmarks only:
+    - per-pixel costume patterns (`pat`: stripes, bands, diamonds, dots; `aPat`/`aCol2`);
+    - per-part ink (`ink`; `aInkOff`);
+    - a crisp-seam option (`seam`);
+    - layered figures (`layered`).
+- **The toolkit** (`sculpt/figure.ts`):
+  - **the HERO frame:** head +25%, broader shoulders, crown unchanged;
+  - **parts:** `styleHead`, `styleFace`, `styleHair`, `styleHand`, `styleShoe`;
+  - **colour:** smooth colour helpers;
+  - **defaults:** standard layer build options and material families.
+- **The benchmarks** are rebuilt in layers on the same skeletons, clips and sizes:
+  - **The Carny:** his boater tipped back so his face reads from the camera, per-pixel waistcoat stripes,
+    a V onto the shirt and bow tie, rolled sleeves.
+  - **The Evil Clown:** greasepaint diamonds, a glossy nose, a grin with teeth, a scalloped ruff wider
+    than his head, a dotted hat, a striped baggy suit, frilled cuffs, gloves, glossy shoes.
+  - **The Carnival Brute:** a trapezius yoke and defined arms in a dry warm skin, a banded singlet, a
+    championship belt, a dark woven burlap hood knotted at the crown and tied at the throat, a forged
+    sledge.
+- **Budgets.** The first rebuilds were 143k, 61k and 65k triangles: meshed far finer than a world unit
+  (under a pixel at play zoom) could show. Layers are now meshed by what they carry. The Carny is 64k (was
+  56k), the Clown 14k (was 8.5k), the Brute 35k (was 11.5k).
+  - **Stress scene** (40 Clowns, 2 Brutes, the Carny; original and new run alternately): 4.6–5.4 ms against
+    2.5–3.3 ms, all from the new models.
+  - **The pipeline on the old models:** 3.1–3.2 ms, no cost to models not rebuilt.
+  - Budgets per role are in the standard.
+- **The inspector** (dev only, `__nc.inspect`): a frozen lineup on a real map, through the game's camera,
+  renderer and lights. It sets heading per figure, camera elevation, zoom, lighting (`studio`/`dim`),
+  outlines, grade and occlusion on or off, and held poses. The renderer hooks are null in play.
+- **Not done (for review first):** the rest of the roster. The standard ends with the order to roll it out
+  in (§15).

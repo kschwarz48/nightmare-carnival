@@ -4,6 +4,12 @@
 // (no faceting), crevices get baked ambient occlusion from the field, colours blend softly where
 // materials meet, and every vertex receives two-bone skin weights for the skeletal rig.
 // Crisp small details (eyes, buttons, props) are added as regular meshes bound rigidly to a bone.
+//
+// D-86 (the character art standard, docs/CHARACTER_ART_QUALITY_STANDARD.md): every vertex is pulled onto
+// the true surface (no surface-nets terracing); crevice occlusion is kept as data (`aOcc`) rather than
+// painted into the colour; a part may carry a costume pattern drawn per pixel (`aPat`, `aCol2`) and may
+// draw no ink (`aInkOff`); and a figure can be built as layers — skin, then each garment as its own
+// shell over it — so materials meet at crisp, modelled edges instead of melting into each other.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -18,6 +24,21 @@ export type Shape =
   | { t: 'box'; c: V3; h: V3; r: number; rot?: V3; tx?: number }
   | { t: 'tor'; c: V3; R: number; r: number; rot?: V3 };
 
+/** A costume pattern drawn per pixel over a part (D-86; see `ncPat` in core/materials.ts). */
+export interface Pattern {
+  /** stripes round the body, bands, harlequin diamonds round the body, or dots */
+  kind: 'stripes' | 'bands' | 'diamonds' | 'dots';
+  /** the second colour */
+  col: number;
+  /** stripes/diamonds: how many per turn; bands: period; dots: spacing */
+  a: number;
+  /** stripes/bands: the second colour's share (0..1); diamonds: their height; dots: their size (0..1) */
+  b: number;
+  /** stripes/diamonds: the body's axis (z); bands: phase */
+  c?: number;
+}
+const PAT_KIND = { stripes: 1, bands: 2, diamonds: 3, dots: 4 } as const;
+
 export interface PrimOpts {
   /** Smooth-union radius with what came before (0 = hard union). */
   k?: number;
@@ -27,6 +48,23 @@ export interface PrimOpts {
   bone?: number;
   /** Carve this shape away (smooth subtraction with radius k). */
   sub?: boolean;
+  /** a costume pattern over this part (D-86) */
+  pat?: Pattern;
+  /**
+   * Draw ink round this part (true by default). A part hidden under another layer — a shirt under a
+   * waistcoat — must not: its outline would push out through the garment over it as dark blotches (D-86).
+   */
+  ink?: boolean;
+}
+
+export interface BuildOpts {
+  /** crevice occlusion strength (0.6 by default; the D-86 standard keeps it near 0.25) and probe scale */
+  ao?: number;
+  aoScale?: number;
+  /** curvature "wear" painted into the colour (1 by default; the D-86 standard uses 0: it reads as noise) */
+  paint?: number;
+  /** how far (units) two parts' colours blend where they meet (0.8 by default; 0.15 is a crisp seam) */
+  seam?: number;
 }
 
 interface Prim {
@@ -40,7 +78,11 @@ interface Prim {
   inv: THREE.Matrix3 | null;
   lo: THREE.Vector3;
   hi: THREE.Vector3;
+  pat: [number, number, number, number, THREE.Color] | null;
+  ink: boolean;
 }
+
+const packPat = (p?: Pattern): [number, number, number, number, THREE.Color] | null => (p ? [PAT_KIND[p.kind], p.a, p.b, p.c ?? 0, C(p.col)] : null);
 
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
@@ -139,6 +181,9 @@ export interface DetailOpts {
   scale?: number | V3;
   surf?: Surf;
   emit?: number;
+  /** draw the ink outline round it (true by default; small crisp details — eyes, buttons, badges — read better without, D-86) */
+  ink?: boolean;
+  pat?: Pattern;
 }
 
 /**
@@ -156,7 +201,7 @@ export class Sculpt {
     const [lo, hi] = bounds(s);
     const k = (o.k ?? 3) * this.kScale;
     const col = typeof o.col === 'function' ? o.col : o.col instanceof THREE.Color ? o.col : C(o.col ?? 0xffffff);
-    this.prims.push({ s, k, col, surf: o.surf ?? [0.6, 0], emit: o.emit ?? 0, bone: o.bone ?? 0, sub: !!o.sub, inv: rotInv((s as { rot?: V3 }).rot), lo, hi });
+    this.prims.push({ s, k, col, surf: o.surf ?? [0.6, 0], emit: o.emit ?? 0, bone: o.bone ?? 0, sub: !!o.sub, inv: rotInv((s as { rot?: V3 }).rot), lo, hi, pat: packPat(o.pat), ink: o.ink !== false });
     return this;
   }
 
@@ -174,14 +219,24 @@ export class Sculpt {
     const n = g.attributes.position.count;
     const c = o.col instanceof THREE.Color ? o.col : C(o.col ?? 0xffffff);
     const col = new Float32Array(n * 3), sk = new Float32Array(n * 4), su = new Float32Array(n * 3);
+    const pa = new Float32Array(n * 4), c2 = new Float32Array(n * 3), ink = new Float32Array(n).fill(o.ink === false ? 1 : 0);
+    const pat = packPat(o.pat);
     for (let i = 0; i < n; i++) {
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
       sk[i * 4] = o.bone ?? 0; sk[i * 4 + 1] = o.bone ?? 0; sk[i * 4 + 2] = 1; sk[i * 4 + 3] = 0;
       su[i * 3] = (o.surf ?? [0.5, 0])[0]; su[i * 3 + 1] = (o.surf ?? [0.5, 0])[1]; su[i * 3 + 2] = o.emit ?? 0;
+      if (pat) {
+        pa.set(pat.slice(0, 4) as number[], i * 4);
+        c2[i * 3] = pat[4].r; c2[i * 3 + 1] = pat[4].g; c2[i * 3 + 2] = pat[4].b;
+      }
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     g.setAttribute('aSkin', new THREE.BufferAttribute(sk, 4));
     g.setAttribute('aSurf', new THREE.BufferAttribute(su, 3));
+    g.setAttribute('aOcc', new THREE.BufferAttribute(new Float32Array(n), 1));
+    g.setAttribute('aPat', new THREE.BufferAttribute(pa, 4));
+    g.setAttribute('aCol2', new THREE.BufferAttribute(c2, 3));
+    g.setAttribute('aInkOff', new THREE.BufferAttribute(ink, 1));
     const idx = new Array(n);
     for (let i = 0; i < n; i++) idx[i] = i;
     g.setIndex(idx);
@@ -207,8 +262,8 @@ export class Sculpt {
     return d;
   }
 
-  build(o: { ao?: number; aoScale?: number; paint?: number } = {}): THREE.BufferGeometry {
-    const paint = o.paint ?? 1;
+  build(o: BuildOpts = {}): THREE.BufferGeometry {
+    const paint = o.paint ?? 1, seam = o.seam ?? 0.8;
     const h = this.cell;
     const lo = new THREE.Vector3(1e9, 1e9, 1e9), hi = new THREE.Vector3(-1e9, -1e9, -1e9);
     for (const p of this.prims) {
@@ -287,21 +342,28 @@ export class Sculpt {
     }
     const nv = pos.length / 3;
     const nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), sk = new Float32Array(nv * 4), su = new Float32Array(nv * 3);
+    const oc = new Float32Array(nv), pa = new Float32Array(nv * 4), col2 = new Float32Array(nv * 3), inkOff = new Float32Array(nv);
     const e = h * 0.5;
     const aoK = o.ao ?? 0.6, aoS = o.aoScale ?? 1;
     const tmpC = new THREE.Color(), c1 = new THREE.Color(), c2 = new THREE.Color();
     const pv = new THREE.Vector3(), nvv = new THREE.Vector3();
     for (let i = 0; i < nv; i++) {
-      const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+      let x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
       // gradient normal (and, from the same six samples, the field's Laplacian ≈ curvature)
+      const f0 = this.field(x, y, z);
       const fx1 = this.field(x + e, y, z), fx0 = this.field(x - e, y, z);
       const fy1 = this.field(x, y + e, z), fy0 = this.field(x, y - e, z);
       const fz1 = this.field(x, y, z + e), fz0 = this.field(x, y, z - e);
       const gx = fx1 - fx0, gy = fy1 - fy0, gz = fz1 - fz0;
-      const lap = (fx1 + fx0 + fy1 + fy0 + fz1 + fz0 - 6 * this.field(x, y, z)) / (e * e);
+      const lap = (fx1 + fx0 + fy1 + fy0 + fz1 + fz0 - 6 * f0) / (e * e);
       const gl = Math.hypot(gx, gy, gz) || 1;
       const nx_ = gx / gl, ny_ = gy / gl, nz_ = gz / gl;
       nor[i * 3] = nx_; nor[i * 3 + 1] = ny_; nor[i * 3 + 2] = nz_;
+      // onto the true surface (D-86): one Newton step from the same samples, at most half a cell — surface
+      // nets leave vertices up to a third of a cell off it, which terraced curves and lumped small features
+      const step = Math.max(-h * 0.5, Math.min(h * 0.5, -f0 / (gl / (2 * e))));
+      x += nx_ * step; y += ny_ * step; z += nz_ * step;
+      pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
       // nearest two materials (soft colour seams) and nearest two bones (skin weights)
       let d1 = 1e9, d2 = 1e9, p1: Prim | null = null, p2: Prim | null = null;
       let b1 = 0, bd1 = 1e9, b2 = 0, bd2 = 1e9;
@@ -325,12 +387,12 @@ export class Sculpt {
         return out.copy(p.col);
       };
       colorOf(p1!, c1);
-      if (p2 && d2 - d1 < 0.8) {
+      if (p2 && seam > 0 && d2 - d1 < seam) {
         colorOf(p2, c2);
-        const t = 0.5 + 0.5 * Math.min(1, (d2 - d1) / 0.8);
+        const t = 0.5 + 0.5 * Math.min(1, (d2 - d1) / seam);
         tmpC.copy(c2).lerp(c1, t);
       } else tmpC.copy(c1);
-      // baked occlusion from the field: probe outward along the normal
+      // baked occlusion from the field: probe outward along the normal (kept as data, D-86: the shader darkens by it)
       if (aoK > 0) {
         let occ = 0;
         for (const [s, wgt] of [[2.5, 0.45], [6, 0.3], [12, 0.18], [20, 0.07]] as const) {
@@ -338,7 +400,13 @@ export class Sculpt {
           const f = this.field(x + nx_ * sd, y + ny_ * sd, z + nz_ * sd);
           occ += wgt * Math.max(0, (sd - f) / sd);
         }
-        tmpC.multiplyScalar(1 - aoK * Math.min(1, occ * 1.4));
+        oc[i] = aoK * Math.min(1, occ * 1.4);
+      }
+      if (!p1!.ink) inkOff[i] = 1;
+      const pt = p1!.pat;
+      if (pt) {
+        pa[i * 4] = pt[0]; pa[i * 4 + 1] = pt[1]; pa[i * 4 + 2] = pt[2]; pa[i * 4 + 3] = pt[3];
+        col2[i * 3] = pt[4].r; col2[i * 3 + 1] = pt[4].g; col2[i * 3 + 2] = pt[4].b;
       }
       // hand-painted wear: convex edges catch a lighter stroke, creases sink darker (D-44)
       if (paint > 0) {
@@ -361,11 +429,44 @@ export class Sculpt {
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     g.setAttribute('aSkin', new THREE.BufferAttribute(sk, 4));
     g.setAttribute('aSurf', new THREE.BufferAttribute(su, 3));
+    g.setAttribute('aOcc', new THREE.BufferAttribute(oc, 1));
+    // patterns and ink choices only where some part uses them: on every vertex of every figure they cost
+    // 32 bytes of vertex data a frame for nothing (the materials read a missing one as zero, D-86)
+    const parts = [g, ...this.details];
+    const hasPat = this.prims.some((p) => p.pat) || this.details.some((d) => (d.getAttribute('aPat').array as Float32Array).some((v) => v !== 0));
+    const hasInk = this.prims.some((p) => !p.ink) || this.details.some((d) => (d.getAttribute('aInkOff').array as Float32Array).some((v) => v !== 0));
+    if (hasPat) {
+      g.setAttribute('aPat', new THREE.BufferAttribute(pa, 4));
+      g.setAttribute('aCol2', new THREE.BufferAttribute(col2, 3));
+    } else for (const d of this.details) { d.deleteAttribute('aPat'); d.deleteAttribute('aCol2'); }
+    if (hasInk) g.setAttribute('aInkOff', new THREE.BufferAttribute(inkOff, 1));
+    else for (const d of this.details) d.deleteAttribute('aInkOff');
     g.setIndex(index);
-    const out = this.details.length ? mergeGeometries([g, ...this.details], false)! : g;
+    const out = this.details.length ? mergeGeometries(parts, false)! : g;
     out.computeBoundingSphere();
     out.computeBoundingBox();
     void _w;
     return out;
   }
+}
+
+/**
+ * A figure in layers (D-86): each sculpt is its own surface — skin, then each garment as a shell over it,
+ * hair, a hat — built with its own options and merged into one geometry (one draw, one rig). Smooth
+ * blends happen within a layer only, so where a sleeve ends or a waistcoat meets the shirt, the edge is
+ * modelled and the colours don't bleed into each other.
+ */
+export function layered(layers: { sc: Sculpt; o?: BuildOpts }[]): THREE.BufferGeometry {
+  const built = layers.map((l) => l.sc.build(l.o));
+  // a layer without patterns or ink choices gets zeros for them, so all merge
+  for (const name of ['aPat', 'aCol2', 'aInkOff']) {
+    const has = built.find((g) => g.getAttribute(name));
+    if (!has) continue;
+    const size = has.getAttribute(name).itemSize;
+    for (const g of built) if (!g.getAttribute(name)) g.setAttribute(name, new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * size), size));
+  }
+  const out = mergeGeometries(built, false)!;
+  out.computeBoundingSphere();
+  out.computeBoundingBox();
+  return out;
 }

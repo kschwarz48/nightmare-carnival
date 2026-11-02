@@ -25,6 +25,18 @@ threejs-aaa-graphics-builder workflow, adapted to this project). Dev builds only
   dev-server-only endpoint (`vite.config.ts`, `apply: 'serve'`). `artifacts/` is git-ignored.
 * **Framing** — `__nc.shot({ x, y, zoom, dx, dy, restart, char })`; `__nc.bench(frames)` for frame
   time (CPU+GPU with `gl.finish`), draw calls and triangles.
+* **The character inspector** (D-86) — `await __nc.inspect.open({ chars, enemies, copies, gap })` stands a
+  frozen lineup on the map. `__nc.inspect.view({ yaw, el, zoom, dx, dy, light, ink, post, occ, anim, t })`
+  sets:
+  - heading per figure;
+  - camera elevation (50 is the game's);
+  - zoom;
+  - `studio` or `dim` light;
+  - outlines, grade and occlusion on or off;
+  - a held pose.
+
+  `__nc.inspect.close()` restores the game. The process and quality gates are in
+  `docs/CHARACTER_ART_QUALITY_STANDARD.md` §13.
 
 The packaged Playwright inspector (`inspect-threejs-canvas.mjs`) needs `@playwright/test`, `pngjs`
 and a downloaded Chromium, which this project does not ship; the in-app browser plus the in-page

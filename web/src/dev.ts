@@ -16,6 +16,10 @@ import { refreshSea } from './sim/boardwalk';
 import { TRANSIT, trackY, trainOrigin } from './data/ghosttrain';
 import { gpuProbe, runBenchScenario, type BenchScenario } from './devBench';
 import { BUILD } from './platform/updates';
+import { Game } from './sim/game';
+import { hasCharacterModel } from './render3d/models/characters';
+import { hasCreatureModel } from './render3d/models/creatures';
+import { shared } from './render3d/core/materials';
 
 /**
  * The threejs-qa-release canvas inspector's pixel metrics, ported to run in-page on the live
@@ -190,6 +194,102 @@ export function installDevTools(app: App): void {
         const meta = { ...m, diagnostics: (window as any).__THREE_GAME_DIAGNOSTICS__, at: new Date().toISOString() };
         const res = await fetch('/__capture', { method: 'POST', body: JSON.stringify({ run, name, png, meta }) });
         return { saved: (await res.json()).file as string, ...m };
+      },
+      /**
+       * The character inspector (D-86): a frozen lineup of characters (a party) and creatures on a map,
+       * seen through the game's own camera, renderer, lights and outlines. See docs/CHARACTER_ART_QUALITY_STANDARD.md.
+       *   await __nc.inspect.open({ chars: ['carny'], enemies: ['evil_clown'], copies: 4 })
+       *   __nc.inspect.view({ yaw: [0, 45, 90, 180], el: 50, zoom: 4, light: 'studio', ink: false, post: false, occ: 0, anim: 'move', t: 0.25 })
+       *   await __nc.capture('run', 'name')
+       */
+      inspect: {
+        lineup: [] as { kind: 'char' | 'enemy'; id: string; yawId: number; x: number; y: number }[],
+        centre: { x: 0, y: 0 },
+        async open(o: { chars?: string[]; enemies?: string[]; copies?: number; map?: MapId; x?: number; y?: number; gap?: number; row?: number } = {}) {
+          const copies = o.copies ?? 1;
+          const chars = (o.chars ?? []).flatMap((c) => Array(copies).fill(c) as string[]).slice(0, 6);
+          const enemies = (o.enemies ?? []).flatMap((e) => Array(copies).fill(e) as string[]);
+          const g = new Game({ character: chars[0] ?? 'carny', difficulty: 'midway', curse: false, seed: 1, godMode: true, map: o.map, players: (chars.length ? chars : ['carny']).map((c) => ({ character: c, name: c })) });
+          (app as unknown as { beginRun(g: Game, c: string, t: string, s: string): void }).beginRun(g, chars[0] ?? 'carny', '', '');
+          (app as unknown as { state: string }).state = 'playing';
+          app.overlayPause = true;
+          app.draft.hide();
+          app.hud.root.style.display = 'none';
+          for (const e of g.active) e.alive = false;
+          const gap = o.gap ?? 70, n = Math.max(chars.length, 0) + enemies.length;
+          const x0 = (o.x ?? g.player.x) - ((n - 1) * gap) / 2, y0 = o.y ?? g.player.y;
+          const L: { kind: 'char' | 'enemy'; id: string; yawId: number; x: number; y: number }[] = [];
+          g.players.forEach((p, i) => {
+            if (!chars.length) {
+              p.x = p.px = x0 - 4000;
+              return;
+            }
+            p.x = p.px = x0 + i * gap;
+            p.y = p.py = y0;
+            p.moving = false;
+            L.push({ kind: 'char', id: p.char.id, yawId: -1 - p.index, x: p.x, y: p.y });
+          });
+          enemies.forEach((id, j) => {
+            const x = x0 + (chars.length + j) * gap;
+            const e = g.spawnEnemy(id, x, y0 + (o.row ?? 0), { exact: true });
+            if (!e) return;
+            e.spawnT = 9;
+            e.emerge = 0;
+            e.vx = e.vy = 0;
+            L.push({ kind: 'enemy', id, yawId: e.uid, x: e.x, y: e.y });
+          });
+          api.inspect.lineup = L;
+          api.inspect.centre = { x: x0 + ((n - 1) * gap) / 2, y: y0 };
+          // the sculpts may still be on their way from the workers
+          for (let i = 0; i < 120 && !L.every((l) => (l.kind === 'char' ? hasCharacterModel(l.id) : hasCreatureModel(l.id))); i++) await new Promise((r) => setTimeout(r, 100));
+          api.inspect.view({});
+          return L.map((l) => l.id);
+        },
+        /** Yaw in degrees (0: facing the camera), one for all or one per lineup place; elevation in degrees (50: the game's). */
+        view(o: { yaw?: number | number[]; el?: number; zoom?: number; dx?: number; dy?: number; light?: 'game' | 'studio' | 'dim'; ink?: boolean; post?: boolean; occ?: number; anim?: string | null; t?: number }) {
+          const r = app.renderer;
+          const deg = Math.PI / 180;
+          const L = api.inspect.lineup;
+          const yaws = Array.isArray(o.yaw) ? o.yaw : L.map(() => (o.yaw as number | undefined) ?? 0);
+          r.inspectYaw = new Map(L.map((l, i) => [l.yawId, (yaws[i % yaws.length] ?? 0) * deg]));
+          if (o.el !== undefined) r.inspectEl = o.el * deg;
+          if (o.light !== undefined) r.inspectLight = o.light === 'game' ? null : o.light;
+          if (o.ink !== undefined) {
+            r.inspectInk = o.ink;
+            if (o.ink) for (const b of (r as unknown as { batches: Map<string, { outline: { visible: boolean } | null }> }).batches.values()) if (b.outline) b.outline.visible = true;
+          }
+          if (o.post !== undefined) r.post.setGraded(o.post);
+          if (o.occ !== undefined) shared.uOccK.value = o.occ;
+          if (o.anim !== undefined) r.inspectAnim = o.anim ? { clip: o.anim, t: o.t ?? 0 } : null;
+          if (o.zoom !== undefined) r.zoom = o.zoom;
+          r.resize(innerWidth, innerHeight, Math.min(2, devicePixelRatio || 1));
+          const c = api.inspect.centre;
+          r.inspect = { x: c.x + (o.dx ?? 0), y: c.y + (o.dy ?? -48) };
+          r.snapCamera(r.inspect.x, r.inspect.y);
+        },
+        /**
+         * Shader programs that failed to compile or link, with the driver's message. A material change can
+         * push a variant past a GPU limit (D-86: "Too many attributes" hid every prop) without any other sign.
+         */
+        shaders() {
+          const progs = (app.renderer.renderer.info.programs ?? []) as unknown as { name: string; diagnostics?: { runnable: boolean; programLog: string; vertexShader: { log: string }; fragmentShader: { log: string } } }[];
+          return progs.filter((p) => p.diagnostics && !p.diagnostics.runnable).map((p) => ({ name: p.name, log: p.diagnostics!.programLog || p.diagnostics!.vertexShader.log || p.diagnostics!.fragmentShader.log }));
+        },
+        close() {
+          const r = app.renderer;
+          r.inspectYaw = null;
+          r.inspectEl = null;
+          r.inspectLight = null;
+          r.inspectAnim = null;
+          r.inspectInk = true;
+          r.post.setGraded(true);
+          shared.uOccK.value = 1;
+          r.inspect = null;
+          r.zoom = 1;
+          r.resize(innerWidth, innerHeight, Math.min(2, devicePixelRatio || 1));
+          app.hud.root.style.display = '';
+          api.inspect.lineup = [];
+        },
       },
       god(on = true) {
         if (app.game) app.game.cfg.godMode = on;

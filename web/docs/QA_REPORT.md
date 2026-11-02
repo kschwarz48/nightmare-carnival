@@ -115,6 +115,66 @@ understate that character.
 
 ---
 
+## The character art standard: three benchmarks, figure materials, layered sculpts — 2026-11-02 (D-86)
+
+- `npm test`: 29 files, 423 tests pass. 5 are new, in `tests/characterArt.test.ts`:
+  - sculpted vertices lie on the true surface (worst |field| < 0.08 on a test ellipsoid);
+  - occlusion is kept as data with flat colour and a crisp seam (under 4% of vertices mixed);
+  - a part's pattern and ink choice reach its vertices, and layered geometry carries every attribute;
+  - each benchmark's budget (Carny < 70k, Clown < 15k, Brute < 38k triangles), its skeleton's bone names
+    and its clips (Carny `idle`, `move`, `cast`, `hurt`, `dash`; creatures `move`, `attack`). The Carny's
+    crown stays at 84–98.
+  - `tsc` is clean and `npm run build` passes.
+- **Captures** (dev server, the inspector, one 1600×900 Electron window, full-resolution CDP screenshots;
+  baselines taken with the original models and shading restored from git):
+  - the three benchmarks at the game's 50° angle in game light (front, 3/4, side, back), in studio light
+    without the grade, at eye level, without ink, and at play scale 1:1;
+  - active combat: a real night with 9 Evil Clowns and a Brute around the Carny, unfrozen for 1.6 s, then
+    held.
+  - Before and after sheets (`web/artifacts/visual/d86/`, git-ignored):
+    - `cmp-1-close-gameplay-angle.png`;
+    - `cmp-2-gameplay-scale.png`;
+    - `cmp-3-eye-level-studio.png`;
+    - `cmp-4-combat.png`.
+- **Found by looking, and fixed:**
+  - The Carny's V showed a dark groove: the cut was shallower than the waistcoat.
+  - The Clown's ruff was hidden under his head, and his pompom floated off the hat.
+  - The Brute's hood weave read as stripes, his crown tie as a horn, and the hood the same tan as his arms
+    (no value separation).
+  - Hidden layers leaked ink through the garments over them; they are now ink-off.
+  - **Every static prop stopped drawing** (lamp posts, signposts, grass) in the first after captures. The
+    shared shader declared the new figure attributes for every variant, and instanced props went over the
+    GPU's vertex-attribute limit ("Too many attributes", found by bisecting the files, then reading the
+    program logs).
+    - The figure data is now opt-in per geometry (`NC_OCC` / `NC_PAT`).
+    - `__nc.inspect.shaders()` reports failed programs, and is clean now.
+  - The Carny's rag read as a third leg; his nose was long.
+- **Seen and left:** shadow-map stair-steps on the figures at close inspection zoom with the studio light.
+  They're not visible at play zoom, and the shadow resolution is unchanged.
+- **Regression lineups** after the shared material and projection change: the six heroes, 13 first-map
+  creatures, and 13 creatures from the other maps. No artifacts; glossy accents (eyes, brass, leather,
+  rubber) now differ from cloth.
+- **Measured:**
+  - **Triangles:** Carny 64,340 (was 56,256), Evil Clown 13,960 (was 8,490), Carnival Brute 35,432 (was
+    11,524).
+  - **Sculpt time:** 0.65 s / 0.18 s / 0.28 s (was 0.97 / 0.17 / 0.12).
+  - **Stress scene** (40 Clowns, 2 Brutes, the Carny, 60 enemies, 240 frames; original and new run
+    alternately): 4.6–5.4 ms/frame and 3.84 M triangles, against 2.5–3.3 ms and 2.9 M.
+  - **The new pipeline with the old models:** 3.1–3.2 ms. That run first showed +1.3 ms, traced to figures
+    using the lamp pool's specular and to every figure carrying the pattern path; both are fixed.
+  - **A boss fight** (the Ringmaster, not rebuilt) before and after: no visible change
+    (`cmp-5-boss-materials.png`).
+- **Scorecard** (the benchmarks only, 0–3):
+  - Hero/player 1 → 2: a layered, readable figure with a face from the game camera;
+  - Enemies 1 → 2: role-specific forms and a silhouette from above (the ruff, the hood, the sledge);
+  - Materials/textures 1 → 2: distinct families, crisp per-pixel patterns, no noise;
+  - Performance evidence 2 → 2: budgets, a before and after stress test, tradeoffs noted.
+- **Not checked:**
+  - the rest of the roster rebuilt (left for review);
+  - motion as video (poses were held and stepped in the inspector, and the clips are unchanged);
+  - a slower GPU;
+  - two-machine co-op (rendering only, no wire change).
+
 ## The live Lost Tickets count, the damage meter, the party frames, the mirror's own damage — 2026-11-02 (D-85)
 
 - `npm test`: 28 files, 418 tests pass. 13 are new, in `tests/meter.test.ts`:

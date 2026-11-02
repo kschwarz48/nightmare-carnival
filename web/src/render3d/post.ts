@@ -153,8 +153,16 @@ export class Post3D {
 
   setQuality(q: 'low' | 'medium' | 'high'): void {
     this.quality = q;
-    this.bloom.enabled = q !== 'low';
+    this.bloom.enabled = q !== 'low' && this.graded;
     this.grade.uniforms.uGrain.value = q === 'low' ? 0 : 0.055;
+  }
+
+  /** The character inspector (dev only): bloom and the vintage grade off, tone mapping kept. */
+  graded = true;
+  setGraded(on: boolean): void {
+    this.graded = on;
+    this.grade.enabled = on;
+    this.setQuality(this.quality);
   }
 
   setSize(w: number, h: number, pr: number): void {

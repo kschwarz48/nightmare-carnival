@@ -6,7 +6,8 @@
 import * as THREE from 'three';
 import { C, SURF, cone, cyl, ellipsoid, extrude, lathe, rbox, sphere, torus, tube, vnoise, weather, type ColorFn, type V3 } from '../core/geo';
 import { PAL } from './kit';
-import { Sculpt } from '../sculpt/sdf';
+import { Sculpt, layered } from '../sculpt/sdf';
+import { FAM, HERO, LAYER, shadowedJaw, styleFace, styleHair, styleHand, styleHead, styleShoe } from '../sculpt/figure';
 import { Rig, type ClipDef, type Pose, ease, mix, pulse, sin, cos } from '../sculpt/rig';
 import { type Gait, type Proportions, gaitPose, humanBones, hurtPose, idlePose, scaleP } from '../sculpt/humanoid';
 import { REAL, bareHand, bodyStripes, frontZ, messyHair, realBody, realFace, realHead, torsoShapes, weatheredSkin } from '../sculpt/realism';
@@ -30,88 +31,129 @@ const clips = (gait: Gait, idleExtra: (t: number) => Pose, cast: (t: number) => 
 const B = (bones: ReturnType<typeof humanBones>) => (n: string) => bones.findIndex((x) => x.name === n);
 
 // ---------------------------------------------------------------- The Carny (Luca)
+/**
+ * The first benchmark of the character art standard (D-86): Luca rebuilt in layers on the HERO frame — a
+ * head a quarter larger, broader shoulders, bigger hands and shoes — so he reads from the game's camera
+ * as a person, not a stick under a hat. His boater is tipped back so the face shows from 50° above; the
+ * waistcoat's stripes are drawn per pixel (they were smeared vertex paint); colour is flat and deliberate,
+ * the small details draw no ink, and garments are shells with real edges (rolled sleeves, a V opening
+ * onto the shirt, cuffs, soles).
+ */
 function carny(): SculptModel {
-  const P = REAL;
-  const bones = humanBones(P, [{ name: 'rag', parent: 'hips', head: [-6.5, P.hip + 2, 1.5] }]);
+  const P = HERO;
+  const bones = humanBones(P, [{ name: 'rag', parent: 'hips', head: [-(P.hipW - 0.4), P.hip + 2, 1.5] }]);
   const b = B(bones);
-  const sc = new Sculpt(0.52, 3, 0.45);
-  const skin = weatheredSkin(0xc49a78, P, { stubble: 0.55, rings: 0.45 });
-  const shirt = weather(0xd2c4a2, 0.3, 0.12);
-  const trousers = weather(0x1d1a1f, 0.22, 0.12);
-  realBody(sc, P, b, { skin, shirt, trousers, shoe: 0x2a1c14, sock: 0xcbbf9e, rolled: true, cuffs: true });
-  // striped waistcoat cut to the torso, a V opening onto the shirt, lapels, buttons and points at the hem
-  const vest = bodyStripes(0x7e2a24, 0xcdbd98, 1.45, 0.35);
-  for (const t of torsoShapes(P, 0.55)) sc.add(t.s, { col: vest, bone: b(t.bone), k: 0.5, surf: SURF.cloth });
-  const fz = (x: number, y: number) => frontZ(sc, x, y);
-  const vTop = P.chest + 7.5, vBot = P.chest - 3.5;
-  sc.add({ t: 'cap', a: [0, vTop, fz(0, vTop) - 2.4], b: [0, vBot, fz(0, vBot) - 0.2], ra: 2.6, rb: 0.35 }, { col: shirt, bone: b('chest'), k: 0.35, surf: SURF.cloth });
-  for (const s of [1, -1]) {
-    const lx = s * 2.8, ly = P.chest + 7.2, lx2 = s * 0.4, ly2 = P.chest - 3.4;
-    sc.add({ t: 'cap', a: [lx, ly, fz(lx, ly) - 0.3], b: [lx2, ly2, fz(lx2, ly2) - 0.2], ra: 0.55, rb: 0.4 }, { col: 0x5e1e1a, bone: b('chest'), k: 0.3, surf: SURF.cloth });
-    const hx = s * 2.4, hy = P.waist - 4, hx2 = s * 1.1, hy2 = P.waist - 7.4;
-    sc.add({ t: 'cap', a: [hx, hy, fz(hx, hy) - 1.2], b: [hx2, hy2, fz(hx2, hy2) - 0.1], ra: 1.4, rb: 0.3 }, { col: vest, bone: b('spine'), k: 0.5, surf: SURF.cloth });
-  }
-  for (let i = 0; i < 4; i++) {
-    const by = P.waist - 3 + i * 3.2;
-    sc.detail(sphere(0.42, 6, 4), { col: 0xb8a070, bone: b(i < 2 ? 'spine' : 'chest'), pos: [0, by, fz(0, by) + 0.1], surf: SURF.brass });
-  }
-  // collar points and the red bowtie
-  const tieY = P.neck - 2.4, tieZ = fz(0, tieY);
-  for (const s of [-1, 1]) {
-    sc.detail(rbox(2.2, 0.5, 1.6, 0.2, 1), { col: 0xd8ccae, bone: b('chest'), pos: [s * 1.6, P.neck - 1.6, fz(s * 1.6, P.neck - 1.6) + 0.1], rot: [0.5, 0, s * 0.5], surf: SURF.cloth });
-    sc.detail(cone(1.3, 2.4, 6), { col: 0x7a221c, bone: b('chest'), pos: [s * 1.25, tieY, tieZ + 0.5], rot: [0, 0, s * Math.PI / 2], surf: SURF.cloth });
-  }
-  sc.detail(sphere(0.55, 6, 4), { col: 0x5e1a16, bone: b('chest'), pos: [0, tieY, tieZ + 0.65], surf: SURF.cloth });
-  // name badge ("LUCA") pinned on the left breast
-  const badgeY = P.chest + 2.5, badgeZ = fz(3.9, badgeY);
-  sc.detail(rbox(3.4, 1.5, 0.3, 0.2, 1), { col: 0xe6dcc6, bone: b('chest'), pos: [3.9, badgeY, badgeZ + 0.1], rot: [0, 0.08, 0], surf: SURF.paint });
-  for (let i = 0; i < 4; i++) sc.detail(rbox(0.45, 0.8, 0.1, 0.05, 1), { col: 0x1a1210, bone: b('chest'), pos: [3.9 - 1.05 + i * 0.7, badgeY, badgeZ + 0.28], rot: [0, 0.08, 0], surf: SURF.paint });
-  // a rag tucked into the waistband
-  const rag = weather(0xc8b892, 0.4, 0.2);
-  sc.add({ t: 'cap', a: [-6.6, P.hip + 2, 1.8], b: [-7.2, P.hip - 9, 2.6], ra: 1.6, rb: 2.2 }, { col: rag, bone: b('rag'), k: 0.8, surf: SURF.cloth });
-  sc.add({ t: 'cap', a: [-6.2, P.hip + 1, 2.6], b: [-6.4, P.hip - 11, 3.4], ra: 0.9, rb: 1.4 }, { col: rag, bone: b('rag'), k: 0.6, surf: SURF.cloth });
-  // the patch on the left knee, stitched on with coarse thread
-  sc.detail(rbox(3, 3.2, 0.35, 0.3, 1), { col: 0x6e2a1e, bone: b('shinL'), pos: [P.stance + 0.3, P.knee - 1.5, P.leg[1] + 1.1], rot: [0, 0, 0.12], surf: SURF.cloth });
-  for (let i = 0; i < 6; i++) sc.detail(rbox(0.12, 0.6, 0.12, 0.04, 1), { col: 0xd8c8a0, bone: b('shinL'), pos: [P.stance + 0.3 + (i % 3 - 1) * 1.3, P.knee - 1.5 + (i < 3 ? 1.6 : -1.6), P.leg[1] + 1.3], surf: SURF.cloth });
-  // waistcoat welt pockets, a brass watch chain swagged between them, trouser creases and belt loops
-  for (const s of [1, -1]) sc.detail(rbox(3.2, 0.32, 0.5, 0.1, 1), { col: 0x3a1210, bone: b('spine'), pos: [s * 3.9, P.waist - 1.2, fz(s * 3.9, P.waist - 1.2) + 0.05], rot: [0, s * 0.35, 0], surf: SURF.cloth });
-  const chain = ([[0.6, P.waist + 1.4], [2.2, P.waist - 0.6], [3.8, P.waist - 1.2]] as const).map(([x, y]): V3 => [x, y, fz(x, y) + 0.2]);
-  sc.detail(tube(chain, 0.16, 4, 10), { col: 0xb89a50, bone: b('spine'), surf: SURF.brass });
-  for (let i = 0; i < 5; i++) {
-    const a = -1.2 + i * 0.6;
-    sc.detail(rbox(0.5, 1.4, 0.4, 0.1, 1), { col: 0x141114, bone: b('hips'), pos: [Math.sin(a) * (P.hipW + 0.2), P.hip + 4.6, Math.cos(a) * (P.hipW * P.depth * 1.05 + 0.2)], rot: [0, a, 0], surf: SURF.cloth });
-  }
+  // mesh resolution by what each layer has to carry at play size (a world unit is under a pixel there): the
+  // face finest, broad garments coarser — their stripes are drawn per pixel, their edges are modelled
+  const skin = new Sculpt(0.48, 3, 0.45), hair = new Sculpt(0.6, 3, 0.45), shirt = new Sculpt(0.7, 3, 0.45);
+  const vest = new Sculpt(0.62, 3, 0.45), legs = new Sculpt(0.74, 3, 0.45), shoes = new Sculpt(0.6, 3, 0.45), rag = new Sculpt(0.7, 3, 0.45);
+  const SKIN = 0xc99c78, SHIRT = 0xdcd2bb, VEST = 0x7c2421, VEST2 = 0xd8c7a0, LAPEL = 0x4c1512, TROU = 0x26222c, SHOE = 0x3c2518;
+  const elbow = (s: number): V3 => [s * (P.shoulderX + P.armOut), P.elbowY, -0.6];
+  const wrist = (s: number): V3 => [s * (P.shoulderX + P.armOut * 1.6), P.wristY, 0.6];
+
+  // ---- skin: the head and neck, forearms bare to the rolled sleeves, four-fingered hands
+  styleHead(skin, P, b('head'), shadowedJaw(SKIN, P, 0.34), { jaw: 1.02, nose: 0.92 });
+  skin.add({ t: 'cap', a: [0, P.neck - 3.6, -0.5], b: [0, P.neck + 3, 0.3], ra: P.headR * 0.4, rb: P.headR * 0.36 }, { col: SKIN, bone: b('neck'), k: 1.2, surf: FAM.skin, ink: false });
   for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
-    sc.add({ t: 'cap', a: [s * (P.stance + 0.3), P.knee + 9, P.leg[1] + 1.6], b: [s * (P.stance + 0.3), P.knee + 1.5, P.leg[1] + 1.25], ra: 0.22, rb: 0.2 }, { col: 0x2e2a32, bone: b(`thigh${n}`), k: 0.05, surf: SURF.cloth });
-    // sleeve creases above the roll
-    sc.add({ t: 'cap', a: [s * (P.shoulderX + 0.5), P.elbowY + 5, 1.6], b: [s * (P.shoulderX + 1.4), P.elbowY + 2.2, 1.9], ra: 0.22, rb: 0.18 }, { col: 0x9a8e74, bone: b(`arm${n}`), k: 0.05, surf: SURF.cloth });
+    const el = elbow(s), wr = wrist(s);
+    skin.add({ t: 'cap', a: el, b: wr, ra: P.arm[1] * 0.98, rb: P.arm[2] * 0.92 }, { col: SKIN, bone: b(`fore${n}`), k: 0.8, surf: FAM.skin });
+    skin.add({ t: 'ell', c: [el[0] + (wr[0] - el[0]) * 0.3, el[1] + (wr[1] - el[1]) * 0.3, 0.1], r: [P.arm[1] * 0.98, 3.3, P.arm[1] * 1.02] }, { col: SKIN, bone: b(`fore${n}`), k: 1, surf: FAM.skin });
+    styleHand(skin, wr, s, P.arm[2], SKIN, b(`hand${n}`));
   }
-  // a little bow on the hat band
-  sc.detail(rbox(1.6, 1.0, 0.5, 0.2, 1), { col: 0x5e1e18, bone: b('head'), pos: [-7, P.headY + P.headR * 0.95 + 1.4, 0.8], rot: [0, -1.4, 0.05], surf: SURF.cloth });
-  // the face: gaunt, unshaven, tired
-  realHead(sc, P, b('head'), skin, { jaw: 0.95, nose: 1.05 });
-  realFace(sc, P, b('head'), { browTilt: 0.28, frown: 0.06 });
-  messyHair(sc, P, b('head'), 0x1a1310, { fringe: 5, seed: 2, locks: 20 });
-  // straw boater with a red band, sitting low
-  const hatM = new THREE.Matrix4().makeRotationX(-0.08).multiply(new THREE.Matrix4().makeRotationZ(0.05));
-  const straw = (p: THREE.Vector3) => C(0xc9b083).multiplyScalar(0.82 + 0.25 * vnoise(p.x * 2.2, p.y * 2.2, p.z * 2.2));
-  for (const [g, y, col] of [[cyl(10.4, 10.6, 0.9, 32), 0, null], [cyl(6.6, 7, 4.6, 28), 2.6, null], [cyl(7.1, 7.15, 1.5, 28, true), 1.4, 0x7a2a22]] as const) {
+  // a wry, tired look: brows a little worried, one corner of the mouth up
+  styleFace(skin, P, b('head'), { iris: 0x3c2616, browTilt: 0.14, smirk: 0.55, smile: 0.08, size: 0.2 });
+
+  // ---- hair: dark, mostly under the hat — sideburns, the back, a forelock falling out over the brow
+  const r = P.headR, hy = P.headY;
+  styleHair(hair, P, b('head'), 0x2c1d14, {
+    fringe: [
+      [[r * 0.12, hy + r * 0.8, r * 0.56], [-r * 0.32, hy + r * 0.44, r * 0.93]],
+      [[r * 0.4, hy + r * 0.74, r * 0.5], [r * 0.14, hy + r * 0.42, r * 0.96]],
+    ],
+  });
+  // the straw boater, tipped back off the face so the camera sees under the brim
+  const hatM = new THREE.Matrix4().makeRotationX(-0.36).multiply(new THREE.Matrix4().makeRotationZ(0.08));
+  const hatAt = (g: THREE.BufferGeometry, y: number) => {
     const gg = g.clone();
-    gg.applyMatrix4(hatM.clone().setPosition(0, P.headY + P.headR * 0.95 + y, -0.4));
-    if (col === null) {
-      // per-vertex straw weave
-      const pos = gg.getAttribute('position');
-      const cc = new THREE.Color();
-      const avg = new THREE.Color(0, 0, 0);
-      for (let i = 0; i < pos.count; i += 13) avg.add(straw(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i))));
-      cc.copy(avg.multiplyScalar(13 / pos.count));
-      sc.detail(gg, { col: cc, bone: b('head'), surf: SURF.canvas });
-    } else sc.detail(gg, { col, bone: b('head'), surf: SURF.cloth });
+    gg.applyMatrix4(hatM.clone().multiply(new THREE.Matrix4().makeTranslation(0, y, 0)).premultiply(new THREE.Matrix4().makeTranslation(0, hy + r * 0.86, -r * 0.12)));
+    return gg;
+  };
+  hair.detail(hatAt(cyl(r * 1.4, r * 1.43, 0.9, 40), 0), { col: 0xd6bf8e, bone: b('head'), surf: FAM.straw });
+  hair.detail(hatAt(cyl(r * 0.88, r * 0.93, r * 0.58, 32), r * 0.33), { col: 0xccb382, bone: b('head'), surf: FAM.straw });
+  hair.detail(hatAt(cyl(r * 0.945, r * 0.95, r * 0.2, 32, true), r * 0.15), { col: 0x8c2a22, bone: b('head'), surf: FAM.cloth });
+  hair.detail(hatAt(rbox(0.5, 1.1, 1.7, 0.2, 1).translate(-r * 0.97, 0, 0.6), r * 0.15), { col: 0x5e1c16, bone: b('head'), surf: FAM.cloth, ink: false });
+
+  // ---- shirt: torso, sleeves rolled above the elbow (two folds), the collar band
+  // (the shirt's body is under the waistcoat: no ink of its own, or it would show through)
+  for (const t of torsoShapes(P)) shirt.add(t.s, { col: SHIRT, bone: b(t.bone), k: t.k, surf: FAM.cloth, ink: false });
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
+    const dr = P.arm[0], el = elbow(s);
+    shirt.add({ t: 'ell', c: [s * (P.shoulderX + 0.2), P.shoulderY - dr * 1.4, 0.1], r: [dr * 1.1 + 0.25, dr * 1.85, dr * 1.1 + 0.4], rot: [0, 0, s * 0.1] }, { col: SHIRT, bone: b(`arm${n}`), k: 1.6, surf: FAM.cloth });
+    shirt.add({ t: 'cap', a: [s * (P.shoulderX + 0.1), P.shoulderY - dr * 0.7, 0], b: [el[0], el[1] + 1, el[2]], ra: dr * 0.98, rb: P.arm[1] + 0.3 }, { col: SHIRT, bone: b(`arm${n}`), k: 1.1, surf: FAM.cloth });
+    shirt.add({ t: 'tor', c: [el[0], el[1] + 0.4, el[2]], R: P.arm[1] + 0.6, r: 0.95 }, { col: SHIRT, bone: b(`arm${n}`), k: 0.25, surf: FAM.cloth });
+    shirt.add({ t: 'tor', c: [el[0], el[1] + 1.9, el[2]], R: P.arm[1] + 0.55, r: 0.85 }, { col: SHIRT, bone: b(`arm${n}`), k: 0.25, surf: FAM.cloth });
   }
-  // a fan of dog-eared playing cards in the right hand
+  shirt.add({ t: 'tor', c: [0, P.neck - 2.5, 0.2], R: P.headR * 0.42, r: 0.85 }, { col: SHIRT, bone: b('chest'), k: 0.3, surf: FAM.cloth });
+
+  // ---- waistcoat: a shell over the shirt, striped, cut open in a V with dark lapels, points at the hem
+  const stripes = { kind: 'stripes', col: VEST2, a: 11, b: 0.4, c: 0.25 } as const;
+  for (const t of torsoShapes(P, 0.6)) vest.add(t.s, { col: VEST, bone: b(t.bone), k: 0.5, surf: FAM.wool, pat: stripes });
+  const vz = (x: number, y: number) => frontZ(vest, x, y);
+  const vTop = P.chest + 7.6, vBot = P.chest - 4.2;
+  const zTop = vz(0, vTop), zBot = vz(0, vBot);
+  for (const s of [1, -1]) {
+    const hx = s * 2.5, hy2 = P.waist - 4, hx2 = s * 1.1, hy3 = P.waist - 7.6;
+    vest.add({ t: 'cap', a: [hx, hy2, vz(hx, hy2) - 1.2], b: [hx2, hy3, vz(hx2, hy3) - 0.1], ra: 1.5, rb: 0.35 }, { col: VEST, bone: b('spine'), k: 0.5, surf: FAM.wool, pat: stripes });
+    const lx = s * 3.1, lx2 = s * 0.45;
+    vest.add({ t: 'cap', a: [lx, vTop - 0.3, vz(lx, vTop - 0.3) - 0.35], b: [lx2, vBot + 0.3, vz(lx2, vBot + 0.3) - 0.25], ra: 0.62, rb: 0.46 }, { col: LAPEL, bone: b('chest'), k: 0.25, surf: FAM.wool });
+  }
+  // the V opening, cut deeper than the waistcoat is thick so the shirt shows through it
+  vest.add({ t: 'cap', a: [0, vTop + 0.6, zTop - 0.2], b: [0, vBot, zBot - 0.6], ra: 3.0, rb: 0.95 }, { sub: true, k: 0.2 });
+  for (let i = 0; i < 4; i++) {
+    const by = vBot - 1.4 - i * 2.5;
+    vest.detail(sphere(0.5, 8, 6), { col: 0xc4a464, bone: b(i < 2 ? 'chest' : 'spine'), pos: [0, by, vz(0, by) + 0.12], surf: FAM.brass, ink: false });
+  }
+  for (const s of [1, -1]) vest.detail(rbox(3.2, 0.34, 0.5, 0.1, 1), { col: 0x2e0e0c, bone: b('spine'), pos: [s * 4.1, P.waist - 1.1, vz(s * 4.1, P.waist - 1.1) + 0.04], rot: [0, s * 0.35, 0], surf: FAM.cloth, ink: false });
+  const chain = ([[0.6, P.waist + 1.2], [2.3, P.waist - 0.8], [4.0, P.waist - 1.3]] as const).map(([x, y]): V3 => [x, y, vz(x, y) + 0.22]);
+  vest.detail(tube(chain, 0.17, 4, 10), { col: 0xc4a058, bone: b('spine'), surf: FAM.brass, ink: false });
+  // the name badge pinned over the heart
+  const bdy = P.chest + 2.6, bdz = vz(4.0, bdy);
+  vest.detail(rbox(3.4, 1.5, 0.3, 0.2, 1), { col: 0xe8dec8, bone: b('chest'), pos: [4.0, bdy, bdz + 0.12], rot: [0, 0.12, 0], surf: SURF.paint, ink: false });
+  for (let i = 0; i < 4; i++) vest.detail(rbox(0.45, 0.8, 0.1, 0.05, 1), { col: 0x1a1210, bone: b('chest'), pos: [4.0 - 1.05 + i * 0.7, bdy, bdz + 0.3], rot: [0, 0.12, 0], surf: SURF.paint, ink: false });
+  // the collar points and a red bow tie, in the V
+  const tieY = P.neck - 2.5, tieZ = frontZ(shirt, 0, tieY);
+  for (const s of [-1, 1]) {
+    shirt.detail(rbox(2.2, 0.5, 1.6, 0.2, 1), { col: 0xe4dac4, bone: b('chest'), pos: [s * 1.6, P.neck - 1.7, frontZ(shirt, s * 1.6, P.neck - 1.7) + 0.1], rot: [0.5, 0, s * 0.5], surf: FAM.cloth, ink: false });
+    shirt.detail(cone(1.4, 2.6, 8), { col: 0x9a241e, bone: b('chest'), pos: [s * 1.35, tieY, tieZ + 0.55], rot: [0, 0, s * Math.PI / 2], surf: FAM.cloth, ink: false });
+  }
+  shirt.detail(sphere(0.62, 8, 6), { col: 0x6e1a16, bone: b('chest'), pos: [0, tieY, tieZ + 0.7], surf: FAM.cloth, ink: false });
+
+  // ---- trousers: dark, cuffed, the left knee patched with coarse thread
+  legs.add({ t: 'ell', c: [0, P.hip + 1.5, 0], r: [P.hipW + 0.2, 6.2, (P.hipW + 0.2) * P.depth * 1.1] }, { col: TROU, bone: b('hips'), k: 1.5, surf: FAM.cloth });
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
+    const hp: V3 = [s * P.stance, P.hip - 1, 0], kn: V3 = [s * (P.stance + 0.3), P.knee, 0.5], an: V3 = [s * (P.stance + 0.3), P.ankle + 1.5, 0];
+    legs.add({ t: 'cap', a: hp, b: kn, ra: P.leg[0] + 0.7, rb: P.leg[1] + 0.6 }, { col: TROU, bone: b(`thigh${n}`), k: 2, surf: FAM.cloth });
+    legs.add({ t: 'cap', a: kn, b: an, ra: P.leg[1] + 0.6, rb: P.leg[2] + 0.85 }, { col: TROU, bone: b(`shin${n}`), k: 1, surf: FAM.cloth });
+    legs.add({ t: 'tor', c: [an[0], an[1] + 1.1, an[2]], R: P.leg[2] + 1.0, r: 0.95 }, { col: TROU, bone: b(`shin${n}`), k: 0.3, surf: FAM.cloth });
+    // a cream sock, then the shoe
+    shoes.add({ t: 'cap', a: [an[0], an[1] + 0.6, an[2]], b: [an[0], P.ankle - 1, an[2] + 0.2], ra: P.leg[2] + 0.25, rb: P.leg[2] + 0.35 }, { col: 0xd2c6a6, bone: b(`foot${n}`), k: 0.4, surf: FAM.cloth });
+    styleShoe(shoes, [an[0], P.ankle, 0], 8, SHOE, b(`foot${n}`));
+  }
+  const kx = P.stance + 0.3, ky = P.knee - 1.4, kz = frontZ(legs, kx, ky);
+  legs.detail(rbox(3.2, 3.3, 0.4, 0.4, 1), { col: 0x74301f, bone: b('shinL'), pos: [kx, ky, kz + 0.05], rot: [0, 0, 0.12], surf: FAM.cloth, ink: false });
+  for (let i = 0; i < 6; i++) legs.detail(rbox(0.14, 0.62, 0.14, 0.05, 1), { col: 0xd8c8a0, bone: b('shinL'), pos: [kx + ((i % 3) - 1) * 1.3, ky + (i < 3 ? 1.65 : -1.65), kz + 0.28], surf: FAM.cloth, ink: false });
+
+  // ---- a rag tucked into the waistband
+  const RAG = 0xcdbf9b;
+  // (a flat cloth folded over the waistband and hanging to mid-thigh, not a tube)
+  rag.add({ t: 'box', c: [-(P.hipW + 0.1), P.hip - 2.4, 2.2], h: [0.5, 4.6, 2.1], r: 0.45, rot: [0.08, -0.5, 0.06] }, { col: RAG, bone: b('rag'), k: 0.5, surf: FAM.cloth });
+  rag.add({ t: 'box', c: [-(P.hipW - 0.1), P.hip + 1.4, 2.0], h: [0.7, 1.0, 2.2], r: 0.5, rot: [0, -0.5, 0] }, { col: C(RAG).multiplyScalar(0.9), bone: b('rag'), k: 0.4, surf: FAM.cloth });
+
+  // ---- a fan of dog-eared playing cards in the right hand
   const hx = -(P.shoulderX + P.armOut * 1.6);
-  for (let i = 0; i < 4; i++) sc.detail(rbox(3.2, 4.6, 0.22, 0.4, 1), { col: i % 2 ? 0xe2d8c2 : 0xd6c8ac, bone: b('handR'), pos: [hx - 0.5 - i * 0.35, P.wristY - 4.2 + i * 0.15, 2.6], rot: [0.2, 0.15, -0.6 + i * 0.28], surf: SURF.paint });
-  sc.detail(rbox(1.2, 1.4, 0.1, 0.1, 1), { col: 0x8a2a20, bone: b('handR'), pos: [hx - 1.4, P.wristY - 3.4, 2.82], rot: [0.2, 0.15, 0.25], surf: SURF.paint });
+  for (let i = 0; i < 4; i++) skin.detail(rbox(3.2, 4.6, 0.22, 0.4, 1), { col: i % 2 ? 0xe8dec8 : 0xdacdb2, bone: b('handR'), pos: [hx - 0.6 - i * 0.35, P.wristY - 4.4 + i * 0.15, 2.8], rot: [0.2, 0.15, -0.6 + i * 0.28], surf: SURF.paint, ink: false });
+  skin.detail(rbox(1.2, 1.4, 0.1, 0.1, 1), { col: 0x9a2a20, bone: b('handR'), pos: [hx - 1.5, P.wristY - 3.6, 3.02], rot: [0.2, 0.15, 0.25], surf: SURF.paint, ink: false });
+
   const rig = new Rig(bones, clips(
     REAL_WALK,
     // idle: weight on one hip, absently shuffling the cards, a glance over the shoulder
@@ -124,7 +166,11 @@ function carny(): SculptModel {
     },
     (t) => ({ rag: { rx: 0.12 * sin(t, 2), rz: 0.08 * sin(t) }, armR: { rx: -0.1 }, foreR: { rx: -0.3 } }),
   ));
-  return { geo: sc.build({ ao: 0.62, aoScale: 0.55, paint: 1.1 }), rig };
+  const geo = layered([
+    { sc: skin, o: LAYER.skin }, { sc: hair, o: LAYER.hair }, { sc: shirt, o: LAYER.cloth }, { sc: vest, o: LAYER.cloth },
+    { sc: legs, o: LAYER.cloth }, { sc: shoes, o: LAYER.hard }, { sc: rag, o: LAYER.cloth },
+  ]);
+  return { geo, rig };
 }
 
 // ---------------------------------------------------------------- The Strongman

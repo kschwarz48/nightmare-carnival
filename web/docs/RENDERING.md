@@ -30,7 +30,16 @@ imports Three.js; `src/render3d/` reads the sim each frame. Design records: D-35
 * **Actor material** (`core/materials.ts`) — `MeshStandardMaterial` + `onBeforeCompile`: part rig or
   GPU skinning (bone texture), per-instance tint/rim/flash, per-vertex roughness/metal/emissive
   (`aSurf`), the light pool, cool shadow fill, ground mist, ink outlines (inverted hull, D-44),
-  occluder dithering. Options as defines:
+  occluder dithering. D-86 (docs/CHARACTER_ART_QUALITY_STANDARD.md):
+  * figures (`matte`) honour each surface's roughness and metal, with a floor of 0.36;
+  * baked occlusion is data (`aOcc`, strength `uOccK`);
+  * costume patterns are drawn per pixel (`aPat`/`aCol2`: stripes, bands, diamonds, dots);
+  * a part can draw no ink (`aInkOff`).
+
+  The occlusion and pattern paths compile only where a batch's geometry carries them (`NC_OCC`, `NC_PAT`).
+  The shader is close to the GPU's attribute and varying limits.
+
+  Options as defines:
   `matte` (figures), `dither`, `detail` (procedural prop surfaces, below), `wind` (ground cover sways
   with shared time — no per-instance updates).
 * **Light pool** (`core/pool.ts`, D-36/D-46) — 24 strongest practicals in uniforms, evaluated by
