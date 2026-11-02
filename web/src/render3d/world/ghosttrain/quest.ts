@@ -123,15 +123,24 @@ const CANDLES = () => B((m) => {
   }
   m.add(cyl(2, 2, 16, 6), { col: 0xe8e0c8, pos: [0, 43, 0], surf: SURF.cloth });
 }, 0.1);
-/** A lump of old brass: a cog off some machine. */
+/** A brass cog off some machine (D-91: twice the size, polished on its rim and teeth so it catches the light; drawn
+ *  tilted to face the camera, see COG_TILT). Its axis is +y. */
 const SCRAP = () => B((m) => {
-  m.add(cyl(9, 9, 3, 10), { col: 0xb8903e, pos: [0, 2, 0], surf: SURF.brass });
-  for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2;
-    m.add(box(3.4, 3, 3.4), { col: 0xb8903e, pos: [Math.cos(a) * 10, 2, Math.sin(a) * 10], rot: [0, -a, 0], surf: SURF.brass });
+  const R = COG.r, teeth = 12, th = 4.4;
+  m.add(cyl(R, R, th, 28), { col: 0xc8a050, surf: SURF.brass, emit: 0.18 });
+  for (let k = 0; k < teeth; k++) {
+    const a = (k / teeth) * Math.PI * 2;
+    m.add(box(5.4, th, 4.6), { col: 0xd8b060, pos: [Math.cos(a) * (R + 2.2), 0, Math.sin(a) * (R + 2.2)], rot: [0, -a, 0], surf: SURF.brass, emit: 0.22 });
   }
-  m.add(cyl(3, 3, 3.4, 8), { col: 0x3a2a14, pos: [0, 2.2, 0], surf: SURF.iron });
+  // the web of the wheel: a dark ring between rim and hub, four spokes across it, the hub and its bore
+  m.add(torus(R * 0.62, R * 0.2, 6, 24), { col: 0x5a4220, pos: [0, th / 2 + 0.2, 0], rot: [Math.PI / 2, 0, 0], surf: SURF.iron });
+  for (let k = 0; k < 4; k++) m.add(box(R * 1.5, th + 0.8, 3), { col: 0xb8903e, rot: [0, (k * Math.PI) / 4, 0], surf: SURF.brass, emit: 0.12 });
+  m.add(cyl(R * 0.3, R * 0.3, th + 1.6, 16), { col: 0xc8a050, surf: SURF.brass, emit: 0.18 });
+  m.add(cyl(R * 0.13, R * 0.13, th + 2, 10), { col: 0x1a1208, surf: SURF.iron });
 }, 0);
+/** The cogs' size, how far a lying one tips back toward the camera (radians from flat: 40° faces it square at the
+ *  game's 50° view), and how deep it's sunk in the cinders. */
+const COG = { r: 22, tilt: 0.7, sink: 10 };
 /** The crucible on its iron legs by the west furnace (its melt is the glow over it). */
 const CRUCIBLE = () => B((m) => {
   for (let k = 0; k < 3; k++) {
@@ -212,6 +221,7 @@ export class GtQuest {
   /** when each of Stillwater's moments was seen to wake: Infinity while frozen, -Infinity if awake when first seen */
   private woke = [NaN, NaN, NaN];
   private glowF: Frame | null = null;
+  private starF: Frame | null = null;
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();
@@ -268,6 +278,10 @@ export class GtQuest {
       LT_VESPER.lamps.forEach((l, k) => { if (ch.lamps & (1 << k) || ch.running(V)) pool.add(l.x + GRAVE_LANTERN.dx * GRAVE_LAMP_S, l.y, 190, 0.8, 1, 0.75, 0.4, 60, 1.6); });
       pool.add(LT_VESPER.candles.x, LT_VESPER.candles.y, 150, 0.6, 1, 0.78, 0.45, 50, 1.6);
       if (ch.crucible > 0 && ch.step[C] < 2) pool.add(LT_WORKS.crucible.x, LT_WORKS.crucible.y, 220, 0.4 + ch.crucible * 0.25, 1, 0.5, 0.15, 60, 1.6);
+      // the brass cogs lying about the yard, each in its own warm pool so it reads on the black cinders (D-91)
+      if (ch.stage === LT.Stations && ch.step[C] === 0) LT_WORKS.scrapSpots.forEach((sp, k) => {
+        if (ch.scrapAt & (1 << k) && !(ch.scrapsTaken & (1 << k))) pool.add(sp.x, sp.y, 170, 0.75, 1, 0.75, 0.35, 34, 1.6);
+      });
       if (ch.step[C] === 1) {
         const l = ch.ladleAt();
         pool.add(l.x, l.y, 260, 1, 1, 0.55, 0.2, 60, 1.6);
@@ -299,6 +313,17 @@ export class GtQuest {
     if (k > 0.002) r.addShapes.ring(x, y, rad - 7, rad, col[0], col[1], col[2], live ? 0.7 : 0.35, live ? 0.7 : 0.35, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2);
   }
 
+  /** A brass cog tipped back toward the camera at height h, turned `spin` about its own axis. */
+  private cog(x: number, y: number, h: number, spin: number, s: number): void {
+    this.e.set(COG.tilt, spin, 0, 'XYZ');
+    this.q.setFromEuler(this.e);
+    this.v.set(x, h, y);
+    this.sc.set(s, s, s);
+    this.m.compose(this.v, this.q, this.sc);
+    this.scrap.addMatrix(this.m);
+    this.e.set(0, 0, 0, 'XYZ');
+  }
+
   /** The boy's kite, stopped in the air over his shoulder, its string taut from his raised hand. */
   private kiteAt(x: number, y: number): void {
     const hx = x + 12, hy = y + 9, hh = 74, kx = x - 46, ky = y - 34, kh = 190;
@@ -322,6 +347,7 @@ export class GtQuest {
     const ch = g.quests?.get<LastTrainChain>('last_train');
     const t = r.time;
     const glow = (this.glowF ??= r.assets.atlas.get('fx_glow_0'));
+    const star = (this.starF ??= r.assets.atlas.get('fx_star_0'));
     const G = r.glow;
     for (const b of this.all) b.begin();
     const stage = ch?.stage ?? 0;
@@ -467,10 +493,22 @@ export class GtQuest {
     }
     // ---- the Cinder Works: brass about the yard; the ladle along the yard's tub rails to the clock (the spur is the
     // floor's own, D-90)
-    if (stage === LT.Stations && ch.step[C] === 0 && ch.scrapBy === 255) LT_WORKS.scrapSpots.forEach((sp, k) => {
+    // (D-91: twice the size, tipped up to face you, a warm glow and glints that flare in turn; and still there while
+    // somebody carries another one: they used to vanish until the carried one was in the crucible)
+    if (stage === LT.Stations && ch.step[C] === 0) LT_WORKS.scrapSpots.forEach((sp, k) => {
       if (!(ch.scrapAt & (1 << k)) || ch.scrapsTaken & (1 << k) || !inView(sp.x, sp.y)) return;
-      this.scrap.add(sp.x, sp.y, 0, k * 0.9, 1);
-      G.draw(glow, sp.x, sp.y, 8, 0.3, 0.3, 0, 1, 0.8, 0.45, 0.3 + 0.25 * Math.max(0, Math.sin(t * 2 + k)));
+      this.cog(sp.x, sp.y, COG.r * Math.sin(COG.tilt) + 2 - COG.sink * 0.3, t * 0.35 + k * 1.9, 1);
+      G.draw(glow, sp.x, sp.y, 14, 1.15, 1.15, 0, 1, 0.72, 0.32, 0.5 + 0.14 * Math.sin(t * 1.8 + k));
+      for (let j = 0; j < 4; j++) {
+        // each glint rises and fades over about half a second, four to a cog in turn (one every second and a half or
+        // so): a twinkle, not a flash
+        const f = Math.max(0, Math.sin(t * 1.1 + k * 1.7 + (j * Math.PI) / 2)) ** 10;
+        if (f < 0.03) continue;
+        const a = j * 1.7 + k;
+        const gx = sp.x + Math.cos(a) * 24, gy = sp.y + Math.sin(a) * 10, gh = 14 + (j % 3) * 12;
+        G.draw(glow, gx, gy, gh, 0.25 + f * 0.35, 0.25 + f * 0.35, 0, 1, 0.9, 0.6, f * 0.6);
+        G.draw(star, gx, gy, gh, 1 + f * 2.4, 1 + f * 2.4, t * 0.7 + j, 1, 0.97, 0.82, Math.min(1, f * 1.3));
+      }
     });
     if (stage === LT.Stations && ch.step[C] === 1) {
       const l = ch.ladleAt(), ahead = alongPath(LT_WORKS.ladle, ch.ladle + 4);
@@ -547,7 +585,7 @@ export class GtQuest {
       G.draw(glow, tp.x + 14, tp.y, 58, 0.18 + left * 0.18, 0.18 + left * 0.18, 0, 1, 0.75, 0.35, 0.95);
     }
     const sb = ch.scrapBy === 255 ? null : g.players[ch.scrapBy];
-    if (sb) this.scrap.add(sb.x + 16, sb.y + 6, 26, t, 1);
+    if (sb) this.cog(sb.x + 18, sb.y + 6, 40, t * 1.5, 0.6);
     const pb = ch.pendulumBy === 255 ? null : g.players[ch.pendulumBy];
     if (pb) {
       this.e.set(0, 0, Math.sin(t * 4) * 0.3);

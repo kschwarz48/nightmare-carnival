@@ -1817,3 +1817,20 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   slowly round it and a notch where they face. The arcs and notch are drawn over everything, so a crowd standing
   on the ring can't hide it. The colour is deepened a little so the night's grade doesn't wash it to white.
 - **Not changed:** solo play still has no ring under the player.
+
+### D-92 · The Last Train Home says what comes next: the pages, the brass cogs
+
+- **The ask** (Kevin's play-through of D-90): after the Junction's clock nothing said to gather the pages; the
+  Cinder Works' clock spoke of a crucible and never of the cogs; the cogs were very hard to see.
+- **Words** (`data/lastTrain.ts`): the Junction's clock now says a torn page lies in each of the sleeper's four
+  compartments, to gather all four, and that the sleeper is the second car from the back (the clerk's hint says
+  the same). The mended timetable says to look at each station's clock for what it needs and to pull the
+  whistle cord to go on. The Works' clock: "Bring the brass cogs lying about the yard to the crucible by the west
+  furnace: three of them will cast a new wheel." The cog and crucible lines and the prompts ("Pick up the brass
+  cog", "Melt the cog in the crucible") call them cogs; Saint Vesper's names where the candles are (by the chapel
+  porch) and Stillwater the jetty.
+- **The cogs** (`render3d/world/ghosttrain/quest.ts`): about two and a half times the size, a proper gear (twelve
+  teeth, spokes, a hub), polished brass with a little glow of its own, tipped back to face the camera, each in a
+  warm pool of light with a halo, and four star glints around it that flare in turn (one every second and a half
+  or so, each over half a second: a twinkle, no flashing). The cogs still on the ground now stay drawn while
+  someone carries another; they had vanished until the carried one reached the crucible.

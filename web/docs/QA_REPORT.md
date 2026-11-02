@@ -115,6 +115,14 @@ understate that character.
 
 ---
 
+## The Last Train Home's words, and the brass cogs — 2026-11-02 (D-92)
+
+- `npm test`: 29 files, 434 tests pass; `tsc` clean; `npm run build` passes.
+- **Captures** (dev server, 1600×900): the Junction's card after the clock (it names the pages and the sleeper);
+  the Works' clock's line on screen; the yard at zoom 1 with two cogs in view (each a glowing gear in its own
+  light); one cog close up over 1.4 s, the glints flaring in turn; a cog carried while another still lies there.
+- **Not checked:** a full play-through of the egg with the new words (each line was read on screen or in the data).
+
 ## Ticket rolls, arrows and markers, party frames, name tags, rings — 2026-11-02 (D-91)
 
 - `npm test`: 29 files, 434 tests pass. `tests/core.test.ts`'s ticket-cap test now checks the new rule: past the

@@ -261,8 +261,8 @@ export class LastTrainChain extends QuestChain {
           if (this.taperBy === who) LT_VESPER.lamps.forEach((l, k) => { if (!(this.lamps & (1 << k))) push('gravelamp', k, l, 'Light the grave lamp'); });
         }
         if (here === C && this.step[C] === 0) {
-          if (this.scrapBy === 255) LT_WORKS.scrapSpots.forEach((sp, k) => { if ((this.scrapAt & (1 << k)) && !(this.scrapsTaken & (1 << k))) push('scrap', k, sp, 'Pick up the brass'); });
-          if (this.scrapBy === who) push('crucible', 0, LT_WORKS.crucible, 'Drop the brass in the crucible');
+          if (this.scrapBy === 255) LT_WORKS.scrapSpots.forEach((sp, k) => { if ((this.scrapAt & (1 << k)) && !(this.scrapsTaken & (1 << k))) push('scrap', k, sp, 'Pick up the brass cog'); });
+          if (this.scrapBy === who) push('crucible', 0, LT_WORKS.crucible, 'Melt the cog in the crucible');
         }
         if (here === S && this.step[S] === 2 && this.pendulumBy === 255) push('pendulum', 0, LT_STILL.bank, 'Pick up the pendulum');
         break;

@@ -43,7 +43,7 @@ the reel and the signal, and none of them fails anything if missed.
 |---|---|---|---|
 | 0 | Ticket | Hollow Junction, booking office window | **Ask at the booking office**: a ticket for THE LAST TRAIN HOME, "not valid until the line keeps time". Every clock has stopped |
 | 1 | Key | about the Junction (one of five places, seeded) | the station clocks' **brass winding key**: under a waiting bench, at the dry fountain's rim, beside the hearse, on a luggage pile, under the water tower. A glint catches the eye now and then. The stopped clock says the key is gone |
-| 2 | Junction | the Junction's platform clock | **wind it while the train stands in** (the key's carrier). Aboard, in the sleeper, the four **compartment doors** slide open: they were shut all night |
+| 2 | Junction | the Junction's platform clock | **wind it while the train stands in** (the key's carrier). Aboard, in the sleeper (the second car from the back), the four **compartment doors** slide open, and the card says to gather the pages inside |
 | 3 | Pages | the sleeper's four compartments (any copy of the train) | a torn timetable page drifts in each (one of two places each, seeded). With all four: THE LAST TRAIN HOME calls where each station's clock keeps time, goes at the guard's whistle, and the footnote gives tonight's three **levers** |
 | 4 | Stations | Saint Vesper's, the Cinder Works, Stillwater (any order) | each station's clock has its own trouble (below). Look at the clock and it says what it needs; once mended, the key's carrier winds it. The whistle takes you on |
 | 5 | Prepare | back at the Junction | take the **signal battery** from the lamp room under the signal box, fit it to the train's **lamp box** at the front of the tender (the train's signal lamp burns red), and pull the signal box's **levers in the footnote's order** (3 of 5; a wrong one springs them all back). Either order |
@@ -59,17 +59,18 @@ the reel and the signal, and none of them fails anything if missed.
 
 ### The stations' clocks (stage 4)
 
-- **Saint Vesper's** (graveyard): *"Light the three grave lamps from the chapel's altar candles before the taper
-  burns down."* The candles stand on an iron stand beside the chapel's porch (south face). A taper burns
+- **Saint Vesper's** (graveyard): *"Light the three grave lamps with a taper from the altar candles by the chapel
+  porch, before the taper burns down."* The candles stand on an iron stand beside the chapel's porch (south face). A taper burns
   **26 s** and goes out if its carrier falls; light another. The three grave lamps hang from iron crooks between
   headstones: in the west graves toward the west mausoleum, in the north-east graves by the east mausoleum, and
   in the south graves toward the chapel. Each
   lit lamp stays lit. Then *"keep watch at the empty grave"*: the open chest tomb where the paths cross. Stand
   within its ring (r 170) for **30 s** in all (it slips back slowly while nobody keeps it) while the dead rise
   round it (Gravebound, Mourners). The chapel bell tolls once by itself; wind the clock.
-- **The Cinder Works** (foundry): *"Its great wheel is cracked through. Brass for a new one lies about the yard. The
-  crucible stands by the west furnace."* Three lumps of brass (cogs) lie at three of five places about the yard
-  (seeded). Carry them one at a time to the crucible. With three, a **ladle of molten brass** waits on the tub
+- **The Cinder Works** (foundry): *"Its great brass wheel is cracked through. Bring the brass cogs lying about the
+  yard to the crucible by the west furnace: three of them will cast a new wheel."* Three brass cogs lie at three
+  of five places about the yard (seeded), each glinting in a warm pool of light (D-91: bigger, tipped up to face
+  the camera, and still shown while another is being carried). Carry them one at a time to the crucible. With three, a **ladle of molten brass** waits on the tub
   rails by the crucible: it rolls along them (north from the crucible, east along the cross rails, then up the
   spur to the platform under the clock) **only while somebody walks beside it** (within 150), 46 units a second,
   about 38 s in all, with Coalborn, Riveters and Furnace Hounds coming at it. It pours a new wheel under the
