@@ -103,7 +103,7 @@ pattern is per pixel and their edges are modelled.
 | `HERO` | the playable cast's frame: REAL's landmarks, head +25%, broader shoulders, heavier limbs, crown still at ~89 |
 | `styleHead` | a stylized head from a few large forms: cranium, a tapered jaw block, cheekbones, brow, nose, ears, shallow sockets |
 | `styleFace` | designed features: almond eyes with an iris and catch-light, a dark lid, brows that read from above, a mouth line. All without ink |
-| `styleHair` | a cap, a back-and-sides mass, sideburns and a few big clumps with a soft top light. No speckle |
+| `styleHair` | a cap, a back-and-sides mass, sideburns and a few big clumps with a soft top light. No speckle. `ink: false` under a close scarf or knit hat |
 | `styleHand` | a cartoon four-fingered hand as one mass (gloved or bare) |
 | `styleShoe` | an upper, a welted sole and a heel |
 | `vertical`, `shadowedJaw` | smooth, deliberate colour: top light, a crisp-edged five o'clock shadow |
@@ -312,12 +312,40 @@ Brute 0.28 s, all in workers.
 
 The before and after sheets are listed in QA_REPORT (D-86).
 
+**The rest of the cast (D-87)**, each in five to seven layers within the hero budget:
+- **The Strongman:** a heavier frame; the yoke, deltoids, biceps and forearms as separate forms; a one-shoulder
+  leotard with leopard spots per pixel, scooped clear of the bare left pectoral; a belt with a brass plate,
+  wrapped wrists, laced boots, a waxed handlebar, a mallet that reads.
+- **The Fortune Teller:** a fitted red headscarf cut on a slant with a rolled hem, a knot and coins; a wine
+  shawl with a coin fringe over a cream blouse; a black bodice laced in gold; a fluted velvet skirt with a
+  gold hem, lit from above.
+- **The Commodore:** a white double-breasted coat over a round middle, navy shoulder boards, gold buttons and
+  cuff rings, a medal; the sea's green rising from every hem (a meaningful gradient, not noise); white mutton
+  chops and a walrus moustache; his cap tipped back so his face shows.
+- **Mira:** a child's larger head with a bun and a bow; a pale blue dress with a round collar, puffed sleeves,
+  a sash bowed at the back, and a skirt that flares to a crisp, glass-edged hem (it was a bulb).
+- **The Lost Child:** a ribbed knit beanie (per pixel) pushed up so her eyes show; a hand-me-down coat split
+  below the last button so the knees pass; a scarf; a plush bear with button eyes.
+- **The Ringleader:** a tailcoat cut straight across at the waist with swallow tails on their own bone, black
+  lapels, gold frogging, fringed epaulettes; white breeches into glossy riding boots; a silk top hat tipped
+  back.
+
+Lessons from the cast:
+- **A hat or scarf sitting close over hair must not have hair poking through it, or hair's ink under it.**
+  Both read as dark slashes. Keep 0.05 × the head radius between them, and use `styleHair({ ink: false })`.
+- **`styleHair` below volume 1.0 sits under the skull's top:** skin shows through at the crown.
+- **Surface searches near a part's rounded edge can miss.** A tie ended where `frontZ` found nothing and ran
+  out through the back. Anchor details on the flat of a form.
+- **Don't sculpt what a garment fully hides.** A shirt's belly under a coat or a seat under a leotard costs
+  triangles and can only leak ink.
+- **Child figures need their eyes clear of a brim from 50° in their idle pose,** which often looks down.
+
 ## 15. Rolling it out
 
 When the benchmarks are approved, move the rest of the roster across in this order:
 1. **The rest of the playable cast** (Strongman, Fortune Teller, Commodore, Lost Child, Ringleader,
    Mira). They share `HERO`, `styleHead`, `styleFace`, `styleHand` and the layer pattern, so each is mostly
-   costume work. Budget ≤ 70k each.
+   costume work. Budget ≤ 70k each. **Done in D-87** (52.8k–66.9k).
 2. **The first map's regular enemies** (dunk-tank clown, puppet soldier, wind-up monkey, whack-a-mole,
    jack-in-the-box, ticket booth, carousel horse, bumper car), at about 15k each. Then measure late combat.
 3. **The swarm** (balloons and stuffies) last. Light passes only: they already read well. Keep them

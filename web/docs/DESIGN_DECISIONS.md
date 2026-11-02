@@ -1539,3 +1539,59 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   outlines, grade and occlusion on or off, and held poses. The renderer hooks are null in play.
 - **Not done (for review first):** the rest of the roster. The standard ends with the order to roll it out
   in (§15).
+
+### D-87 · The playable cast on the character art standard
+
+- **The ask.** With the D-86 benchmarks approved, rebuild the six other playable characters on the standard
+  (its rollout step 1), keeping each one's identity, skeleton, extra bones, props and clips.
+- **Shared pieces** (in `models/characters.ts`):
+  - `armForms` (the arm's three forms, bare or as a sleeve), `legAt` and `foreAt` (joints and points along
+    a limb);
+  - `surfaceAt` (where a surface is met from any direction: coins round an edge, a sash's bow);
+  - `hatFrame` (a hat as crisp parts in its own frame, tipped back so the camera sees the face).
+
+  `styleHair` takes `ink: false` for hair under a close scarf or knit hat.
+- **The six**, each in five to seven layers (skin, hair, each garment, shoes), flat colour, small details and
+  covered parts without ink:
+  - **The Strongman:** a heavier frame with the yoke, deltoids, biceps and forearms as separate forms; a
+    one-shoulder leotard whose leopard spots are drawn per pixel, scooped clear of the bare left pectoral; a
+    belt with a brass plate, wrapped wrists, laced boots, a waxed handlebar; a mallet big enough to read.
+  - **The Fortune Teller:** a fitted red headscarf, cut on a slant from the hairline to the nape, with a
+    rolled hem, a knot and coins across the brow; a wine shawl with a coin fringe over a cream blouse; a
+    black bodice laced in gold; a fluted velvet skirt with a gold hem.
+  - **The Commodore:** a white double-breasted coat over a round middle, navy shoulder boards, gold buttons
+    and cuff rings, a medal on his left breast; the sea's green rising from every hem; white mutton chops
+    into a walrus moustache; his cap tipped back so his face shows.
+  - **Mira:** a child's larger head, a bun with a lilac bow; a pale blue dress with a round collar, puffed
+    sleeves, a sash bowed at the back, and a skirt that flares to a crisp, glass-edged hem above the knee
+    (it hung below her knees as a bulb).
+  - **The Lost Child:** a larger round head under a ribbed knit beanie (per pixel), pushed up so her eyes
+    show from the game camera; a hand-me-down coat to the knees, split below the last button so the knees
+    pass; a red scarf; a plush bear with button eyes and a patched tummy.
+  - **The Ringleader:** a red tailcoat cut straight across at the waist, swallow tails on their own bone,
+    black lapels, gold frogging, fringed epaulettes, gold cuffs; white breeches into glossy riding boots; a
+    silk top hat tipped back.
+- **Kept:** bone names, the extra bones (`skirt`, `ball`, `plush`, `tails`), clip names and timings, the
+  props in the same hands, and each one's height (the top of the hat or hair). Three small changes:
+  - the ball's bone moved 0.8 forward so the ball clears the bodice;
+  - the Lost Child's idle looks down less (head 0.1 → 0.02 rad) so her eyes show under the beanie;
+  - the Commodore's medal moved to his left breast, where medals go.
+- **Budgets:** all under the hero budget of 70k triangles.
+
+  | | Before | After |
+  |---|---|---|
+  | Strongman | 58.6k | 66.9k |
+  | Fortune Teller | 73.3k | 66.3k |
+  | Commodore | 54.1k | 60.9k |
+  | Mira | 60.3k | 52.8k |
+  | Lost Child | 47.0k | 57.7k |
+  | Ringleader | 59.9k | 63.1k |
+  | All six | 353k | 368k |
+
+  - At most six are on screen, so +4% triangles needs no stress test.
+  - Sculpting is faster: 0.36–0.75 s each (was 0.63–0.94 s).
+  - Four were over budget on the first build (the Strongman at 98.5k). They came under it with the head in
+    its own fine layer, coarser cells for big plain garments, and nothing sculpted that a garment fully
+    hides.
+- **Next** (the user's instruction): push and deploy, then roll the standard across the enemy roster where
+  it's needed.

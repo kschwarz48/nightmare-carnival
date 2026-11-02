@@ -176,12 +176,16 @@ export function styleShoe(sc: Sculpt, an: V3, len: number, col: number, bone: nu
   sc.add({ t: 'box', c: [an[0], len * 0.1, -len * 0.2], h: [w * 0.9, len * 0.1, len * 0.18], r: len * 0.04 }, { col: sole, bone, k: 0.1, surf: FAM.rubber });
 }
 
-/** A clean mop of hair: a cap, a back-and-sides mass and a few large clumps — no speckle, a soft top light. */
-export function styleHair(sc: Sculpt, P: Proportions, bone: number, col: number, o: { fringe?: [V3, V3][]; volume?: number; back?: number; sideburns?: boolean } = {}): void {
+/**
+ * A clean mop of hair: a cap, a back-and-sides mass and a few large clumps — no speckle, a soft top light.
+ * `ink: false` when a scarf or a knit hat sits close over it: its outline would show through as dark slashes.
+ */
+export function styleHair(sc: Sculpt, P: Proportions, bone: number, col: number, o: { fringe?: [V3, V3][]; volume?: number; back?: number; sideburns?: boolean; ink?: boolean } = {}): void {
   const r = P.headR * (o.volume ?? 1), y = P.headY;
   const tone = vertical(C(col).multiplyScalar(0.82).getHex(), C(col).multiplyScalar(1.18).getHex(), y - r * 0.5, y + r * 1.1);
-  sc.add({ t: 'ell', c: [0, y + r * 0.45, -r * 0.12], r: [r * 0.96, r * 0.7, r * 1.0] }, { col: tone, bone, k: 0.8, surf: FAM.hair });
-  sc.add({ t: 'ell', c: [0, y + r * 0.08, -r * 0.36], r: [r * 0.95, r * 0.72 * (o.back ?? 1), r * 0.76] }, { col: tone, bone, k: 1, surf: FAM.hair });
-  if (o.sideburns !== false) for (const s of [1, -1]) sc.add({ t: 'cap', a: [s * r * 0.87, y + r * 0.3, r * 0.08], b: [s * r * 0.86, y - r * 0.24, r * 0.26], ra: r * 0.14, rb: r * 0.08 }, { col: tone, bone, k: 0.4, surf: FAM.hair });
-  for (const [a, b] of o.fringe ?? []) sc.add({ t: 'cap', a, b, ra: r * 0.2, rb: r * 0.07 }, { col: tone, bone, k: 0.35, surf: FAM.hair });
+  const hair = { col: tone, bone, surf: FAM.hair, ink: o.ink };
+  sc.add({ t: 'ell', c: [0, y + r * 0.45, -r * 0.12], r: [r * 0.96, r * 0.7, r * 1.0] }, { ...hair, k: 0.8 });
+  sc.add({ t: 'ell', c: [0, y + r * 0.08, -r * 0.36], r: [r * 0.95, r * 0.72 * (o.back ?? 1), r * 0.76] }, { ...hair, k: 1 });
+  if (o.sideburns !== false) for (const s of [1, -1]) sc.add({ t: 'cap', a: [s * r * 0.87, y + r * 0.3, r * 0.08], b: [s * r * 0.86, y - r * 0.24, r * 0.26], ra: r * 0.14, rb: r * 0.08 }, { ...hair, k: 0.4 });
+  for (const [a, b] of o.fringe ?? []) sc.add({ t: 'cap', a, b, ra: r * 0.2, rb: r * 0.07 }, { ...hair, k: 0.35 });
 }

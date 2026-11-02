@@ -115,6 +115,49 @@ understate that character.
 
 ---
 
+## The playable cast on the character art standard — 2026-11-02 (D-87)
+
+- `npm test`: 29 files, 424 tests pass. The new one, in `tests/characterArt.test.ts`, checks each of the six:
+  - its budget (under 70k triangles);
+  - its skeleton with its own extra bones (`skirt`, `ball`, `plush`, `tails`);
+  - its clips (`idle`, `move`, `cast`, `hurt`, `dash`);
+  - its height (the top of the hat or hair, near where it stood);
+  - that it carries per-part ink choices.
+
+  `tsc` is clean and `npm run build` passes.
+- **Captures** (dev server, the inspector, one 1600×900 Electron window; baselines from the committed models):
+  - the six in two lineups at the game's 50° angle in game light (front, 3/4), at eye level in studio light
+    without the grade, and at play scale 1:1;
+  - each alone, close: front, 3/4, back, eye level, mid-walk, mid-attack.
+  - Before and after sheets (`web/artifacts/visual/d87/`, git-ignored):
+    - `cmp-d87-1a-gameplay-angle.png`, `cmp-d87-1b-gameplay-angle.png`;
+    - `cmp-d87-2a-eye-level.png`, `cmp-d87-2b-eye-level.png`;
+    - `cmp-d87-3-play.png`.
+- **Found by looking, and fixed:**
+  - **The Commodore's tie ran out through his back.** Its end sat on the shirt's rounded lower edge, where
+    the surface search found nothing.
+  - **Mira's crown showed skin through her hair.** Below volume 1.0 the toolkit's hair cap sits under the
+    skull's top.
+  - **The Lost Child's beanie hid her eyes from the game camera.** It's pushed up and back now, and her idle
+    looks down less.
+  - **The Commodore's mutton chops** stuck out like ears. His V was too shallow, so the tie read as a smudge.
+  - **The Ringleader's cream breeches** read as bare legs beside his skin. They're a cooler white now, with a
+    flatter seat.
+  - **The Fortune Teller's headscarf** read as a red bathing cap. It's fitted now: cut on a slant from the
+    hairline to the nape, with a rolled hem and a knot. Two dark slashes on it were hair poking through at
+    the upper sides, and the outlines of the hair and side locks under it.
+  - Four models were over budget on the first build.
+- **Shader health:** `__nc.inspect.shaders()` was clean in every capture run.
+- **Scorecard** (the cast only, 0–3):
+  - **Hero/player 1 → 2:** layered, readable figures, faces from the game camera, each costume read from above
+    (the leotard, the scarf, the cap, the beanie, the top hat, the bun);
+  - **Materials/textures 1 → 2:** distinct families, per-pixel spots and ribbing, no noise.
+- **Not checked:**
+  - motion as video (poses were held in the inspector; the clips are unchanged apart from the Lost Child's
+    idle head);
+  - co-op on two machines (no wire change);
+  - a slower GPU (+4% triangles, at most six figures).
+
 ## The character art standard: three benchmarks, figure materials, layered sculpts — 2026-11-02 (D-86)
 
 - `npm test`: 29 files, 423 tests pass. 5 are new, in `tests/characterArt.test.ts`:

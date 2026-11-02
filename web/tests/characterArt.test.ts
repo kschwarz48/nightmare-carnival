@@ -1,6 +1,7 @@
 // The character art standard (D-86, docs/CHARACTER_ART_QUALITY_STANDARD.md): the sculpt pipeline's new
-// guarantees (vertices on the true surface, occlusion as data, crisp seams, patterns, per-part ink) and
-// the three benchmark models' budgets and animation interface, so later work can't quietly regress them.
+// guarantees (vertices on the true surface, occlusion as data, crisp seams, patterns, per-part ink), the
+// three benchmark models' budgets and animation interface, and the rest of the playable cast rebuilt on it
+// (D-87), so later work can't quietly regress them.
 
 import { describe, expect, it } from 'vitest';
 import type { BufferGeometry } from 'three';
@@ -10,6 +11,7 @@ import { characterModel } from '../src/render3d/models/characters';
 import { creatureModel } from '../src/render3d/models/creatures';
 
 const tris = (g: BufferGeometry) => (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+const HUMAN = ['hips', 'spine', 'chest', 'neck', 'head', 'armL', 'foreL', 'handL', 'armR', 'foreR', 'handR', 'thighL', 'shinL', 'footL', 'thighR', 'shinR', 'footR'];
 
 describe('the sculpt pipeline (D-86)', () => {
   it('puts every vertex on the true surface (surface nets left them up to a third of a cell off)', () => {
@@ -62,8 +64,6 @@ describe('the sculpt pipeline (D-86)', () => {
 });
 
 describe('the benchmark models (D-86)', () => {
-  const HUMAN = ['hips', 'spine', 'chest', 'neck', 'head', 'armL', 'foreL', 'handL', 'armR', 'foreR', 'handR', 'thighL', 'shinL', 'footL', 'thighR', 'shinR', 'footR'];
-
   it('the Carny: a hero\'s budget, the same skeleton and clips', () => {
     const m = characterModel('carny');
     expect(tris(m.geo)).toBeLessThan(70_000);
@@ -83,6 +83,28 @@ describe('the benchmark models (D-86)', () => {
       const names = m.rig.bones.map((b) => b.name);
       for (const n of HUMAN) expect(names, `${id} ${n}`).toContain(n);
       for (const c of ['move', 'attack']) expect(m.rig.has(c), `${id} ${c}`).toBe(true);
+    }
+  });
+});
+
+describe('the playable cast (D-87)', () => {
+  it('each on the standard: a hero\'s budget, its skeleton and extra bones, the clips, its height', () => {
+    // [id, its own extra bones, the top of the hat or hair: about where it stood, so framing still fits]
+    const cast: [string, string[], number, number][] = [
+      ['strongman', [], 88, 98], ['fortune_teller', ['skirt', 'ball'], 82, 94], ['ride_operator', [], 85, 97],
+      ['mira', ['skirt'], 66, 78], ['lost_child', ['plush'], 56, 70], ['ringleader', ['tails'], 95, 108],
+    ];
+    for (const [id, extra, lo, hi] of cast) {
+      const m = characterModel(id);
+      expect(tris(m.geo), id).toBeLessThan(70_000);
+      const names = m.rig.bones.map((b) => b.name);
+      for (const n of [...HUMAN, ...extra]) expect(names, `${id} ${n}`).toContain(n);
+      for (const c of ['idle', 'move', 'cast', 'hurt', 'dash']) expect(m.rig.has(c), `${id} ${c}`).toBe(true);
+      m.geo.computeBoundingBox();
+      expect(m.geo.boundingBox!.max.y, id).toBeGreaterThan(lo);
+      expect(m.geo.boundingBox!.max.y, id).toBeLessThan(hi);
+      // built in layers: covered parts and small details carry their no-ink choice
+      expect(m.geo.getAttribute('aInkOff'), id).toBeTruthy();
     }
   });
 });
