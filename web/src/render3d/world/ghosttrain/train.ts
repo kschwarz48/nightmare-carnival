@@ -5,8 +5,8 @@
 // observation car's parquet, armchairs and brass rail), wall sconces, a lacquered exterior with gilt lining
 // and lit windows, gangway bellows, the locomotive at the front. Roofs (a clerestory over each car) cover the
 // copies you aren't in; the one you're in is cut away so you see inside. A station's copy is drawn only while
-// the train is there or pulling in or out (sliding along the track with the timetable's distance); doors
-// slide open with the timetable. One merged model for the whole train, instanced per copy.
+// the train is there or pulling in or out (sliding along the track with its distance along the leg); doors
+// slide open as it stands. One merged model for the whole train, instanced per copy.
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';

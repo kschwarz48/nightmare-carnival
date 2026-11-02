@@ -83,6 +83,10 @@ export class Director {
     // Boss gates: warn 3 s early, then the boss wakes/arrives (doc 03 §8).
     if (!g.endless) {
       for (const bd of BOSSES) {
+        // the Ghost Train's final boss (D-90) comes at its time only once every other boss of the night has fallen: a
+        // party at the End of the Line early, or a boss still waiting on a platform, holds it back (and the secret boss
+        // after it)
+        if (g.mapId === 'ghost_train' && bd.id === g.map.finalBoss && !BOSSES.every((o) => o.id === bd.id || g.bossIds.includes(o.id))) continue;
         const busy = g.bosses.some((b) => b.awake && !b.dead && b.def.id !== bd.id);
         if (!this.warned.has(bd.id) && g.time >= bd.gate - 3 && !busy) {
           this.warned.add(bd.id);

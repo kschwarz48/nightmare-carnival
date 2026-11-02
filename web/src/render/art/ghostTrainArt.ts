@@ -374,6 +374,34 @@ export function drawGhostTrainPortrait(ctx: Ctx, id: string): boolean {
       ctx.lineTo(186, 150);
       ctx.stroke();
       return true;
+    case 'unclaimed': {
+      // a heap of left luggage on umbrella legs, a trunk's lid for a jaw, two lamps in the dark of it
+      softShadow(ctx, 100, 190, 80, 9);
+      ctx.strokeStyle = '#1a1612';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      for (const x of [56, 78, 122, 144]) {
+        ctx.moveTo(x, 150);
+        ctx.lineTo(x + (x < 100 ? -10 : 10), 188);
+      }
+      ctx.stroke();
+      const cases: [number, number, number, number, string][] = [[40, 112, 70, 44, '#6a4a2e'], [92, 118, 70, 38, '#4a3a5a'], [56, 74, 56, 40, '#7a6a48'], [104, 80, 52, 40, '#5a3a2a'], [70, 44, 60, 34, '#3a2a20']];
+      for (const [x, y, w, hh, col] of cases) {
+        roundRect(ctx, x, y, w, hh, 5);
+        fillInk(ctx, col, 3);
+        ctx.fillStyle = '#c8a050';
+        ctx.fillRect(x + w / 2 - 3, y + 2, 6, hh - 4);
+      }
+      circle(ctx, 150, 66, 16);
+      fillInk(ctx, '#2a2a2e', 2.4);
+      roundRect(ctx, 74, 46, 52, 14, 3);
+      fillInk(ctx, '#140c08', 2);
+      circle(ctx, 88, 54, 4);
+      fillInk(ctx, '#ffd890', 1.2);
+      circle(ctx, 112, 54, 4);
+      fillInk(ctx, '#ffd890', 1.2);
+      return true;
+    }
     case 'night_express':
       softShadow(ctx, 100, 190, 86, 10);
       roundRect(ctx, 24, 70, 152, 100, 24);

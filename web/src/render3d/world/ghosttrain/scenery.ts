@@ -2,20 +2,23 @@
 // posts, and the country of each leg (hedgerow trees out of the Junction, Saint Vesper's yews and stones,
 // the Works' chimneys and slag, Stillwater's willows and fog, then the bridge over the drop on the way to
 // the End of the Line). Everything is an instanced kit model placed along the track relative to the train,
-// moving at the timetable's speed; the quest's signal at danger stands at its own distance along its leg
-// (red until shown the lantern). Pulling into a station, its platform (the real one's fixtures, cloned) slides
+// moving at the train's speed; the quest's signal at danger stands at its own distance along its leg
+// (red until shown green from the train's lamp). Pulling into a station, its platform (the real one's fixtures, cloned) slides
 // in alongside and stops exactly where it stands; pulling out, the platform left behind slides away.
 
 import * as THREE from 'three';
 import { ACCEL, BRAKE, E, J, LEG, PASS_LEG, REGIONS, S, TRANSIT, TRAIN, legDistance, trackY, trainOrigin, type TrainState } from '../../../data/ghosttrain';
 import { PLATFORM_DEPTH, STATION_PROPS } from '../../../data/gtStations';
-import { LAST_TRAIN } from '../../../data/lastTrain';
 import type { Prop } from '../../../data/map';
 import { ActorBatch } from '../../core/batch';
 import { C, ModelBuilder, SURF, box, cone, cyl, ellipsoid, sphere, weather } from '../../core/geo';
 import { actorMaterial } from '../../core/materials';
 import { PAL } from '../../models/kit';
 import { GT_KIT } from './kit';
+
+/** the bridge over the drop: seconds into a leg out of Stillwater (scenery; it was the hidden quest's whistle moment
+ *  until D-90) */
+const BRIDGE: [number, number] = [13, 23];
 
 const B = (fn: (m: ModelBuilder) => void, ao = 0.3) => {
   const m = new ModelBuilder();
@@ -146,7 +149,7 @@ export class Scenery {
         const x = front + (d - along);
         if (Math.abs(x - o.x) < SPAN / 2) this.batches.get('signal_green')!.add(x, o.y - 240, 0, 0, 1);
       }
-      if (quest && st.at <= S) {
+      if (quest && st.at < sigAt.length) {
         const d = sigAt[st.at] * st.legDist;
         const x = front + (d - along);
         const clear = !!(sigClear & (1 << st.at));
@@ -156,7 +159,7 @@ export class Scenery {
       this.bridge = 0;
       if (st.at === S) {
         const len = st.passing ? PASS_LEG : LEG;
-        const [t0, t1] = st.passing ? [LAST_TRAIN.bridge[0] * (PASS_LEG / LEG), LAST_TRAIN.bridge[1] * (PASS_LEG / LEG)] : LAST_TRAIN.bridge;
+        const [t0, t1] = st.passing ? [BRIDGE[0] * (PASS_LEG / LEG), BRIDGE[1] * (PASS_LEG / LEG)] : BRIDGE;
         const d0 = legDistance(t0, len), d1 = legDistance(t1, len);
         // the bridge's truss runs from d0 to d1 along the leg; draw the bays in view on both sides
         const tr = this.batches.get('truss')!;

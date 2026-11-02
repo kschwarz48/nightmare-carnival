@@ -1709,3 +1709,83 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
 - **Not done:** the plush stuffie still uses the old helpers (a swarm toy, it reads well); the bosses as in
   D-88; the coaster wraith's rider, the pallbearers and the collected are built on their own rigs and were
   left as the shared pass made them.
+
+### D-90 · The Ghost Train at the whistle, the Last Train Home's new first half, a seventh boss
+
+- **The ask** (after D-89 was deployed): let the players drive the train (the whistle at its front closes the
+  doors and takes it to the next station), take out every note of train times, and rework the hidden quest:
+  keep its beginning; a tool to find on the first map once the clocks need fixing; that clock opening the
+  train's doors on four pages telling the party to fix every station's clock and pull the whistle; each
+  station's clock its own themed, several-step puzzle with new things in the world and new mechanics ("king of
+  the hill" style); back at the start for the battery, the signal light and the levers; get the train moving
+  and show the signal green once at the right time for the End of the Line (a miss runs on as usual); from
+  there as before. Every boss must come and be fought, the final boss and the Easter egg's must not come early
+  however soon the party reaches the End of the Line, the final boss at 34:00 with the secret one after it,
+  and perhaps one more boss for pacing.
+- **The train is the players'.** The timetable (`trainAt(time, eFrom)`) is gone. A `TrainRun` (approaching,
+  standing, travelling; the stop, the next stop, when it stopped or left, when it goes, the leg's length, the
+  trip) is advanced by the host each tick (`advanceTrain`, `sim/ghosttrain.ts`) and read by everyone through
+  `trainState(run, t)`, which keeps the shape the renderer, the audio and the HUD already drew from.
+  - The whistle cord at the front of the tender (`pullWhistle`): whistle, bell, "All aboard!", and 4 s later the
+    doors close and it leaves for the next stop, **only with somebody standing aboard** (otherwise the guard
+    waits). Legs 35 s, Stillwater to the Junction 60 s through the End of the Line.
+  - A train standing where nobody is goes **empty** after 8 s to the station where most of the party stands,
+    so a split or wandering party is never stranded.
+  - The End of the Line joins the route at 25:00 for everyone, or on the journey where the egg's signal goes
+    green. The last train terminates at E on the first arrival from **32:00**; the phantom doors open at **33:00**.
+  - No times anywhere: the HUD line says where the train is and what to do ("pull the whistle cord in the
+    tender to depart", ALL ABOARD, "next stop …", "the train is at Stillwater"); "Look at the station clock"
+    and the Junction's board say the same. `scripts/gt_timetable.ts` is deleted.
+  - Co-op: the train's 12 bytes ride the `gt_line` chain's net state, so a guest's doors, transfers and line
+    are the host's. PROTO 18.
+- **The bosses.** Seven: the six as before at 5:00–25:00, **the Unclaimed at 30:00** (new: a heap of lost
+  luggage on umbrella legs; Left Luggage → Excess Baggage → Lost and Found; thrown cases, an umbrella fan, the
+  trunk-lid slam, avalanche lanes, mimics out of its pile, the claim leap, rings of luggage tags with a gap; a
+  rig, a Pedia portrait, an achievement), and **the Night Express at 34:00**. The director holds the final boss
+  until every other boss of the night is in `g.bossIds` (beaten), and the clock stops at 34:59 until it has
+  been fought, so reaching the End of the Line early can't bring it (or the Conductor after it) sooner. Time to
+  kill at b4 (the bot bench): the Hour Thief 54 s, the Unclaimed 55 s, the Night Express 69 s.
+- **The Last Train Home, reworked** (`sim/quest/lastTrain.ts`, solution in `EASTER_EGG_GHOST_TRAIN.md`):
+  Ticket (as before) → **Key** (the clocks' brass winding key, at one of five places about the Junction) →
+  **Junction** (wind its clock while the train stands in: the sleeper's four compartment doors slide open) →
+  **Pages** (one torn page in each compartment) → **Stations** (each clock's own trouble, any order) →
+  **Prepare** (the battery into the train's lamp box, the levers in the footnote's order) → **Signal** (green as
+  the engine passes it, once: that journey goes to the End of the Line; a miss runs on as usual and it stands
+  again next journey) → Punch, Passengers, Deliveries, Last ticket, Express, Finale, Homeward as before.
+  - **Saint Vesper's:** a taper from the altar candles (it burns 26 s) to light three grave lamps, then a vigil
+    of 30 s at the empty grave while the dead rise.
+  - **The Cinder Works:** three lumps of brass from about the yard into the crucible, then the ladle of molten
+    brass walked along the tub rails to the clock (it rolls only while somebody walks beside it; an escort).
+  - **Stillwater:** wake the three moments the village is frozen in (8 s standing in each), reel the pendulum
+    out of the still pond (12 s on the jetty), carry it to the clock and hang it.
+
+  The vigil, the moments and the reel are the hold-the-ground mechanics the ask suggested: each fills while
+  anyone stands in its ring, slips back slowly while nobody does, and stirs up the place's creatures. The ladle
+  is an escort. None of them fails anything.
+- **New in the world** (`render3d/world/ghosttrain/quest.ts`, `kit.ts`, `floor.ts`): the brass key (a glint now and
+  then), compartment doors that slide away inside the partition, pages drifting in the compartments, grave
+  lamps hung from iron crooks between headstones, the altar candles on their stand, **the empty grave** (a chest
+  tomb with its lid pushed off where the churchyard's paths cross; solid), brass cogs, the crucible and its melt,
+  the ladle on a tub wagon, the yard's spur up to the platform, **Stillwater's frozen villagers** (the Still
+  Folk, Newsboy and Signalman sculpts held in one frame, frost-pale with frost on the ground; a woken one takes
+  its step and is gone in a breath of light), the boy's kite on its string, the jetty, the pendulum (swinging
+  once hung). A renderer hook draws a creature's sculpted model as a figure (`GameRenderer3D.figure`), in its
+  own batch without the enemies' x-ray.
+- **Interpretations** (worth a word from the owner):
+  - "the train doors" that the first clock opens are the sleeper's compartment doors (the carriage doors already
+    open at every stop);
+  - "the tool on the first map" is the winding key, about Hollow Junction (the first station);
+  - "show the signal green once": one success on any journey takes that journey to E;
+  - the old bridge step (a whistle on the S→E leg) is gone, since the whistle now drives the train;
+  - the End of the Line still opens for everyone at 25:00;
+  - the train needs a rider to leave and comes back for a stranded party (neither was asked for; both keep a
+    whistle-driven train from leaving people behind).
+- **Fixed on the way:**
+  - the chapel's bell ropes (Eli's errand) were interaction spots on the chapel's north side, behind the
+    building from the camera, while the ropes are modelled on its south porch: the spots are on the porch now;
+  - the Cinder Works' tub rails were pale lines with no sleepers: dark iron on sleepers;
+  - the quest's per-carriage culling sampled three points 1500 apart and missed a close camera's view of the
+    sleeper: seven points along the train.
+- **Not done:** the four lost passengers are still the simple pale figures of D-80; Stillwater's church clock
+  interaction still stands on the church's north side (it works, half hidden by the church's roof);
+  no human play-through or cross-network co-op of the new night yet.

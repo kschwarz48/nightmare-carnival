@@ -1,7 +1,10 @@
-// The Ghost Train's machinery (D-80): the timetable's doors, the journeys, and where creatures come from.
+// The Ghost Train's machinery (D-80): the train and its doors, the journeys, and where creatures come from.
 //
+// - The train goes at the whistle (D-90): the host runs it (`TrainRun`), standing at a station until somebody pulls
+//   the whistle cord in the tender, then out to the next stop. A train left standing where nobody is goes for a
+//   party waiting at another station. Guests receive the run in the line's bytes (quest/gtLine.ts).
 // - Doors are walls while a station's train is away or its doors are shut; refreshed every tick from the
-//   timetable, on the host and in a guest's mirror alike (prediction collides with the same doors).
+//   train, on the host and in a guest's mirror alike (prediction collides with the same doors).
 // - Departure moves everything inside the station's copy of the carriages into the transit copy, at the same
 //   place in the same car; arrival moves everything in the transit copy into the next station's (host only;
 //   guests see it through the snapshot, whose interpolation snaps on a jump).
@@ -9,8 +12,9 @@
 //   spawner, boarding at its two ends only: out of the tender's coal and over the rear platform's railing.
 // - Bosses fight at stations and hold still while nobody is in their place.
 
-import { E, FINAL_ACT, FINAL_BOSS_AT, MOUTHS, REGIONS, REGION_HW, TRANSIT, TRAIN, carAtLocal, doorWalls, inTrainLocal, regionAt, trackY, trainAt, trainOrigin, walkRect, type TrainState } from '../data/ghosttrain';
+import { E, FINAL_ACT, FINAL_BOSS_AT, J, LEG, MOUTHS, PASS_LEG, RECALL_AFTER, REGIONS, REGION_HW, S, TERMINUS_FROM, TRANSIT, TRAIN, WHISTLE_LEAD, carAtLocal, doorWalls, inTrainLocal, newRun, nextStop, regionAt, runTime, trackY, trainOrigin, trainState, walkRect, type TrainRun, type TrainState } from '../data/ghosttrain';
 import { setDynamicWalls, type Prop } from '../data/map';
+import { LT_TRAIN } from '../data/gtStations';
 import { ENEMIES } from '../data/enemies';
 import type { Enemy } from './entities';
 import type { Game } from './game';
@@ -18,16 +22,142 @@ import type { Player } from './player';
 import { VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 
 const DOORS: Prop[][] = REGIONS.slice(0, 5).map((_, r) => doorWalls(r));
+/** The sleeper's compartment doors in every copy of the carriages: shut until the hidden quest's Junction clock runs (D-90). */
+const COMPARTMENT_DOORS: Prop[] = REGIONS.flatMap((_, r) => {
+  const o = trainOrigin(r);
+  return LT_TRAIN.compartments.map((x): Prop => ({ kind: 'gt_door', x: o.x + x, y: o.y + LT_TRAIN.partitionY, hw: 27, hh: 5 }));
+});
 
-/** When the End of the Line becomes a stop: the hidden quest's points, or the final act for everyone. */
-export function eFromOf(g: Game): number {
+/** The night's train (the host's, or a guest's copy of it from the line's bytes). */
+const runs = new WeakMap<Game, TrainRun>();
+export function runOf(g: Game): TrainRun {
+  let r = runs.get(g);
+  if (!r) runs.set(g, (r = newRun()));
+  return r;
+}
+
+/** Is the End of the Line on the route: from the final act for everyone, or once the hidden quest has opened the way. */
+export function eOpenOf(g: Game): boolean {
   const q = g.quests?.get<{ eFrom?: number } & import('./quest').QuestChain>('last_train');
-  return Math.min(FINAL_ACT, q?.eFrom ?? Infinity);
+  return g.time >= FINAL_ACT || (q?.eFrom ?? Infinity) <= g.time;
 }
 
 /** The train right now. */
 export function trainNow(g: Game): TrainState {
-  return trainAt(g.time, eFromOf(g));
+  return trainState(runOf(g), g.time);
+}
+
+/** Is any standing player inside region r's copy of the carriages (a car, a gangway or a doorway)? */
+function riderIn(g: Game, r: number): boolean {
+  const o = trainOrigin(r);
+  return g.players.some((p) => g.isUp(p) && inTrainLocal(p.x - o.x, p.y - o.y, TRAIN.wallT));
+}
+
+/**
+ * A pull on the whistle cord in station r's train (the host's): the train goes in WHISTLE_LEAD seconds. What it did:
+ * 'go' (on its way out), 'going' (already), 'terminus' (the last train goes nowhere), 'away' (no train standing here).
+ */
+export function pullWhistle(g: Game, r: number): 'go' | 'going' | 'terminus' | 'away' {
+  const run = runOf(g);
+  if (run.phase !== 'dwell' || run.at !== r) return 'away';
+  if (run.terminated) return 'terminus';
+  if (Number.isFinite(run.departAt)) return 'going';
+  run.departAt = runTime(g.time + WHISTLE_LEAD);
+  return 'go';
+}
+
+/** Send the train out of the station it stands at, to `to` (host). */
+function depart(g: Game, run: TrainRun, to: number, empty: boolean): void {
+  const from = run.at;
+  moveAboard(g, from, TRANSIT);
+  run.phase = 'travel';
+  run.since = runTime(g.time);
+  run.to = to;
+  run.empty = empty;
+  run.passing = !empty && from === S && to === J;
+  run.len = run.passing ? PASS_LEG : LEG;
+  run.departAt = Infinity;
+  run.trip = (run.trip + 1) & 255;
+  g.bus.emit('train', { what: 'depart', at: from, to });
+}
+
+/** Bring the train in to station `at` at time `when` (host). */
+function arrive(g: Game, run: TrainRun, at: number, when: number, aboard: boolean): void {
+  if (aboard) moveAboard(g, TRANSIT, at);
+  run.phase = 'dwell';
+  run.at = at;
+  run.since = runTime(when);
+  run.departAt = Infinity;
+  run.passing = false;
+  run.empty = false;
+  // the last train of the night terminates at the End of the Line and stands there, doors open
+  run.terminated = at === E && when >= TERMINUS_FROM;
+  run.to = run.terminated ? E : nextStop(at, eOpenOf(g));
+  g.bus.emit('train', { what: 'arrive', at, to: run.to });
+}
+
+/** The station a train standing at `at` should go to for a party left elsewhere: null while anyone is at `at`. */
+function waitingAt(g: Game, at: number): number | null {
+  const n = new Array(TRANSIT).fill(0);
+  for (const p of g.players) {
+    if (!g.isUp(p)) continue;
+    const r = regionAt(p.x, p.y);
+    if (r === at || r === TRANSIT) return null;
+    if (r >= 0) n[r]++;
+  }
+  let best = -1;
+  for (let r = 0; r < TRANSIT; r++) if (n[r] > 0 && (best < 0 || n[r] > n[best])) best = r;
+  return best < 0 ? null : best;
+}
+
+const recallT = new WeakMap<Game, number>();
+/**
+ * The train, once per tick on the host: in from the fog, out at the whistle (if anyone is aboard to go: with nobody
+ * standing in its carriages the guard waits), in at the next stop. A train standing where nobody is goes for a
+ * party waiting at another station, so nobody is stranded by a train left behind.
+ */
+function advanceTrain(g: Game, dt: number): void {
+  const run = runOf(g), t = g.time;
+  if (run.phase === 'approach') {
+    if (t >= run.since + run.len) arrive(g, run, J, run.since + run.len, false);
+    return;
+  }
+  if (run.phase === 'travel') {
+    if (t >= run.since + run.len) arrive(g, run, run.to, run.since + run.len, true);
+    return;
+  }
+  if (run.terminated) return;
+  run.to = nextStop(run.at, eOpenOf(g));
+  if (t >= run.departAt) {
+    if (!riderIn(g, run.at)) {
+      run.departAt = Infinity;
+      g.bus.emit('train', { what: 'stay', at: run.at, to: run.to });
+      return;
+    }
+    depart(g, run, run.to, false);
+    return;
+  }
+  if (Number.isFinite(run.departAt)) return;
+  const wait = waitingAt(g, run.at);
+  const k = wait === null ? 0 : (recallT.get(g) ?? 0) + dt;
+  recallT.set(g, k);
+  if (wait !== null && k >= RECALL_AFTER) {
+    recallT.set(g, 0);
+    depart(g, run, wait, true);
+  }
+}
+
+/**
+ * Put the train somewhere directly (dev states and tests): standing at station `at` with its doors open (`ago`
+ * seconds in), or `ago` seconds out of `at` on the way to `to`.
+ */
+export function placeTrain(g: Game, phase: 'dwell' | 'travel', at: number, to = nextStop(at, eOpenOf(g)), ago = 5): void {
+  const run = runOf(g);
+  Object.assign(run, newRun(), { phase, at, to, since: runTime(g.time - ago), trip: run.trip });
+  if (phase === 'travel') {
+    run.passing = at === S && to === J;
+    run.len = run.passing ? PASS_LEG : LEG;
+  } else run.terminated = at === E && g.time >= TERMINUS_FROM;
 }
 
 /** Which place a player (or anything) is in: a station 0..4, the moving train 5, or -1. */
@@ -38,12 +168,9 @@ export function refreshTrainDoors(g: Game): void {
   const st = trainNow(g);
   const walls: Prop[] = [];
   for (let r = 0; r < 5; r++) if (!(st.phase === 'dwell' && st.at === r && st.doors)) walls.push(...DOORS[r]);
+  if (!g.quests?.get<{ compartmentsOpen?: boolean } & import('./quest').QuestChain>('last_train')?.compartmentsOpen) walls.push(...COMPARTMENT_DOORS);
   setDynamicWalls(walls);
 }
-
-/** The train's state at the end of the last tick (host), to see departures and arrivals. */
-interface Prev { phase: TrainState['phase']; at: number }
-const prevOf = new WeakMap<Game, Prev>();
 
 /** Move everything inside region `from`'s copy of the carriages into region `to`'s, at the same place. */
 export function moveAboard(g: Game, from: number, to: number): number {
@@ -128,19 +255,9 @@ export function moveAboard(g: Game, from: number, to: number): number {
 
 /** The map's machinery, once per tick on the host (after everything has moved). */
 export function updateGhostTrain(g: Game, dt: number): void {
+  advanceTrain(g, dt);
   refreshTrainDoors(g);
   const st = trainNow(g);
-  const prev = prevOf.get(g);
-  if (prev) {
-    if (prev.phase === 'dwell' && st.phase === 'travel') {
-      moveAboard(g, prev.at, TRANSIT);
-      g.bus.emit('train', { what: 'depart', at: prev.at, to: st.to });
-    } else if (prev.phase === 'travel' && st.phase === 'dwell') {
-      moveAboard(g, TRANSIT, st.at);
-      g.bus.emit('train', { what: 'arrive', at: st.at, to: st.to });
-    } else if (prev.phase === 'approach' && st.phase === 'dwell') g.bus.emit('train', { what: 'arrive', at: st.at, to: st.to });
-  }
-  prevOf.set(g, { phase: st.phase, at: st.at });
   confine(g);
   bossesFollow(g, dt);
   journeySpawns(g, st, dt);

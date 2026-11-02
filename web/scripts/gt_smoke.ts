@@ -1,51 +1,61 @@
 // Ghost Train smoke run (D-80): a headless night with an autopilot that rides the train between stations.
+// D-90: the train goes at the whistle, so the bot fights at each station for a while, walks into the tender, pulls
+// the cord, rides, and gets off at the next stop.
+//   npx vite-node scripts/gt_smoke.ts [secs] [stay]
 import { makeGame, autopilot, autoDraft } from '../tests/helpers';
-import { regionAt, TRANSIT, trainOrigin, REGIONS } from '../src/data/ghosttrain';
+import { regionAt, TRANSIT, trainOrigin, REGIONS, PHANTOM_AT } from '../src/data/ghosttrain';
 import { trainNow } from '../src/sim/ghosttrain';
-import { PHANTOM_DOOR } from '../src/data/gtStations';
+import { LT_TRAIN, PHANTOM_DOOR } from '../src/data/gtStations';
 
 const secs = Number(process.argv[2] ?? 600);
+/** seconds the bot fights at each station before it boards */
+const stay = Number(process.argv[3] ?? 75);
 const g = makeGame({ map: 'ghost_train', godMode: true, seed: 7 } as never);
 const t0 = performance.now();
-let transfers = 0, lastR = -9, maxAlive = 0, maxAboard = 0, bossesSeen = new Set<string>();
+let transfers = 0, lastR = -9, maxAlive = 0, maxAboard = 0, arrivedAt = 0;
+const bossesSeen = new Set<string>();
 const counts: Record<number, number> = {};
+const steer = (x: number, y: number, slack = 24) => {
+  const p = g.player, dx = x - p.x, dy = y - p.y, l = Math.hypot(dx, dy);
+  g.input.moveX = l > slack ? dx / l : 0;
+  g.input.moveY = l > slack ? dy / l : 0;
+  return l;
+};
 for (let i = 0; i < secs * 60 && g.phase !== 'ended'; i++) {
   autoDraft(g);
   const p = g.player;
   const st = trainNow(g);
   const r = regionAt(p.x, p.y);
-  // ride: during a dwell at the player's station, walk into the parked train's coach; otherwise kite
-  if (st.phase === 'dwell' && st.at === r && st.departIn > 6) {
-    const o = trainOrigin(r);
-    const tx = o.x + 600, ty = o.y;
-    const dx = tx - p.x, dy = ty - p.y, l = Math.hypot(dx, dy) || 1;
-    // through the coach's door: go to the door first, then in
-    const door = { x: o.x + 470, y: o.y + 150 };
-    const inside = Math.abs(p.y - o.y) < 100;
-    const gx = inside ? tx : door.x, gy = inside ? ty : (Math.abs(p.x - door.x) < 30 ? o.y : door.y);
-    const ddx = gx - p.x, ddy = gy - p.y, dl = Math.hypot(ddx, ddy) || 1;
-    g.input.moveX = ddx / dl;
-    g.input.moveY = ddy / dl;
-    void dx; void dy; void l;
-  } else if (st.phase === 'dwell' && r === st.at && st.departIn <= 6 && st.departIn > 3) {
-    // get off at the next stop: step out of the doors
-    const o = trainOrigin(r);
-    g.input.moveX = 0;
-    g.input.moveY = p.y < o.y + 140 ? 1 : 0;
-  } else if (g.time >= 1741 && r >= 0 && r < 4) {
-    // the phantom doors: through to the End of the Line
-    const d = PHANTOM_DOOR[r];
-    const dx = d.x - p.x, dy = d.y + 40 - p.y, l = Math.hypot(dx, dy) || 1;
-    g.input.moveX = l > 30 ? dx / l : 0;
-    g.input.moveY = l > 30 ? dy / l : 0;
-    if (l < 60) g.inputs[0].interact = true;
-  } else if (r === TRANSIT) {
-    g.input.moveX = 0; g.input.moveY = 0;
-  } else autopilot(g);
+  g.inputs[0].interact = false;
   if (r !== lastR) {
     if (lastR !== -9) transfers++;
+    if (r >= 0 && r < TRANSIT) arrivedAt = g.time;
     lastR = r;
   }
+  const trainHere = st.phase === 'dwell' && st.at === r && st.doors && !st.terminated;
+  if (g.time >= PHANTOM_AT + 1 && r >= 0 && r < 4) {
+    // the phantom doors: through to the End of the Line
+    const d = PHANTOM_DOOR[r];
+    if (steer(d.x, d.y + 40, 30) < 60) g.inputs[0].interact = true;
+  } else if (r === TRANSIT) {
+    g.input.moveX = g.input.moveY = 0;
+  } else if (trainHere && g.time - arrivedAt > stay) {
+    // board through the tender's door and pull the cord (once it is pulled, wait aboard)
+    const o = trainOrigin(r);
+    const inside = Math.abs(p.y - o.y) < 100;
+    const cord = { x: o.x + LT_TRAIN.whistle.x - 20, y: o.y + LT_TRAIN.whistle.y + 30 };
+    if (!inside) {
+      const door = { x: o.x + 1540, y: o.y + 150 };
+      if (Math.abs(p.x - door.x) < 26) steer(door.x, o.y, 4);
+      else steer(door.x, door.y, 4);
+    } else if (Number.isFinite(st.departIn)) {
+      g.input.moveX = g.input.moveY = 0;
+    } else if (steer(cord.x, cord.y, 10) < 40) g.inputs[0].interact = true;
+  } else if (r >= 0 && r < TRANSIT && Math.abs(p.y - trainOrigin(r).y) < 140 && st.phase === 'dwell' && st.at === r) {
+    // just come in: step off the train onto the platform
+    g.input.moveX = 0;
+    g.input.moveY = 1;
+  } else autopilot(g);
   counts[r] = (counts[r] ?? 0) + 1;
   g.tick();
   maxAlive = Math.max(maxAlive, g.active.length);

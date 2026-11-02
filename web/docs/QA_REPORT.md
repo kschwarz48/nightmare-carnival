@@ -115,6 +115,47 @@ understate that character.
 
 ---
 
+## The Ghost Train at the whistle, the Last Train Home's new first half, the Unclaimed — 2026-11-02 (D-90)
+
+- `npm test`: 29 files, 433 tests pass. `tests/ghosttrain.test.ts` replaced its timetable tests: the train waits
+  at a platform, leaves 4 s after the whistle only with somebody aboard (a pull with nobody aboard is answered
+  "stay"), comes back empty for a stranded party, takes the End of the Line from 25:00 or on the quest's
+  journey, terminates from 32:00, and packs into 12 bytes that a guest reads back exactly. New: the registry's
+  seven bosses, the final boss held until every other has fallen, the Unclaimed reaching all three phases, the
+  reworked chain played through solo inside a night, each clock refusing to be wound until its trouble is
+  mended, the signal missed (the train runs on) and then shown green (to the End of the Line), the co-op bytes.
+  `tsc` is clean and `npm run build` passes.
+- **Bots** (headless):
+  - `scripts/gt_smoke.ts 240`: the whistle bot rides J → V → C on its own pulls (four transfers in four
+    minutes, 64 creatures at most, no faults);
+  - a 36-minute god-mode night: every boss spawns in order; the Night Express waits while the Unclaimed lives,
+    and the clock stops at 34:59 until the Express comes;
+  - `scripts/gt_bossttk.ts` at b4: the Hour Thief 54 s, the Unclaimed 55 s, the Night Express 69 s.
+- **Captures** (dev server, one 1600×900 Electron window, the quest set to each step): the key under its bench,
+  the sleeper shut and open (doors and the four pages), the grave lamps unlit and lit, the candles at the
+  porch, the bell ropes' spots against the modelled ropes, the tomb's vigil, the ladle on the yard rails and on
+  its spur, the three frozen villagers and one waking, the jetty and the pendulum, the lamp box red and green
+  with the battery fitted, the HUD's line (no times), the Unclaimed.
+- **Found by looking, and fixed:**
+  - the sleeper's doors and pages weren't drawn at all close up (the carriage culling sampled three points
+    1500 apart); then the slid-open doors (taller than the partition) hid the pages behind them: doors at
+    the partition's height slide away inside it, and the pages drift high enough to show over it;
+  - the grave lamps were a small dark box behind the headstones: a lantern on an iron crook between them, a
+    faint glint while unlit, a halo when lit;
+  - the altar candles stood behind the chapel from the camera, and so did Eli's bell rope spots (an older
+    slip: the ropes are modelled on the south porch): both on the porch now;
+  - the vigil's ring stood on an empty path crossing: the empty grave is there now, a chest tomb with its lid
+    pushed off;
+  - the yard's tub rails read as white lines (drawn twice over by the ladle's overlay): the overlay is gone, the
+    spur is the floor's, and the rails are dark iron on sleepers;
+  - Stillwater's moments were white blobs: the Still Folk, Newsboy and Signalman sculpts held mid-step,
+    frost-pale, in a batch of their own (they had picked up the enemies' red x-ray where a roof covered a foot);
+  - the fitted battery was inside the lamp box: on top of it.
+- **Shader health:** `__nc.inspect.shaders()` clean after visiting every new fixture (58 programs).
+- **Not checked:** a human play-through of the whistle-driven night and of the new quest; co-op across machines
+  (only the bytes in tests); the frozen villagers' waking as video (one mid-wake frame captured); balance of the
+  new station steps beyond the bot and the tests.
+
 ## The other maps' humanoids in layers — 2026-11-02 (D-89)
 
 - `npm test`: 29 files, 428 tests pass. One is new, in `tests/characterArt.test.ts`: each of the 26 rebuilt

@@ -117,11 +117,12 @@ export const JUNCTION = (() => {
 }
 
 // ---------------------------------------------------------------- Saint Vesper's Halt
-/** The chapel's three bell ropes (Eli's bells), west to east. */
+/** The chapel's three bell ropes (Eli's bells), west to east: where they hang in front of its porch, on the south face
+ *  (D-90: they had been placed on the north side, behind the chapel from the camera). */
 export const VESPER = (() => {
   const { cx, cy } = REGIONS[V];
   return {
-    ropes: [{ x: cx + 1080, y: cy + 600 }, { x: cx + 1200, y: cy + 600 }, { x: cx + 1320, y: cy + 600 }],
+    ropes: [{ x: cx + 1080, y: cy + 1134 }, { x: cx + 1200, y: cy + 1134 }, { x: cx + 1320, y: cy + 1134 }],
     shelter: { x: cx + 1680, y: trackY(V) + 205 },
   };
 })();
@@ -152,7 +153,7 @@ export const VESPER = (() => {
   add({ kind: 'gt_angel', x: cx - 700, y: cy + 140, r: 26 });
   add({ kind: 'gt_angel', x: cx + 700, y: cy + 380, r: 26 });
   for (const [x, y] of [[-2100, -120], [-950, -480], [1000, 160], [2120, 820], [-450, 1120], [1650, 1100], [-1650, 1120], [180, 1160]]) add({ kind: 'gt_yew', x: cx + x, y: cy + y, r: 30 });
-  // the chapel (its porch and bell ropes on the north face) and the lych gate
+  // the chapel (its porch and bell ropes on the south face, toward the camera) and the lych gate
   add({ kind: 'gt_chapel', x: cx + 1200, y: cy + 880, hw: 250, hh: 230 });
   add({ kind: 'gt_lychgate', x: cx, y: railY + 4 });
   for (const [x, y] of [[-250, -380], [250, -380], [-250, 600], [250, 600], [950, 520], [-1000, 700]]) add({ kind: 'gt_lamppost', x: cx + x, y: cy + y, r: 9, variant: 1 });
@@ -328,15 +329,55 @@ for (const [r, kinds, n] of DRESS) {
 for (const [x, y] of [[-1700, -200], [-800, 300], [200, -60], [900, 400], [1700, 300], [-1300, 900], [500, 1100]]) add({ kind: 'gt_lamppost', x: REGIONS[C].cx + x, y: REGIONS[C].cy + y, r: 9, variant: 0 });
 for (const [x, y] of [[-1600, -150], [1600, 300], [-1500, 650], [1000, 900]]) add({ kind: 'gt_lamppost', x: REGIONS[V].cx + x, y: REGIONS[V].cy + y, r: 9, variant: 1 });
 
+// ---------------------------------------------------------------- the stopped clocks' trouble (D-90)
+// The hidden quest's clocks: each station's has its own trouble, to do with the place (docs/EASTER_EGG_GHOST_TRAIN.md).
+/** Hollow Junction: where the station clocks' winding key may lie tonight (one of these, seeded). */
+export const LT_KEY_SPOTS: { x: number; y: number }[] = (() => {
+  const { cx, cy } = REGIONS[J];
+  // under a waiting bench, at the dry fountain's rim, beside the hearse, on a luggage pile, under the water tower
+  return [[430, -6], [70, 432], [-1450, 640], [-900, 495], [1950, -290]].map(([x, y]) => ({ x: cx + x, y: cy + y }));
+})();
+/** Saint Vesper's: the chapel's altar candles (brought out beside its porch; a taper is lit at them), three grave lamps
+ *  (each on its crook between two headstones), the empty grave's vigil. */
+export const LT_VESPER = (() => {
+  const { cx, cy } = REGIONS[V];
+  return {
+    candles: { x: cx + 1010, y: cy + 1160 },
+    lamps: [{ x: cx - 1245, y: cy + 88 }, { x: cx + 1355, y: cy - 332 }, { x: cx + 655, y: cy + 848 }],
+    vigil: { x: cx, y: cy + 300, r: 170 },
+  };
+})();
+// the empty grave the vigil is kept at, where the churchyard's paths cross: a chest tomb with its lid pushed off
+add({ kind: 'gt_tomb', x: LT_VESPER.vigil.x, y: LT_VESPER.vigil.y, hw: 64, hh: 31 });
+/** The Cinder Works: brass for a new wheel (three of these five lie about the yard, seeded), the crucible by the
+ *  west furnace, and the ladle's way to the clock along the tub rails (the last stretch a spur up to the platform). */
+export const LT_WORKS = (() => {
+  const { cx, cy } = REGIONS[C];
+  return {
+    scrapSpots: [[-420, -280], [400, 310], [1150, 550], [-310, 530], [1700, -120]].map(([x, y]) => ({ x: cx + x, y: cy + y })),
+    crucible: { x: cx - 1160, y: cy + 560 },
+    ladle: [[-1048, 560], [-1048, 206], [-520, 206], [-520, -680]].map(([x, y]) => ({ x: cx + x, y: cy + y })),
+  };
+})();
+/** Stillwater: the three moments the village is frozen in (the woman at the well, the boy with the kite by the market
+ *  cross, the signalman at his cottage gate), and the bank of the still pond where the pendulum lies. */
+export const LT_STILL = (() => {
+  const { cx, cy } = REGIONS[S];
+  return {
+    moments: [{ x: cx + 590, y: cy + 215, r: 100 }, { x: cx + 120, y: cy + 480, r: 100 }, { x: cx - 1750, y: cy + 290, r: 100 }],
+    bank: { x: cx - 570, y: cy + 75, r: 90 },
+  };
+})();
+
 // ---------------------------------------------------------------- the quest's fixtures in the carriages
-/** In the train's own frame. Pages: two hiding places in each of four cars (one used a night). */
+/** The sleeper's four compartment doors (x along the train, in its partition): shut until the Junction's clock runs (D-90). */
+const COMPARTMENTS = [-1060, -940, -820, -700];
+/** In the train's own frame. Pages (D-90): one in each of the sleeper's four compartments, at one of two places a night
+ *  (deep enough in that a page drifting there shows over the partition). */
 export const LT_TRAIN = {
-  pages: [
-    [{ x: 1118, y: -10 }, { x: 960, y: 20 }],
-    [{ x: -62, y: 4 }, { x: 236, y: -6 }],
-    [{ x: -560, y: 78 }, { x: -200, y: -74 }],
-    [{ x: -1062, y: -64 }, { x: -822, y: -66 }],
-  ],
+  compartments: COMPARTMENTS,
+  partitionY: -12,
+  pages: COMPARTMENTS.map((x) => [{ x: x - 30, y: -64 }, { x: x + 26, y: -86 }]),
   /** where each lost passenger sits once aboard: Ada (dining), Theo (coach), Mira (sleeper), Eli (Car 13) */
   seats: [{ x: 128, y: -36 }, { x: 634, y: -60 }, { x: -942, y: -60 }, { x: -380, y: -62 }],
   letter: { x: 128, y: -34 },

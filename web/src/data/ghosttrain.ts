@@ -1,9 +1,9 @@
 // The Ghost Train (D-80): the Midnight Line, the fourth map. Five stations and the moving train are separate
 // places ("regions") far apart in one world; each station has a parked copy of the train's carriages on its
-// track, and the transit region holds one more. The train is a timetable: a pure function of sim time and one
-// replicated number (`eFrom`, when the End of the Line becomes a stop), so a guest predicts the same doors
-// and the same train as the host. At departure the host moves everything inside a station's copy into the
-// transit copy, and at arrival into the next station's (sim/ghosttrain.ts). Design: docs/GHOST_TRAIN.md.
+// track, and the transit region holds one more. Since D-90 the train goes when the players say: it stands at a
+// station until somebody pulls the whistle cord in the tender (`TrainRun`, run by the host and sent to guests,
+// who read the same doors and train from it). At departure the host moves everything inside a station's copy
+// into the transit copy, and at arrival into the next station's (sim/ghosttrain.ts). Design: docs/GHOST_TRAIN.md.
 // Coordinates: x east, y south (sim space); the train runs east, its locomotive at the east end.
 
 import type { LightDef, MapLayout, Prop } from './map';
@@ -89,21 +89,29 @@ export function carAtLocal(lx: number): CarDef | null {
   return null;
 }
 
-// ---------------------------------------------------------------- the timetable
-export const DWELL = [45, 40, 40, 40, 50];
+// ---------------------------------------------------------------- the line: the train goes at the whistle (D-90)
+// The train keeps no timetable (it did until D-90). It comes in out of the fog to the Junction at the night's start,
+// then stands at each station with its doors open until somebody pulls the whistle cord at the front of the tender:
+// WHISTLE_LEAD seconds later the doors shut and it pulls out for the next stop. The host runs it (`TrainRun`, moved on
+// in sim/ghosttrain.ts); guests receive it in the line's bytes and read the same `trainState` from it.
+
 /** seconds between neighbouring stations, and Stillwater to the Junction running through the End of the Line */
 export const LEG = 35, PASS_LEG = 60;
 /** the train pulls into the Junction this far into the night (out of the fog) */
 export const FIRST_ARRIVAL = 30;
-/** the final act: from here every loop stops at the End of the Line */
+/** the final act: from here a train leaving Stillwater calls at the End of the Line */
 export const FINAL_ACT = 1500;
 /** the last train: the first arrival at the End of the Line at or after this terminates there (the train stays) */
-export const TERMINUS_FROM = 1560;
-/** the phantom doors at the other stations open (straight to the End of the Line), and the final boss comes */
-export const PHANTOM_AT = 1740, FINAL_BOSS_AT = 1800;
-/** doors open this long after a stop, and close this long before departure (D-84: as its count reaches 0; they
- *  shut 3 s early, which read as a train refusing anyone while its board still said it was waiting) */
+export const TERMINUS_FROM = 1920;
+/** the phantom doors at the other stations open (straight to the End of the Line), and the final boss is due (D-90:
+ *  34:00, after every other boss has fallen; it was 30:00) */
+export const PHANTOM_AT = 1980, FINAL_BOSS_AT = 2040;
+/** doors open this long after a stop, and close this long before departure */
 export const DOOR_OPEN_AFTER = 2, DOOR_CLOSE_BEFORE = 0;
+/** seconds from a pull on the whistle cord to the train pulling out: a bell, "All aboard!", then the doors shut as it goes */
+export const WHISTLE_LEAD = 4;
+/** a train standing where nobody is, while somebody waits at another station, goes for them after this long */
+export const RECALL_AFTER = 8;
 /** the speed profile: seconds pulling out (accelerating) and braking in; the cruise speed (units/s) */
 export const ACCEL = 7, BRAKE = 8, CRUISE = 720;
 
@@ -114,7 +122,7 @@ export interface TrainState {
   at: number;
   /** travel/approach: the station ahead; dwell: the next stop */
   to: number;
-  /** seconds into this phase, and its length */
+  /** seconds into this phase, and its length (a dwell's: Infinity until the whistle) */
   t: number;
   len: number;
   /** travel: how far along the leg (0..1), eased out of one station and into the next */
@@ -125,12 +133,48 @@ export interface TrainState {
   /** this leg runs through the End of the Line without stopping */
   passing: boolean;
   doors: boolean;
-  /** dwell: seconds to departure (Infinity otherwise) */
+  /** dwell: seconds to departure (Infinity until somebody pulls the whistle cord, and at the terminus) */
   departIn: number;
   /** travel/approach: seconds to arrival (Infinity otherwise) */
   arriveIn: number;
-  /** which loop (0 from the first arrival) */
+  /** journeys made so far (keys a journey's one-off calls) */
   loop: number;
+  /** the last train: it stands at the End of the Line for the rest of the night */
+  terminated: boolean;
+}
+
+/** The train as the host runs it: everything a guest needs to read the same `TrainState` at any moment. */
+export interface TrainRun {
+  phase: 'approach' | 'dwell' | 'travel';
+  at: number;
+  to: number;
+  /** when this phase began (sim seconds, in 1/20 s steps so a guest's copy is exact) */
+  since: number;
+  /** dwell: when it pulls out (set by the whistle; Infinity while it waits) */
+  departAt: number;
+  /** travel: the leg's length in seconds */
+  len: number;
+  passing: boolean;
+  terminated: boolean;
+  /** running empty, to fetch a party waiting at another station */
+  empty: boolean;
+  /** journeys made (mod 256) */
+  trip: number;
+}
+
+/** A night's train: coming in out of the fog to the Junction. */
+export function newRun(): TrainRun {
+  return { phase: 'approach', at: J, to: J, since: 0, departAt: Infinity, len: FIRST_ARRIVAL, passing: false, terminated: false, empty: false, trip: 0 };
+}
+
+/** Sim seconds rounded to the run's resolution (1/20 s), so the host's run and a guest's copy are the same number. */
+export const runTime = (t: number) => Math.round(t * 20) / 20;
+
+/** The next stop after station `at`: on round the line, calling at the End of the Line after Stillwater once it is open. */
+export function nextStop(at: number, eOpen: boolean): number {
+  if (at === S) return eOpen ? E : J;
+  if (at === E) return J;
+  return at + 1;
 }
 
 /** Units along a leg of `len` seconds after `t` (accelerate, cruise, brake; length CRUISE x (len - (ACCEL+BRAKE)/2)). */
@@ -153,65 +197,47 @@ export function legSpeed(t: number, len: number): number {
   return CRUISE;
 }
 
-function dwellState(at: number, t: number, loop: number, to: number): TrainState {
-  const len = DWELL[at];
-  const departIn = len - t;
-  return { phase: 'dwell', at, to, t, len, k: 0, dist: 0, legDist: 0, passing: false, doors: t >= DOOR_OPEN_AFTER && departIn > DOOR_CLOSE_BEFORE, departIn, arriveIn: Infinity, loop };
-}
-function travelState(at: number, to: number, t: number, len: number, loop: number, passing: boolean): TrainState {
-  const D = legLength(len), d = legDistance(t, len);
-  return { phase: 'travel', at, to, t, len, k: d / D, dist: d, legDist: D, passing, doors: false, departIn: Infinity, arriveIn: len - t, loop };
+/** Where the train is at sim time `t`, read off its run. */
+export function trainState(run: TrainRun, t: number): TrainState {
+  const dt = Math.max(0, t - run.since);
+  if (run.phase === 'dwell') {
+    const departIn = run.terminated ? Infinity : run.departAt - t;
+    return {
+      phase: 'dwell', at: run.at, to: run.to, t: dt, len: run.terminated || !Number.isFinite(run.departAt) ? Infinity : run.departAt - run.since,
+      k: 0, dist: 0, legDist: 0, passing: false, doors: dt >= DOOR_OPEN_AFTER && departIn > DOOR_CLOSE_BEFORE, departIn, arriveIn: Infinity, loop: run.trip, terminated: run.terminated,
+    };
+  }
+  const len = run.len, D = legLength(len), d = legDistance(dt, len);
+  return { phase: run.phase, at: run.at, to: run.to, t: dt, len, k: d / D, dist: d, legDist: D, passing: run.passing, doors: false, departIn: Infinity, arriveIn: len - dt, loop: run.trip, terminated: false };
 }
 
-/**
- * Where the train is at sim time `t`. `eFrom`: the End of the Line is a stop on any loop whose departure from
- * Stillwater comes at or after it (the final act, or earlier once the hidden quest throws the points).
- */
-export function trainAt(t: number, eFrom = FINAL_ACT): TrainState {
-  if (t < FIRST_ARRIVAL) {
-    const len = FIRST_ARRIVAL, D = legLength(len), d = legDistance(t, len);
-    return { phase: 'approach', at: J, to: J, t, len, k: d / D, dist: d, legDist: D, passing: false, doors: false, departIn: Infinity, arriveIn: len - t, loop: -1 };
-  }
-  let s = FIRST_ARRIVAL;
-  for (let loop = 0; loop < 200; loop++) {
-    for (let st = 0; st < 4; st++) {
-      const d = DWELL[st];
-      const stopE = st === S && s + d >= eFrom;
-      if (t < s + d) return dwellState(st, t - s, loop, st < S ? st + 1 : stopE ? E : J);
-      s += d;
-      if (st < S) {
-        if (t < s + LEG) return travelState(st, st + 1, t - s, LEG, loop, false);
-        s += LEG;
-      } else if (!stopE) {
-        if (t < s + PASS_LEG) return travelState(S, J, t - s, PASS_LEG, loop, true);
-        s += PASS_LEG;
-      } else {
-        if (t < s + LEG) return travelState(S, E, t - s, LEG, loop, false);
-        s += LEG;
-        // the last train of the night: it terminates at the End of the Line and stands there, doors open
-        if (s >= TERMINUS_FROM) return { ...dwellState(E, t - s, loop, E), len: Infinity, departIn: Infinity, doors: t - s >= DOOR_OPEN_AFTER };
-        if (t < s + DWELL[E]) return dwellState(E, t - s, loop, J);
-        s += DWELL[E];
-        if (t < s + LEG) return travelState(E, J, t - s, LEG, loop, false);
-        s += LEG;
-      }
-    }
-  }
-  return dwellState(J, 0, 0, V);
+/** The run as bytes for a guest (12 of them), and back. Times in 1/20 s over three bytes (up to 233 hours). */
+export function packRun(r: TrainRun): number[] {
+  const t3 = (v: number) => {
+    const n = Number.isFinite(v) ? Math.max(0, Math.min(0xfffffe, Math.round(v * 20))) : 0xffffff;
+    return [n >> 16, (n >> 8) & 255, n & 255];
+  };
+  const ph = r.phase === 'approach' ? 0 : r.phase === 'dwell' ? 1 : 2;
+  return [ph, r.at, r.to, (r.passing ? 1 : 0) | (r.terminated ? 2 : 0) | (r.empty ? 4 : 0), ...t3(r.since), ...t3(r.departAt), Math.min(255, Math.round(r.len)), r.trip & 255];
 }
-
-/** The next time (after `t`) the train arrives at station `st`, and whether it will stop (looking ahead `horizon` s). */
-export function nextArrival(st: number, t: number, eFrom = FINAL_ACT, horizon = 900): number {
-  // step forward phase by phase (cheap: a few dozen at most)
-  let now = t, guard = 0;
-  while (guard++ < 64 && now < t + horizon) {
-    const s = trainAt(now, eFrom);
-    if (s.phase === 'dwell' && s.at === st && now > t) return now - s.t;
-    if ((s.phase === 'travel' || s.phase === 'approach') && s.to === st && !(s.passing && st === E)) return now + s.arriveIn;
-    now += (s.phase === 'dwell' ? s.departIn : s.arriveIn) + 0.01;
-  }
-  return Infinity;
+export function unpackRun(v: number[], o = 0, into: TrainRun = newRun()): TrainRun {
+  const t3 = (i: number) => {
+    const n = (v[o + i] << 16) | (v[o + i + 1] << 8) | v[o + i + 2];
+    return n === 0xffffff ? Infinity : n / 20;
+  };
+  into.phase = v[o] === 0 ? 'approach' : v[o] === 1 ? 'dwell' : 'travel';
+  into.at = v[o + 1];
+  into.to = v[o + 2];
+  into.passing = !!(v[o + 3] & 1);
+  into.terminated = !!(v[o + 3] & 2);
+  into.empty = !!(v[o + 3] & 4);
+  into.since = t3(4);
+  into.departAt = t3(7);
+  into.len = v[o + 10];
+  into.trip = v[o + 11];
+  return into;
 }
+export const RUN_BYTES = 12;
 
 // ---------------------------------------------------------------- the carriages' walls and furniture
 /** One solid piece in the train's frame (a circle `r` or a box `hw` x `hh`), with what it is. */

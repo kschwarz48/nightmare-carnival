@@ -43,8 +43,9 @@ import { SE, type SummersEndChain } from './sim/quest/summersEnd';
 import { LT, type LastTrainChain } from './sim/quest/lastTrain';
 import { LT_TEXT } from './data/lastTrain';
 import { PASSENGERS } from './data/gtStations';
-import { CRUISE, REGIONS as GT_REGIONS, TRANSIT, legSpeed, nextArrival, regionAt as gtRegionAt, trainAt, type TrainState } from './data/ghosttrain';
-import { eFromOf } from './sim/ghosttrain';
+import { CRUISE, REGIONS as GT_REGIONS, TRANSIT, legSpeed, regionAt as gtRegionAt, type TrainState } from './data/ghosttrain';
+import { trainNow } from './sim/ghosttrain';
+import { WHISTLE } from './sim/quest/gtLine';
 import { LineBoard, lineText } from './ui/lineBoard';
 import type { QuestCue } from './sim/quest';
 import { FocusNav, h, morph, uiZoom, zoomFor } from './ui/dom';
@@ -191,9 +192,11 @@ export class App {
   private tideSaid = -1;
   /** the hoist's winch as last heard (D-79): the bell's progress, rising (1) / slipping (-1) / still, when it moved, the next sound */
   private winch = { v: 0, trend: 0, at: 0, next: 0 };
-  /** the Ghost Train's departures line under the clock, and what the timetable last was (for its sounds) */
+  /** the Ghost Train's line under the clock, and what the train last was (for its sounds) */
   private lineBoard = new LineBoard();
   private lastTrain: TrainState | null = null;
+  /** the night the line's workings were last explained in (the first time the train comes in, D-90) */
+  private lineTaught: Game | null = null;
   private chuffAcc = 0;
   private chestQueue: (() => void)[] = [];
 
@@ -1004,18 +1007,17 @@ export class App {
    * and nothing ever reads like a checklist. The lighthouse flashes the call sign as the horn sounds it.
    */
   /**
-   * The Ghost Train each frame (D-80): the departures line under the clock, the ambience's mix (the stations'
-   * night against the carriages' rattle, quickening with the train), and the train's own sounds, read off the
-   * timetable (so a guest hears exactly what the host does): the bell ten seconds before it goes, the whistle
-   * at five, the doors, the chuff pulling out, the brakes coming in, the rush over the bridge. Heard full aboard
-   * and at the station it stands at or is pulling into or out of; a far whistle everywhere else.
+   * The Ghost Train each frame (D-80): the line under the clock, the ambience's mix (the stations' night against
+   * the carriages' rattle, quickening with the train), and the train's own sounds, read off the train (so a guest
+   * hears exactly what the host does): the whistle and the bell when somebody pulls the cord (D-90: it keeps no
+   * timetable), the doors, the chuff pulling out, the brakes coming in, the rush over the bridge. Heard full
+   * aboard and at the station it stands at or is pulling into or out of; a far whistle everywhere else.
    */
   private ghostTrainFrame(g: Game, dt: number): void {
     if (g.mapId !== 'ghost_train') return;
     const me = g.players[this.localIndex] ?? g.player;
-    const eFrom = eFromOf(g);
-    this.lineBoard.update(g.phase === 'play' ? lineText(g.time, eFrom, me.x, me.y) : null);
-    const st = trainAt(g.time, eFrom);
+    const st = trainNow(g);
+    this.lineBoard.update(g.phase === 'play' ? lineText(st, me.x, me.y) : null);
     const here = gtRegionAt(me.x, me.y);
     const riding = here === TRANSIT;
     const speed = st.phase === 'travel' ? legSpeed(st.t, st.len) / CRUISE : 0;
@@ -1029,18 +1031,26 @@ export class App {
     const vol = near ? 1 : 0.2;
     const crossed = (p: number, c: number, at: number) => p > at && c <= at;
     if (st.phase === 'dwell' && prev.phase === 'dwell' && st.at === prev.at) {
-      if (crossed(prev.departIn, st.departIn, 10)) a.play('gt_bell', { vol: 0.7 * vol });
-      if (crossed(prev.departIn, st.departIn, 5)) {
+      // somebody pulled the whistle cord: the whistle, the bell, "All aboard!"; the doors shut as it goes
+      if (!Number.isFinite(prev.departIn) && Number.isFinite(st.departIn)) {
         a.play('gt_whistle', { vol: 0.9 * vol });
-        if (near && !riding && st.at === here) this.hud.toastMsg('All aboard!');
+        a.play('gt_bell', { vol: 0.65 * vol });
+        if (near && st.at === here) this.hud.toastMsg('All aboard!');
       }
+      // …and if nobody was aboard when it was due to go, the guard waits for them
+      if (Number.isFinite(prev.departIn) && prev.departIn < 1 && !Number.isFinite(st.departIn) && !st.terminated && st.at === here) this.hud.toastMsg('Nobody aboard: the train waits');
       if (prev.t < 2 && st.t >= 2) a.play('gt_doors', { vol: 0.7 * (near ? 1 : 0) });
     }
     // pulling up at a station: a loud double blast for everyone there and aboard, a distant one elsewhere (D-84)
     if (st.phase === 'dwell' && prev.phase !== 'dwell') {
       const there = riding || st.at === here;
       a.play('gt_arrive', { vol: there ? 1 : 0.22 });
-      if (there && !riding) this.hud.toastMsg('The train is in — doors opening');
+      if (there && !riding) this.hud.toastMsg('The train is in');
+      // the first time the train comes in, how the line works (D-90): it waits for the whistle
+      if (there && this.lineTaught !== g) {
+        this.lineTaught = g;
+        this.hud.whisper('The train waits at the platform', 'Pull the whistle cord at the front of the tender to go on to the next station.', 8);
+      }
     }
     if (st.phase === 'travel') {
       // the doors shut as the departure count reaches 0 (D-84), and it pulls away
@@ -1068,7 +1078,7 @@ export class App {
     return gtRegionAt(me.x, me.y) === TRANSIT;
   }
 
-  /** The Last Train Home's cues (and the line's: the timetable read at a clock, the phantom doors). */
+  /** The Last Train Home's cues (and the line's: the board or a clock read, the whistle cord, the phantom doors). */
   private onLastTrain(g: Game, q: QuestCue): void {
     const a = this.audio;
     const pan = (x?: number) => (x === undefined ? 0 : Math.max(-1, Math.min(1, (x - this.renderer.camX) / (this.renderer.viewWidth * 0.6))));
@@ -1090,23 +1100,23 @@ export class App {
     const place = (r: number) => GT_REGIONS[r]?.name ?? '';
     switch (q.event) {
       // ---- the line's own
-      case 'gt_timetable': {
+      case 'gt_board': {
+        // the departures board or a station clock: where the train is and how to make it go, never when (D-90)
         if ((q.b ?? 0) !== this.localIndex) break;
-        const r = q.a ?? 0, eFrom = eFromOf(g);
-        const lines: string[] = [];
-        let t = g.time;
-        for (let k = 0; k < 3; k++) {
-          const at = nextArrival(r, t, eFrom, 1800);
-          if (!Number.isFinite(at)) break;
-          const s = trainAt(at + 0.5, eFrom);
-          const clock = (v: number) => `${Math.floor(v / 60)}:${String(Math.floor(v % 60)).padStart(2, '0')}`;
-          lines.push(`${clock(at)} → ${Number.isFinite(s.departIn) ? GT_REGIONS[s.to].short : 'terminates'}`);
-          t = at + 1;
-        }
+        const r = q.a ?? 0, st = trainNow(g);
+        const there = st.phase === 'dwell' && st.at === r;
+        const where = there
+          ? (st.terminated ? 'The last train stands here. It goes no further tonight.' : `The train stands here. Pull the whistle cord at the front of the tender to go on to ${place(st.to)}.`)
+          : st.phase === 'dwell' ? `The train stands at ${place(st.at)}.` : st.phase === 'approach' ? 'The train is coming in out of the fog.' : `The train is on its way to ${place(st.to)}.`;
         a.play('gt_tick', { vol: 0.6 });
-        this.hud.whisper(`${place(r)} — the timetable`, lines.length ? lines.join('   ') : 'No more trains call here tonight.', 6);
+        this.hud.whisper(r === 0 ? 'The departures board: trains leave at the guard\'s whistle' : `${place(r)} — the station clock`, where, 6);
         break;
       }
+      case 'gt_whistle':
+        // a pull that sends the train off is heard from the train itself (ghostTrainFrame); the others here
+        if (q.a !== WHISTLE.go) a.play('gt_whistle', { vol: 0.9, pan: pan(q.x) });
+        if (q.a === WHISTLE.terminus && q.x !== undefined && q.y !== undefined && Math.hypot((g.players[this.localIndex] ?? g.player).x - q.x, (g.players[this.localIndex] ?? g.player).y - q.y) < 300) this.hud.whisper('This train terminates here', 'The Midnight Line goes no further tonight.', 4);
+        break;
       case 'gt_phantom_open':
         this.hud.banner('THE DOORS HAVE OPENED', 'On every platform, a door stands open to the End of the Line', 'danger', 4);
         a.play('gt_toll', { vol: 0.8 });
@@ -1125,13 +1135,29 @@ export class App {
         card([text, ''], who, 9);
         break;
       }
-      case 'lt_board_torn':
-        say(LT_TEXT.boardTorn(q.a ?? 4), 5);
-        a.play('papercrinkle', { vol: 0.6, pan: pan(q.x) });
-        break;
       case 'lt_board_levers':
         say(LT_TEXT.boardLevers(lever(q.b ?? 0)), 7);
         a.play('papercrinkle', { vol: 0.6, pan: pan(q.x) });
+        break;
+      case 'lt_key':
+        say(LT_TEXT.key, 6);
+        a.play('glint', { vol: 0.8, pan: pan(q.x) });
+        fx('spark', 'gold', 8);
+        break;
+      case 'lt_clock_trouble': {
+        // what a stopped clock needs: the Junction's (no key, or the train away), a station's trouble, or only the key
+        const r = q.a ?? 0, b = q.b ?? 0;
+        const line = r === 0 ? (b === 1 ? LT_TEXT.clockTrainAway : LT_TEXT.clockKeyless) : b === 9 ? LT_TEXT.needsKey : LT_TEXT.trouble[r]?.[b] ?? LT_TEXT.needsKey;
+        say(line, 7);
+        a.play('gt_tick', { vol: 0.6, pitch: 0.7, pan: pan(q.x) });
+        break;
+      }
+      case 'lt_junction_clock':
+        card(LT_TEXT.junctionClock, 'HOLLOW JUNCTION', 9);
+        a.play('gt_tick', { vol: 0.8, pan: pan(q.x) });
+        setTimeout(() => a.play('gt_chime', { vol: 0.8 }), 300);
+        setTimeout(() => a.play('gt_doors', { vol: 0.7 }), 900);
+        fx('ring', 'gold', 90);
         break;
       case 'lt_page':
         say(LT_TEXT.page(q.b ?? 1), 4);
@@ -1139,21 +1165,73 @@ export class App {
         fx('spark', 'gold', 6);
         break;
       case 'lt_pages':
-        card(LT_TEXT.pagesDone(lever(q.a ?? 0)), 'THE MENDED TIMETABLE', 12);
+        card(LT_TEXT.pagesDone(lever(q.a ?? 0)), 'THE MENDED TIMETABLE', 14);
         a.play('gt_chime', { vol: 0.7 });
         break;
-      case 'lt_clock_no':
-        say(q.a === 1 ? LT_TEXT.clockJunction : LT_TEXT.clockNo, 4);
-        a.play('sour', { vol: 0.4, pan: pan(q.x) });
+      // ---- the stations' clocks (D-90)
+      case 'lt_taper':
+        say(LT_TEXT.taper, 4);
+        a.play('flame', { vol: 0.6, pan: pan(q.x) });
+        break;
+      case 'lt_taper_out':
+        say(LT_TEXT.taperOut, 4);
+        a.play('steam_hiss', { vol: 0.4, pan: pan(q.x) });
+        break;
+      case 'lt_gravelamp':
+        say(LT_TEXT.gravelamp(q.b ?? 1), 3);
+        a.play('flame', { vol: 0.7, pan: pan(q.x) });
+        a.play('bellnote', { vol: 0.4, pitch: 0.8 + (q.b ?? 1) * 0.1 });
+        fx('ring', 'gold', 60);
+        break;
+      case 'lt_vigil':
+        card(LT_TEXT.vigil, "SAINT VESPER'S", 8);
+        a.play('gt_toll', { vol: 0.6 });
+        break;
+      case 'lt_vigil_done':
+        say(LT_TEXT.vigilDone, 6);
+        a.play('gt_toll', { vol: 1 });
+        fx('ring', 'frost', 200);
+        break;
+      case 'lt_scrap':
+        say(LT_TEXT.scrap, 3);
+        a.play('clank', { vol: 0.6, pan: pan(q.x) });
+        break;
+      case 'lt_crucible':
+        say(LT_TEXT.crucible(q.a ?? 1), (q.a ?? 1) >= 3 ? 8 : 3);
+        a.play('gt_furnace', { vol: 0.8, pan: pan(q.x) });
+        fx('spark', 'fire', 10);
+        break;
+      case 'lt_ladle_done':
+        say(LT_TEXT.ladleDone, 6);
+        a.play('steam_hiss', { vol: 0.9, pan: pan(q.x) });
+        a.play('clank', { vol: 0.8 });
+        fx('spark', 'fire', 16);
+        break;
+      case 'lt_moment':
+        say(LT_TEXT.moment(q.a ?? 0, q.b ?? 1), (q.b ?? 1) >= 3 ? 7 : 4);
+        a.play('gt_chime', { vol: 0.6, pitch: 0.9 + (q.b ?? 1) * 0.1, pan: pan(q.x) });
+        fx('ring', 'frost', 110);
+        break;
+      case 'lt_reeled':
+        say(LT_TEXT.reeled, 6);
+        a.play('splash', { vol: 0.8, pan: pan(q.x) });
+        break;
+      case 'lt_pendulum':
+        say(LT_TEXT.pendulum, 4);
+        a.play('clank', { vol: 0.5, pan: pan(q.x) });
+        break;
+      case 'lt_pendulum_hung':
+        say(LT_TEXT.pendulumHung, 4);
+        a.play('gt_tick', { vol: 0.9, pan: pan(q.x) });
         break;
       case 'lt_clock':
-        say(LT_TEXT.clock(place(q.a ?? 0), q.b ?? 1), 4);
+        say(LT_TEXT.clock(place(q.a ?? 0), q.b ?? 1), 6);
         a.play('gt_tick', { vol: 0.8, pan: pan(q.x) });
         setTimeout(() => a.play('gt_chime', { vol: 0.7, pan: pan(q.x) }), 300);
         fx('ring', 'gold', 90);
         break;
       case 'lt_clocks':
-        this.hud.banner('THE LINE KEEPS TIME', 'Every station clock is running again', 'gold', 3.5);
+        this.hud.banner(LT_TEXT.clocks[0].toUpperCase(), LT_TEXT.clocks[1], 'gold', 5);
         a.play('gt_chime', { vol: 0.9 });
         break;
       case 'lt_battery':
@@ -1161,9 +1239,21 @@ export class App {
         a.play('glint', { vol: 0.7, pan: pan(q.x) });
         break;
       case 'lt_battery_in':
-        say(LT_TEXT.batteryIn, 7);
+        say(LT_TEXT.batteryIn, 4);
         a.play('clank', { vol: 0.7, pan: pan(q.x) });
         a.play('gt_tick', { vol: 0.8, pan: pan(q.x) });
+        break;
+      case 'lt_lever':
+        say(LT_TEXT.lever(q.b ?? 1), 4);
+        a.play('clank', { vol: 0.8, pan: pan(q.x) });
+        break;
+      case 'lt_lever_wrong':
+        say(LT_TEXT.leverWrong, 4);
+        a.play('gt_chain', { vol: 0.7, pan: pan(q.x) });
+        break;
+      case 'lt_prepared':
+        card(LT_TEXT.prepared, 'ROUTE 13', 9);
+        a.play('gt_bell', { vol: 0.8 });
         break;
       case 'lt_green':
         a.play('clank', { vol: 0.45, pitch: 1.4, pan: pan(q.x) });
@@ -1174,38 +1264,12 @@ export class App {
         a.play('gt_bell', { vol: 0.6 });
         break;
       case 'lt_signal_missed':
-        if (this.aboard(g)) say(LT_TEXT.signalMissed, 4);
+        if (this.aboard(g)) say(LT_TEXT.signalMissed(place(q.b ?? 0)), 5);
         a.play('sour', { vol: 0.4 });
         break;
       case 'lt_signal':
-        say(LT_TEXT.signal(q.b ?? 1), 4);
-        a.play('clank', { vol: 0.7 });
-        a.play('bellnote', { vol: 0.5, pitch: 1.5 });
-        break;
-      case 'lt_signals':
-        card(LT_TEXT.signalsDone, 'THE LINE IS CLEAR', 8);
-        break;
-      case 'lt_lever':
-        say(LT_TEXT.lever(q.b ?? 1), 4);
-        a.play('clank', { vol: 0.8, pan: pan(q.x) });
-        break;
-      case 'lt_lever_wrong':
-        say(LT_TEXT.leverWrong, 4);
-        a.play('gt_chain', { vol: 0.7, pan: pan(q.x) });
-        break;
-      case 'lt_points':
-        this.hud.banner('THE POINTS ARE SET', 'The next train from Stillwater calls at the End of the Line', 'gold', 4);
-        a.play('gt_whistle', { vol: 0.9 });
-        break;
-      case 'lt_bridge_ahead':
-        say(LT_TEXT.bridgeAhead, 4);
-        break;
-      case 'lt_bridge':
-        card(LT_TEXT.bridge, 'THE BRIDGE', 7);
-        a.play('gt_whistle', { vol: 1.1 });
-        setTimeout(() => a.play('gt_toll', { vol: 0.6 }), 1200);
-        break;
-      case 'lt_whistle':
+        this.hud.banner('THE POINTS SWING OVER', 'The train is bound for the End of the Line', 'gold', 4);
+        a.play('clank', { vol: 0.8 });
         a.play('gt_whistle', { vol: 1 });
         break;
       case 'lt_punch':

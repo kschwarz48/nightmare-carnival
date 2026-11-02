@@ -1,15 +1,23 @@
 // The Midnight Line's own fixtures on the Ghost Train (D-80): not a hidden quest, but they answer interact
-// the same way (the HUD asks every chain on the map). Every station's clock and the Junction's departures
-// board tell the timetable (the next trains, by station time); and from 29:00 the phantom doors stand open on
-// every platform but the End of the Line's, one step to its platform, so nobody is stranded when the last
-// train has gone and the Night Express is coming.
+// the same way (the HUD asks every chain on the map).
+//
+// - The whistle cord at the front of every tender (D-90): pulled while the train stands at a station, it goes to the
+//   next stop; aboard a moving train it only whistles. The train keeps no timetable since D-90.
+// - The Junction's departures board and every station clock say where the train is and how to make it go.
+// - From 33:00 the phantom doors stand open on every platform but the End of the Line's, one step to its platform,
+//   so nobody is stranded when the last train has gone and the Night Express is coming.
+//
+// It also carries the train to guests: the host's run is this chain's bytes (`packRun`).
 
 import { dist2 } from '../../core/math';
-import { E, PHANTOM_AT, regionAt } from '../../data/ghosttrain';
-import { JUNCTION, PHANTOM_ARRIVAL, PHANTOM_DOOR, STATION_CLOCK } from '../../data/gtStations';
+import { E, PHANTOM_AT, RUN_BYTES, TRANSIT, packRun, regionAt, trainOrigin, unpackRun } from '../../data/ghosttrain';
+import { JUNCTION, LT_TRAIN, PHANTOM_ARRIVAL, PHANTOM_DOOR, STATION_CLOCK } from '../../data/gtStations';
+import { pullWhistle, runOf } from '../ghosttrain';
 import { QuestChain } from './quest';
 
-export type LineKind = 'timetable' | 'phantom';
+export type LineKind = 'board' | 'phantom' | 'whistle';
+/** what a pull on the whistle cord did (the cue's `a`): it goes, it was going, the last train, aboard a moving train */
+export const WHISTLE = { go: 0, going: 1, terminus: 2, ride: 3 } as const;
 
 export class LineChain extends QuestChain {
   readonly id = 'gt_line';
@@ -18,14 +26,18 @@ export class LineChain extends QuestChain {
 
   interaction(x: number, y: number): { kind: LineKind; i: number; x: number; y: number; label: string } | null {
     const r = regionAt(x, y);
-    if (r < 0 || r > E) return null;
+    if (r < 0) return null;
+    // the whistle cord, in whichever copy of the tender the player stands in
+    const o = trainOrigin(r), w = LT_TRAIN.whistle;
+    if (dist2(x, y, o.x + w.x, o.y + w.y) < 80 * 80) return { kind: 'whistle', i: r, x: o.x + w.x, y: o.y + w.y, label: r === TRANSIT ? 'Pull the whistle cord' : 'Pull the whistle cord: depart' };
+    if (r > E) return null;
     if (r < E && this.g.time >= PHANTOM_AT) {
       const d = PHANTOM_DOOR[r];
       if (dist2(x, y, d.x, d.y) < 95 * 95) return { kind: 'phantom', i: r, x: d.x, y: d.y, label: 'Step through the door' };
     }
     const c = STATION_CLOCK[r];
-    if (dist2(x, y, c.x, c.y) < 85 * 85) return { kind: 'timetable', i: r, x: c.x, y: c.y, label: 'Check the timetable' };
-    if (r === 0 && dist2(x, y, JUNCTION.board.x, JUNCTION.board.y) < 140 * 140) return { kind: 'timetable', i: 0, x: JUNCTION.board.x, y: JUNCTION.board.y, label: 'Read the departures board' };
+    if (dist2(x, y, c.x, c.y) < 85 * 85) return { kind: 'board', i: r, x: c.x, y: c.y, label: 'Look at the station clock' };
+    if (r === 0 && dist2(x, y, JUNCTION.board.x, JUNCTION.board.y) < 140 * 140) return { kind: 'board', i: 0, x: JUNCTION.board.x, y: JUNCTION.board.y, label: 'Read the departures board' };
     return null;
   }
 
@@ -45,9 +57,13 @@ export class LineChain extends QuestChain {
       if (!it) continue;
       const key = `${it.kind}${it.i}:${p.index}`;
       if (this.cool.has(key)) continue;
-      this.cool.set(key, 1.5);
-      if (it.kind === 'timetable') this.cue('gt_timetable', { x: it.x, y: it.y, a: it.i, b: p.index });
-      else {
+      this.cool.set(key, it.kind === 'whistle' ? 1.2 : 1.5);
+      if (it.kind === 'board') this.cue('gt_board', { x: it.x, y: it.y, a: it.i, b: p.index });
+      else if (it.kind === 'whistle') {
+        const did = it.i === TRANSIT ? 'ride' : pullWhistle(g, it.i);
+        if (did === 'away') continue;
+        this.cue('gt_whistle', { x: it.x, y: it.y, a: WHISTLE[did], b: it.i });
+      } else {
         // through the door: out onto the End of the Line's platform (a step apart for each player)
         p.x = p.px = PHANTOM_ARRIVAL.x + (p.index % 3) * 60;
         p.y = p.py = PHANTOM_ARRIVAL.y + Math.floor(p.index / 3) * 50;
@@ -56,5 +72,14 @@ export class LineChain extends QuestChain {
         this.cue('gt_phantom_through', { x: p.x, y: p.y, a: it.i, b: p.index });
       }
     }
+  }
+
+  // ---- co-op: the train itself (D-90: it is no longer a function of the clock a guest can work out alone)
+  netState(): number[] {
+    return packRun(runOf(this.g));
+  }
+
+  applyNet(v: number[]): void {
+    if (v.length >= RUN_BYTES) unpackRun(v, 0, runOf(this.g));
   }
 }

@@ -1,41 +1,30 @@
-// The Ghost Train's departures line on the HUD (D-80): under the clock, where the train is and when it goes,
-// by the night's clock. At a station with the train in: "ST. VESPER'S → CINDER WORKS · departs in 0:23";
-// with it away: "next train · 1:42 · to CINDER WORKS"; aboard: "next stop CINDER WORKS · 0:12". Plus the
-// moments that matter as words on the line: DOORS CLOSING, ALL ABOARD, the last train. It is the station
-// clocks' and boards' information, readable at a glance, so the timetable never has to be guessed.
+// The Ghost Train's line on the HUD (D-80): under the clock, where the train is and what it is doing. Since D-90
+// the train goes at the whistle and keeps no timetable, so the line says where it is and how to make it go, never
+// when. At a station with the train in: "ST. VESPER'S → CINDER WORKS · pull the whistle cord to depart"; once
+// it is pulled: ALL ABOARD; with the train away: "the train is at STILLWATER"; aboard: "next stop CINDER WORKS".
 
-import { E, J, REGIONS, TRANSIT, nextArrival, regionAt, trainAt, type TrainState } from '../data/ghosttrain';
+import { E, REGIONS, TRANSIT, regionAt, type TrainState } from '../data/ghosttrain';
 import { h } from './dom';
 
-const mmss = (s: number) => {
-  const v = Math.max(0, Math.ceil(s));
-  return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`;
-};
-
-/** The line's state in words for a player standing at (x, y) at sim time t. */
-export function lineText(t: number, eFrom: number, x: number, y: number): { text: string; urgent: boolean } | null {
-  const st: TrainState = trainAt(t, eFrom);
+/** The line's state in words for a player standing at (x, y). */
+export function lineText(st: TrainState, x: number, y: number): { text: string; urgent: boolean } | null {
   const here = regionAt(x, y);
   if (here < 0) return null;
   const name = (r: number) => REGIONS[r].short;
   if (here === TRANSIT) {
     if (st.phase !== 'travel') return null;
     const via = st.passing ? ` (through ${name(E)})` : '';
-    return { text: `next stop ${name(st.to)}${via} · ${mmss(st.arriveIn)}`, urgent: st.arriveIn < 6 };
+    return { text: st.arriveIn < 8 ? `arriving · ${name(st.to)}${via}` : `next stop ${name(st.to)}${via}`, urgent: st.arriveIn < 8 };
   }
   if (st.phase === 'dwell' && st.at === here) {
-    if (!Number.isFinite(st.departIn)) return { text: `${name(here)} · this train terminates here`, urgent: false };
-    const urgent = st.departIn < 10;
-    const tail = !st.doors ? (st.t < 3 ? 'doors opening' : 'DOORS CLOSED') : st.departIn < 10 ? 'ALL ABOARD' : `departs in ${mmss(st.departIn)}`;
-    return { text: `${name(here)} → ${name(st.to)} · ${tail}${st.doors && st.departIn < 10 ? ` · ${mmss(st.departIn)}` : ''}`, urgent };
+    if (st.terminated) return { text: `${name(here)} · this train terminates here`, urgent: false };
+    if (Number.isFinite(st.departIn)) return { text: `${name(here)} → ${name(st.to)} · ALL ABOARD`, urgent: true };
+    if (!st.doors) return { text: `${name(here)} → ${name(st.to)} · doors opening`, urgent: false };
+    return { text: `${name(here)} → ${name(st.to)} · pull the whistle cord in the tender to depart`, urgent: false };
   }
-  // the train is elsewhere: when does it next come here?
-  const at = nextArrival(here, t, eFrom, 1200);
-  if (!Number.isFinite(at)) return { text: here === E ? `${name(E)} · no train calls here tonight… yet` : `${name(here)} · the last train has gone`, urgent: false };
-  const coming = trainAt(at + 0.5, eFrom);
-  const to = coming.phase === 'dwell' ? coming.to : J;
-  const toText = !Number.isFinite(coming.departIn) ? 'terminates here' : `to ${name(to)}`;
-  return { text: `next train ${mmss(at - t)} · ${toText}`, urgent: false };
+  if (st.phase === 'approach') return { text: 'the train is coming in', urgent: false };
+  if (st.phase === 'dwell') return { text: `the train is at ${name(st.at)}`, urgent: false };
+  return { text: st.to === here ? 'the train is on its way here' : `the train is on its way to ${name(st.to)}`, urgent: false };
 }
 
 export class LineBoard {

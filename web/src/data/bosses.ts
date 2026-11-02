@@ -4,7 +4,7 @@ export interface BossDef {
   id: 'carnival_tent' | 'ferris_wheel' | 'puppet_king' | 'ringmaster' | 'calliope'
     | 'crooked_twins' | 'looking_glass' | 'stringmistress' | 'proprietor' | 'unreflected'
     | 'barker' | 'drowned_captain' | 'last_ride' | 'leviathan' | 'commodore'
-    | 'stationmaster' | 'stoker' | 'widow' | 'foreman' | 'hour_thief' | 'night_express' | 'conductor';
+    | 'stationmaster' | 'stoker' | 'widow' | 'foreman' | 'hour_thief' | 'unclaimed' | 'night_express' | 'conductor';
   name: string;
   title: string;
   gate: number;
@@ -143,10 +143,11 @@ export const COMMODORE_DEF: BossDef = {
   lore: 'He built Penhallow\'s Boardwalk in 1904 and bargained with the sea to keep it full. He paid with other people.', barColor: '#e8e0c0',
 };
 
-// ---------------------------------------------------------------- the Ghost Train (D-80): six gates in 35 minutes
-// Every five minutes from 5:00; each fights at a station (the one with the most of the party standing on it),
-// waits on the next platform while everyone rides, and follows the party down the line if they leave it.
-// The final boss comes at 30:00 to the End of the Line, where the last train has terminated.
+// ---------------------------------------------------------------- the Ghost Train (D-80): seven gates in 35 minutes
+// Every five minutes from 5:00 to 30:00; each fights at a station (the one with the most of the party standing on
+// it), waits on the next platform while everyone rides, and follows the party down the line if they leave it.
+// D-90: the final boss comes at 34:00 (it was 30:00) to the End of the Line, and only once every other boss has
+// fallen; the Unclaimed was added at 30:00 so the night has no long stretch without a boss.
 export const GHOST_BOSSES: BossDef[] = [
   {
     id: 'stationmaster', name: 'The Stationmaster', title: 'Mind the Gap', gate: 300, hp: 6800, contact: 16, radius: 70, enrage: 100,
@@ -184,7 +185,14 @@ export const GHOST_BOSSES: BossDef[] = [
     lore: 'Stillwater sold Marrow its hours so the Midnight Line could keep its timetable. The thing he sent to collect them never stopped.', barColor: '#c8d8a0',
   },
   {
-    id: 'night_express', name: 'The Night Express', title: 'The End of the Line', gate: 1800, hp: 185000, contact: 26, radius: 100, enrage: 260,
+    id: 'unclaimed', name: 'The Unclaimed', title: 'Left Luggage', gate: 1800, hp: 165000, contact: 24, radius: 92, enrage: 240,
+    phases: [{ at: 1, name: 'Left Luggage' }, { at: 0.66, name: 'Excess Baggage' }, { at: 0.33, name: 'Lost and Found' }],
+    intro: 'The lost property office\'s shutters burst. A century of trunks, carpetbags and hatboxes nobody came back for gets up on its umbrellas and comes looking for its owners.',
+    defeat: 'The heap comes apart in a slide of luggage. Every tag on every trunk turns over at once, and every one is blank.', unlocks: '—',
+    lore: 'Whatever the Midnight Line\'s passengers left aboard ended up in Hollow Junction\'s lost property office. Nobody ever came to claim any of it. The owners, after all, never got off.', barColor: '#c8a878',
+  },
+  {
+    id: 'night_express', name: 'The Night Express', title: 'The End of the Line', gate: 2040, hp: 185000, contact: 26, radius: 100, enrage: 260,
     phases: [{ at: 1, name: 'Departure' }, { at: 0.66, name: 'Full Steam Ahead' }, { at: 0.33, name: 'Runaway' }],
     intro: 'Out of the dark past the buffers, a locomotive comes on without a track, its headlamp an eye and its smokebox a mouth. The dawn will have to get past it.',
     defeat: 'The Night Express screams, jumps the edge of the world, and falls. Far below, its headlamp goes out. Grey light is coming up behind the buffers.', unlocks: 'The Conductor · Endless',

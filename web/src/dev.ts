@@ -13,7 +13,8 @@ import { SEARCHLIGHTS } from './render3d/renderer3d';
 import { isLowTide, shoreY } from './data/boardwalk';
 import type { SummersEndChain } from './sim/quest/summersEnd';
 import { refreshSea } from './sim/boardwalk';
-import { TRANSIT, trackY, trainOrigin } from './data/ghosttrain';
+import { J, TRANSIT, V, regionAt as gtRegionAt, trackY, trainOrigin } from './data/ghosttrain';
+import { placeTrain } from './sim/ghosttrain';
 import { gpuProbe, runBenchScenario, type BenchScenario } from './devBench';
 import { BUILD } from './platform/updates';
 import { Game } from './sim/game';
@@ -477,21 +478,29 @@ export function installDevTools(app: App): void {
       app.renderer.post.bloomScale = 0.35;
       app.renderer.overlayFocus = 1;
     };
-    // ---- the Ghost Train (D-80): a night on the Midnight Line `t` seconds in, the player stood at (x, y)
+    // ---- the Ghost Train (D-80): a night on the Midnight Line `t` seconds in, the player stood at (x, y). The train
+    // goes at the whistle (D-90), so it is put where the state needs it: standing at the player's station
     const line = (t: number, x?: number, y?: number) => {
       const g = run('carny', 'ghost_train');
       api.advance(t);
       if (x !== undefined && y !== undefined) {
         g.player.x = g.player.px = x;
         g.player.y = g.player.py = y;
+        const r = gtRegionAt(x, y);
+        if (r >= 0 && r < TRANSIT) placeTrain(g, 'dwell', r);
       }
       api.advance(0.5);
       return g;
     };
-    /** aboard the moving train (it left the Junction at 1:15), in car-local spot (lx, ly) */
-    const aboard = (lx: number, ly: number, t = 88) => {
+    /** aboard the moving train `ago` seconds out of the Junction for Saint Vesper's, in car-local spot (lx, ly) */
+    const aboard = (lx: number, ly: number, ago = 13) => {
       const o = trainOrigin(TRANSIT);
-      return line(t, o.x + lx, o.y + ly);
+      const g = line(60);
+      placeTrain(g, 'travel', J, V, ago);
+      g.player.x = g.player.px = o.x + lx;
+      g.player.y = g.player.py = o.y + ly;
+      api.advance(0.5);
+      return g;
     };
     const STATES: Record<string, () => void> = {
       /** a minute into a night: the opening crowd around the player on the plaza */
@@ -552,12 +561,13 @@ export function installDevTools(app: App): void {
       'gt-funeral': () => aboard(-380, 70),
       'gt-sleeper': () => aboard(-880, 60),
       'gt-observation': () => aboard(-1400, 0),
-      'gt-arriving': () => aboard(300, 0, 107),
+      'gt-arriving': () => aboard(300, 0, 32),
       'gt-boss-stationmaster': () => { line(40, 0, trackY(0) + 600); api.spawnBoss('stationmaster', 0, 300); api.advance(7); },
       'gt-boss-stoker': () => { line(200, 0, 4800 - 150); api.spawnBoss('stoker', 0, 300); api.advance(7); },
       'gt-boss-widow': () => { line(118, 6400, trackY(1) + 600); api.spawnBoss('widow', 0, 300); api.advance(7); },
       'gt-boss-foreman': () => { line(200, 0, 4800 - 150); api.spawnBoss('foreman', 0, 320); api.advance(7); },
       'gt-boss-hourthief': () => { line(268, 6400, 4800 + 150); api.spawnBoss('hour_thief', 0, 300); api.advance(7); },
+      'gt-boss-unclaimed': () => { line(40, 0, trackY(0) + 600); api.spawnBoss('unclaimed', 0, 300); api.advance(7); },
       'gt-boss-express': () => { line(1670, 0, 9600 - 300); api.spawnBoss('night_express', 0, 360); api.advance(7); },
       'gt-boss-conductor': () => { line(1670, 0, 9600 - 300); api.spawnBoss('conductor', 0, 300); api.advance(7); },
       /** the prize wheel mid-spin, and as it lands */

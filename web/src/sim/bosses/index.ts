@@ -17,6 +17,7 @@ import { LastRideBoss } from './lastRide';
 import { LeviathanBoss } from './leviathan';
 import { CommodoreBoss } from './commodore';
 import { StationmasterBoss } from './stationmaster';
+import { UnclaimedBoss } from './unclaimed';
 import { StokerBoss } from './stoker';
 import { WidowBoss } from './widow';
 import { ForemanBoss } from './foreman';
@@ -45,6 +46,7 @@ export function createBoss(g: Game, def: BossDef, opts?: BossOpts): BossBase {
     case 'commodore': return new CommodoreBoss(g, def, opts);
     // the Ghost Train (D-80)
     case 'stationmaster': return new StationmasterBoss(g, def, opts);
+    case 'unclaimed': return new UnclaimedBoss(g, def, opts);
     case 'stoker': return new StokerBoss(g, def, opts);
     case 'widow': return new WidowBoss(g, def, opts);
     case 'foreman': return new ForemanBoss(g, def, opts);

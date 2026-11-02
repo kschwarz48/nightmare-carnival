@@ -2,13 +2,13 @@
 // bed along its north (ballast, sleepers and two rails, a second line beyond it, then the cutting's dark
 // grass), the platform's worn flags with their white edge, and the station's own ground: the Junction's
 // tiled concourse and cobbled forecourt; Saint Vesper's churchyard grass, gravel paths and leaf litter; the
-// Cinder Works' black cinders, puddles and tub-wagon rails; Stillwater's cobbled lanes, verges and the still
-// pond; the End of the Line's cracked marble ending in a brink, and nothing below. The moving train's place
-// is a conveyor: the track and the country outside stream past at the train's speed (`uScroll`), the country
-// changing with each leg, the ground giving way to the drop on the bridge.
+// Cinder Works' black cinders, puddles and tub-wagon rails (and the ladle's spur, D-90); Stillwater's cobbled
+// lanes, verges and the still pond; the End of the Line's cracked marble ending in a brink, and nothing below.
+// The moving train's place is a conveyor: the track and the country outside stream past at the train's speed
+// (`uScroll`), the country changing with each leg, the ground giving way to the drop on the bridge.
 
 import * as THREE from 'three';
-import { END_EDGE, PLATFORM_DEPTH, STILLWATER } from '../../../data/gtStations';
+import { END_EDGE, LT_WORKS, PLATFORM_DEPTH, STILLWATER } from '../../../data/gtStations';
 import { REGIONS, REGION_HH, REGION_HW, TRANSIT, trackY, trainOrigin } from '../../../data/ghosttrain';
 import { POOL_GLSL } from '../../core/pool';
 import { MIST_GLSL, pool, shared } from '../../core/materials';
@@ -113,15 +113,26 @@ const REGION_GLSL = (r: number) => {
       float seam = smoothstep(0.035, 0.0, abs(gtNoise(w * 0.008 + 3.0) - 0.5)) * smoothstep(0.55, 0.7, gtFbm(w * 0.002));
       col = mix(col, vec3(0.42, 0.13, 0.03), slagGlow * 0.55);
       col += vec3(0.5, 0.16, 0.03) * seam * 0.6;
-      float rails = 0.0;
+      // the narrow-gauge track: dark iron rails on sleepers (D-90: they had been pale lines, no sleepers), in runs
+      // across the yard and up the north-south spurs
+      float rails = 0.0, ties = 0.0;
       float ry = mod(w.y - ${(g.cy - 360).toFixed(1)}, 520.0);
       rails = smoothstep(3.0, 1.5, abs(ry - 24.0)) + smoothstep(3.0, 1.5, abs(ry - 68.0));
-      float rx = mod(w.x - ${(g.cx - 2000).toFixed(1)}, 900.0);
-      rails = max(rails, (smoothstep(3.0, 1.5, abs(rx - 30.0)) + smoothstep(3.0, 1.5, abs(rx - 74.0))) * step(${(g.cy + 100).toFixed(1)}, w.y));
-      col = mix(col, vec3(0.3, 0.28, 0.26), min(1.0, rails));
-      wet = smoothstep(0.62, 0.72, gtFbm(w * 0.005 + 5.0));
+      ties = step(abs(ry - 46.0), 31.0) * step(mod(w.x, 30.0), 9.0);
+      float rx = mod(w.x - ${(g.cx - 2000).toFixed(1)}, 900.0), south = step(${(g.cy + 100).toFixed(1)}, w.y);
+      rails = max(rails, (smoothstep(3.0, 1.5, abs(rx - 30.0)) + smoothstep(3.0, 1.5, abs(rx - 74.0))) * south);
+      ties = max(ties, step(abs(rx - 52.0), 31.0) * step(mod(w.y, 30.0), 9.0) * south);
+      // the spur north off them to the platform's foot under the clock (the hidden quest's ladle rides it, D-90)
+      float spur = abs(w.x - ${(LT_WORKS.ladle[2].x).toFixed(1)});
+      float spurY = step(${(LT_WORKS.ladle[3].y - 20).toFixed(1)}, w.y) * step(w.y, ${(LT_WORKS.ladle[2].y + 24).toFixed(1)});
+      rails = max(rails, smoothstep(3.0, 1.5, abs(spur - 22.0)) * spurY);
+      ties = max(ties, step(spur, 31.0) * step(mod(w.y, 30.0), 9.0) * spurY);
+      col = mix(col, vec3(0.05, 0.038, 0.03) * (0.7 + 0.5 * gtHash(floor(w / 30.0))), min(1.0, ties) * 0.85);
+      float railK = min(1.0, rails);
+      col = mix(col, vec3(0.11, 0.105, 0.1) * (0.8 + 0.3 * gtNoise(w * 0.05)), railK);
+      wet = smoothstep(0.62, 0.72, gtFbm(w * 0.005 + 5.0)) * (1.0 - railK);
       col = mix(col, vec3(0.02), wet * 0.5);
-      fRough = mix(0.95, 0.15, wet);`;
+      fRough = mix(mix(0.95, 0.15, wet), 0.35, railK);`;
       break;
     case 3: // Stillwater: cobbled lanes, grass verges, the pond
       ground = /* glsl */ `

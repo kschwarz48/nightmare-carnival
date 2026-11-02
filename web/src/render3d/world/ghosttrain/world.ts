@@ -9,8 +9,8 @@ import { PROPS, type Prop } from '../../../data/map';
 import { TRAIN } from '../../../data/ghosttrain';
 import { JUNCTION } from '../../../data/gtStations';
 import { signMesh } from '../props';
-import type { LastTrainChain } from '../../../sim/quest/lastTrain';
-import { trainNow } from '../../../sim/ghosttrain';
+import { runOf, trainNow } from '../../../sim/ghosttrain';
+import { LT, type LastTrainChain } from '../../../sim/quest/lastTrain';
 import { StaticBatch } from '../../core/batch';
 import { ModelBuilder, SURF, box, weather } from '../../core/geo';
 import { actorMaterial } from '../../core/materials';
@@ -111,7 +111,10 @@ export class GhostTrainWorld {
     const p = g.player;
     this.train.update(st, p.x, p.y, r.time);
     const ch = g.quests?.get<LastTrainChain>('last_train');
-    this.scenery.update(st, ch?.signals ?? 0, ch?.sigAt ?? [0.5, 0.5, 0.5, 0.5], !!ch && ch.stage === 4);
+    // the hidden quest's signal at danger (D-90: one a journey at its Signal stage; green on the journey that cleared it)
+    const cleared = !!ch && ch.clearedTrip === st.loop;
+    const sig = !!ch && st.phase === 'travel' && !runOf(g).empty && (ch.stage === LT.Signal || cleared);
+    this.scenery.update(st, cleared ? 1 << st.at : 0, ch?.sigAt ?? [0.5, 0.5, 0.5, 0.5, 0.5], sig);
     this.ground.u.uScroll.value = this.scenery.scroll;
     this.ground.u.uLeg.value = this.scenery.leg;
     this.ground.u.uBridge.value = this.scenery.bridge;

@@ -1,7 +1,7 @@
 // The Ghost Train's boss rigs (D-80): the Stationmaster with his lantern and his cartwheel watch, the Stoker
 // with the furnace in his chest, the Widow in mourning black with her soul lantern, the Iron Foreman's boiler
 // body and steam hammer, the Hour Thief's clock face and hands, the Night Express (a locomotive with a face),
-// and the Conductor with his punch. Same rules as the other maps' rigs: articulated ModelBuilder models
+// the Unclaimed (D-90: a heap of left luggage on umbrella legs), and the Conductor with his punch. Same rules as the other maps' rigs: articulated ModelBuilder models
 // driven by each boss's replicated state and pose.
 
 import * as THREE from 'three';
@@ -604,6 +604,119 @@ export class ConductorRig extends Rig {
   }
 }
 
+// ======================================================================= the Unclaimed (D-90)
+export class UnclaimedRig extends Rig {
+  heap = this.node();
+  jaw: THREE.Group;
+  legs: THREE.Group[] = [];
+  arms: THREE.Group[] = [];
+  constructor(scene: THREE.Scene) {
+    super(scene);
+    const leather = (c: number) => weather(c, 0.35, 0.06, 0x2a2018);
+    const m = new ModelBuilder();
+    // the heap: steamer trunks at the bottom, cases and carpetbags on them, hatboxes and a birdcage on top; every
+    // piece strapped, cornered in brass and tagged
+    const piece = (x: number, y: number, z: number, w: number, h: number, d: number, col: number, yaw = 0, tilt = 0) => {
+      m.add(rbox(w, h, d, 3, 2), { col: leather(col), pos: [x, y, z], rot: [tilt, yaw, 0], surf: SURF.cloth });
+      for (const s of [-0.28, 0.28]) m.add(box(3, h + 0.6, d + 0.6), { col: 0x2a1c12, pos: [x + Math.cos(yaw) * w * s, y, z - Math.sin(yaw) * w * s], rot: [tilt, yaw, 0], surf: SURF.rubber });
+      for (const sx of [-1, 1]) m.add(box(5, 5, d + 1), { col: PAL.brass, pos: [x + Math.cos(yaw) * (w / 2 - 2) * sx, y + h / 2 - 2, z - Math.sin(yaw) * (w / 2 - 2) * sx], rot: [tilt, yaw, 0], surf: SURF.brass });
+    };
+    piece(-34, 44, 6, 96, 46, 58, 0x5a3a24, 0.15);
+    piece(40, 40, -4, 88, 40, 54, 0x3a2a48, -0.2);
+    piece(4, 40, -46, 110, 42, 40, 0x4a3a28, 0.05);
+    piece(-20, 86, -8, 80, 38, 50, 0x6a5a3a, -0.35, 0.06);
+    piece(34, 82, 14, 64, 34, 40, 0x5a2a22, 0.4);
+    piece(6, 118, -16, 70, 30, 44, 0x2a3a3a, 0.1, -0.05);
+    // carpetbags and a hatbox stack
+    m.add(ellipsoid(26, 18, 18, 12, 8), { col: weather(0x6a2a3a, 0.4, 0.1, 0x2a1a20), pos: [-58, 72, 22], surf: SURF.cloth });
+    m.add(ellipsoid(22, 16, 16, 12, 8), { col: weather(0x2a4a3a, 0.4, 0.1, 0x1a2a20), pos: [62, 64, -30], surf: SURF.cloth });
+    for (let k = 0; k < 3; k++) m.add(cyl(16 - k * 2, 16 - k * 2, 12, 16), { col: [0xc8b8a0, 0x8a3a3a, 0x3a5a7a][k], pos: [44, 104 + k * 12, -20], surf: SURF.cloth });
+    // the birdcage on top, its door hanging open
+    m.add(cyl(13, 13, 2, 14), { col: PAL.brass, pos: [-30, 142, -24], surf: SURF.brass });
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2;
+      m.add(cyl(0.7, 0.7, 26, 4), { col: PAL.brass, pos: [-30 + Math.cos(a) * 12, 155, -24 + Math.sin(a) * 12], surf: SURF.brass });
+    }
+    m.add(sphere(13, 14, 8), { col: PAL.brass, pos: [-30, 168, -24], scale: [1, 0.45, 1], surf: SURF.brass });
+    // umbrellas stuck in the heap like quills
+    for (const [x, z, a, b] of [[-60, -30, -0.5, 0.3], [70, 20, 0.6, -0.2], [-10, -60, 0.1, 0.7]] as [number, number, number, number][]) {
+      m.add(cyl(1.4, 1.4, 70, 5), { col: 0x1a1410, pos: [x, 120, z], rot: [b, 0, a], surf: SURF.wood });
+      m.add(cone(14, 22, 8), { col: 0x14121a, pos: [x - Math.sin(a) * 34, 120 + Math.cos(a) * 34, z + Math.sin(b) * 34], rot: [b, 0, a], surf: SURF.cloth });
+    }
+    // luggage tags hanging off everything
+    for (const [x, y, z] of [[-70, 50, 34], [80, 46, 20], [-40, 100, 22], [56, 92, 34], [0, 64, 34], [20, 130, 10]] as [number, number, number][]) {
+      m.add(cyl(0.4, 0.4, 8, 3), { col: 0xc8c0a8, pos: [x, y + 4, z], surf: SURF.cloth });
+      m.add(box(6, 9, 0.6), { col: 0xe8dcc0, pos: [x, y - 4, z], rot: [0, 0, 0.2], surf: SURF.paint });
+    }
+    this.mesh(m.build({ ao: 0.35 }), this.heap);
+    // the face: a steamer trunk at the front of the heap, its lid the jaw, two lamps burning in the dark inside
+    const face = new ModelBuilder();
+    face.add(rbox(84, 30, 46, 3, 2), { col: leather(0x3a2418), pos: [0, 0, 0], surf: SURF.cloth });
+    face.add(box(78, 3, 40), { col: 0x0a0604, pos: [0, 15, 0], surf: SURF.rubber });
+    for (const s of [-1, 1]) face.add(sphere(5, 10, 8), { col: 0xffd890, pos: [s * 18, 8, 16], surf: SURF.bulb, emit: 2.2 });
+    for (let k = 0; k < 9; k++) face.add(box(5, 8, 2), { col: 0xe8dcc0, pos: [-32 + k * 8, 18, 22], surf: SURF.paint });
+    const fn = this.node(this.heap, 0, 104, 34);
+    this.mesh(face.build({ ao: 0.2 }), fn);
+    this.jaw = this.node(fn, 0, 15, -22);
+    const lid = new ModelBuilder();
+    lid.add(rbox(86, 10, 48, 3, 2), { col: leather(0x4a3020), pos: [0, 4, 22], surf: SURF.cloth });
+    for (let k = 0; k < 9; k++) lid.add(box(5, 8, 2), { col: 0xe8dcc0, pos: [-32 + k * 8, -3, 44], surf: SURF.paint });
+    for (const s of [-1, 1]) lid.add(box(6, 6, 50), { col: PAL.brass, pos: [s * 38, 6, 22], surf: SURF.brass });
+    this.mesh(lid.build({ ao: 0.2 }), this.jaw);
+    // umbrella legs, six of them, and two umbrella arms for throwing
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + 0.5;
+      const leg = this.node(this.heap, Math.cos(a) * 52, 30, Math.sin(a) * 40);
+      const lm = new ModelBuilder();
+      lm.add(cyl(2.2, 2, 34, 6), { col: 0x1a1410, pos: [0, -17, 0], surf: SURF.wood });
+      lm.add(torus(4, 1.4, 5, 10, Math.PI), { col: 0x3a2418, pos: [0, -34, 3], rot: [0, Math.PI / 2, 0], surf: SURF.wood });
+      this.mesh(lm.build({ ao: 0 }), leg);
+      this.legs.push(leg);
+    }
+    for (const s of [-1, 1]) {
+      const armN = this.node(this.heap, s * 70, 96, 10);
+      const am = new ModelBuilder();
+      am.add(cyl(1.8, 1.6, 66, 6), { col: 0x1a1410, pos: [0, -33, 0], surf: SURF.wood });
+      am.add(cone(18, 26, 8), { col: 0x14121a, pos: [0, -62, 0], rot: [Math.PI, 0, 0], surf: SURF.cloth });
+      this.mesh(am.build({ ao: 0 }), armN);
+      this.arms.push(armN);
+    }
+  }
+  update(b: BossBase, g: Game, r: GameRenderer3D, alpha: number, dt: number): void {
+    const t = r.time;
+    this.group.visible = !b.removed;
+    if (!this.group.visible) return;
+    const Q = b.pose;
+    const x = lerp(b.px, b.x, alpha), y = lerp(b.py, b.y, alpha);
+    this.group.position.set(x, 0, y);
+    this.group.scale.setScalar(1.25);
+    const p = g.nearestLiving(x, y);
+    if (!b.dead) faceToward(this.group, x, y, p.x, p.y, dt, 4);
+    const thr = clamp(Q.throw ?? 0, 0, 1), slam = clamp(Q.slam ?? 0, 0, 1), jaw = clamp(Q.jaw ?? 0, 0, 1);
+    const leap = clamp(Q.leap ?? 0, 0, 1), shake = clamp(Q.shake ?? 0, 0, 1), fall = clamp(Q.fall ?? 0, 0, 1);
+    const step = Q.step ?? 0;
+    // a shambling heap: the legs step in two tripods, the heap rocks; it rears for a slam and springs for a leap
+    this.legs.forEach((lg, k) => {
+      lg.rotation.x = Math.sin(step * 0.8 + (k % 2) * Math.PI) * 0.35;
+      lg.rotation.z = Math.cos(step * 0.8 + (k % 2) * Math.PI) * 0.12;
+    });
+    this.heap.position.y = Math.abs(Math.sin(step * 0.8)) * 3 + slam * 18 * (1 - slam) * 4 + leap * 40;
+    this.heap.rotation.z = Math.sin(t * 18) * shake * 0.05 + Math.sin(step * 0.4) * 0.03;
+    this.heap.rotation.x = -slam * 0.18 + fall * 0.5;
+    this.heap.scale.y = 1 - fall * 0.45;
+    this.jaw.rotation.x = -(0.15 + jaw * 0.9 + Math.max(0, Math.sin(t * 2.2)) * 0.08);
+    this.arms.forEach((am, k) => {
+      am.rotation.x = -thr * (1.6 + k * 0.3) + Math.sin(t * 2 + k) * 0.08;
+      am.rotation.z = (k ? -1 : 1) * (0.3 + shake * 0.4);
+    });
+    this.state(b, t, [1, 1, 1, 1], [0.95, 0.85, 0.6, 0.5]);
+    if (b.awake && !b.dead) {
+      pool.add(x, y, 440, 0.5, 1, 0.85, 0.6, 170, 3);
+      pool.add(x, y + 30, 140, 0.6 + jaw * 0.8, 1, 0.85, 0.5, 60, 2);
+    }
+  }
+}
+
 export function ghostTrainGlow(id: string): [number, number, number] | null {
   switch (id) {
     case 'stationmaster': return [1, 0.82, 0.55];
@@ -611,17 +724,18 @@ export function ghostTrainGlow(id: string): [number, number, number] | null {
     case 'widow': return [0.6, 0.7, 1];
     case 'foreman': return [1, 0.65, 0.35];
     case 'hour_thief': return [0.85, 0.95, 0.7];
+    case 'unclaimed': return [1, 0.85, 0.55];
     case 'night_express': return [1, 0.4, 0.25];
     case 'conductor': return [1, 0.9, 0.65];
   }
   return null;
 }
 
-export type GhostTrainRigs = { stationmaster: StationmasterRig; stoker: StokerRig; widow: WidowRig; foreman: ForemanRig; hourThief: HourThiefRig; express: NightExpressRig; conductor: ConductorRig };
-export const GT_BOSS_IDS = new Set(['stationmaster', 'stoker', 'widow', 'foreman', 'hour_thief', 'night_express', 'conductor']);
+export type GhostTrainRigs = { stationmaster: StationmasterRig; stoker: StokerRig; widow: WidowRig; foreman: ForemanRig; hourThief: HourThiefRig; unclaimed: UnclaimedRig; express: NightExpressRig; conductor: ConductorRig };
+export const GT_BOSS_IDS = new Set(['stationmaster', 'stoker', 'widow', 'foreman', 'hour_thief', 'unclaimed', 'night_express', 'conductor']);
 
 export function makeGhostTrainRigs(scene: THREE.Scene): GhostTrainRigs {
-  return { stationmaster: new StationmasterRig(scene), stoker: new StokerRig(scene), widow: new WidowRig(scene), foreman: new ForemanRig(scene), hourThief: new HourThiefRig(scene), express: new NightExpressRig(scene), conductor: new ConductorRig(scene) };
+  return { stationmaster: new StationmasterRig(scene), stoker: new StokerRig(scene), widow: new WidowRig(scene), foreman: new ForemanRig(scene), hourThief: new HourThiefRig(scene), unclaimed: new UnclaimedRig(scene), express: new NightExpressRig(scene), conductor: new ConductorRig(scene) };
 }
 
 /** Draw this frame's Ghost Train bosses; hide the rigs of the ones not present. */
@@ -634,6 +748,7 @@ export function updateGhostTrainRigs(R: GhostTrainRigs, bosses: BossBase[], g: G
       case 'widow': return R.widow;
       case 'foreman': return R.foreman;
       case 'hour_thief': return R.hourThief;
+      case 'unclaimed': return R.unclaimed;
       case 'night_express': return R.express;
       case 'conductor': return R.conductor;
     }

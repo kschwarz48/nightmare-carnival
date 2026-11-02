@@ -257,6 +257,19 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### The Ghost Train at the whistle (D-90, PROTO 18)
+
+- **The train is host state now.** It was a pure function of the night's time; since the players drive it
+  (the whistle cord in the tender), the host advances a `TrainRun` and sends it in the `gt_line` quest chain's
+  net state: 12 bytes (phase, stop, next stop, flags, the times since and of departure at 1/20 s, the leg's
+  length, the trip count). A guest reads it into its own copy and derives everything from it as the host does
+  (`trainState`): the doors (dynamic walls), the HUD line, the conveyor, the bell and whistle, the transfers.
+- **A guest's pull** of the whistle cord is an interact press like any other (the host acts on it).
+- The hidden quest's chain changed shape (51 bytes).
+- **PROTO 18.** Old builds can't join new lobbies.
+- Tested by unit tests only (the train's bytes and the quest's read back exactly); not yet with two windows or
+  across machines.
+
 ### The damage meter, the live Lost Tickets and the party frames (D-85, PROTO 17)
 
 - **The meter on the wire.** A guest's mirror never ticks, so it has no damage books and no payout of its own.

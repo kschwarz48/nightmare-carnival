@@ -1,7 +1,8 @@
 // The Ghost Train's bosses' time-to-kill (D-80), on the same footing as scripts/bossttk.ts: the clock set just
 // before each gate with the act's crowd up, the director waking the boss where the party stands (a station;
 // the Night Express at the End of the Line), and a bot with the build a strong player has by then fighting it
-// in god mode. Builds: b2 (12:00: four weapons, one evolved), b3 (18:00), b4 (24:00); the Conductor at b4.
+// in god mode. Builds: b2 (12:00: four weapons, one evolved), b3 (18:00), b4 (24:00; the Unclaimed's and the
+// Night Express's too); the Conductor at b4.
 // Usage: npx vite-node scripts/gt_bossttk.ts [seeds=1] [only=id,id]
 import { makeGame, smartPilot } from '../tests/helpers';
 import { BOSS_MAP, CONDUCTOR_DEF, GHOST_BOSSES, type BossDef } from '../src/data/bosses';
@@ -25,7 +26,7 @@ const BUILDS: Record<'b1' | 'b2' | 'b3' | 'b4', Build[]> = {
     { weapons: [['grill', true], ['rings', true], ['mallet', true], ['tarot', true], ['cannon', false], ['darts', false]], passives: [['strongman_belt', 5], ['energy_drink', 5], ['spectacles', 5], ['caffeine', 4], ['foam_finger', 4]] },
   ],
 };
-const TIER: Record<string, keyof typeof BUILDS> = { stationmaster: 'b1', stoker: 'b2', widow: 'b3', foreman: 'b3', hour_thief: 'b4', night_express: 'b4', conductor: 'b4' };
+const TIER: Record<string, keyof typeof BUILDS> = { stationmaster: 'b1', stoker: 'b2', widow: 'b3', foreman: 'b3', hour_thief: 'b4', unclaimed: 'b4', night_express: 'b4', conductor: 'b4' };
 
 function equip(g: Game, b: Build): void {
   for (const [id, evo] of b.weapons) {
@@ -48,6 +49,8 @@ function fight(def: BossDef, build: Build, seed: number): { t: number; phase: nu
   for (const bd of GHOST_BOSSES) if (bd.gate < def.gate || secret) {
     dir.spawned.add(bd.id);
     dir.warned.add(bd.id);
+    // the final boss comes only once every other boss has fallen (D-90): count the earlier ones beaten
+    g.bossIds.push(bd.id);
   }
   // the party stands where it meets this boss: the Junction's grounds, or the End of the Line
   const r = def.id === 'night_express' || secret ? E : J;

@@ -109,6 +109,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'beat_widow', name: 'Laid to Rest', desc: "Defeat the Widow of Saint Vesper's.", reward: 60 },
   { id: 'beat_foreman', name: 'Clocked Off', desc: 'Defeat the Iron Foreman.', reward: 80 },
   { id: 'beat_hour_thief', name: 'Thirteen O\'Clock', desc: 'Defeat the Hour Thief.', reward: 100 },
+  { id: 'beat_unclaimed', name: 'Lost and Found', desc: 'Defeat the Unclaimed.', reward: 120 },
   { id: 'beat_night_express', name: 'End of the Line', desc: "Defeat the Night Express and see the Ghost Train's dawn.", reward: 180 },
   { id: 'last_train', name: 'The Last Train Home', desc: 'Punch every ticket, and see the Conductor off.', reward: 500 },
   // companions (D-84): each brings a pet along, and each can be earned on any map

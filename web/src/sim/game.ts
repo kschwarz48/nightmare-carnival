@@ -172,7 +172,7 @@ export type GameEvents = {
   meta_currency: { amount: number; source: string; player?: number };
   balloon_drift: { x: number; y: number; dirX: number; dirY: number; size: number };
   /** the Ghost Train (D-80): it left a station (`at`) or arrived at one, and where it goes next */
-  train: { what: 'depart' | 'arrive'; at: number; to: number };
+  train: { what: 'depart' | 'arrive' | 'stay'; at: number; to: number };
 };
 
 type Phase = 'play' | 'draft' | 'dawn' | 'ended';

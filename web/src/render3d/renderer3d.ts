@@ -402,6 +402,24 @@ export class GameRenderer3D {
     this.camY = y;
   }
 
+  /**
+   * A creature's sculpted model standing somewhere as a figure, not a fighter (a hidden quest's frozen villagers,
+   * D-90): one moment of a clip held, tinted (rgb, emissive) and rim-lit. Call it while the world draws. Figures
+   * have their own batch, without the enemies' x-ray silhouette (they aren't a threat behind a wall).
+   */
+  figure(key: string, x: number, y: number, yaw: number, clip: string, t: number, tint: [number, number, number, number], rim: [number, number, number, number], s = 1): void {
+    const def = ENEMY_MODELS[key];
+    const rig = def?.rig?.();
+    if (!def || !rig) return;
+    const b = this.batch(`figure:${key}`, def, 8);
+    const i = b.add(x, y, def.hover ?? 0, yaw, s * ACTOR_SCALE, 1, ACTOR_STRETCH, 1);
+    if (i < 0) return;
+    const row = rig.row(rig.has(clip) ? clip : 'move', t);
+    b.anim(i, row, row, 0, 0);
+    b.tint(i, tint[0], tint[1], tint[2], tint[3]);
+    b.rimLight(i, rim[0], rim[1], rim[2], rim[3]);
+  }
+
   // =================================================================== batches
   /**
    * The instanced batch for a model, created on first use. Actors draw at render order 2: after the

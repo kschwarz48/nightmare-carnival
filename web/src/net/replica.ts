@@ -468,7 +468,7 @@ export class Replica {
     }
     // the Boardwalk's water: the same tide and low water as the host (D-68)
     if (this.g.mapId === 'boardwalk') refreshSea(this.g);
-    // the Ghost Train's doors: the same timetable as the host (D-80)
+    // the Ghost Train's doors: the same train as the host's (its state comes in the gt_line chain's bytes, D-90)
     if (this.g.mapId === 'ghost_train') refreshTrainDoors(this.g);
     moveBody(p, mx, my, p.stats.moveSpeed() * this.slowF, TICK, this.g.bosses, false);
     if (p.moving) p.animT += TICK * ((p.stats.moveSpeed() * this.slowF) / 220);

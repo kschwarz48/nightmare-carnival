@@ -460,6 +460,27 @@ export const GT_KIT: Record<string, (variant: number) => THREE.BufferGeometry> =
       m.add(cyl(3, 3, 26, 6), { col: paleStone, pos: [s * 5, 108, 10], rot: [-0.9, 0, s * 0.3], surf: SURF.paint });
     }
   }),
+  gt_tomb: () => B((m) => {
+    // the empty grave (D-90) where the churchyard's paths cross: a chest tomb on a plinth, its lid pushed off its east
+    // end into the grass, dark and empty inside; the panels where a name would be cut left blank; a wreath gone brown
+    const cx = -18;
+    m.add(box(96, 8, 62), { col: stone, pos: [cx + 2, 4, 0], surf: SURF.paint });
+    for (const z of [-20, 20]) {
+      m.add(box(76, 34, 7), { col: paleStone, pos: [cx, 25, z], surf: SURF.paint });
+      m.add(box(80, 4, 10), { col: stone, pos: [cx, 44, z], surf: SURF.paint });
+    }
+    for (const s of [-1, 1]) {
+      m.add(box(7, 34, 33), { col: paleStone, pos: [cx + s * 34.5, 25, 0], surf: SURF.paint });
+      m.add(box(10, 4, 40), { col: stone, pos: [cx + s * 34.5, 44, 0], surf: SURF.paint });
+    }
+    m.add(box(62, 2, 33), { col: 0x060505, pos: [cx, 10, 0], surf: SURF.paint });
+    for (const x of [-24, 0, 24]) m.add(rbox(18, 20, 1.4, 1), { col: stone, pos: [cx + x, 25, 24], surf: SURF.paint });
+    // the lid: its high end still on the chest's east rim, its low end in the grass
+    m.add(box(80, 7, 46), { col: paleStone, pos: [44, 25, 3], rot: [0, 0.15, -0.553], surf: SURF.paint });
+    m.add(ellipsoid(18, 2, 10, 8, 4), { col: weather(GT.moss, 0.5), pos: [cx - 26, 9, 26], surf: SURF.cloth });
+    m.add(torus(9, 3, 6, 16), { col: weather(0x34482a, 0.5, 0.1, 0x4a3a1c), pos: [cx - 14, 2.4, 42], rot: [Math.PI / 2, 0, 0], surf: SURF.cloth });
+    for (let k = 0; k < 6; k++) m.add(sphere(2.2, 5, 4), { col: 0x8a2a20, pos: [cx - 14 + Math.cos(k * 1.05) * 9, 5, 42 + Math.sin(k * 1.05) * 9], surf: SURF.paint });
+  }, 0.4),
   gt_yew: () => B((m) => {
     // a churchyard yew: a black-green mass on a twisted trunk
     m.add(cyl(10, 16, 70, 8), { col: weather(0x2a1e16, 0.5), pos: [0, 35, 0], surf: SURF.wood });

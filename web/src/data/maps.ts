@@ -107,7 +107,7 @@ export const MAPS: Record<MapId, MapDef> = {
   ghost_train: {
     id: 'ghost_train',
     name: 'The Ghost Train',
-    tagline: 'The Midnight Line: five stations, one train, and it never waits. The last night of all.',
+    tagline: 'The Midnight Line: five stations, one train, and it goes at your whistle. The last night of all.',
     layout: GHOST_TRAIN_LAYOUT,
     waves: GHOST_WAVES,
     victoryLap: GHOST_VICTORY,
