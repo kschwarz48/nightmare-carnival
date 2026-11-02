@@ -1,14 +1,14 @@
 // The character art standard (D-86, docs/CHARACTER_ART_QUALITY_STANDARD.md): the sculpt pipeline's new
 // guarantees (vertices on the true surface, occlusion as data, crisp seams, patterns, per-part ink), the
-// three benchmark models' budgets and animation interface, and the rest of the playable cast rebuilt on it
-// (D-87), so later work can't quietly regress them.
+// three benchmark models' budgets and animation interface, the rest of the playable cast rebuilt on it
+// (D-87), and the enemy roster's pass (D-88), so later work can't quietly regress them.
 
 import { describe, expect, it } from 'vitest';
 import type { BufferGeometry } from 'three';
-import { Sculpt, layered } from '../src/render3d/sculpt/sdf';
+import { SMALL_DETAIL, Sculpt, layered } from '../src/render3d/sculpt/sdf';
 import { sphere } from '../src/render3d/core/geo';
 import { characterModel } from '../src/render3d/models/characters';
-import { creatureModel } from '../src/render3d/models/creatures';
+import { CREATURE_IDS, creatureModel } from '../src/render3d/models/creatures';
 
 const tris = (g: BufferGeometry) => (g.index ? g.index.count : g.getAttribute('position').count) / 3;
 const HUMAN = ['hips', 'spine', 'chest', 'neck', 'head', 'armL', 'foreL', 'handL', 'armR', 'foreR', 'handR', 'thighL', 'shinL', 'footL', 'thighR', 'shinR', 'footR'];
@@ -105,6 +105,41 @@ describe('the playable cast (D-87)', () => {
       expect(m.geo.boundingBox!.max.y, id).toBeLessThan(hi);
       // built in layers: covered parts and small details carry their no-ink choice
       expect(m.geo.getAttribute('aInkOff'), id).toBeTruthy();
+    }
+  });
+});
+
+describe('the enemy roster (D-88)', () => {
+  it('small details draw no ink unless asked; larger ones keep it', () => {
+    const sc = new Sculpt(1).add({ t: 'sph', c: [0, 0, 0], r: 6 });
+    sc.detail(sphere(1, 6, 4), { pos: [0, 0, 7] });
+    sc.detail(sphere(SMALL_DETAIL + 1, 8, 6), { pos: [20, 0, 0] });
+    sc.detail(sphere(1, 6, 4), { pos: [0, 9, 0], ink: true });
+    const g = sc.build({ paint: 0 });
+    const ink = g.attributes.aInkOff, pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      if (z > 6.5) expect(ink.getX(i), 'small').toBe(1);
+      if (x > 15) expect(ink.getX(i), 'large').toBe(0);
+      if (y > 8) expect(ink.getX(i), 'asked').toBe(0);
+    }
+  });
+
+  it("the first map's three rebuilt regulars: a regular enemy's budget, their skeletons and clips", () => {
+    for (const [id, extra] of [['wind_up_monkey', ['key']], ['dunk_tank_clown', []], ['puppet_soldier', []]] as const) {
+      const m = creatureModel(id);
+      expect(tris(m.geo), id).toBeLessThan(15_000);
+      const names = m.rig.bones.map((b) => b.name);
+      for (const n of [...HUMAN, ...extra]) expect(names, `${id} ${n}`).toContain(n);
+      for (const c of ['move', 'attack']) expect(m.rig.has(c), `${id} ${c}`).toBe(true);
+    }
+  });
+
+  it('every creature builds within a miniboss budget and keeps its clips', () => {
+    for (const id of CREATURE_IDS.filter((id) => !id.startsWith('pet_'))) {
+      const m = creatureModel(id);
+      expect(tris(m.geo), id).toBeLessThan(38_000);
+      for (const c of ['move', 'attack']) expect(m.rig.has(c), `${id} ${c}`).toBe(true);
     }
   });
 });

@@ -4,9 +4,10 @@
 // 1890s line, faded and grave-stained; faces the grey of old photographs; small light sources (an unpunched
 // ticket, a signal lantern, a firebox, ember cracks) so each reads at gameplay zoom in the dark.
 
-import { C, SURF, box, cone, cyl, ellipsoid, sphere, torus, vnoise, weather, type ColorFn, type V3 } from '../core/geo';
+import { C, SURF, box, cone, cyl, ellipsoid, sphere, torus, vnoise, type ColorFn, type V3 } from '../core/geo';
 import { PAL } from './kit';
 import { Sculpt } from '../sculpt/sdf';
+import { CREATURE, flat } from '../sculpt/figure';
 import { Rig, type BoneDef, type ClipDef, type Pose, ease, mix, pulse, sin, cos } from '../sculpt/rig';
 import { ADULT, GAIT_WALK, type Gait, type Proportions, eyeDetails, gaitPose, head, humanBody, humanBones, scaleP } from '../sculpt/humanoid';
 import type { SculptModel } from './characters';
@@ -31,14 +32,14 @@ function stream(seed: number): () => number {
   };
 }
 
-/** The grey of an old photograph, a little bruised. */
-const ghostSkin: ColorFn = (p) => C(0x9aa0a4).lerp(C(0x5a6066), 0.2 + 0.5 * vnoise(p.x * 0.15, p.y * 0.15, p.z * 0.15));
-/** Corpse skin from the churchyard: yellowed, soil-dark in the creases. */
-const graveSkin: ColorFn = (p) => C(0x8a8468).lerp(C(0x3a3020), 0.2 + 0.55 * vnoise(p.x * 0.2 + 4, p.y * 0.2, p.z * 0.2));
-const black = weather(0x18161a, 0.35, 0.06, 0x2e2a30);
-const coat = (hex: number) => weather(hex, 0.45, 0.06, 0x2a2622);
-const iron = weather(0x2a2c2e, 0.45, 0.05, 0x5a3a24);
-const brass = weather(PAL.brass, 0.35, 0.04, 0x3a4a30);
+/** The grey of an old photograph (D-88: its bruising was noise). */
+const ghostSkin = flat(C(0x9aa0a4).lerp(C(0x5a6066), 0.4));
+/** Corpse skin from the churchyard: yellowed, soil-dark. */
+const graveSkin = flat(C(0x8a8468).lerp(C(0x3a3020), 0.45));
+const black = flat(0x18161a);
+const coat = (hex: number) => flat(hex);
+const iron = flat(0x2a2c2e);
+const brass = flat(PAL.brass);
 /** Coal: near-black, with glowing cracks where the fire shows through. */
 const coalCol: ColorFn = (p) => {
   const n = vnoise(p.x * 0.5, p.y * 0.5, p.z * 0.5);
@@ -68,13 +69,13 @@ function ticketless(): SculptModel {
   const P = prop(1, { headR: 11.5, chestW: 11, waistW: 9.5, hipW: 10, depth: 0.74, arm: [3.4, 3, 2.5], leg: [4.4, 3.6, 3] });
   const bones = humanBones(P, [{ name: 'case', parent: 'handR', head: [-P.shoulderX - 3, P.wristY - 8, 2] }]);
   const b = bi(bones);
-  const sc = new Sculpt(1.8, 2.4);
+  const sc = new Sculpt(1.8, 2.4, 0.65);
   const tweed = coat(0x4a4438);
   humanBody(sc, P, b, { skin: ghostSkin, torso: tweed, hips: tweed, upperArm: tweed, foreArm: tweed, hand: ghostSkin, thigh: coat(0x2e2a26), shin: coat(0x2e2a26), shoe: 0x141210 });
   skirt(sc, P, b('hips'), tweed, 20, 1.25);
   head(sc, P, b('head'), { skin: ghostSkin, nose: 0.9, ears: true, brow: 1.1, cheeks: 0.7, chin: 0.6, jaw: 0.95 });
   eyeDetails(sc, P, b('head'), { size: 0.16, sclera: 0x2a2e32, iris: 0xd8e8ff, glow: 1.2, y: 0.12 });
-  cap(sc, P, b('head'), weather(0x3a342c, 0.4), 0);
+  cap(sc, P, b('head'), flat(0x3a342c), 0);
   // the unpunched ticket tucked in the cap's band: the only warm thing about him
   sc.detail(box(5, 3.5, 0.4), { col: 0xfff0b0, bone: b('head'), pos: [P.headR * 0.65, P.headY + P.headR * 0.7, P.headR * 0.55], rot: [0, 0.6, 0.2], emit: 1.4, surf: SURF.bulb });
   // a cardboard suitcase with a strap, swinging in the right hand
@@ -88,7 +89,7 @@ function ticketless(): SculptModel {
       return mix(reach, { armL: { rx: -1.6 * k, rz: 0.4 * k }, chest: { rx: 0.35 * k }, head: { rx: 0.2 * k } });
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Coalborn
@@ -125,7 +126,7 @@ function coalborn(): SculptModel {
       return { body: { rx: 0.4 * k, ty: 3 * k }, armL: { rx: -2 * k, rz: -0.3 * k }, armR: { rx: -2 * k, rz: 0.3 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.45 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== the Porter
@@ -133,7 +134,7 @@ function porter(): SculptModel {
   const P = prop(1.3, { headR: 12, chestW: 15, waistW: 14, hipW: 13, depth: 0.85, arm: [5, 4.4, 3.6], leg: [5.6, 4.6, 3.6] });
   const bones = humanBones(P, [{ name: 'trunk', parent: 'chest', head: [0, P.chest, 14] }]);
   const b = bi(bones);
-  const sc = new Sculpt(2, 3);
+  const sc = new Sculpt(2, 3, 0.65);
   const red = coat(0x5a1a18);
   humanBody(sc, P, b, { skin: ghostSkin, torso: red, hips: coat(0x24201c), upperArm: red, foreArm: red, hand: ghostSkin, thigh: coat(0x24201c), shin: coat(0x24201c), shoe: 0x141210 });
   head(sc, P, b('head'), { skin: ghostSkin, nose: 1.2, ears: true, brow: 1.3, cheeks: 1, chin: 0.8, jaw: 1.2 });
@@ -142,7 +143,7 @@ function porter(): SculptModel {
   // brass buttons down the tunic
   for (let i = 0; i < 4; i++) sc.detail(sphere(1.1, 8, 6), { col: PAL.brass, bone: b('chest'), pos: [0, P.chest + 6 - i * 6, P.chestW * P.depth + 0.8], surf: SURF.brass });
   // the steamer trunk he never puts down, held out in front like a wall
-  sc.add({ t: 'box', c: [0, P.chest - 6, 20], h: [20, 15, 10], r: 2 }, { col: weather(0x4a3018, 0.4, 0.08, 0x2a1a0c), bone: b('trunk'), k: 0, surf: SURF.wood });
+  sc.add({ t: 'box', c: [0, P.chest - 6, 20], h: [20, 15, 10], r: 2 }, { col: flat(0x4a3018), bone: b('trunk'), k: 0, surf: SURF.wood });
   for (const y of [-12, 0, 12]) sc.detail(box(41, 2.2, 21), { col: PAL.brass, bone: b('trunk'), pos: [0, P.chest - 6 + y, 20], surf: SURF.brass });
   for (const s of [-1, 1]) sc.detail(box(2.4, 31, 21), { col: PAL.iron, bone: b('trunk'), pos: [s * 14, P.chest - 6, 20], surf: SURF.iron });
   sc.detail(box(8, 7, 1.5), { col: 0xc8b080, bone: b('trunk'), pos: [8, P.chest, 30.5], surf: SURF.paint });
@@ -156,7 +157,7 @@ function porter(): SculptModel {
       return mix(hold, { chest: { rx: -0.3 * back + 0.5 * hit }, trunk: { tz: -6 * back + 14 * hit, ty: 4 * back }, armL: { rx: -1.1 - 0.5 * back }, armR: { rx: -1.1 - 0.5 * back } });
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== The Navvy (D-84)
@@ -166,8 +167,8 @@ function navvy(): SculptModel {
   const P = prop(1.6, { headR: 11, chestW: 19, waistW: 17, hipW: 15, depth: 0.95, arm: [6.6, 5.8, 4.8], leg: [6.6, 5.6, 4.4] });
   const bones = humanBones(P, [{ name: 'hammer', parent: 'chest', head: [P.shoulderX, P.shoulderY, -4] }]);
   const b = bi(bones);
-  const sc = new Sculpt(2, 3);
-  const moleskin = coat(0x4a3a28), vest = coat(0x1e1c1a), shirt = weather(0xb0a898, 0.45, 0.06, 0x6a6458);
+  const sc = new Sculpt(2, 3, 0.65);
+  const moleskin = coat(0x4a3a28), vest = coat(0x1e1c1a), shirt = flat(0xb0a898);
   humanBody(sc, P, b, { skin: ghostSkin, torso: vest, hips: moleskin, upperArm: shirt, foreArm: ghostSkin, hand: ghostSkin, thigh: moleskin, shin: moleskin, shoe: 0x141210 });
   head(sc, P, b('head'), { skin: ghostSkin, nose: 1.4, ears: true, brow: 1.5, cheeks: 1.1, chin: 1.1, jaw: 1.5 });
   eyeDetails(sc, P, b('head'), { size: 0.13, sclera: 0x2a2e32, iris: 0xd8e8ff, glow: 1.1 });
@@ -183,7 +184,7 @@ function navvy(): SculptModel {
     move: { frames: 36, fn: (t) => mix(gaitPose(t, g), carry) },
     attack: { frames: 14, loop: false, fn: (t) => mix(gaitPose(0, g), carry, { chest: { rx: 0.35 * pulse(t, 0.6, 0.3) } }) },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Railcrawler
@@ -198,7 +199,7 @@ function railcrawler(): SculptModel {
   const sc = new Sculpt(1.6, 2);
   // a riveted buffer-beam body, a coupling hook for a jaw, a cracked lamp for an eye
   sc.add({ t: 'box', c: [0, 15, 0], h: [10, 6, 13], r: 3 }, { col: iron, bone: b('body'), k: 0, surf: SURF.iron });
-  sc.add({ t: 'ell', c: [0, 18, -4], r: [8, 5, 9] }, { col: weather(0x3a2018, 0.5, 0.08, 0x6a3a20), bone: b('body'), k: 3, surf: SURF.iron });
+  sc.add({ t: 'ell', c: [0, 18, -4], r: [8, 5, 9] }, { col: flat(0x3a2018), bone: b('body'), k: 3, surf: SURF.iron });
   for (let i = 0; i < 6; i++) sc.detail(sphere(0.9, 6, 5), { col: PAL.brass, bone: b('body'), pos: [-8 + i * 3.2, 21.2, 2], surf: SURF.brass });
   sc.detail(torus(3, 1, 6, 12, Math.PI), { col: PAL.iron, bone: b('body'), pos: [0, 11, 14], rot: [0, 0, Math.PI], surf: SURF.iron });
   sc.detail(cyl(4.5, 4.5, 3, 12), { col: PAL.iron, bone: b('lamp'), pos: [0, 18, 13], rot: [Math.PI / 2, 0, 0], surf: SURF.iron });
@@ -226,7 +227,7 @@ function railcrawler(): SculptModel {
       return mix(legPose(0.25, 0.4), { body: { ty: -5 * k + 6 * leap, rx: -0.3 * k }, lamp: { rx: -0.2 * k } });
     } },
   };
-  return { geo: sc.build({ ao: 0.45 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Mourning Passenger
@@ -234,7 +235,7 @@ function mourner(): SculptModel {
   const P = prop(1.05, { headR: 11, chestW: 10.5, waistW: 8, hipW: 11, depth: 0.74, arm: [3.2, 2.7, 2.2], leg: [4, 3.2, 2.6] });
   const bones = humanBones(P, [{ name: 'veil', parent: 'head', head: [0, P.headY + P.headR, 0] }]);
   const b = bi(bones);
-  const sc = new Sculpt(1.7, 2.4);
+  const sc = new Sculpt(1.7, 2.4, 0.65);
   humanBody(sc, P, b, { skin: ghostSkin, torso: black, hips: black, upperArm: black, foreArm: black, hand: 0x141214, thigh: black, shin: black, noLegs: true, gloves: true });
   // the full mourning dress to the ground, a bustle at the back
   sc.add({ t: 'cap', a: [0, P.hip + 4, 0], b: [0, 2, 0], ra: P.hipW * 0.95, rb: P.hipW * 1.7, sz: 0.95 }, { col: black, bone: b('hips'), k: 3, surf: SURF.velvet });
@@ -242,7 +243,7 @@ function mourner(): SculptModel {
   head(sc, P, b('head'), { skin: ghostSkin, nose: 0.8, ears: false, brow: 0.7, cheeks: 0.6, chin: 0.5, jaw: 0.85 });
   // a hat with a veil falling past the shoulders: two pale points of light behind it
   sc.add({ t: 'ell', c: [0, P.headY + P.headR * 0.7, 0], r: [P.headR * 1.3, P.headR * 0.3, P.headR * 1.3] }, { col: black, bone: b('head'), k: 0.6, surf: SURF.velvet });
-  sc.add({ t: 'cap', a: [0, P.headY + P.headR * 0.6, 0], b: [0, P.headY - P.headR * 1.6, 1], ra: P.headR * 1.2, rb: P.headR * 1.45, sz: 0.95 }, { col: weather(0x1a181c, 0.25, 0.2, 0x0e0c10), bone: b('veil'), k: 1, surf: SURF.cloth });
+  sc.add({ t: 'cap', a: [0, P.headY + P.headR * 0.6, 0], b: [0, P.headY - P.headR * 1.6, 1], ra: P.headR * 1.2, rb: P.headR * 1.45, sz: 0.95 }, { col: flat(0x1a181c), bone: b('veil'), k: 1, surf: SURF.cloth });
   for (const s of [1, -1]) glowEye(sc, b('head'), [s * P.headR * 0.35, P.headY + P.headR * 0.1, P.headR * 1.3], 1.3, 0xd8e0ff, 1.6);
   // a black-bordered handkerchief in the clasped hands
   sc.detail(box(7, 0.6, 7), { col: 0xd8d0c8, bone: b('handL'), pos: [P.shoulderX * 0.5, P.wristY - 2, 8], rot: [0.6, 0.4, 0.2], surf: SURF.cloth });
@@ -256,7 +257,7 @@ function mourner(): SculptModel {
       return mix(clasp, { armL: { rx: -1.4 * k, rz: 1.1 * k }, armR: { rx: -1.4 * k, rz: -1.1 * k }, foreL: { rx: 0.9 * k }, foreR: { rx: 0.9 * k }, head: { rx: -0.6 * k }, chest: { rx: -0.25 * k }, veil: { rx: -0.4 * k } });
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== the Signalman
@@ -264,8 +265,8 @@ function signalman(): SculptModel {
   const P = prop(1.05, { headR: 11.5, chestW: 12, waistW: 11, hipW: 11, depth: 0.8 });
   const bones = humanBones(P, [{ name: 'lantern', parent: 'handR', head: [-P.shoulderX - 4, P.wristY - 4, 3] }]);
   const b = bi(bones);
-  const sc = new Sculpt(1.8, 2.4);
-  const waist = coat(0x2a3424), shirt = weather(0x8a8478, 0.4);
+  const sc = new Sculpt(1.8, 2.4, 0.65);
+  const waist = coat(0x2a3424), shirt = flat(0x8a8478);
   humanBody(sc, P, b, { skin: ghostSkin, torso: waist, hips: coat(0x2a2620), upperArm: shirt, foreArm: shirt, hand: ghostSkin, thigh: coat(0x2a2620), shin: coat(0x2a2620), shoe: 0x141210 });
   head(sc, P, b('head'), { skin: ghostSkin, nose: 1.1, ears: true, brow: 1.2, cheeks: 0.8, chin: 0.7 });
   eyeDetails(sc, P, b('head'), { size: 0.15, sclera: 0x2a2e32, iris: 0xd8e8ff, glow: 1.1 });
@@ -286,7 +287,7 @@ function signalman(): SculptModel {
       return { armR: { rx: -2.6 * k, rz: 0.4 * k + 0.25 * sin(t, 2) * k }, foreR: { rx: -0.2 }, lantern: { rx: 0.5 * sin(t, 2) * k }, chest: { rx: -0.2 * k }, head: { rx: -0.25 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Clockwork Commuter
@@ -294,8 +295,8 @@ function commuter(): SculptModel {
   const P = prop(1, { headR: 11, chestW: 11.5, waistW: 10.5, hipW: 10.5, depth: 0.78 });
   const bones = humanBones(P, [{ name: 'key', parent: 'chest', head: [0, P.chest, -10] }, { name: 'brolly', parent: 'handL', head: [P.shoulderX + 3, P.wristY - 4, 2] }]);
   const b = bi(bones);
-  const sc = new Sculpt(1.7, 2.2);
-  const suit = coat(0x2a2a30), face = weather(0xc8b890, 0.35, 0.08, 0x6a5a40);
+  const sc = new Sculpt(1.7, 2.2, 0.65);
+  const suit = coat(0x2a2a30), face = flat(0xc8b890);
   humanBody(sc, P, b, { skin: face, torso: suit, hips: suit, upperArm: suit, foreArm: suit, hand: 0xd8d0c0, thigh: suit, shin: suit, shoe: 0x101010, gloves: true });
   // a porcelain-and-brass face with painted features, a crack across it
   head(sc, P, b('head'), { skin: face, nose: 0.8, ears: false, brow: 0.6, cheeks: 0.8, chin: 0.6, jaw: 0.9 });
@@ -319,7 +320,7 @@ function commuter(): SculptModel {
       return { armL: { rx: -1.5 * k, rz: -0.1 }, foreL: { rx: -0.1 }, brolly: { rx: 1.5 * k }, chest: { rx: 0.2 * k + 0.2 * thrust }, hips: { tz: 4 * thrust } };
     } },
   };
-  return { geo: sc.build({ ao: 0.45 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Newsboy Specter
@@ -327,14 +328,14 @@ function newsboy(): SculptModel {
   const P = prop(0.78, { headR: 12.5, chestW: 10, waistW: 9, hipW: 9.5, depth: 0.78 });
   const bones = humanBones(P, [{ name: 'paper', parent: 'handR', head: [-P.shoulderX - 2, P.wristY - 3, 3] }]);
   const b = bi(bones);
-  const sc = new Sculpt(1.4, 2);
+  const sc = new Sculpt(1.4, 2, 0.65);
   const jacket = coat(0x3a3428), shorts = coat(0x2a2620);
-  humanBody(sc, P, b, { skin: ghostSkin, torso: jacket, hips: shorts, upperArm: jacket, foreArm: jacket, hand: ghostSkin, thigh: shorts, shin: weather(0x5a5650, 0.4), shoe: 0x141210 });
+  humanBody(sc, P, b, { skin: ghostSkin, torso: jacket, hips: shorts, upperArm: jacket, foreArm: jacket, hand: ghostSkin, thigh: shorts, shin: flat(0x5a5650), shoe: 0x141210 });
   head(sc, P, b('head'), { skin: ghostSkin, nose: 0.8, ears: true, brow: 0.8, cheeks: 1, chin: 0.5, jaw: 0.85 });
   eyeDetails(sc, P, b('head'), { size: 0.2, sclera: 0x2a2e32, iris: 0xd8e8ff, glow: 1.3 });
-  cap(sc, P, b('head'), weather(0x4a4438, 0.4), 0.2);
+  cap(sc, P, b('head'), flat(0x4a4438), 0.2);
   // the canvas bag of papers across the body, and one held up
-  sc.add({ t: 'box', c: [P.chestW * 0.8, P.waist - 2, 2], h: [3, 7, 6], r: 1.5 }, { col: weather(0x8a7a58, 0.4), bone: b('spine'), k: 1, surf: SURF.canvas });
+  sc.add({ t: 'box', c: [P.chestW * 0.8, P.waist - 2, 2], h: [3, 7, 6], r: 1.5 }, { col: flat(0x8a7a58), bone: b('spine'), k: 1, surf: SURF.canvas });
   for (let i = 0; i < 3; i++) sc.detail(box(7, 0.4, 9), { col: 0xd0c8b0, bone: b('spine'), pos: [P.chestW * 0.8, P.waist + 4 + i * 0.6, 2], rot: [0, 0, 0.1 * i], surf: SURF.cloth });
   sc.detail(box(12, 9, 0.4), { col: 0xe0d8c0, bone: b('paper'), pos: [-P.shoulderX - 2, P.wristY + 3, 4], rot: [0.2, 0.3, 0], emit: 0.35, surf: SURF.cloth });
   const g: Gait = { ...GAIT_WALK, stride: 0.6, bob: 2.6, arm: 0.5, lift: 0.3 };
@@ -346,7 +347,7 @@ function newsboy(): SculptModel {
       return { armR: { rx: -2.8 * k + 2 * fling, rz: 0.2 }, foreR: { rx: -0.6 * k }, chest: { ry: 0.4 * k - 0.6 * fling, rx: -0.1 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.45 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Luggage Mimic
@@ -359,7 +360,7 @@ function mimic(): SculptModel {
   for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) for (const [i, z] of [[0, 8], [1, -8]] as const) bones.push({ name: `leg${n}${i}`, parent: 'base', head: [s * 14, 6, z] });
   const b = bi(bones);
   const sc = new Sculpt(1.6, 1.8);
-  const hide = weather(0x5a3a1e, 0.45, 0.08, 0x2a1a0c);
+  const hide = flat(0x5a3a1e);
   // the trunk's body, banded and studded, its lid lifted into a jaw
   sc.add({ t: 'box', c: [0, 14, 0], h: [17, 8, 12], r: 2 }, { col: hide, bone: b('base'), k: 0, surf: SURF.wood });
   sc.add({ t: 'box', c: [0, 26, -1], h: [17, 4, 12], r: 2.5 }, { col: hide, bone: b('lid'), k: 0.5, surf: SURF.wood });
@@ -387,7 +388,7 @@ function mimic(): SculptModel {
       return mix(legs(0.25, 0.3), { base: { ty: 8 * Math.sin(Math.min(1, t) * Math.PI) }, lid: { rx: -1.1 * k + 1 * snapShut }, tongue: { rx: -0.4 * k, tz: 3 * k } });
     } },
   };
-  return { geo: sc.build({ ao: 0.45 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Gravebound
@@ -395,8 +396,8 @@ function gravebound(): SculptModel {
   const P = prop(1, { headR: 11, chestW: 10.5, waistW: 8.5, hipW: 9.5, depth: 0.72, arm: [3, 2.5, 2.1], leg: [3.8, 3, 2.5] });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.7, 2.4);
-  const shroud = weather(0x8a8270, 0.5, 0.1, 0x3a3020);
+  const sc = new Sculpt(1.7, 2.4, 0.65);
+  const shroud = flat(0x8a8270);
   humanBody(sc, P, b, { skin: graveSkin, torso: shroud, hips: shroud, upperArm: graveSkin, foreArm: graveSkin, hand: graveSkin, thigh: shroud, shin: graveSkin, shoe: graveSkin });
   // the burial suit gone to rags, ribs showing through a tear
   for (let i = 0; i < 4; i++) sc.add({ t: 'cap', a: [-6, P.chest + 4 - i * 3.5, P.chestW * P.depth - 0.5], b: [6, P.chest + 4 - i * 3.5, P.chestW * P.depth - 0.5], ra: 0.9, rb: 0.9 }, { col: 0xc8c0a0, bone: b('chest'), k: 0.5, surf: SURF.bone });
@@ -405,7 +406,7 @@ function gravebound(): SculptModel {
   for (const s of [1, -1]) glowEye(sc, b('head'), [s * P.headR * 0.38, P.headY + P.headR * 0.1, P.headR * 0.7], 1.6, 0xb8ff90, 1.6);
   sc.add({ t: 'box', c: [0, P.headY - P.headR * 0.55, P.headR * 0.8], h: [P.headR * 0.4, P.headR * 0.12, 2], r: 0.5 }, { sub: true, k: 0.8 });
   // soil clinging to the legs and a wilted funeral lily in the lapel
-  sc.add({ t: 'ell', c: [0, 6, 0], r: [10, 5, 8] }, { col: weather(0x2a2216, 0.5), bone: b('hips'), k: 2, surf: SURF.cloth });
+  sc.add({ t: 'ell', c: [0, 6, 0], r: [10, 5, 8] }, { col: flat(0x2a2216), bone: b('hips'), k: 2, surf: SURF.cloth });
   sc.detail(cone(1.6, 4, 6), { col: 0xd8d0b0, bone: b('chest'), pos: [6, P.chest + 4, P.chestW * P.depth + 1], rot: [0.6, 0, -0.4], surf: SURF.cloth });
   const reach: Pose = { armL: { rx: -1.3, rz: 0.15 }, armR: { rx: -1.2, rz: -0.12 }, foreL: { rx: -0.25 }, foreR: { rx: -0.4 } };
   const clips: Clips = {
@@ -420,7 +421,7 @@ function gravebound(): SculptModel {
       return mix(reach, { armL: { rx: -2 * k }, armR: { rx: -2 * k }, chest: { rx: 0.4 * k }, hips: { tz: 3 * k } });
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Shroud Moth
@@ -432,7 +433,7 @@ function moth(): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(1.1, 1.4);
-  const fur = weather(0xd8d0c0, 0.3, 0.2, 0x8a8070);
+  const fur = flat(0xd8d0c0);
   sc.add({ t: 'ell', c: [0, 0, 0], r: [3, 3, 9] }, { col: fur, bone: b('body'), k: 0, surf: SURF.plush });
   sc.add({ t: 'sph', c: [0, 1, 8], r: 3.4 }, { col: fur, bone: b('body'), k: 1.5, surf: SURF.plush });
   for (const s of [1, -1]) {
@@ -451,7 +452,7 @@ function moth(): SculptModel {
     move: { frames: 8, fn: (t) => ({ wingL: { rz: 0.9 * sin(t) }, wingR: { rz: -0.9 * sin(t) }, body: { ty: 1.2 * sin(t, 1, 0.25) } }) },
     attack: { frames: 10, loop: false, fn: (t) => ({ wingL: { rz: 1.2 * sin(t, 3) }, wingR: { rz: -1.2 * sin(t, 3) }, body: { rx: 0.5 * ease(t) } }) },
   };
-  return { geo: sc.build({ ao: 0.3 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== the Pallbearers
@@ -471,8 +472,8 @@ function pallbearers(): SculptModel {
     glowEye(sc, b(`b${i}`), [x, 47.5, z + 7], 1, 0xd8e0ff, 1.2);
   });
   // the coffin: dark wood, brass handles, no name plate
-  sc.add({ t: 'box', c: [0, 58, 0], h: [15, 4.5, 31], r: 1.5 }, { col: weather(0x2a1a12, 0.35, 0.06), bone: b('coffin'), k: 0, surf: SURF.wood });
-  sc.add({ t: 'box', c: [0, 63.5, 0], h: [13, 1.5, 28], r: 1 }, { col: weather(0x3a2418, 0.35, 0.06), bone: b('coffin'), k: 0.5, surf: SURF.wood });
+  sc.add({ t: 'box', c: [0, 58, 0], h: [15, 4.5, 31], r: 1.5 }, { col: flat(0x2a1a12), bone: b('coffin'), k: 0, surf: SURF.wood });
+  sc.add({ t: 'box', c: [0, 63.5, 0], h: [13, 1.5, 28], r: 1 }, { col: flat(0x3a2418), bone: b('coffin'), k: 0.5, surf: SURF.wood });
   for (const s of [1, -1]) for (const z of [-18, 0, 18]) sc.detail(box(1.2, 2, 6), { col: PAL.brass, bone: b('coffin'), pos: [s * 15.6, 58, z], surf: SURF.brass });
   sc.detail(box(8, 0.4, 5), { col: 0x6a5a3a, bone: b('coffin'), pos: [0, 65.6, 10], surf: SURF.brass });
   const clips: Clips = {
@@ -491,7 +492,7 @@ function pallbearers(): SculptModel {
       return { coffin: { ty: 18 * up - 26 * down, rx: -0.2 * up } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Slag Golem
@@ -499,7 +500,7 @@ function slagGolem(): SculptModel {
   const P = prop(1.6, { headR: 9, chestW: 17, waistW: 14, hipW: 13, depth: 0.9, arm: [6.5, 6, 6.5], leg: [6.5, 5.5, 5], neck: 60, headY: 66 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(2.4, 3.2);
+  const sc = new Sculpt(2.4, 3.2, 0.65);
   humanBody(sc, P, b, { skin: slagCol, torso: slagCol, hips: slagCol, upperArm: slagCol, foreArm: slagCol, hand: slagCol, thigh: slagCol, shin: slagCol, shoe: slagCol, torsoSurf: SURF.rubber, legSurf: SURF.rubber });
   // a hunched mound of shoulders, the head sunk into it, great dripping fists
   sc.add({ t: 'ell', c: [0, P.shoulderY + 2, -4], r: [P.chestW * 1.2, 12, 14] }, { col: slagCol, bone: b('chest'), k: 6, surf: SURF.rubber });
@@ -519,7 +520,7 @@ function slagGolem(): SculptModel {
       return { armL: { rx: -2.8 * k + 2.4 * slam, rz: -0.1 }, armR: { rx: -2.8 * k + 2.4 * slam, rz: 0.1 }, chest: { rx: -0.3 * k + 0.7 * slam }, hips: { ty: 4 * k - 6 * slam } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Riveter
@@ -527,8 +528,8 @@ function riveter(): SculptModel {
   const P = prop(1.05, { headR: 10, chestW: 13, waistW: 11, hipW: 11, depth: 0.95, arm: [4, 3.6, 3.2], leg: [4.6, 4, 3.6] });
   const bones = humanBones(P, [{ name: 'gun', parent: 'foreR', head: [-P.shoulderX - P.armOut, P.elbowY, 0] }]);
   const b = bi(bones);
-  const sc = new Sculpt(1.7, 2.2);
-  const plate = weather(0x3a3a3c, 0.4, 0.05, 0x6a4a2a);
+  const sc = new Sculpt(1.7, 2.2, 0.65);
+  const plate = flat(0x3a3a3c);
   humanBody(sc, P, b, { skin: plate, torso: plate, hips: plate, upperArm: plate, foreArm: plate, hand: plate, thigh: plate, shin: plate, shoe: 0x1a1a1c, torsoSurf: SURF.iron, legSurf: SURF.iron, gloves: true });
   // a boiler for a chest, riveted seams, a round head with one lens
   sc.add({ t: 'cap', a: [0, P.waist - 4, 0], b: [0, P.shoulderY, 0], ra: P.chestW * 0.95, rb: P.chestW, sz: 0.95 }, { col: plate, bone: b('chest'), k: 2, surf: SURF.iron });
@@ -549,7 +550,7 @@ function riveter(): SculptModel {
       return { armR: { rx: -1.5 * k, rz: 0.1 }, foreR: { rx: -0.05 * k }, gun: { rx: -0.3 * kick }, chest: { rx: -0.15 * kick }, armL: { rx: -0.6 * k, rz: -0.4 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Furnace Hound
@@ -595,7 +596,7 @@ function hound(): SculptModel {
       return { body: { rx: -0.25 * k, ty: -2 * k }, legBL: { rx: 0.6 * k }, legBR: { rx: 0.6 * k }, legFL: { rx: -0.4 * k }, legFR: { rx: -0.4 * k }, jaw: { rx: 0.6 * k }, head: { rx: -0.2 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.45 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Still Folk
@@ -603,13 +604,10 @@ function stillfolk(): SculptModel {
   const P = prop(1, { headR: 11, chestW: 11, waistW: 9.5, hipW: 10.5, depth: 0.76 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.7, 2.3);
+  const sc = new Sculpt(1.7, 2.3, 0.65);
   // villagers gone to stone-grey where they stood, cracked, a pocket-watch face for each eye
-  const stone: ColorFn = (p) => {
-    const c = C(0x8a8a86).lerp(C(0x4a4a48), 0.2 + 0.5 * vnoise(p.x * 0.12, p.y * 0.12, p.z * 0.12));
-    return vnoise(p.x * 0.9, p.y * 0.9, p.z * 0.9) > 0.8 ? c.multiplyScalar(0.4) : c;
-  };
-  const dress = weather(0x5a5248, 0.4, 0.06);
+  const stone = flat(C(0x8a8a86).lerp(C(0x4a4a48), 0.45));
+  const dress = flat(0x5a5248);
   humanBody(sc, P, b, { skin: stone, torso: dress, hips: dress, upperArm: dress, foreArm: stone, hand: stone, thigh: dress, shin: stone, shoe: 0x2a2826, noLegs: false });
   sc.add({ t: 'cap', a: [0, P.hip + 3, 0], b: [0, 4, 0], ra: P.hipW, rb: P.hipW * 1.5, sz: 0.9 }, { col: dress, bone: b('hips'), k: 2, surf: SURF.cloth });
   head(sc, P, b('head'), { skin: stone, nose: 0.9, ears: true, brow: 0.9, cheeks: 0.7, chin: 0.6 });
@@ -618,8 +616,8 @@ function stillfolk(): SculptModel {
     sc.detail(box(0.4, P.headR * 0.18, 0.3), { col: 0x1a1a1a, bone: b('head'), pos: [s * P.headR * 0.38, P.headY + P.headR * 0.2, P.headR * 1.0], surf: SURF.paint });
   }
   // a shawl and a bonnet
-  sc.add({ t: 'ell', c: [0, P.shoulderY, 0], r: [P.chestW * 1.15, 5, P.chestW * 0.9] }, { col: weather(0x3a3a44, 0.4), bone: b('chest'), k: 2, surf: SURF.cloth });
-  sc.add({ t: 'ell', c: [0, P.headY + P.headR * 0.3, -P.headR * 0.2], r: [P.headR * 1.1, P.headR * 0.9, P.headR * 1.0] }, { col: weather(0x4a4440, 0.4), bone: b('head'), k: 0.8, surf: SURF.cloth });
+  sc.add({ t: 'ell', c: [0, P.shoulderY, 0], r: [P.chestW * 1.15, 5, P.chestW * 0.9] }, { col: flat(0x3a3a44), bone: b('chest'), k: 2, surf: SURF.cloth });
+  sc.add({ t: 'ell', c: [0, P.headY + P.headR * 0.3, -P.headR * 0.2], r: [P.headR * 1.1, P.headR * 0.9, P.headR * 1.0] }, { col: flat(0x4a4440), bone: b('head'), k: 0.8, surf: SURF.cloth });
   const g: Gait = { ...GAIT_WALK, stride: 0.7, knee: 0.9, bob: 1.5, arm: 0.7, twist: 0.2, lean: 0.25 };
   const clips: Clips = {
     // the jerky, stop-motion sprint of something that forgot how to move and remembered all at once
@@ -629,7 +627,7 @@ function stillfolk(): SculptModel {
       return { armL: { rx: -1.6 * k, rz: 0.2 }, armR: { rx: -1.6 * k, rz: -0.2 }, chest: { rx: 0.4 * k }, head: { rx: -0.3 * k, rz: 0.3 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== the Watcher
@@ -637,7 +635,7 @@ function watcher(): SculptModel {
   const P = prop(1.7, { headR: 6.5, chestW: 7, waistW: 5.5, hipW: 6, depth: 0.6, arm: [2, 1.6, 1.3], leg: [2.6, 2, 1.6] });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.9, 2.6);
+  const sc = new Sculpt(1.9, 2.6, 0.65);
   // tall and thin, too tall, in a long black coat and a stovepipe hat; two pinprick eyes
   humanBody(sc, P, b, { skin: 0x1a1a1e, torso: black, hips: black, upperArm: black, foreArm: black, hand: 0x1a1a1e, thigh: black, shin: black, shoe: 0x0a0a0c });
   skirt(sc, P, b('hips'), black, 40, 1.4);
@@ -654,7 +652,7 @@ function watcher(): SculptModel {
       return { neck: { rx: 0.5 * k }, head: { rx: 0.35 * k, rz: 0.25 * k }, chest: { rx: 0.15 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.4 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Bell Wraith
@@ -668,7 +666,7 @@ function bellwraith(): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(1.7, 2.2);
-  const shroud = weather(0xc8c0b0, 0.4, 0.15, 0x6a6458);
+  const shroud = flat(0xc8c0b0);
   // a shroud on nothing, its hem in tatters, a hand-bell in one bony hand
   sc.add({ t: 'cap', a: [0, 50, 0], b: [0, 12, 0], ra: 8, rb: 14, sz: 0.9 }, { col: shroud, bone: b('body'), k: 0, surf: SURF.cloth });
   sc.add({ t: 'ell', c: [0, 55, 1], r: [8, 9, 8] }, { col: shroud, bone: b('head'), k: 3, surf: SURF.cloth });
@@ -693,7 +691,7 @@ function bellwraith(): SculptModel {
       return { arm: { rx: -1.6 * k, rz: 0.3 * k }, bell: { rz: 0.9 * sin(t, 4) * k }, head: { rx: -0.3 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.4 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== the Collected
@@ -708,7 +706,7 @@ function collected(): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(2.2, 3);
-  const flesh: ColorFn = (p) => C(0x8a8a90).lerp(C(0x4a3a40), 0.2 + 0.6 * vnoise(p.x * 0.1, p.y * 0.1, p.z * 0.1));
+  const flesh = flat(C(0x8a8a90).lerp(C(0x4a3a40), 0.5));
   // a mass of passengers pressed into one: hats, coats, faces, too many hands
   sc.add({ t: 'ell', c: [0, 34, 0], r: [22, 22, 18] }, { col: flesh, bone: b('body'), k: 0, surf: SURF.skin });
   sc.add({ t: 'ell', c: [0, 54, -2], r: [18, 14, 15] }, { col: flesh, bone: b('top'), k: 8, surf: SURF.skin });
@@ -725,9 +723,9 @@ function collected(): SculptModel {
     sc.add({ t: 'cap', a: [Math.cos(a) * 16, 30 + r() * 20, Math.sin(a) * 12], b: [Math.cos(a) * 26, 22 + r() * 16, Math.sin(a) * 18], ra: 2.4, rb: 1.8 }, { col: ghostSkin, bone: b('body'), k: 1.5, surf: SURF.skin });
   }
   for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
-    sc.add({ t: 'cap', a: [s * 18, 52, 2], b: [s * 30, 30, 8], ra: 5.5, rb: 4.5 }, { col: weather(0x2a2830, 0.4), bone: b(`arm${n}`), k: 3, surf: SURF.cloth });
+    sc.add({ t: 'cap', a: [s * 18, 52, 2], b: [s * 30, 30, 8], ra: 5.5, rb: 4.5 }, { col: flat(0x2a2830), bone: b(`arm${n}`), k: 3, surf: SURF.cloth });
     sc.add({ t: 'sph', c: [s * 31, 27, 9], r: 5 }, { col: ghostSkin, bone: b(`arm${n}`), k: 2, surf: SURF.skin });
-    sc.add({ t: 'cap', a: [s * 10, 18, 0], b: [s * 11, 2, 2], ra: 6, rb: 5 }, { col: weather(0x2a2830, 0.4), bone: b(`leg${n}`), k: 2, surf: SURF.cloth });
+    sc.add({ t: 'cap', a: [s * 10, 18, 0], b: [s * 11, 2, 2], ra: 6, rb: 5 }, { col: flat(0x2a2830), bone: b(`leg${n}`), k: 2, surf: SURF.cloth });
   }
   const clips: Clips = {
     move: { frames: 44, fn: (t) => ({ legL: { rx: 0.4 * sin(t) }, legR: { rx: -0.4 * sin(t) }, body: { ty: 2 * Math.abs(sin(t)), rz: 0.08 * sin(t) }, top: { rz: -0.1 * sin(t, 1, 0.2) }, armL: { rx: 0.3 * sin(t, 1, 0.5) }, armR: { rx: -0.3 * sin(t, 1, 0.5) } }) },
@@ -737,7 +735,7 @@ function collected(): SculptModel {
       return { top: { rx: -0.5 * k + 0.8 * fall }, armL: { rx: -2.2 * k + 1.6 * fall }, armR: { rx: -2.2 * k + 1.6 * fall }, body: { ty: 4 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== the Ticket Puncher, and the Inspector
@@ -747,7 +745,7 @@ function puncher(k: number, inspector: boolean): SculptModel {
     : { headR: 10.5, chestW: 11, waistW: 9.5, hipW: 10, depth: 0.76, arm: [3.4, 3, 2.6], leg: [4.2, 3.4, 2.8] });
   const bones = humanBones(P, [{ name: 'punch', parent: 'handR', head: [-P.shoulderX - P.armOut * 1.6, P.wristY - 4, 2] }]);
   const b = bi(bones);
-  const sc = new Sculpt(inspector ? 2.2 : 1.7, inspector ? 3 : 2.3);
+  const sc = new Sculpt(inspector ? 2.2 : 1.7, inspector ? 3 : 2.3, 0.65);
   const uniform = coat(inspector ? 0x1a2030 : 0x22242c);
   humanBody(sc, P, b, { skin: ghostSkin, torso: uniform, hips: uniform, upperArm: uniform, foreArm: uniform, hand: 0xd8d4c8, thigh: uniform, shin: uniform, shoe: 0x0e0e10, gloves: true });
   skirt(sc, P, b('hips'), uniform, inspector ? 26 * k : 18 * k, 1.3);
@@ -776,7 +774,7 @@ function puncher(k: number, inspector: boolean): SculptModel {
       return { armR: { rx: -2.4 * up + 1.8 * down, rz: 0.1 }, foreR: { rx: -0.4 * up }, punch: { rx: 0.5 * down }, chest: { rx: -0.15 * up + 0.35 * down }, head: { rx: 0.15 * up } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 /** Builders for the Ghost Train's creatures, keyed by enemy id. */

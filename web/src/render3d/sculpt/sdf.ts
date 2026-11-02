@@ -173,6 +173,9 @@ function bounds(s: Shape): [THREE.Vector3, THREE.Vector3] {
   }
 }
 
+/** A detail smaller than this (bounding radius, model units) draws no ink unless asked: about 5 px across at play zoom. */
+export const SMALL_DETAIL = 2.4;
+
 export interface DetailOpts {
   col?: number | THREE.Color;
   bone?: number;
@@ -181,7 +184,7 @@ export interface DetailOpts {
   scale?: number | V3;
   surf?: Surf;
   emit?: number;
-  /** draw the ink outline round it (true by default; small crisp details — eyes, buttons, badges — read better without, D-86) */
+  /** draw the ink outline round it (by default only if it's bigger than SMALL_DETAIL: eyes, buttons, badges read better without, D-86/D-88) */
   ink?: boolean;
   pat?: Pattern;
 }
@@ -219,7 +222,11 @@ export class Sculpt {
     const n = g.attributes.position.count;
     const c = o.col instanceof THREE.Color ? o.col : C(o.col ?? 0xffffff);
     const col = new Float32Array(n * 3), sk = new Float32Array(n * 4), su = new Float32Array(n * 3);
-    const pa = new Float32Array(n * 4), c2 = new Float32Array(n * 3), ink = new Float32Array(n).fill(o.ink === false ? 1 : 0);
+    // small details draw no ink unless asked (D-88): at play size an outline round an eye, a tooth or a button
+    // turns it into a black blot (docs/CHARACTER_ART_QUALITY_STANDARD.md §9)
+    if (!src.boundingSphere) src.computeBoundingSphere();
+    const small = src.boundingSphere!.radius < SMALL_DETAIL;
+    const pa = new Float32Array(n * 4), c2 = new Float32Array(n * 3), ink = new Float32Array(n).fill(o.ink === false || (o.ink === undefined && small) ? 1 : 0);
     const pat = packPat(o.pat);
     for (let i = 0; i < n; i++) {
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;

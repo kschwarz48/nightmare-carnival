@@ -56,6 +56,22 @@ export const FAM = {
 } as const;
 
 /**
+ * Build options for a creature sculpted in one piece rather than in layers (D-88): the standard's soft
+ * occlusion, no curvature paint, crisp colour seams. (They were 0.35–0.6 occlusion, full curvature paint
+ * and 0.8-unit seams: dirt in every crease, speckle on every edge, colours bleeding into each other.)
+ */
+export const CREATURE: BuildOpts = { ao: 0.3, paint: 0, seam: 0.3 };
+
+/**
+ * A flat colour as a colour function (D-88): what `weather()` became on the creatures. Its blotches and
+ * flakes read as dirt at vertex resolution; call sites that sample the function keep working.
+ */
+export function flat(base: number | THREE.Color): ColorFn {
+  const c = base instanceof THREE.Color ? base.clone() : C(base);
+  return () => c.clone();
+}
+
+/**
  * A smooth, deliberate gradient from `bot` to `top` between heights y0 and y1 — hand-painted light from
  * above, darker toward the floor — instead of noise.
  */

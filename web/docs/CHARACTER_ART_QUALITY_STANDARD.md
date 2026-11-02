@@ -108,6 +108,11 @@ pattern is per pixel and their edges are modelled.
 | `styleShoe` | an upper, a welted sole and a heel |
 | `vertical`, `shadowedJaw` | smooth, deliberate colour: top light, a crisp-edged five o'clock shadow |
 | `LAYER`, `FAM` | standard build options per layer, material families |
+| `CREATURE`, `flat` | for a creature sculpted in one piece (D-88): the standard's build options; a flat colour where `weather()` noise was |
+
+The older humanoid helpers (`humanBody`, `head`, `eyeDetails` in `sculpt/humanoid.ts`) still build most
+creatures. Since D-88 `humanBody` takes a per-pixel costume pattern (`torsoPat`, `armPat`), and
+`eyeDetails` seats the eyes on the face as sculpted rather than on an assumed sphere.
 
 ## 5. Proportion and anatomy
 
@@ -180,7 +185,11 @@ A big pale creature can be given a drier skin of its own; the Brute uses 0.74.
 
 - Ink marks the **silhouette and garment edges**: a hat brim, a ruff, a cuff, a sleeve.
 - **Small details draw no ink** (`ink: false` on `detail`): eyes, brows, mouths, buttons, badges, teeth,
-  stitches. A 1.3 px ring round a 2 px eye is a black blot.
+  stitches. A 1.3 px ring round a 2 px eye is a black blot. Since D-88 this is the default for any detail
+  smaller than `SMALL_DETAIL` (a bounding radius of 2.4 units, about 5 px at play zoom); pass `ink: true` to
+  keep one. Larger details keep their ink unless told otherwise.
+- **Lathe profiles run bottom to top.** Run top to bottom, the faces point inward and the outline hull
+  covers the whole part in black (the whack-a-mole's hard hat and the monkey's cymbals were solid black).
 - **Hidden layers draw no ink** (`ink: false` on the prim). Ink is about 1.8 world units thick at play zoom,
   so any surface closer than that under another layer leaks through. Covered parts must be ink-off, or at
   least 2 units deep.
@@ -348,10 +357,25 @@ When the benchmarks are approved, move the rest of the roster across in this ord
    costume work. Budget ≤ 70k each. **Done in D-87** (52.8k–66.9k).
 2. **The first map's regular enemies** (dunk-tank clown, puppet soldier, wind-up monkey, whack-a-mole,
    jack-in-the-box, ticket booth, carousel horse, bumper car), at about 15k each. Then measure late combat.
+   **Done in D-88:** the three humanoids rebuilt in layers (9k–12.3k), the rest by the shared pass below.
 3. **The swarm** (balloons and stuffies) last. Light passes only: they already read well. Keep them
-   ≤ 10k, and fix only their noise colour and ink blots.
-4. **The other maps' creatures**, map by map, each batch measured in its own late-combat state.
+   ≤ 10k, and fix only their noise colour and ink blots. **Done in D-88** by the shared pass.
+4. **The other maps' creatures**, map by map, each batch measured in its own late-combat state. **Done in
+   D-88** by the shared pass, tighter blends on the humanoids and a few fixes.
 5. **The bosses** (non-sculpted; they use the prop shader with `detail`) as a separate pass with their own
-   inspector lineup.
+   inspector lineup. **Analysed in D-88 and left:** they're primitive-built set pieces without the
+   figures' muddy causes (no occlusion or curvature paint baked into colour, no soft seams), and they read
+   well in their fights. Their `weather()` wear reads as texture at their size.
+
+**The shared pass for one-piece creatures (D-88).** Every creature not rebuilt in layers got:
+- the `CREATURE` build options (occlusion 0.3, no curvature paint, 0.3-unit seams);
+- `flat()` colour where `weather()` noise was, and its noise colour functions rewritten as flat colour,
+  meaningful gradients or per-pixel patterns (the dunk-tank clown's and the crooked clown's stripes, the
+  bathing suit's hoops, the kelp robe's fronds, the prize collector's check, the holes rotted through a
+  diving suit, the ticket booth's planks). The coal and slag creatures keep their molten cracks: that
+  noise is the design;
+- no ink on small details (`SMALL_DETAIL`);
+- on the 27 humanoids built with `humanBody`, smooth blends at 0.65 of their old radius, so forms read as
+  forms instead of melting into eggs and balloons, and eyes seated on the face as sculpted.
 
 Each batch gets the same before and after captures, budget and test entries, and a scorecard line.

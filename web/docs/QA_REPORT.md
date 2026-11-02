@@ -115,6 +115,49 @@ understate that character.
 
 ---
 
+## The enemy roster on the character art standard — 2026-11-02 (D-88)
+
+- `npm test`: 29 files, 427 tests pass. Three are new, in `tests/characterArt.test.ts`:
+  - small details draw no ink unless asked, and larger ones keep it;
+  - the three rebuilt first-map regulars keep a regular enemy's budget (under 15k), their skeletons (the
+    monkey's `key`) and their `move` and `attack` clips;
+  - every creature builds under 38k and keeps both clips.
+
+  `tsc` is clean and `npm run build` passes.
+- **Captures** (dev server, the inspector, one 1600×900 Electron window; baselines from the committed code):
+  - the whole roster in ten lineups, before, after the shared pass, and after the tighter blends: the game's
+    angle, 3/4, eye level in studio light, play scale 1:1;
+  - every creature alone at the game's angle and at eye level; the rebuilt ones also from the back,
+    mid-walk and mid-attack;
+  - all 22 bosses in their fights (13 from their own test states, 9 woken on their maps).
+  - Sheets (`web/artifacts/visual/d88/`, git-ignored): `cmp-d88-<creature>.png` for the dunk-tank clown, the
+    puppet soldier, the wind-up monkey, the whack-a-mole, the prize collector and the drowned bather;
+    `cmp-d88-lineup-<group>.png` for four lineups.
+- **Found by looking, and fixed:**
+  - the whack-a-mole's hard hat and the monkey's cymbals were solid black (inverted lathe profiles);
+  - the prize collector's check suit read as camouflage blotches (a 3D checker in vertex colour);
+  - the dunk-tank clown's first rebuild had hair strands and paint runs crossing his face, which read as
+    dirt.
+- **Seen and left:**
+  - the glasswalker doesn't show in a frozen lineup: it stays behind the glass between visits (its own
+    behaviour, the same before);
+  - the taffy horror keeps its vertex-colour twist (a spiral that no per-pixel pattern can draw yet);
+  - the coal and slag creatures keep their glowing noise.
+- **Shader health:** `__nc.inspect.shaders()` was clean in every capture run.
+- **Measured:**
+  - **A mixed crowd of 62:** 3.4–4.3 ms a frame against 2.8–3.4 ms, 3.4 M triangles against 3.0 M (original and
+    new run alternately).
+  - **Late combat:** 3.4–4.4 against 3.2–4.6 ms, no measurable change.
+  - **The rebuilds:** 12.3k, 10.2k and 9.0k triangles (were 6.1k, 6.5k and 5.8k).
+- **Scorecard** (the enemy roster, 0–3):
+  - **Enemies 1 → 2:** clean colour, crisp patterns, no ink blots and defined forms across the roster; the
+    first map's humanoids rebuilt with designed faces and silhouettes from above;
+  - **Materials/textures 1 → 2:** no noise mottling, per-pixel costume patterns.
+- **Not checked:**
+  - motion as video (poses held in the inspector; clips unchanged);
+  - the bosses changed (analysed and left);
+  - a slower GPU.
+
 ## The playable cast on the character art standard — 2026-11-02 (D-87)
 
 - `npm test`: 29 files, 424 tests pass. The new one, in `tests/characterArt.test.ts`, checks each of the six:

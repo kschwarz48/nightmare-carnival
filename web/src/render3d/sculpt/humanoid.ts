@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import type { ColorFn, Surf, V3 } from '../core/geo';
 import { SURF, ellipsoid, sphere } from '../core/geo';
 import { PAL } from '../models/kit';
-import { Sculpt } from './sdf';
+import { Sculpt, type Pattern } from './sdf';
+import { frontZ } from './realism';
 import { type BoneDef, type Pose, cos, sin } from './rig';
 
 export interface Proportions {
@@ -94,24 +95,28 @@ export interface BodyCols {
   noTorso?: boolean;
   gloves?: boolean;
   bigShoes?: number;
+  /** a costume pattern drawn per pixel on the torso and hips / on the arms (D-88; vertex-colour stripes smeared) */
+  torsoPat?: Pattern;
+  armPat?: Pattern;
 }
 
 /** Sculpt the base anatomy onto bones (looked up by name through `b`). */
 export function humanBody(sc: Sculpt, P: Proportions, b: (n: string) => number, c: BodyCols): void {
   const ts = c.torsoSurf ?? SURF.cloth, ls = c.legSurf ?? SURF.cloth;
   if (!c.noTorso) {
-    sc.add({ t: 'ell', c: [0, P.hip + 1, 0], r: [P.hipW, 7, P.hipW * P.depth] }, { col: c.hips ?? c.torso, bone: b('hips'), k: 2, surf: ts });
-    sc.add({ t: 'ell', c: [0, P.waist, 0.4], r: [P.waistW, 8, P.waistW * P.depth] }, { col: c.torso, bone: b('spine'), k: 6, surf: ts });
-    sc.add({ t: 'ell', c: [0, P.chest + 1, 0.6], r: [P.chestW, 9, P.chestW * P.depth] }, { col: c.torso, bone: b('chest'), k: 6, surf: ts });
-    for (const s of [1, -1]) sc.add({ t: 'sph', c: [s * (P.shoulderX - 1), P.shoulderY - 0.5, 0], r: P.arm[0] + 1.2 }, { col: c.upperArm ?? c.torso, bone: b('chest'), k: 4, surf: ts });
+    const pat = c.torsoPat;
+    sc.add({ t: 'ell', c: [0, P.hip + 1, 0], r: [P.hipW, 7, P.hipW * P.depth] }, { col: c.hips ?? c.torso, bone: b('hips'), k: 2, surf: ts, pat });
+    sc.add({ t: 'ell', c: [0, P.waist, 0.4], r: [P.waistW, 8, P.waistW * P.depth] }, { col: c.torso, bone: b('spine'), k: 6, surf: ts, pat });
+    sc.add({ t: 'ell', c: [0, P.chest + 1, 0.6], r: [P.chestW, 9, P.chestW * P.depth] }, { col: c.torso, bone: b('chest'), k: 6, surf: ts, pat });
+    for (const s of [1, -1]) sc.add({ t: 'sph', c: [s * (P.shoulderX - 1), P.shoulderY - 0.5, 0], r: P.arm[0] + 1.2 }, { col: c.upperArm ?? c.torso, bone: b('chest'), k: 4, surf: ts, pat: c.armPat ?? pat });
   }
   sc.add({ t: 'cap', a: [0, P.neck - 3, 0], b: [0, P.neck + 3, 0.3], ra: P.headR * 0.36, rb: P.headR * 0.32 }, { col: c.skin, bone: b('neck'), k: 3, surf: SURF.skin });
   for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
     const sh: V3 = [s * P.shoulderX, P.shoulderY, 0];
     const el: V3 = [s * (P.shoulderX + P.armOut), P.elbowY, -0.8];
     const wr: V3 = [s * (P.shoulderX + P.armOut * 1.6), P.wristY, 0.8];
-    sc.add({ t: 'cap', a: sh, b: el, ra: P.arm[0], rb: P.arm[1] }, { col: c.upperArm ?? c.torso, bone: b(`arm${n}`), k: 2, surf: ts });
-    sc.add({ t: 'cap', a: el, b: wr, ra: P.arm[1], rb: P.arm[2] }, { col: c.foreArm ?? c.upperArm ?? c.torso, bone: b(`fore${n}`), k: 1.5, surf: ts });
+    sc.add({ t: 'cap', a: sh, b: el, ra: P.arm[0], rb: P.arm[1] }, { col: c.upperArm ?? c.torso, bone: b(`arm${n}`), k: 2, surf: ts, pat: c.armPat });
+    sc.add({ t: 'cap', a: el, b: wr, ra: P.arm[1], rb: P.arm[2] }, { col: c.foreArm ?? c.upperArm ?? c.torso, bone: b(`fore${n}`), k: 1.5, surf: ts, pat: c.armPat });
     if (!c.noHands) hand(sc, wr, s, P.arm[2], c.hand ?? c.skin, b(`hand${n}`), !!c.gloves);
     if (!c.noLegs) {
       const hp: V3 = [s * P.stance, P.hip - 2, 0];
@@ -170,7 +175,8 @@ export function eyeDetails(sc: Sculpt, P: Proportions, bone: number, o: { spread
   const y = P.headY + (o.y ?? 0.14) * r;
   for (const s of [1, -1]) {
     const x = s * (o.spread ?? 0.36) * r;
-    const z = Math.sqrt(Math.max(0, r * r * 0.98 - x * x)) * 0.97;
+    // seated on the face as sculpted (D-88): with tighter blends the face is no longer the sphere this assumed
+    const z = frontZ(sc, x, y) - r * 0.03;
     if (o.sclera !== -1) sc.detail(ellipsoid(sz, sz * 1.25, sz * 0.5, 12, 10), { col: o.sclera ?? PAL.bone, bone, pos: [x, y, z - sz * 0.15], rot: [0, s * 0.35, s * (o.tilt ?? 0)], surf: SURF.porcelain });
     sc.detail(ellipsoid(sz * 0.55, sz * 0.66, sz * 0.32, 10, 8), { col: o.iris ?? PAL.ink, bone, pos: [x + s * sz * 0.08, y - sz * 0.05, z + sz * 0.22], rot: [0, s * 0.35, 0], surf: SURF.glass, emit: o.glow ?? 0 });
     if (o.lids !== undefined) sc.add({ t: 'ell', c: [x, y + sz * 0.95, z - sz * 0.2], r: [sz * 1.25, sz * 0.5, sz * 0.7], rot: [0.3, s * 0.35, s * (o.tilt ?? 0)] }, { col: o.lids, bone, k: 0.8, surf: SURF.skin });

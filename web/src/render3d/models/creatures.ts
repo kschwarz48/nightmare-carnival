@@ -5,10 +5,10 @@
 // stilt-walk, the brute's hammer drag. Glowing eyes and mouths keep them readable in the dark.
 
 import * as THREE from 'three';
-import { C, SURF, cone, cyl, ellipsoid, extrude, lathe, rbox, sphere, starShape, torus, tube, vnoise, weather, stripes, type ColorFn, type V3 } from '../core/geo';
+import { C, SURF, cone, cyl, ellipsoid, extrude, lathe, rbox, sphere, starShape, torus, tube, vnoise, type ColorFn, type V3 } from '../core/geo';
 import { PAL } from './kit';
 import { Sculpt, layered } from '../sculpt/sdf';
-import { FAM, LAYER, styleHand, styleShoe, vertical } from '../sculpt/figure';
+import { CREATURE, FAM, LAYER, flat, styleHand, styleShoe, vertical } from '../sculpt/figure';
 import type { Surf } from '../core/geo';
 import { frontZ } from '../sculpt/realism';
 import { Rig, type BoneDef, type ClipDef, type Pose, ease, mix, pulse, sin, cos, snap, TAU } from '../sculpt/rig';
@@ -37,12 +37,11 @@ function balloon(r: number): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(r < 13 ? 1.8 : 1.6, 2);
-  // old latex (D-50): sun-faded and grimy, darker and puckered toward the knot
+  // old latex (D-50): sun-faded, darker and puckered toward the knot (D-88: its grime was noise)
   const latex: ColorFn = (p) => {
     const lit = 0.6 + 0.2 * Math.max(0, p.x / r * 0.5 + p.y / (r * 2) * 0.5);
-    const grime = 0.74 + 0.34 * vnoise(p.x * 0.16 + 3, p.y * 0.16, p.z * 0.16);
     const knot = 0.55 + 0.45 * Math.min(1, Math.max(0, p.y / (r * 0.9)));
-    return C(0xffffff).multiplyScalar(lit * grime * knot);
+    return C(0xffffff).multiplyScalar(lit * 0.9 * knot);
   };
   sc.add({ t: 'ell', c: [0, r * 1.05, 0], r: [r, r * 1.08, r] }, { col: latex, bone: b('body'), k: 0, surf: [0.4, 0] });
   sc.add({ t: 'cap', a: [0, r * 0.4, 0], b: [0, 0.2, 0], ra: r * 0.62, rb: r * 0.16 }, { col: latex, bone: b('body'), k: r * 0.6, surf: [0.4, 0] });
@@ -67,30 +66,69 @@ function balloon(r: number): SculptModel {
     move: { frames: 48, fn: (t) => ({ body: { ty: 2.5 * sin(t), rz: 0.12 * sin(t, 1, 0.2), rx: 0.08 * cos(t), sy: 1 + 0.03 * sin(t, 2), sx: 1 - 0.015 * sin(t, 2) }, s0: { rz: 0.25 * sin(t, 1, -0.15), rx: 0.15 * cos(t, 1, -0.1) }, s1: { rz: 0.3 * sin(t, 1, -0.3) }, s2: { rz: 0.35 * sin(t, 1, -0.45) } }) },
     attack: { frames: 16, loop: false, fn: (t) => ({ body: { sx: 1 + 0.25 * ease(t), sy: 1 + 0.25 * ease(t), sz: 1 + 0.25 * ease(t), rz: 0.1 * Math.sin(t * 40) * t } }) },
   };
-  return { geo: sc.build({ ao: 0.35, aoScale: r / 17 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build({ ...CREATURE, aoScale: r / 17 }), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== wind-up monkey
 function windUpMonkey(): SculptModel {
+  // D-88, on the standard: a tin cymbal monkey in layers — brown felt, a heart-shaped tan face with hot red eyes
+  // and a wide porcelain grin, big round ears, a glossy red tin jacket with gold trim drawn per pixel, a fez
+  // with a gold tassel, brass cymbals, the key in its back. The same skeleton, size and clips.
   const P: Proportions = { ...scaleP(ADULT, 0.5), hip: 13, knee: 7, ankle: 2, waist: 19, chest: 25, shoulderY: 29, shoulderX: 10, elbowY: 21, wristY: 14, neck: 32, headY: 41, headR: 10, stance: 4.6, leg: [3.4, 3, 2.6], arm: [2.6, 2.3, 2], hipW: 8, waistW: 9.5, chestW: 10.5, depth: 0.9, armOut: 2 };
   const bones = humanBones(P, [{ name: 'key', parent: 'spine', head: [0, 21, -10] }]);
   const b = bi(bones);
-  const sc = new Sculpt(1.6, 2.6);
-  const fur = weather(0x5a4030, 0.35, 0.18);
-  const tin = weather(PAL.red, 0.45, 0.1, PAL.iron);
-  humanBody(sc, P, b, { skin: fur, torso: tin, hips: tin, upperArm: fur, foreArm: fur, hand: weather(0xc9a07e, 0.3), thigh: fur, shin: fur, shoe: PAL.ink, torsoSurf: SURF.paint });
-  sc.add({ t: 'tor', c: [0, 22, 0], R: 9.6, r: 1.2 }, { col: PAL.brass, bone: b('spine'), k: 0.4, surf: SURF.brass });
-  head(sc, P, b('head'), { skin: fur, nose: 0.6, ears: false, brow: 1.4, cheeks: 0.8 });
-  sc.add({ t: 'ell', c: [0, 38, 7], r: [6.6, 5, 4.8] }, { col: weather(0xc9a07e, 0.3), bone: b('head'), k: 2, surf: SURF.skin });
-  for (const s of [1, -1]) sc.add({ t: 'ell', c: [s * 10, 42, 0], r: [3.6, 4.6, 2.2] }, { col: weather(0xc9a07e, 0.3), bone: b('head'), k: 1.2, surf: SURF.skin });
-  sc.add({ t: 'box', c: [0, 35.6, 10.2], h: [4.6, 1, 1.4], r: 0.6 }, { sub: true, k: 1 });
-  sc.detail(rbox(8, 1.6, 1.2, 0.5, 1), { col: PAL.bone, bone: b('head'), pos: [0, 35.4, 10.4], surf: SURF.porcelain });
-  eyeDetails(sc, P, b('head'), { size: 0.24, y: 0.15, iris: PAL.hotRed, glow: 1, sclera: PAL.bone });
-  sc.detail(cyl(4.2, 5.2, 6, 14), { col: PAL.blood, bone: b('head'), pos: [0, 51, -0.6], rot: [-0.2, 0, 0.15], surf: SURF.velvet });
-  sc.detail(tube([[0, 54, -1], [3, 53, -3], [4.6, 48, -3.4]], 0.5, 4, 8), { col: PAL.gold, bone: b('head'), surf: SURF.gold });
-  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) sc.detail(lathe([[0, 0.8], [6.2, 0], [6.6, -0.4], [0, -0.6]], 16), { col: PAL.brass, bone: b(`hand${n}`), pos: [s * 12.5, 10.5, 3], rot: [0, 0, s * Math.PI / 2], surf: SURF.brass });
-  sc.detail(cyl(1, 1, 7, 6), { col: PAL.brass, bone: b('key'), pos: [0, 21, -12], rot: [Math.PI / 2, 0, 0], surf: SURF.brass });
-  for (const s of [-1, 1]) sc.detail(torus(3, 1, 6, 10), { col: PAL.brass, bone: b('key'), pos: [s * 3.6, 21, -15], rot: [0, Math.PI / 2, 0], surf: SURF.brass });
+  const fur = new Sculpt(1.4, 2.6, 0.5), face = new Sculpt(1.3, 2.6, 0.5), tin = new Sculpt(1.6, 2.6, 0.5);
+  const FUR = 0x5a3e2c, TAN = 0xc9a07e, RED = 0x9a2a22, GOLD = 0xb8933e;
+  const r = P.headR, y = P.headY;
+  const fs = { col: FUR, surf: SURF.plush };
+  // ---- felt: a round head with big round ears, long arms, short legs
+  fur.add({ t: 'ell', c: [0, y + r * 0.05, -r * 0.05], r: [r, r * 0.95, r * 0.92] }, { ...fs, bone: b('head'), k: 1 });
+  for (const s of [1, -1]) fur.add({ t: 'ell', c: [s * r * 1.02, y + r * 0.12, -r * 0.1], r: [r * 0.22, r * 0.44, r * 0.4], rot: [0, s * 0.2, 0] }, { ...fs, bone: b('head'), k: 0.8 });
+  fur.add({ t: 'cap', a: [0, P.neck - 3, 0], b: [0, P.neck + 2, 0], ra: r * 0.42, rb: r * 0.4 }, { ...fs, bone: b('neck'), k: 1, ink: false });
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
+    const sh: V3 = [s * P.shoulderX, P.shoulderY, 0], el: V3 = [s * (P.shoulderX + P.armOut), P.elbowY, -0.8], wr: V3 = [s * (P.shoulderX + P.armOut * 1.6), P.wristY, 0.8];
+    fur.add({ t: 'cap', a: sh, b: el, ra: P.arm[0], rb: P.arm[1] }, { ...fs, bone: b(`arm${n}`), k: 1.2 });
+    fur.add({ t: 'cap', a: el, b: wr, ra: P.arm[1], rb: P.arm[2] }, { ...fs, bone: b(`fore${n}`), k: 1 });
+    const hp: V3 = [s * P.stance, P.hip - 1, 0], kn: V3 = [s * (P.stance + 0.4), P.knee, 0.6], an: V3 = [s * (P.stance + 0.4), P.ankle + 1, 0];
+    fur.add({ t: 'cap', a: hp, b: kn, ra: P.leg[0], rb: P.leg[1] }, { ...fs, bone: b(`thigh${n}`), k: 1.5 });
+    fur.add({ t: 'cap', a: kn, b: an, ra: P.leg[1], rb: P.leg[2] }, { ...fs, bone: b(`shin${n}`), k: 1 });
+    // tan paws and feet
+    face.add({ t: 'ell', c: [wr[0] + s * 0.3, wr[1] - 2.4, wr[2] + 0.6], r: [2.4, 2.8, 2.2] }, { col: TAN, bone: b(`hand${n}`), k: 0.6, surf: FAM.skin });
+    face.add({ t: 'ell', c: [an[0], 1.8, 2.4], r: [2.6, 1.8, 4.2] }, { col: TAN, bone: b(`foot${n}`), k: 0.6, surf: FAM.skin });
+  }
+  // ---- the face: a heart-shaped tan mask (two lobes round the eyes, the muzzle), the ears' insides
+  const tan = { col: TAN, bone: b('head'), surf: FAM.skin };
+  for (const s of [1, -1]) {
+    face.add({ t: 'ell', c: [s * r * 0.3, y + r * 0.12, r * 0.62], r: [r * 0.36, r * 0.34, r * 0.34] }, { ...tan, k: 0.8 });
+    face.add({ t: 'ell', c: [s * r * 1.05, y + r * 0.12, r * 0.02], r: [r * 0.12, r * 0.3, r * 0.26], rot: [0, s * 0.2, 0] }, { ...tan, k: 0.5 });
+  }
+  face.add({ t: 'ell', c: [0, y - r * 0.32, r * 0.62], r: [r * 0.62, r * 0.42, r * 0.44] }, { ...tan, k: 1 });
+  // the grin, carved wide, full of porcelain teeth
+  face.add({ t: 'box', c: [0, y - r * 0.5, r * 1.02], h: [r * 0.42, r * 0.1, r * 0.16], r: 0.5 }, { sub: true, k: 0.6 });
+  face.detail(rbox(r * 0.8, r * 0.16, 1.0, 0.4, 1), { col: 0xe8e0cc, bone: b('head'), pos: [0, y - r * 0.5, frontZ(face, 0, y - r * 0.5) - 0.3], surf: SURF.porcelain, ink: false });
+  for (const s of [1, -1]) {
+    const ex = s * r * 0.3, ey = y + r * 0.14, ez = frontZ(face, ex, ey);
+    face.detail(ellipsoid(r * 0.2, r * 0.24, r * 0.1, 12, 8), { col: 0xe8e0cc, bone: b('head'), pos: [ex, ey, ez - r * 0.03], rot: [0, s * 0.3, 0], surf: SURF.porcelain, ink: false });
+    face.detail(sphere(r * 0.1, 10, 8), { col: PAL.hotRed, bone: b('head'), pos: [ex + s * r * 0.02, ey - r * 0.02, ez + r * 0.04], emit: 1.2, surf: FAM.eye });
+  }
+  face.detail(ellipsoid(r * 0.14, r * 0.09, r * 0.08, 10, 6), { col: 0x2a1a14, bone: b('head'), pos: [0, y - r * 0.18, frontZ(face, 0, y - r * 0.18) + 0.05], surf: FAM.latex });
+  // ---- the tin jacket: glossy red, gold trim drawn per pixel, brass buttons
+  const tj = { col: RED, surf: [0.4, 0.2] as Surf, pat: { kind: 'bands', col: GOLD, a: 6, b: 0.14, c: 0.2 } as const };
+  tin.add({ t: 'ell', c: [0, P.hip + 1, 0], r: [P.hipW + 0.6, 6, (P.hipW + 0.6) * P.depth] }, { ...tj, bone: b('hips'), k: 1.5 });
+  tin.add({ t: 'ell', c: [0, P.waist, 0.4], r: [P.waistW + 0.6, 6, (P.waistW + 0.6) * P.depth] }, { ...tj, bone: b('spine'), k: 3 });
+  tin.add({ t: 'ell', c: [0, P.chest + 1, 0.5], r: [P.chestW + 0.6, 6.5, (P.chestW + 0.6) * P.depth] }, { ...tj, bone: b('chest'), k: 3 });
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) tin.add({ t: 'sph', c: [s * (P.shoulderX - 1), P.shoulderY - 0.5, 0], r: P.arm[0] + 1.2 }, { ...tj, bone: b(`arm${n}`), k: 2 });
+  for (let i = 0; i < 3; i++) {
+    const by = P.waist - 3 + i * 4;
+    tin.detail(sphere(0.8, 8, 6), { col: PAL.brass, bone: b(i < 2 ? 'spine' : 'chest'), pos: [0, by, frontZ(tin, 0, by) + 0.3], surf: FAM.brass });
+  }
+  // the fez and its tassel; the cymbals; the key in its back
+  tin.detail(cyl(r * 0.42, r * 0.52, r * 0.6, 16), { col: 0x8f1d18, bone: b('head'), pos: [0, y + r * 1.0, -0.6], rot: [-0.2, 0, 0.15], surf: SURF.velvet });
+  tin.detail(tube([[0, y + r * 1.3, -1], [3, y + r * 1.2, -3], [4.6, y + r * 0.7, -3.4]], 0.5, 4, 8), { col: GOLD, bone: b('head'), surf: FAM.gold, ink: false });
+  // (lathe profiles run bottom to top, or the faces point inward and the outline covers the part in black)
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) tin.detail(lathe([[0, -0.6], [6.6, -0.4], [6.2, 0], [0, 0.8]], 16), { col: 0xd0aa58, bone: b(`hand${n}`), pos: [s * 12.5, 10.5, 3], rot: [0, 0, s * Math.PI / 2], surf: [0.36, 0.35] });
+  tin.detail(cyl(1, 1, 7, 6), { col: PAL.brass, bone: b('key'), pos: [0, 21, -12], rot: [Math.PI / 2, 0, 0], surf: FAM.brass });
+  for (const s of [-1, 1]) tin.detail(torus(3, 1, 6, 10), { col: PAL.brass, bone: b('key'), pos: [s * 3.6, 21, -15], rot: [0, Math.PI / 2, 0], surf: FAM.brass });
   const gait: Gait = { ...GAIT_WALK, stride: 0.38, knee: 0.15, bob: 1.6, sway: 0.2, twist: 0.05, squash: 0.08, arm: 0.2, elbow: 0.6, armOut: 0.5, headBob: 0.08 };
   const clips: Clips = {
     // a clockwork waddle; the cymbals tap in time and the key never stops turning
@@ -101,7 +139,8 @@ function windUpMonkey(): SculptModel {
       return { armL: { rz: -1.5 * open + 1.6 * crash, rx: -0.4 }, armR: { rz: 1.5 * open - 1.6 * crash, rx: -0.4 }, foreL: { rx: -0.6 }, foreR: { rx: -0.6 }, head: { rx: -0.3 * open + 0.3 * crash }, hips: { sy: 1 - 0.1 * crash }, key: { rz: t * TAU * 4 } };
     } },
   };
-  return { geo: sc.build({ ao: 0.6 }), rig: new Rig(bones, clips) };
+  const geo = layered([{ sc: fur, o: LAYER.cloth }, { sc: face, o: LAYER.skin }, { sc: tin, o: LAYER.hard }]);
+  return { geo, rig: new Rig(bones, clips) };
 }
 
 // ================================================================== possessed stuffie
@@ -110,10 +149,10 @@ function stuffie(k = 1): SculptModel {
   const bones = humanBones(P);
   const b = bi(bones);
   const sc = new Sculpt(k < 0.8 ? 1.5 : 1.6, 3 * k);
-  const plush = weather(0x7a6250, 0.45, 0.22, 0x9a8a70);
+  const plush = flat(0x7a6250);
   humanBody(sc, P, b, { skin: plush, torso: plush, upperArm: plush, foreArm: plush, hand: plush, thigh: plush, shin: plush, shoe: plush, torsoSurf: SURF.plush, legSurf: SURF.plush, noHands: true });
   for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) sc.add({ t: 'sph', c: [s * (P.shoulderX + P.armOut * 1.6), P.wristY - 2 * k, 1], r: 4.4 * k }, { col: plush, bone: b(`hand${n}`), k: 2 * k, surf: SURF.plush });
-  sc.add({ t: 'ell', c: [0, 17 * k, 8 * k], r: [7.5 * k, 8.5 * k, 3 * k] }, { col: weather(0xa89478, 0.3), bone: b('spine'), k: 1 * k, surf: SURF.plush });
+  sc.add({ t: 'ell', c: [0, 17 * k, 8 * k], r: [7.5 * k, 8.5 * k, 3 * k] }, { col: flat(0xa89478), bone: b('spine'), k: 1 * k, surf: SURF.plush });
   // stuffing bursting from a torn seam
   for (let i = 0; i < 5; i++) sc.add({ t: 'sph', c: [(-9 + i * 1.7) * k, (20 + (i % 2) * 2.5) * k, (8 - i * 0.6) * k], r: (2 + (i % 3) * 0.8) * k }, { col: PAL.cream, bone: b('spine'), k: 1 * k, surf: SURF.plush });
   head(sc, P, b('head'), { skin: plush, nose: 0.01, ears: false, brow: 0, cheeks: 0.8, chin: 0 });
@@ -121,7 +160,7 @@ function stuffie(k = 1): SculptModel {
     sc.add({ t: 'sph', c: [s * 8.6 * k, 48 * k, -1 * k], r: 4.4 * k }, { col: plush, bone: b('head'), k: 1.6 * k, surf: SURF.plush });
     sc.add({ t: 'sph', c: [s * 8.6 * k, 48 * k, 1.8 * k], r: 2.4 * k }, { sub: true, k: 1 * k });
   }
-  sc.add({ t: 'ell', c: [0, 36 * k, 8.6 * k], r: [5.4 * k, 4.2 * k, 4 * k] }, { col: weather(0xa89478, 0.3), bone: b('head'), k: 1.5 * k, surf: SURF.plush });
+  sc.add({ t: 'ell', c: [0, 36 * k, 8.6 * k], r: [5.4 * k, 4.2 * k, 4 * k] }, { col: flat(0xa89478), bone: b('head'), k: 1.5 * k, surf: SURF.plush });
   sc.detail(ellipsoid(1.8 * k, 1.3 * k, 1.2 * k, 8, 6), { col: PAL.ink, bone: b('head'), pos: [0, 38 * k, 12.3 * k], surf: SURF.porcelain });
   // one button eye; the other socket glows, its button dangling by a thread
   sc.detail(cyl(2.3 * k, 2.3 * k, 1 * k, 12), { col: PAL.ink, bone: b('head'), pos: [4 * k, 42 * k, 9.4 * k], rot: [Math.PI / 2 - 0.3, 0, 0], surf: SURF.porcelain });
@@ -152,7 +191,7 @@ function stuffie(k = 1): SculptModel {
       return { hips: { ty: -3 * k * crouch + 2 * k * leap, sy: 1 - 0.12 * crouch + 0.1 * leap }, spine: { rx: 0.35 * crouch + 0.5 * leap }, armL: { rx: -1.6 * leap - 0.3 * crouch }, armR: { rx: -1.6 * leap - 0.3 * crouch }, head: { rx: -0.3 * leap, rz: -0.2 }, thighL: { rx: -0.5 * crouch }, thighR: { rx: -0.5 * crouch }, shinL: { rx: 0.9 * crouch }, shinR: { rx: 0.9 * crouch } };
     } },
   };
-  return { geo: sc.build({ ao: 0.6, aoScale: k }), rig: new Rig(bones, clips) };
+  return { geo: sc.build({ ...CREATURE, aoScale: k }), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== cotton-candy slime
@@ -164,18 +203,18 @@ function cottonCandySlime(): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(1.8, 6);
-  const pink = weather(0xb5788f, 0.32, 0.2, 0xd5a0b3);
+  const pink = flat(0xb5788f);
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * TAU;
     const rr = 9 + vnoise(i, 1, 2) * 4;
     sc.add({ t: 'ell', c: [Math.cos(a) * 9, 7 + vnoise(i, 3, 1) * 3, Math.sin(a) * 9], r: [rr, rr * 0.75, rr] }, { col: pink, bone: b('base'), k: 6, surf: SURF.plush });
   }
-  sc.add({ t: 'ell', c: [0, 19, 0], r: [14.5, 13, 14] }, { col: weather(0xc08aa0, 0.3, 0.14, 0xe0b5c5), bone: b('mid'), k: 7, surf: SURF.plush });
-  sc.add({ t: 'ell', c: [1.6, 31, -1.6], r: [10, 10, 9.6] }, { col: weather(0xc08aa0, 0.3, 0.2), bone: b('top'), k: 6, surf: SURF.plush });
+  sc.add({ t: 'ell', c: [0, 19, 0], r: [14.5, 13, 14] }, { col: flat(0xc08aa0), bone: b('mid'), k: 7, surf: SURF.plush });
+  sc.add({ t: 'ell', c: [1.6, 31, -1.6], r: [10, 10, 9.6] }, { col: flat(0xc08aa0), bone: b('top'), k: 6, surf: SURF.plush });
   for (const s of [1, -1]) sc.add({ t: 'ell', c: [s * 5, 23, 12.8], r: [3, 3.8, 3] }, { sub: true, k: 1.4 });
   sc.add({ t: 'ell', c: [0, 15, 13.4], r: [5, 3, 3] }, { sub: true, k: 1.6 });
   for (const s of [1, -1]) glowEye(sc, b('mid'), [s * 5, 23.4, 10.8], 1.1, PAL.sickYellow, 1.6);
-  sc.detail(tube([[2, 13.4, 12.8], [2.6, 8, 14.6], [2.2, 3, 15.2]], (t) => 1.2 - t * 0.6, 5, 8), { col: weather(0xd8a5b8, 0.2)(new THREE.Vector3(), new THREE.Vector3()) as THREE.Color, bone: b('mid'), surf: SURF.latex });
+  sc.detail(tube([[2, 13.4, 12.8], [2.6, 8, 14.6], [2.2, 3, 15.2]], (t) => 1.2 - t * 0.6, 5, 8), { col: flat(0xd8a5b8)(new THREE.Vector3(), new THREE.Vector3()) as THREE.Color, bone: b('mid'), surf: SURF.latex });
   sc.detail(cone(5, 26, 12), { col: PAL.cream, bone: b('top'), pos: [-4, 40, -6], rot: [0.3, 0, 0.35], surf: SURF.canvas });
   const clips: Clips = {
     // squash-crawl: the base smears forward, the top sloshes behind
@@ -185,7 +224,7 @@ function cottonCandySlime(): SculptModel {
       return { mid: { sx: 1 + 0.2 * swell - 0.15 * spit, sy: 1 + 0.25 * swell - 0.2 * spit, sz: 1 + 0.2 * swell }, top: { rx: -0.3 * swell + 0.5 * spit }, base: { sy: 1 - 0.1 * swell } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== whack-a-mole
@@ -198,16 +237,16 @@ function whackAMole(): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(1.5, 3);
-  const fur = weather(0x4a3a30, 0.4, 0.22);
+  const fur = flat(0x4a3a30);
   sc.add({ t: 'cap', a: [0, 0, 0], b: [0, 18, 0.6], ra: 11.5, rb: 9.5 }, { col: fur, bone: b('body'), k: 2, surf: SURF.plush });
   sc.add({ t: 'ell', c: [0, 25, 1.4], r: [9, 8.5, 8.6] }, { col: fur, bone: b('head'), k: 4, surf: SURF.plush });
-  sc.add({ t: 'cap', a: [0, 23, 5], b: [0, 21.6, 12.2], ra: 4.6, rb: 2.6 }, { col: weather(0xb08a7a, 0.3), bone: b('head'), k: 2.4, surf: SURF.skin });
+  sc.add({ t: 'cap', a: [0, 23, 5], b: [0, 21.6, 12.2], ra: 4.6, rb: 2.6 }, { col: flat(0xb08a7a), bone: b('head'), k: 2.4, surf: SURF.skin });
   sc.add({ t: 'sph', c: [0, 22.2, 13.4], r: 2.4 }, { col: 0x9a5060, bone: b('head'), k: 0.8, surf: SURF.skin });
   sc.detail(rbox(4.2, 4.6, 1.4, 0.4, 1), { col: PAL.bone, bone: b('head'), pos: [0, 18.4, 11.4], surf: SURF.porcelain });
   for (const s of [1, -1]) glowEye(sc, b('head'), [s * 3.8, 27, 8.6], 1.5, PAL.hotRed, 1.3);
-  sc.detail(lathe([[0, 9], [8, 8.4], [10.4, 3], [12.4, 0.6], [12.4, 0], [0, 0]], 16), { col: weather(PAL.mustard, 0.5, 0.15, PAL.iron)(new THREE.Vector3(), new THREE.Vector3()) as THREE.Color, bone: b('head'), pos: [0, 29, 0], rot: [-0.15, 0, 0.2], surf: SURF.paint });
+  sc.detail(lathe([[0, 0], [12.4, 0], [12.4, 0.6], [10.4, 3], [8, 8.4], [0, 9]], 16), { col: flat(PAL.mustard)(new THREE.Vector3(), new THREE.Vector3()) as THREE.Color, bone: b('head'), pos: [0, 29, 0], rot: [-0.15, 0, 0.2], surf: SURF.paint });
   for (const [s, n] of [[1, 'clawL'], [-1, 'clawR']] as const) {
-    sc.add({ t: 'ell', c: [s * 9.4, 13.6, 8], r: [4.2, 2.6, 5] }, { col: weather(0xb08a7a, 0.3), bone: b(n), k: 1.5, surf: SURF.skin });
+    sc.add({ t: 'ell', c: [s * 9.4, 13.6, 8], r: [4.2, 2.6, 5] }, { col: flat(0xb08a7a), bone: b(n), k: 1.5, surf: SURF.skin });
     for (let i = 0; i < 3; i++) sc.detail(cone(0.8, 3.6, 5), { col: PAL.bone, bone: b(n), pos: [s * (7.8 + i * 1.4), 13, 12.4], rot: [Math.PI / 2, 0, 0], surf: SURF.bone });
   }
   const clips: Clips = {
@@ -217,7 +256,7 @@ function whackAMole(): SculptModel {
       return { body: { rx: -0.3 * up + 0.5 * slam }, clawL: { rx: -1.8 * up + 2 * slam }, clawR: { rx: -1.8 * up + 2 * slam }, head: { rx: -0.25 * up + 0.2 * slam } };
     } },
   };
-  return { geo: sc.build({ ao: 0.55 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== evil clown
@@ -325,27 +364,78 @@ function evilClown(): SculptModel {
 
 // ================================================================== dunk-tank clown
 function dunkTankClown(): SculptModel {
+  // D-88, on the standard: a clown fished out of the dunk tank, in layers — grey-blue skin, his paint running
+  // from cold glowing eyes, a glossy red nose, a sad mouth; waterlogged hair plastered down; a limp, soaked
+  // ruff; a striped bathing suit drawn per pixel; white gloves, big teal shoes; the dripping bucket. The same
+  // skeleton, size and clips.
   const P = scaleP(ADULT, 0.9, { headR: 11.5, chestW: 12.5, waistW: 12.5, hipW: 12 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.9, 4);
-  const suit = stripes(12, PAL.navy, PAL.cream, 0, 0.35);
-  const skin = weather(0xb8c2c0, 0.25, 0.12);
-  humanBody(sc, P, b, { skin, torso: suit, hips: suit, upperArm: skin, foreArm: skin, hand: PAL.bone, gloves: true, thigh: skin, shin: skin, shoe: PAL.teal, bigShoes: 1.35, torsoSurf: SURF.latex });
-  head(sc, P, b('head'), { skin, nose: 0.01, brow: 0.6, cheeks: 0.9, chin: 0.8 });
-  sc.detail(sphere(2.6, 10, 8), { col: PAL.blood, bone: b('head'), pos: [0, P.headY - 0.6, 11.4], surf: SURF.latex });
-  eyeDetails(sc, P, b('head'), { size: 0.17, y: 0.05, iris: PAL.cold, glow: 1, lids: PAL.navy, tilt: 0.25 });
-  sc.detail(ellipsoid(4.4, 1.6, 2, 10, 6), { col: 0x3a4c6a, bone: b('head'), pos: [0, P.headY - 6.4, 10], surf: SURF.latex });
-  // waterlogged hair strands hanging over the face
-  for (let i = 0; i < 7; i++) {
-    const a = -1.4 + i * 0.47;
-    sc.add({ t: 'cap', a: [Math.sin(a) * 9, P.headY + 7, Math.cos(a) * 7 - 2], b: [Math.sin(a) * 12, P.headY - 6, Math.cos(a) * 9 - 3], ra: 1.6, rb: 1.1 }, { col: weather(0x3a5048, 0.3), bone: b('head'), k: 1, surf: SURF.latex });
+  const skin = new Sculpt(1.5, 4, 0.5), hair = new Sculpt(1.7, 4, 0.5), suit = new Sculpt(2.2, 4.5, 0.5), ruff = new Sculpt(1.8, 4, 0.5);
+  const gloves = new Sculpt(1.6, 3, 0.5), shoes = new Sculpt(1.9, 3, 0.5);
+  const SKIN = 0xa9b6b4, NAVY = 0x23304a, CREAM = 0xd2c6aa, RUN = 0x2a3650;
+  const r = P.headR, y = P.headY;
+  const sk = { col: SKIN, surf: FAM.skin };
+  // ---- skin: a round bald head gone grey-blue, full cheeks, a heavy brow over deep sockets; bare arms and legs
+  skin.add({ t: 'ell', c: [0, y + r * 0.1, -r * 0.05], r: [r, r * 1.02, r * 0.98] }, { ...sk, bone: b('head'), k: 1.5 });
+  skin.add({ t: 'ell', c: [0, y - r * 0.46, r * 0.18], r: [r * 0.72, r * 0.5, r * 0.7] }, { ...sk, bone: b('head'), k: 2.4 });
+  for (const s of [1, -1]) {
+    skin.add({ t: 'ell', c: [s * r * 0.5, y - r * 0.26, r * 0.55], r: [r * 0.34, r * 0.28, r * 0.28] }, { ...sk, bone: b('head'), k: 1.8 });
+    skin.add({ t: 'ell', c: [s * r * 0.96, y - r * 0.02, -r * 0.05], r: [r * 0.12, r * 0.24, r * 0.18] }, { ...sk, bone: b('head'), k: 0.8 });
+    skin.add({ t: 'ell', c: [s * r * 0.36, y + r * 0.06, r * 0.9], r: [r * 0.22, r * 0.17, r * 0.15] }, { sub: true, k: 0.8 });
   }
-  // the dripping bucket in the left hand
+  skin.add({ t: 'ell', c: [0, y + r * 0.28, r * 0.74], r: [r * 0.62, r * 0.12, r * 0.2] }, { ...sk, bone: b('head'), k: 1.2 });
+  skin.add({ t: 'cap', a: [0, P.neck - 3, 0], b: [0, P.neck + 3, 0.3], ra: r * 0.34, rb: r * 0.3 }, { ...sk, bone: b('neck'), k: 2, ink: false });
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
+    const sh: V3 = [s * P.shoulderX, P.shoulderY, 0], el: V3 = [s * (P.shoulderX + P.armOut), P.elbowY, -0.8], wr: V3 = [s * (P.shoulderX + P.armOut * 1.6), P.wristY, 0.8];
+    skin.add({ t: 'cap', a: sh, b: el, ra: P.arm[0], rb: P.arm[1] }, { ...sk, bone: b(`arm${n}`), k: 2 });
+    skin.add({ t: 'cap', a: el, b: wr, ra: P.arm[1], rb: P.arm[2] }, { ...sk, bone: b(`fore${n}`), k: 1.5 });
+    const hp: V3 = [s * P.stance, P.hip - 2, 0], kn: V3 = [s * (P.stance + 0.4), P.knee, 0.6], an: V3 = [s * (P.stance + 0.4), P.ankle + 1, 0];
+    skin.add({ t: 'cap', a: hp, b: kn, ra: P.leg[0], rb: P.leg[1] }, { ...sk, bone: b(`thigh${n}`), k: 3 });
+    skin.add({ t: 'cap', a: kn, b: an, ra: P.leg[1], rb: P.leg[2] }, { ...sk, bone: b(`shin${n}`), k: 1.5 });
+    styleHand(gloves, wr, s, P.arm[2], 0xe4ded2, b(`hand${n}`), FAM.cloth, true);
+    styleShoe(shoes, [an[0], P.ankle, 0], 13, 0x2e6a68, b(`foot${n}`), { width: 1.25, toeUp: 0.16, surf: FAM.rubber, sole: 0x14262a });
+  }
+  const fz = (x: number, yy: number) => frontZ(skin, x, yy);
+  // the paint washed away but round the eyes: cold glowing eyes in smeared navy, running down the cheeks; a
+  // glossy red nose; a sad mouth in faded blue
+  for (const s of [1, -1]) {
+    const ex = s * r * 0.36, ey = y + r * 0.06;
+    skin.detail(ellipsoid(r * 0.25, r * 0.21, 0.5, 12, 6), { col: RUN, bone: b('head'), pos: [ex, ey, fz(ex, ey) - 0.15], rot: [0, s * 0.35, s * 0.25], surf: FAM.greasepaint, ink: false });
+    glowEye(skin, b('head'), [ex, ey, fz(ex, ey) - 0.2], r * 0.09, PAL.cold, 1.4);
+    const run = ([[ex + s * r * 0.04, ey - r * 0.14], [ex + s * r * 0.05, ey - r * 0.32], [ex + s * r * 0.06, ey - r * 0.48]] as const).map(([x, yy]): V3 => [x, yy, fz(x, yy) + 0.05]);
+    skin.detail(tube(run, 0.38, 4, 8), { col: RUN, bone: b('head'), surf: FAM.greasepaint, ink: false });
+  }
+  skin.detail(sphere(3.1, 12, 8), { col: 0xa81d18, bone: b('head'), pos: [0, y - r * 0.08, fz(0, y - r * 0.08) + 1.2], surf: FAM.latex, ink: false });
+  const mouth = [-1, -0.5, 0, 0.5, 1].map((u): V3 => {
+    const x = u * r * 0.42, yy = y - r * 0.54 + (1 - u * u) * r * 0.08;
+    return [x, yy, fz(x, yy) + 0.1];
+  });
+  skin.detail(tube(mouth, 0.75, 5, 14), { col: 0x3a4c6a, bone: b('head'), surf: FAM.greasepaint, ink: false });
+  // ---- hair: what's left, waterlogged, plastered down the sides and back of the crown in strands
+  for (const a of [-2.3, -1.7, -1.15, 1.15, 1.7, 2.3]) {
+    hair.add({ t: 'cap', a: [Math.sin(a) * r * 0.5, y + r * 1.0, Math.cos(a) * r * 0.4], b: [Math.sin(a) * r * 0.98, y - r * 0.4, Math.cos(a) * r * 0.66], ra: 1.5, rb: 1.0 }, { col: 0x2e4440, bone: b('head'), k: 0.6, surf: FAM.latex });
+  }
+  // ---- the bathing suit: navy and cream stripes per pixel, to mid-thigh
+  const su = { col: NAVY, surf: FAM.cloth, pat: { kind: 'stripes', col: CREAM, a: 12, b: 0.5 } as const };
+  suit.add({ t: 'ell', c: [0, P.hip + 1, 0], r: [P.hipW + 1.2, 8, (P.hipW + 1.2) * P.depth] }, { ...su, bone: b('hips'), k: 2 });
+  suit.add({ t: 'ell', c: [0, P.waist, 0.5], r: [P.waistW + 0.9, 9, (P.waistW + 0.9) * P.depth] }, { ...su, bone: b('spine'), k: 5 });
+  suit.add({ t: 'ell', c: [0, P.chest + 1, 0.6], r: [P.chestW + 0.7, 9, (P.chestW + 0.7) * P.depth] }, { ...su, bone: b('chest'), k: 5 });
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
+    suit.add({ t: 'sph', c: [s * (P.shoulderX - 1), P.shoulderY - 0.5, 0], r: P.arm[0] + 1.6 }, { ...su, bone: b('chest'), k: 3 });
+    const hp: V3 = [s * P.stance, P.hip - 2, 0], kn: V3 = [s * (P.stance + 0.4), P.knee, 0.6];
+    suit.add({ t: 'cap', a: hp, b: [(hp[0] + kn[0]) / 2, (hp[1] + kn[1]) / 2, 0.3], ra: P.leg[0] + 1.1, rb: P.leg[0] + 0.7 }, { ...su, bone: b(`thigh${n}`), k: 2 });
+  }
+  // ---- the ruff, limp and soaked: its pleats hang instead of standing out
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * TAU;
+    ruff.add({ t: 'ell', c: [Math.cos(a) * 10.6, P.neck - 4.2, 1 + Math.sin(a) * 9.8], r: [3.8, 2.4, 2.8], rot: [0, -a, 0.75] }, { col: 0xc8c4b4, bone: b('chest'), k: 1, surf: FAM.cloth });
+  }
+  // ---- the dripping bucket in the left hand
   const hx = P.shoulderX + P.armOut * 1.6;
-  sc.detail(lathe([[0, 0], [5, 0], [6.4, 9], [0, 9]], 14), { col: C(PAL.iron), bone: b('handL'), pos: [hx + 1, P.wristY - 16, 4], surf: SURF.iron });
-  sc.detail(cyl(5.8, 5.8, 0.6, 14), { col: 0x203a48, bone: b('handL'), pos: [hx + 1, P.wristY - 7.4, 4], emit: 0.2, surf: SURF.glass });
-  sc.detail(torus(6.2, 0.4, 4, 14, Math.PI), { col: PAL.iron, bone: b('handL'), pos: [hx + 1, P.wristY - 6.6, 4], surf: SURF.iron });
+  gloves.detail(lathe([[0, 0], [5, 0], [6.4, 9], [0, 9]], 16), { col: C(PAL.iron), bone: b('handL'), pos: [hx + 1, P.wristY - 16, 4], surf: FAM.iron });
+  gloves.detail(cyl(5.8, 5.8, 0.6, 16), { col: 0x203a48, bone: b('handL'), pos: [hx + 1, P.wristY - 7.4, 4], emit: 0.2, surf: SURF.glass });
+  gloves.detail(torus(6.2, 0.4, 4, 16, Math.PI), { col: PAL.iron, bone: b('handL'), pos: [hx + 1, P.wristY - 6.6, 4], surf: FAM.iron });
   const gait: Gait = { ...GAIT_WALK, stride: 0.32, knee: 0.4, bob: 1.1, lean: 0.18, sway: 0.08, twist: 0.05, squash: 0.03, arm: 0.12, armOut: 0.2, elbow: 0.15, headBob: 0.05 };
   const clips: Clips = {
     // a soggy, slump-shouldered shuffle
@@ -356,41 +446,93 @@ function dunkTankClown(): SculptModel {
       return { armL: { rx: 1.2 * back - 2.4 * heave, rz: -0.3 * back }, foreL: { rx: -0.5 * back }, chest: { ry: -0.4 * back + 0.5 * heave, rx: -0.15 * back + 0.3 * heave }, hips: { sy: 1 - 0.06 * back } };
     } },
   };
-  return { geo: sc.build({ ao: 0.6 }), rig: new Rig(bones, clips) };
+  const geo = layered([{ sc: skin, o: LAYER.skin }, { sc: hair, o: LAYER.hair }, { sc: suit, o: LAYER.cloth }, { sc: ruff, o: LAYER.cloth }, { sc: gloves, o: LAYER.cloth }, { sc: shoes, o: LAYER.hard }]);
+  return { geo, rig: new Rig(bones, clips) };
 }
 
 // ================================================================== puppet soldier
 function puppetSoldier(): SculptModel {
+  // D-88, on the standard: a toy soldier on strings, in layers — a wooden head with painted eyes, red cheeks and
+  // a painted moustache under a tall black shako with a brass plate and a red plume; a red tunic with white
+  // cross-belts, brass buttons and gold epaulettes; navy trousers; glossy black boots; a wooden ball showing at
+  // every joint. The musket and the strings as before; the same skeleton, size and snapping march.
   const P = scaleP(ADULT, 0.95, { headR: 10, chestW: 11, waistW: 10, hipW: 10, arm: [3.4, 3.1, 2.8], leg: [3.8, 3.4, 3.2], stance: 6 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.8, 1.5); // tight joint band: wooden segments stay rigid
-  const coat = weather(PAL.red, 0.42, 0.1, PAL.woodPale);
-  const wood = weather(PAL.woodPale, 0.32, 0.1);
-  humanBody(sc, P, b, { skin: wood, torso: coat, hips: weather(PAL.navy, 0.35), upperArm: coat, foreArm: coat, hand: wood, thigh: weather(PAL.navy, 0.35), shin: PAL.ink, shoe: PAL.ink, torsoSurf: SURF.paint, legSurf: SURF.paint });
-  // wooden ball joints at every hinge
-  for (const n of ['L', 'R']) {
-    const s = n === 'L' ? 1 : -1;
-    for (const [bn, p] of [[`arm${n}`, [s * P.shoulderX, P.shoulderY, 0]], [`fore${n}`, [s * (P.shoulderX + P.armOut), P.elbowY, -0.8]], [`shin${n}`, [s * (P.stance + 0.4), P.knee, 0.6]]] as [string, V3][]) {
-      sc.add({ t: 'sph', c: p, r: (bn.startsWith('shin') ? P.leg[1] : P.arm[1]) + 0.9 }, { col: wood, bone: b(bn), k: 0.5, surf: SURF.wood });
-    }
+  // (tight joint bands: wooden segments stay rigid)
+  const wood = new Sculpt(1.5, 1.5, 0.5), coat = new Sculpt(1.9, 1.5, 0.5), legs = new Sculpt(1.9, 1.5, 0.5);
+  const WOOD = 0xb08a62, RED = 0x9a2a22, NAVY = 0x1f2a44, WHITE = 0xe2dccc, GOLD = 0xb8933e;
+  const r = P.headR, y = P.headY;
+  const wd = { col: WOOD, surf: FAM.wood };
+  // ---- wood: a turned head with a squared jaw and a long nose, the neck, mitten hands, a ball at every joint
+  wood.add({ t: 'ell', c: [0, y + r * 0.08, 0], r: [r * 0.88, r * 1.0, r * 0.88] }, { ...wd, bone: b('head'), k: 1 });
+  wood.add({ t: 'box', c: [0, y - r * 0.55, r * 0.12], h: [r * 0.62, r * 0.34, r * 0.6], r: r * 0.2 }, { ...wd, bone: b('head'), k: 0.8 });
+  wood.add({ t: 'cap', a: [0, y + r * 0.02, r * 0.78], b: [0, y - r * 0.2, r * 1.08], ra: r * 0.13, rb: r * 0.16 }, { ...wd, bone: b('head'), k: 0.6 });
+  wood.add({ t: 'cap', a: [0, P.neck - 3, 0], b: [0, P.neck + 2.5, 0], ra: r * 0.36, rb: r * 0.34 }, { ...wd, bone: b('neck'), k: 0.8, ink: false });
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
+    const sh: V3 = [s * P.shoulderX, P.shoulderY, 0], el: V3 = [s * (P.shoulderX + P.armOut), P.elbowY, -0.8], wr: V3 = [s * (P.shoulderX + P.armOut * 1.6), P.wristY, 0.8];
+    const kn: V3 = [s * (P.stance + 0.4), P.knee, 0.6];
+    for (const [bn, p, rr] of [[`arm${n}`, sh, P.arm[1] + 1.1], [`fore${n}`, el, P.arm[1] + 0.9], [`shin${n}`, kn, P.leg[1] + 0.9]] as const) wood.add({ t: 'sph', c: p, r: rr }, { ...wd, bone: b(bn), k: 0.3 });
+    wood.add({ t: 'ell', c: [wr[0] + s * 0.3, wr[1] - 3.4, wr[2] + 0.4], r: [2.6, 3.6, 2.4] }, { ...wd, bone: b(`hand${n}`), k: 0.5 });
   }
-  // white cross-belts and a brass-buttoned front
-  sc.add({ t: 'box', c: [0, P.chest - 2, P.chestW * P.depth + 0.3], h: [1.4, 13, 0.6], r: 0.4, rot: [0, 0, 0.5] }, { col: PAL.bone, bone: b('chest'), k: 0.3 });
-  sc.add({ t: 'box', c: [0, P.chest - 2, P.chestW * P.depth + 0.5], h: [1.4, 13, 0.6], r: 0.4, rot: [0, 0, -0.5] }, { col: PAL.bone, bone: b('chest'), k: 0.3 });
-  head(sc, P, b('head'), { skin: wood, nose: 1.1, ears: false, brow: 0.5, cheeks: 0.7, chin: 0.6 });
-  for (const s of [-1, 1]) sc.detail(cyl(2, 2, 0.4, 10), { col: 0xa04a40, bone: b('head'), pos: [s * 5.6, P.headY - 2.4, 7.8], rot: [Math.PI / 2, 0, s * 0.6], surf: SURF.paint });
-  eyeDetails(sc, P, b('head'), { size: 0.12, sclera: -1, iris: PAL.ink, y: 0.18 });
-  sc.detail(ellipsoid(3, 0.8, 1, 8, 4), { col: PAL.ink, bone: b('head'), pos: [0, P.headY - 5.4, 8.8], surf: SURF.paint });
-  sc.detail(lathe([[0, 0], [9.6, 0], [10.4, 10], [9.4, 20], [0, 21]], 16, 10), { col: C(PAL.ink).multiplyScalar(1.2), bone: b('head'), pos: [0, P.headY + 6, -0.5], surf: SURF.velvet });
-  sc.detail(rbox(4, 6, 2, 0.6, 1), { col: PAL.brass, bone: b('head'), pos: [0, P.headY + 11, 9.6], surf: SURF.brass });
-  for (let i = 0; i < 4; i++) sc.detail(sphere(0.9, 6, 4), { col: PAL.brass, bone: b(i < 2 ? 'spine' : 'chest'), pos: [0, P.waist - 4 + i * 5.2, P.chestW * P.depth + 0.9], surf: SURF.brass });
+  const fz = (x: number, yy: number) => frontZ(wood, x, yy);
+  // the face, painted: round black eyes, high brows, red cheek discs, a waxed moustache, the jaw's hinge line
+  for (const s of [-1, 1]) {
+    const ex = s * r * 0.34, ey = y + r * 0.16;
+    wood.detail(sphere(r * 0.1, 8, 6), { col: PAL.ink, bone: b('head'), pos: [ex, ey, fz(ex, ey) - 0.1], surf: FAM.eye });
+    wood.detail(rbox(r * 0.34, r * 0.07, 0.3, 0.1, 1), { col: PAL.ink, bone: b('head'), pos: [ex, y + r * 0.38, fz(ex, y + r * 0.38) + 0.05], rot: [0, s * 0.3, s * -0.12], surf: SURF.paint });
+    const cx = s * r * 0.52, cy = y - r * 0.18;
+    wood.detail(cyl(r * 0.2, r * 0.2, 0.3, 14), { col: 0xb8443a, bone: b('head'), pos: [cx, cy, fz(cx, cy) + 0.05], rot: [Math.PI / 2, 0, -s * 0.55], surf: SURF.paint });
+  }
+  const my = y - r * 0.42, mz = fz(r * 0.25, my);
+  wood.detail(tube([[-r * 0.52, my + r * 0.12, mz - r * 0.2], [-r * 0.22, my - r * 0.02, mz - 0.1], [0, my + r * 0.02, mz + 0.2], [r * 0.22, my - r * 0.02, mz - 0.1], [r * 0.52, my + r * 0.12, mz - r * 0.2]], (t) => r * (0.03 + 0.05 * Math.sin(t * Math.PI)), 5, 14), { col: PAL.ink, bone: b('head'), surf: SURF.paint, ink: false });
+  wood.detail(rbox(r * 0.7, r * 0.06, 0.3, 0.1, 1), { col: 0x2a1a12, bone: b('head'), pos: [0, y - r * 0.6, fz(0, y - r * 0.6) + 0.05], surf: SURF.paint, ink: false });
+  // the shako: tall, black, flaring a little, a gold band, a brass plate, a glossy peak and a red plume on top
+  const sy = y + r * 0.62;
+  coat.detail(lathe([[0, 0], [r * 0.86, 0], [r * 0.9, r * 0.12], [r * 0.98, r * 1.5], [0, r * 1.5]], 20), { col: 0x16141a, bone: b('head'), pos: [0, sy, -0.4], rot: [-0.08, 0, 0], surf: [0.5, 0] });
+  coat.detail(cyl(r * 1.0, r * 0.99, r * 0.16, 20, true), { col: GOLD, bone: b('head'), pos: [0, sy + r * 1.42, -0.5], rot: [-0.08, 0, 0], surf: FAM.gold });
+  coat.detail(rbox(r * 0.5, r * 0.64, 0.6, 0.3, 1), { col: GOLD, bone: b('head'), pos: [0, sy + r * 0.72, r * 0.9], rot: [-0.12, 0, 0], surf: FAM.brass, ink: false });
+  coat.detail(ellipsoid(r * 0.7, 0.4, r * 0.38, 14, 6), { col: 0x0c0a0e, bone: b('head'), pos: [0, sy + 0.2, r * 0.82], rot: [0.25, 0, 0], surf: FAM.latex });
+  coat.detail(sphere(r * 0.3, 12, 8), { col: 0xb02a22, bone: b('head'), pos: [0, sy + r * 1.62, -0.6], surf: FAM.wool });
+  // ---- the tunic: red, a high collar, a short skirt, sleeves in two segments with white cuffs, gold epaulettes
+  const cs = { col: RED, surf: SURF.paint };
+  coat.add({ t: 'ell', c: [0, P.waist, 0.4], r: [P.waistW + 0.8, 8.5, (P.waistW + 0.8) * P.depth] }, { ...cs, bone: b('spine'), k: 3 });
+  coat.add({ t: 'ell', c: [0, P.chest + 1, 0.6], r: [P.chestW + 0.8, 9, (P.chestW + 0.8) * P.depth] }, { ...cs, bone: b('chest'), k: 3 });
+  coat.add({ t: 'cap', a: [0, P.waist - 3, 0.3], b: [0, P.hip - 4, 0.3], ra: P.waistW + 1.0, rb: P.hipW + 2.4, sz: P.depth + 0.1 }, { ...cs, bone: b('hips'), k: 2 });
+  coat.add({ t: 'tor', c: [0, P.neck - 2, 0.3], R: r * 0.4, r: 1.3 }, { ...cs, bone: b('chest'), k: 0.4 });
+  const along = (a: V3, c: V3, u: number): V3 => [a[0] + (c[0] - a[0]) * u, a[1] + (c[1] - a[1]) * u, a[2] + (c[2] - a[2]) * u];
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
+    const sh: V3 = [s * P.shoulderX, P.shoulderY, 0], el: V3 = [s * (P.shoulderX + P.armOut), P.elbowY, -0.8], wr: V3 = [s * (P.shoulderX + P.armOut * 1.6), P.wristY, 0.8];
+    coat.add({ t: 'cap', a: along(sh, el, 0.18), b: along(sh, el, 0.82), ra: P.arm[0] + 0.5, rb: P.arm[1] + 0.5 }, { ...cs, bone: b(`arm${n}`), k: 0.6 });
+    coat.add({ t: 'cap', a: along(el, wr, 0.2), b: along(el, wr, 0.86), ra: P.arm[1] + 0.5, rb: P.arm[2] + 0.6 }, { ...cs, bone: b(`fore${n}`), k: 0.6 });
+    coat.add({ t: 'tor', c: along(el, wr, 0.84), R: P.arm[2] + 0.8, r: 0.7 }, { col: WHITE, bone: b(`fore${n}`), k: 0.2, surf: SURF.paint });
+    coat.add({ t: 'ell', c: [s * (P.shoulderX - 0.5), P.shoulderY + 1.8, 0], r: [3.4, 1.1, 3.0] }, { col: GOLD, bone: b('chest'), k: 0.3, surf: FAM.gold });
+  }
+  coat.add({ t: 'box', c: [0, P.hip - 14, 0], h: [30, 10, 30], r: 0.1 }, { sub: true, k: 0.2 });
+  // white cross-belts (laid on the chest: as sculpted bands they were thinner than a mesh cell), brass buttons
+  for (const s of [1, -1]) {
+    const belt = [-1, -0.5, 0, 0.5, 1].map((u): V3 => [s * u * 6, P.chest - 2 + u * 10, frontZ(coat, s * u * 6, P.chest - 2 + u * 10) + 0.35]);
+    coat.detail(tube(belt, 0.8, 4, 12), { col: WHITE, bone: b('chest'), surf: SURF.paint, ink: false });
+  }
+  for (let i = 0; i < 4; i++) {
+    const by = P.waist - 3 + i * 4.4;
+    coat.detail(sphere(0.9, 8, 6), { col: 0xc4a258, bone: b(i < 2 ? 'spine' : 'chest'), pos: [0, by, frontZ(coat, 0, by) + 0.4], surf: FAM.brass });
+  }
+  // ---- navy trousers to the knee's ball joint, glossy black boots below it
+  const ls = { col: NAVY, surf: SURF.paint };
+  legs.add({ t: 'ell', c: [0, P.hip + 1, 0], r: [P.hipW + 0.3, 7, (P.hipW + 0.3) * P.depth] }, { ...ls, bone: b('hips'), k: 2, ink: false });
+  for (const [s, n] of [[1, 'L'], [-1, 'R']] as const) {
+    const hp: V3 = [s * P.stance, P.hip - 2, 0], kn: V3 = [s * (P.stance + 0.4), P.knee, 0.6], an: V3 = [s * (P.stance + 0.4), P.ankle + 1, 0];
+    legs.add({ t: 'cap', a: hp, b: [kn[0], kn[1] + 2.4, kn[2]], ra: P.leg[0] + 0.4, rb: P.leg[1] + 0.3 }, { ...ls, bone: b(`thigh${n}`), k: 1.5 });
+    legs.add({ t: 'cap', a: [kn[0], kn[1] - 2, kn[2]], b: an, ra: P.leg[1] + 0.5, rb: P.leg[2] + 0.6 }, { col: 0x141216, bone: b(`shin${n}`), k: 0.8, surf: FAM.leather });
+    styleShoe(legs, [an[0], P.ankle, 0], 9, 0x141216, b(`foot${n}`), { toeUp: 0.04, surf: FAM.leather });
+  }
   // musket, and the strings vanishing up into the dark
   const hx = -(P.shoulderX + P.armOut * 1.6);
-  sc.detail(cyl(1.1, 1.3, 46, 6), { col: PAL.woodDark, bone: b('handR'), pos: [hx - 1, P.wristY + 14, 3], surf: SURF.wood });
-  sc.detail(cyl(0.7, 0.7, 20, 6), { col: PAL.iron, bone: b('handR'), pos: [hx - 1, P.wristY + 44, 3.4], surf: SURF.iron });
+  coat.detail(cyl(1.1, 1.3, 46, 6), { col: PAL.woodDark, bone: b('handR'), pos: [hx - 1, P.wristY + 14, 3], surf: FAM.wood });
+  coat.detail(cyl(0.7, 0.7, 20, 6), { col: PAL.iron, bone: b('handR'), pos: [hx - 1, P.wristY + 44, 3.4], surf: FAM.iron });
   for (const [bn, p] of [['head', [0, P.headY + 27, 0]], ['handL', [P.shoulderX + 4, P.wristY + 2, 2]], ['handR', [hx, P.wristY + 2, 2]]] as [string, V3][]) {
-    sc.detail(cyl(0.18, 0.18, 80, 3), { col: PAL.bone, bone: b(bn), pos: [p[0], p[1] + 40, p[2]], emit: 0.25, surf: SURF.cloth });
+    coat.detail(cyl(0.18, 0.18, 80, 3), { col: PAL.bone, bone: b(bn), pos: [p[0], p[1] + 40, p[2]], emit: 0.25, surf: SURF.cloth });
   }
   const gait: Gait = { ...GAIT_WALK, stride: 0.5, knee: 0.05, bob: 0, sway: 0, twist: 0, squash: 0, arm: 0.5, elbow: 0.05, headBob: 0 };
   const clips: Clips = {
@@ -406,7 +548,8 @@ function puppetSoldier(): SculptModel {
       return { armR: { rx: -1.4 * aim, rz: -0.3 * aim }, foreR: { rx: -0.2 - 0.6 * aim }, armL: { rx: -1.3 * aim, rz: 0.5 * aim }, foreL: { rx: -0.9 * aim }, chest: { rx: -0.25 * kick, ry: -0.3 * aim }, head: { ry: -0.25 * aim } };
     } },
   };
-  return { geo: sc.build({ ao: 0.6 }), rig: new Rig(bones, clips) };
+  const geo = layered([{ sc: wood, o: LAYER.hard }, { sc: coat, o: LAYER.cloth }, { sc: legs, o: LAYER.cloth }]);
+  return { geo, rig: new Rig(bones, clips) };
 }
 
 // ================================================================== carousel horse
@@ -427,7 +570,7 @@ function carouselHorse(): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(1.9, 4);
-  const paint = weather(PAL.cream, 0.48, 0.09, PAL.woodPale);
+  const paint = flat(PAL.cream);
   const gilt = C(PAL.gold);
   sc.add({ t: 'ell', c: [0, 41, -4], r: [9.6, 10, 15] }, { col: paint, bone: b('body'), k: 3, surf: SURF.paint });
   sc.add({ t: 'ell', c: [0, 41, 8], r: [9, 10.6, 8.6] }, { col: paint, bone: b('body'), k: 6, surf: SURF.paint });
@@ -437,7 +580,7 @@ function carouselHorse(): SculptModel {
   sc.add({ t: 'ell', c: [0, 56.6, 34], r: [4, 3, 3.6] }, { sub: true, k: 1.2 });
   for (const s of [1, -1]) sc.add({ t: 'cap', a: [s * 2.6, 66, 21], b: [s * 3.4, 71, 18], ra: 1.6, rb: 0.6 }, { col: paint, bone: b('head'), k: 1, surf: SURF.paint });
   for (let i = 0; i < 6; i++) sc.add({ t: 'cap', a: [0, 50 + i * 2.6, 11 + i * 2.2], b: [0, 56 + i * 2.8, 4 + i * 2.2], ra: 3, rb: 0.8 }, { col: gilt, bone: b('neck'), k: 1.4, surf: SURF.gold });
-  sc.add({ t: 'ell', c: [0, 50.5, -4], r: [10.4, 3.6, 10] }, { col: weather(PAL.velvet, 0.3), bone: b('body'), k: 1.2, surf: SURF.velvet });
+  sc.add({ t: 'ell', c: [0, 50.5, -4], r: [10.4, 3.6, 10] }, { col: flat(PAL.velvet), bone: b('body'), k: 1.2, surf: SURF.velvet });
   sc.add({ t: 'tor', c: [0, 41, 10], R: 10.2, r: 1.2, rot: [Math.PI / 2 + 0.3, 0, 0] }, { col: gilt, bone: b('body'), k: 0.6, surf: SURF.gold });
   for (const [leg, shin, s, z0] of [['legFL', 'shinFL', 1, 12], ['legFR', 'shinFR', -1, 12], ['legBL', 'shinBL', 1, -16], ['legBR', 'shinBR', -1, -16]] as const) {
     const front = z0 > 0;
@@ -471,7 +614,7 @@ function carouselHorse(): SculptModel {
       return { body: { rx: -0.65 * r, ty: 8 * r }, neck: { rx: 0.3 * r }, head: { rx: 0.25 * r }, legFL: { rx: -1.4 * r + 0.4 * kick * r }, shinFL: { rx: -1.1 * r }, legFR: { rx: -1.4 * r - 0.4 * kick * r }, shinFR: { rx: -1.1 * r }, legBL: { rx: 0.5 * r }, legBR: { rx: 0.5 * r }, tail: { rx: 0.6 * r } };
     } },
   };
-  return { geo: sc.build({ ao: 0.55 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== bumper car
@@ -483,10 +626,10 @@ function bumperCar(): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(1.9, 3);
-  const shell = weather(PAL.teal, 0.42, 0.1, PAL.iron);
+  const shell = flat(PAL.teal);
   sc.add({ t: 'tor', c: [0, 6, 0], R: 19, r: 4.6, rot: [0, 0, 0] }, { col: PAL.charcoal, bone: b('body'), k: 0, surf: SURF.rubber });
   sc.add({ t: 'ell', c: [0, 12, 0], r: [18, 9, 21] }, { col: shell, bone: b('body'), k: 3, surf: SURF.paint });
-  sc.add({ t: 'box', c: [0, 18, -8], h: [9, 6, 4], r: 2 }, { col: weather(PAL.redDeep, 0.35), bone: b('body'), k: 2, surf: SURF.velvet });
+  sc.add({ t: 'box', c: [0, 18, -8], h: [9, 6, 4], r: 2 }, { col: flat(PAL.redDeep), bone: b('body'), k: 2, surf: SURF.velvet });
   sc.add({ t: 'ell', c: [0, 19, 3], r: [11, 5, 8] }, { sub: true, k: 2.5 });
   for (const s of [1, -1]) {
     sc.add({ t: 'cap', a: [s * 9.6, 14, 17], b: [s * 9.6, 14.6, 20.4], ra: 4, rb: 3.6 }, { col: PAL.brass, bone: b('body'), k: 1.5, surf: SURF.brass });
@@ -501,7 +644,7 @@ function bumperCar(): SculptModel {
     move: { frames: 24, fn: (t) => ({ body: { ty: 0.8 * Math.abs(sin(t, 2)), rz: 0.04 * sin(t, 3), rx: 0.03 * sin(t, 2) }, pole: { rz: 0.06 * sin(t, 2, 0.3), rx: 0.05 * cos(t, 2) } }) },
     attack: { frames: 16, loop: false, fn: (t) => ({ body: { rx: -0.18 * ease(t), rz: 0.05 * Math.sin(t * 60) * t, tz: -3 * ease(t) }, pole: { rx: 0.2 * ease(t) } }) },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== walking ticket booth
@@ -518,17 +661,15 @@ function walkingTicketBooth(): SculptModel {
   ];
   const b = bi(bones);
   const sc = new Sculpt(2.4, 4);
-  const planks: ColorFn = (p, n) => {
-    const row = Math.floor((p.y - 50) / 8.4);
-    return (weather(PAL.red, 0.5, 0.06, PAL.woodPale)(p, n) as THREE.Color).multiplyScalar(Math.abs(((p.y - 50) % 8.4)) < 0.9 ? 0.45 : 0.92 + 0.08 * Math.sin(row * 7.3));
-  };
-  sc.add({ t: 'box', c: [0, 74, 0], h: [22, 25, 19], r: 2.5 }, { col: planks, bone: b('booth'), k: 0, surf: SURF.wood });
+  // red planks, the grooves between them drawn per pixel (they were thinner than a mesh cell)
+  const planks = { kind: 'bands', col: C(PAL.red).multiplyScalar(0.45).getHex(), a: 8.4, b: 0.11, c: 0.5 - 50 / 8.4 } as const;
+  sc.add({ t: 'box', c: [0, 74, 0], h: [22, 25, 19], r: 2.5 }, { col: C(PAL.red).multiplyScalar(0.92), bone: b('booth'), k: 0, surf: SURF.wood, pat: planks });
   sc.add({ t: 'ell', c: [0, 72, 19], r: [12, 9, 6] }, { sub: true, k: 2 });
-  sc.add({ t: 'box', c: [0, 103, 0], h: [27, 4, 23], r: 2, rot: [0, Math.PI / 4, 0] }, { col: weather(PAL.mustard, 0.5, 0.08), bone: b('booth'), k: 2.5, surf: SURF.paint });
-  sc.add({ t: 'cap', a: [0, 104, 0], b: [0, 120, 0], ra: 17, rb: 2 }, { col: weather(PAL.mustard, 0.5, 0.08), bone: b('booth'), k: 3, surf: SURF.paint });
+  sc.add({ t: 'box', c: [0, 103, 0], h: [27, 4, 23], r: 2, rot: [0, Math.PI / 4, 0] }, { col: flat(PAL.mustard), bone: b('booth'), k: 2.5, surf: SURF.paint });
+  sc.add({ t: 'cap', a: [0, 104, 0], b: [0, 120, 0], ra: 17, rb: 2 }, { col: flat(PAL.mustard), bone: b('booth'), k: 3, surf: SURF.paint });
   for (const [th, sh, ft, s] of [['thighL', 'shinL', 'footL', 1], ['thighR', 'shinR', 'footR', -1]] as const) {
-    sc.add({ t: 'cap', a: [s * 12, 50, 0], b: [s * 15, 30, -8], ra: 3.8, rb: 2.8 }, { col: weather(0x8a7050, 0.4), bone: b(th), k: 2, surf: SURF.skin });
-    sc.add({ t: 'cap', a: [s * 15, 30, -8], b: [s * 13, 5, 2], ra: 2.6, rb: 2 }, { col: weather(0x8a7050, 0.4), bone: b(sh), k: 1.4, surf: SURF.skin });
+    sc.add({ t: 'cap', a: [s * 12, 50, 0], b: [s * 15, 30, -8], ra: 3.8, rb: 2.8 }, { col: flat(0x8a7050), bone: b(th), k: 2, surf: SURF.skin });
+    sc.add({ t: 'cap', a: [s * 15, 30, -8], b: [s * 13, 5, 2], ra: 2.6, rb: 2 }, { col: flat(0x8a7050), bone: b(sh), k: 1.4, surf: SURF.skin });
     for (let k = 0; k < 3; k++) sc.add({ t: 'cap', a: [s * 13, 3, 2], b: [s * 13 + (k - 1) * 5, 1, 12], ra: 1.6, rb: 0.6 }, { col: PAL.bone, bone: b(ft), k: 1, surf: SURF.bone });
   }
   for (let i = 0; i < 8; i++) sc.detail(cone(1.6, 5, 4), { col: PAL.bone, bone: b('booth'), pos: [-10.5 + i * 3, 80, 19.6], rot: [Math.PI, 0, 0], surf: SURF.bone });
@@ -551,7 +692,7 @@ function walkingTicketBooth(): SculptModel {
       return { booth: { rx: -0.25 * k + 0.2 * lash, sy: 1 + 0.06 * k }, tongue: { rx: -0.6 * k - 0.6 * lash, sy: 1 + 0.6 * lash }, thighL: { rx: 0.2 * k }, thighR: { rx: 0.2 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.55, aoScale: 1.4 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build({ ...CREATURE, aoScale: 1.4 }), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== carnival brute
@@ -670,7 +811,7 @@ function jackBox(open: boolean): SculptModel {
       ];
   const b = bi(bones);
   const sc = new Sculpt(1.7, 2.5);
-  const panel: ColorFn = (p, n) => weather([PAL.teal, PAL.red, PAL.mustard][Math.abs(n.x) > 0.6 ? 0 : Math.abs(n.z) > 0.6 ? 1 : 2], 0.42, 0.1, PAL.woodPale)(p, n);
+  const panel: ColorFn = (p, n) => flat([PAL.teal, PAL.red, PAL.mustard][Math.abs(n.x) > 0.6 ? 0 : Math.abs(n.z) > 0.6 ? 1 : 2])(p, n);
   sc.add({ t: 'box', c: [0, 12, 0], h: [13, 12, 13], r: 1.6 }, { col: panel, bone: b('box'), k: 0, surf: SURF.paint });
   for (const s of [-1, 1]) sc.detail(extrude(starShape(5, 6, 2.6), 0.6, 0, 1), { col: PAL.cream, bone: b('box'), pos: [s * 13.2, 12, 0], rot: [0, s * Math.PI / 2, 0], surf: SURF.paint });
   sc.detail(extrude(starShape(5, 6, 2.6), 0.6, 0, 1), { col: PAL.cream, bone: b('box'), pos: [0, 12, 13.2], surf: SURF.paint });
@@ -678,13 +819,13 @@ function jackBox(open: boolean): SculptModel {
   sc.detail(rbox(1.6, 9, 1.6, 0.4, 1), { col: PAL.brass, bone: b('crank'), pos: [19, 11, 0], surf: SURF.brass });
   sc.detail(sphere(1.8, 6, 4), { col: PAL.redDeep, bone: b('crank'), pos: [19, 7, 2], surf: SURF.paint });
   if (!open) {
-    sc.add({ t: 'box', c: [0, 25.2, 0], h: [13.6, 1.4, 13.6], r: 0.8 }, { col: weather(PAL.redDeep, 0.4), bone: b('lid'), k: 0.6, surf: SURF.paint });
+    sc.add({ t: 'box', c: [0, 25.2, 0], h: [13.6, 1.4, 13.6], r: 0.8 }, { col: flat(PAL.redDeep), bone: b('lid'), k: 0.6, surf: SURF.paint });
   } else {
-    sc.add({ t: 'box', c: [0, 38, -13.6], h: [13.6, 13.6, 1.4], r: 0.8 }, { col: weather(PAL.redDeep, 0.4), bone: b('lid'), k: 0, surf: SURF.paint });
+    sc.add({ t: 'box', c: [0, 38, -13.6], h: [13.6, 13.6, 1.4], r: 0.8 }, { col: flat(PAL.redDeep), bone: b('lid'), k: 0, surf: SURF.paint });
     for (const [n, y0] of [['sp0', 24], ['sp1', 36]] as const) {
       sc.detail(tube(Array.from({ length: 14 }, (_, i) => [Math.cos(i * 1.4) * 5, y0 + i * 0.92, Math.sin(i * 1.4) * 5] as V3), 0.9, 4, 60), { col: PAL.iron, bone: b(n), surf: SURF.iron });
     }
-    const face = weather(PAL.clown, 0.25, 0.12);
+    const face = flat(PAL.clown);
     sc.add({ t: 'tor', c: [0, 50, 0], R: 9.6, r: 3 }, { col: PAL.mustard, bone: b('head'), k: 1, surf: SURF.cloth });
     sc.add({ t: 'ell', c: [0, 61, 0], r: [9.6, 11.6, 9.6] }, { col: face, bone: b('head'), k: 2, surf: SURF.porcelain });
     sc.add({ t: 'ell', c: [0, 54, 4.8], r: [7.6, 4, 5.6] }, { col: face, bone: b('head'), k: 3, surf: SURF.porcelain });
@@ -708,7 +849,7 @@ function jackBox(open: boolean): SculptModel {
         move: { frames: 32, fn: (t) => ({ box: { ty: 3 * Math.abs(sin(t, 2)), sy: 1 - 0.1 * (1 - Math.abs(sin(t, 2))) ** 4, rz: 0.06 * sin(t) }, lid: { rx: -0.15 * Math.max(0, sin(t, 4)) }, crank: { rx: t * TAU * 2 } }) },
         attack: { frames: 16, loop: false, fn: (t) => ({ box: { rz: 0.12 * Math.sin(t * 50) * t, sx: 1 + 0.08 * t, sy: 1 + 0.12 * t }, lid: { rx: -0.5 * t * Math.abs(Math.sin(t * 30)) }, crank: { rx: t * TAU * 6 } }) },
       };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 const cache = new Map<string, SculptModel>();

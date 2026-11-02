@@ -1595,3 +1595,56 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
     hides.
 - **Next** (the user's instruction): push and deploy, then roll the standard across the enemy roster where
   it's needed.
+
+### D-88 · The enemy roster on the character art standard
+
+- **The ask** (after D-87 was deployed): apply the standard to every enemy in the game that needs it, by
+  analysis, then deploy.
+- **The analysis.** Every creature not rebuilt in D-86 (51 builders over four maps) still had the old muddy
+  execution:
+  - occlusion 0.35–0.6 and full curvature paint baked into the colour, 0.8-unit colour seams;
+  - `weather()` noise colour (96 uses) and noise colour functions (about 20);
+  - ink on nearly every small detail;
+  - wide smooth blends on the humanoids, which melted heads into eggs and limbs into balloons.
+
+  The 23 bosses don't share those causes (see below).
+- **The shared pass** (every one-piece creature):
+  - the `CREATURE` build options: occlusion 0.3, no curvature paint, 0.3-unit seams;
+  - `flat()` colour where `weather()` noise was;
+  - the noise colour functions rewritten one by one as flat colour, meaningful gradients (the drowned
+    skin darker toward the feet, the splitter bruise-dark toward the floor, the wraith lit from above) or
+    per-pixel patterns:
+    - the clowns' stripes and hoops, the bathing suit's hoops, the kelp robe's fronds;
+    - the prize collector's check (a vertex-colour 3D checker broke up into camouflage);
+    - the holes rotted through the barnacle brute's diving suit;
+    - the ticket booth's plank grooves (thinner than a mesh cell).
+
+    The coal and slag creatures keep their molten cracks: that noise is the design.
+  - **No ink on small details**, now the sculpt pipeline's default below `SMALL_DETAIL` (a bounding radius of
+    2.4 units).
+  - **The 27 humanoids built with `humanBody`:** blends at 0.65 of their old radius, and eyes seated on the
+    face as sculpted (`eyeDetails` placed them on an assumed sphere).
+  - `humanBody` takes per-pixel costume patterns (`torsoPat`, `armPat`).
+- **Rebuilt in layers** (the first map's humanoid regulars, the most-seen enemies):
+  - **The dunk-tank clown:** grey-blue skin, his paint running from cold glowing eyes, a glossy red nose, a
+    sad mouth, waterlogged strands of hair, a limp soaked ruff, a striped bathing suit drawn per pixel,
+    gloves, big teal shoes, the bucket.
+  - **The puppet soldier:** a wooden nutcracker head with painted eyes, red cheeks and a moustache under a
+    tall shako with a brass plate and a red plume; a red tunic with white cross-belts, brass buttons, gold
+    epaulettes and white cuffs; navy trousers; glossy boots; a wooden ball showing at every joint.
+  - **The wind-up monkey:** a heart-shaped tan face, hot red eyes, a porcelain grin, big round ears, a glossy
+    red tin jacket with gold trim drawn per pixel, the fez, the cymbals and the key.
+
+  The same skeletons, sizes and clips. Budgets: 12.3k, 10.2k and 9.0k (were 6.1k, 6.5k and 5.8k), under
+  the regular enemy's 15k.
+- **Fixed on the way:** the whack-a-mole's hard hat and the monkey's cymbals rendered solid black. Their
+  lathe profiles ran top to bottom, so the faces pointed inward and the outline covered them.
+- **Bosses: analysed and left.** They're built from primitives with the prop shader:
+  - no occlusion or curvature paint baked into colour, no soft seams;
+  - large silhouettes with authored lighting, which read well in their fights (all 22 captured);
+  - their `weather()` wear reads as texture at their size.
+
+  A dedicated boss pass stays the standard's step 5 if wanted.
+- **Cost.** In a mixed crowd of 62 first-map and patterned creatures, about +0.6 ms a frame on this PC
+  (3.4–4.3 ms against 2.8–3.4, the original and new code run alternately). Late combat showed no
+  measurable change (3.4–4.4 against 3.2–4.6).

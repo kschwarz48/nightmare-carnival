@@ -3,9 +3,10 @@
 // Porcelain that moves in snaps, a chrome copy of a person, a figure of broken glass, a marionette on
 // strings, a lobed blob of too many faces, a clown stretched by a mirror, a hooded thief with a hand mirror.
 
-import { C, SURF, cone, cyl, ellipsoid, sphere, torus, vnoise, weather, type ColorFn, type V3 } from '../core/geo';
+import { C, SURF, cone, cyl, ellipsoid, sphere, torus, vnoise, type ColorFn, type V3 } from '../core/geo';
 import { PAL } from './kit';
 import { Sculpt } from '../sculpt/sdf';
+import { CREATURE, flat, vertical } from '../sculpt/figure';
 import { Rig, type BoneDef, type ClipDef, ease, mix, pulse, sin, cos, snap, TAU } from '../sculpt/rig';
 import { ADULT, GAIT_WALK, type Gait, eyeDetails, gaitPose, head, humanBody, humanBones, scaleP } from '../sculpt/humanoid';
 import type { SculptModel } from './characters';
@@ -19,19 +20,19 @@ const bi = (bones: BoneDef[]) => (n: string) => {
 const glowEye = (sc: Sculpt, bone: number, pos: V3, r: number, col: number, emit = 1.3) => sc.detail(sphere(r, 10, 8), { col, bone, pos, emit, surf: SURF.glass });
 
 const PORCELAIN = 0xe6dccb;
-/** porcelain with fine crazing and the grime of ninety years in a shop window */
-const porcelain: ColorFn = (p) => C(PORCELAIN).multiplyScalar(0.84 + 0.2 * vnoise(p.x * 0.4, p.y * 0.4, p.z * 0.4) - 0.1 * Math.max(0, vnoise(p.x * 2.2, p.y * 2.2, p.z * 2.2) - 0.72) * 6);
+/** shop-window porcelain, pale and cold (D-88: its crazing and grime were noise) */
+const porcelain = flat(C(PORCELAIN).multiplyScalar(0.92));
 /** chrome: a cold silver with the room's lights streaked across it */
 const chrome: ColorFn = (p) => C(0xc8d6e2).multiplyScalar(0.55 + 0.55 * Math.abs(Math.sin(p.y * 0.35 + p.x * 0.12)));
-/** old mirror glass: silver going grey-green at the edges */
-const glass: ColorFn = (p) => C(0xd8f0ff).lerp(C(0x6a8a90), 0.25 + 0.35 * vnoise(p.x * 0.3, p.y * 0.3, p.z * 0.3));
+/** old mirror glass: silver gone a little grey-green */
+const glass = flat(C(0xd8f0ff).lerp(C(0x6a8a90), 0.4));
 
 // ================================================================== Grinning Mannequin
 function mannequin(): SculptModel {
   const P = scaleP(ADULT, 1.02, { headR: 11, chestW: 11.5, waistW: 8.5, hipW: 10, arm: [3.4, 2.9, 2.4], leg: [4.4, 3.4, 2.8], stance: 6, depth: 0.72 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.7, 1.2); // hard seams: a dummy is made of parts
+  const sc = new Sculpt(1.7, 1.2, 0.65); // hard seams: a dummy is made of parts
   humanBody(sc, P, b, { skin: porcelain, torso: porcelain, hips: porcelain, upperArm: porcelain, foreArm: porcelain, hand: porcelain, thigh: porcelain, shin: porcelain, shoe: C(PORCELAIN).multiplyScalar(0.75), torsoSurf: SURF.porcelain, legSurf: SURF.porcelain });
   // ball joints at shoulders, elbows and knees; the waist seam where the torso screws on
   for (const n of ['L', 'R']) {
@@ -59,7 +60,7 @@ function mannequin(): SculptModel {
       return { armL: { rx: -1.6 * k, rz: 0.2 }, armR: { rx: -1.6 * k, rz: -0.2 }, foreL: { rx: -0.2 }, foreR: { rx: -0.2 }, head: { rx: -0.3 * k, rz: 0.4 * k }, chest: { rx: 0.3 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Doppelganger
@@ -67,7 +68,7 @@ function doppelganger(): SculptModel {
   const P = scaleP(ADULT, 0.98, { headR: 11.5, chestW: 11.5, waistW: 9.5, hipW: 10, stance: 6.5 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.6, 2);
+  const sc = new Sculpt(1.6, 2, 0.65);
   humanBody(sc, P, b, { skin: chrome, torso: chrome, hips: chrome, upperArm: chrome, foreArm: chrome, hand: chrome, thigh: chrome, shin: chrome, shoe: C(0x5a6a7a), torsoSurf: SURF.brass, legSurf: SURF.brass });
   head(sc, P, b('head'), { skin: chrome, nose: 0.8, ears: true, brow: 0.6, cheeks: 0.8, chin: 0.6 });
   // a face like a dark window: blank glowing eyes, and a crack running from crown to jaw
@@ -82,7 +83,7 @@ function doppelganger(): SculptModel {
       return { chest: { rx: 0.5 * coil - 0.4 * go }, armL: { rx: -1.2 * coil, rz: 0.6 }, armR: { rx: -1.2 * coil, rz: -0.6 }, thighL: { rx: -0.6 * coil }, thighR: { rx: 0.5 * coil }, head: { rx: -0.2 * coil } };
     } },
   };
-  return { geo: sc.build({ ao: 0.45 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Glasswalker
@@ -90,7 +91,7 @@ function glasswalker(): SculptModel {
   const P = scaleP(ADULT, 1.12, { headR: 8.5, chestW: 9.5, waistW: 6.5, hipW: 7.5, arm: [2.6, 2.2, 1.9], leg: [3, 2.5, 2], stance: 7, depth: 0.55, armOut: 4 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.2, 1.1);
+  const sc = new Sculpt(1.2, 1.1, 0.65);
   humanBody(sc, P, b, { skin: glass, torso: glass, hips: glass, upperArm: glass, foreArm: glass, hand: glass, thigh: glass, shin: glass, shoe: glass, torsoSurf: SURF.glass, legSurf: SURF.glass });
   // splinters standing out of its back and shoulders, every one a sliver of some room it has been in
   const shards: [string, V3, V3][] = [['chest', [4, P.chest + 6, -6], [0.6, 0, 0.4]], ['chest', [-5, P.chest + 4, -5], [0.5, 0, -0.5]], ['chest', [0, P.shoulderY + 4, -7], [0.9, 0, 0]], ['armL', [P.shoulderX + 2, P.shoulderY + 5, 0], [0, 0, -0.7]], ['armR', [-P.shoulderX - 2, P.shoulderY + 5, 0], [0, 0, 0.7]], ['hips', [0, P.hip + 2, -5], [1, 0, 0]]];
@@ -113,7 +114,7 @@ function glasswalker(): SculptModel {
       return { armL: { rx: -2.4 * up + 2 * down, rz: 0.5 }, armR: { rx: -2.4 * up + 2 * down, rz: -0.5 }, foreL: { rx: -0.6 * up }, foreR: { rx: -0.6 * up }, chest: { rx: -0.3 * up + 0.5 * down }, head: { rx: -0.2 * up } };
     } },
   };
-  return { geo: sc.build({ ao: 0.35 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Marionette
@@ -121,10 +122,10 @@ function marionette(): SculptModel {
   const P = scaleP(ADULT, 0.88, { headR: 11, chestW: 9.5, waistW: 7.5, hipW: 8.5, arm: [2.6, 2.4, 2.2], leg: [3, 2.7, 2.4], stance: 5.5, depth: 0.7 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.8, 1.4);
-  const wood = weather(PAL.woodPale, 0.38, 0.12);
-  const velvet = weather(0x8a2434, 0.4, 0.1, PAL.woodPale);
-  humanBody(sc, P, b, { skin: wood, torso: velvet, hips: velvet, upperArm: velvet, foreArm: wood, hand: wood, thigh: weather(0x2a2440, 0.35), shin: wood, shoe: PAL.ink, torsoSurf: SURF.velvet, legSurf: SURF.wood });
+  const sc = new Sculpt(1.8, 1.4, 0.65);
+  const wood = flat(PAL.woodPale);
+  const velvet = flat(0x8a2434);
+  humanBody(sc, P, b, { skin: wood, torso: velvet, hips: velvet, upperArm: velvet, foreArm: wood, hand: wood, thigh: flat(0x2a2440), shin: wood, shoe: PAL.ink, torsoSurf: SURF.velvet, legSurf: SURF.wood });
   for (const n of ['L', 'R']) {
     const s = n === 'L' ? 1 : -1;
     for (const [bn, p] of [[`fore${n}`, [s * (P.shoulderX + P.armOut), P.elbowY, -0.8]], [`shin${n}`, [s * (P.stance + 0.4), P.knee, 0.6]]] as [string, V3][]) {
@@ -150,7 +151,7 @@ function marionette(): SculptModel {
       return { armL: { rx: -2.6 * k, rz: 0.4 }, armR: { rx: -2.6 * k, rz: -0.4 }, thighL: { rx: -1 * k }, thighR: { rx: -1 * k }, shinL: { rx: 1.4 * k }, shinR: { rx: 1.4 * k }, head: { rx: -0.4 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Splitter
@@ -165,7 +166,8 @@ function splitter(): SculptModel {
   const b = bi(bones);
   const sc = new Sculpt(1.7, 4);
   // flesh like a funhouse reflection of a person: pinched, swollen, pink going bruise-purple
-  const flesh: ColorFn = (p) => C(0xd98a92).lerp(C(0x5a1e34), 0.25 + 0.45 * vnoise(p.x * 0.12, p.y * 0.12, p.z * 0.12));
+  // raw pink, bruise-dark toward the floor
+  const flesh = vertical(C(0xd98a92).lerp(C(0x5a1e34), 0.6).getHex(), C(0xd98a92).lerp(C(0x5a1e34), 0.15).getHex(), 2, 32);
   sc.add({ t: 'ell', c: [0, 13, 0], r: [17, 13, 15] }, { col: flesh, bone: b('body'), k: 0, surf: SURF.skin });
   sc.add({ t: 'ell', c: [11, 20, 2], r: [9, 10, 9] }, { col: flesh, bone: b('lobeL'), k: 6, surf: SURF.skin });
   sc.add({ t: 'ell', c: [-11, 19, 1], r: [9.5, 11, 9] }, { col: flesh, bone: b('lobeR'), k: 6, surf: SURF.skin });
@@ -188,7 +190,7 @@ function splitter(): SculptModel {
       return { body: { sx: 1 + 0.18 * k, sy: 1 - 0.12 * k }, lobeL: { tx: 2 * k }, lobeR: { tx: -2 * k }, jaw: { rx: 0.5 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.55 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Crooked Clown
@@ -197,10 +199,11 @@ function crookedClown(): SculptModel {
   const P = scaleP(ADULT, 1.05, { hip: 48, knee: 26, waist: 56, chest: 66, shoulderY: 73, elbowY: 57, wristY: 43, neck: 80, headY: 89, headR: 8.5, chestW: 9.5, waistW: 8, hipW: 9, arm: [2.8, 2.4, 2.1], leg: [3.4, 2.8, 2.4], stance: 5.5, depth: 0.7 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.7, 2);
-  const suit: ColorFn = (p) => (Math.floor((p.y + 400) / 6) % 2 ? C(0x5a2a8a) : C(0xe8dcc0)).multiplyScalar(0.8 + 0.2 * vnoise(p.x * 0.3, p.y * 0.3, p.z * 0.3));
-  const face = weather(PAL.clown, 0.25, 0.12);
-  humanBody(sc, P, b, { skin: face, torso: suit, hips: suit, upperArm: suit, foreArm: suit, hand: PAL.bone, thigh: weather(0x2a8a7a, 0.3), shin: weather(0x2a8a7a, 0.3), shoe: 0xa8202a, torsoSurf: SURF.cloth, legSurf: SURF.cloth, bigShoes: 1.4, gloves: true });
+  const sc = new Sculpt(1.7, 2, 0.65);
+  // cream and purple hoops, drawn per pixel
+  const suit = 0xe8dcc0, hoops = { kind: 'bands', col: 0x5a2a8a, a: 12, b: 0.5, c: 0.0833 } as const;
+  const face = flat(PAL.clown);
+  humanBody(sc, P, b, { skin: face, torso: suit, hips: suit, upperArm: suit, foreArm: suit, hand: PAL.bone, thigh: flat(0x2a8a7a), shin: flat(0x2a8a7a), shoe: 0xa8202a, torsoSurf: SURF.cloth, legSurf: SURF.cloth, bigShoes: 1.4, gloves: true, torsoPat: hoops, armPat: hoops });
   head(sc, P, b('head'), { skin: face, nose: 0.6, noseCol: 0xe8202a, ears: true, brow: 0.8, cheeks: 0.8, chin: 0.8, jaw: 0.9 });
   eyeDetails(sc, P, b('head'), { size: 0.2, sclera: PAL.bone, iris: 0x2a1a30, y: 0.14, tilt: 0.25 });
   sc.detail(sphere(2.6, 10, 8), { col: 0xe8202a, bone: b('head'), pos: [0, P.headY - 1, P.headR * 0.98], surf: SURF.latex });
@@ -223,7 +226,7 @@ function crookedClown(): SculptModel {
       return { armR: { rx: -2.8 * back + 3 * fling, rz: -0.3 }, foreR: { rx: -1.2 * back }, chest: { ry: -0.5 * back + 0.8 * fling, rz: 0.2 }, head: { ry: 0.3 * back } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 // ================================================================== Reflection Thief
@@ -231,8 +234,8 @@ function reflectionThief(): SculptModel {
   const P = scaleP(ADULT, 1, { headR: 10.5, chestW: 11, waistW: 10, hipW: 12, stance: 5.5 });
   const bones = humanBones(P);
   const b = bi(bones);
-  const sc = new Sculpt(1.6, 3);
-  const robe = weather(0x3a2c54, 0.4, 0.1, 0x140c20);
+  const sc = new Sculpt(1.6, 3, 0.65);
+  const robe = flat(0x3a2c54);
   humanBody(sc, P, b, { skin: 0x1a1220, torso: robe, hips: robe, upperArm: robe, foreArm: robe, hand: 0x2a2030, thigh: robe, shin: robe, shoe: PAL.ink, torsoSurf: SURF.velvet, legSurf: SURF.velvet, noLegs: true });
   // a long robe to the floor instead of legs, frayed at the hem
   sc.add({ t: 'cap', a: [0, 6, 0], b: [0, P.waist, 0], ra: 15, rb: 10 }, { col: robe, bone: b('hips'), k: 4, surf: SURF.velvet });
@@ -254,7 +257,7 @@ function reflectionThief(): SculptModel {
       return { armL: { rx: -2.6 * k, rz: 0.2 }, foreL: { rx: -0.3 * k }, armR: { rx: -0.8 * k, rz: -0.8 * k }, chest: { rx: -0.25 * k }, head: { rx: -0.3 * k }, hips: { ty: 3 * k } };
     } },
   };
-  return { geo: sc.build({ ao: 0.5 }), rig: new Rig(bones, clips) };
+  return { geo: sc.build(CREATURE), rig: new Rig(bones, clips) };
 }
 
 /** Builders for the Fun House's creatures, keyed by enemy id (the Splitter's sizes share one sculpt). */
