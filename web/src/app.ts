@@ -338,6 +338,7 @@ export class App {
         const s = this.renderer.worldToScreen(x, y, cssW, cssH, hh ?? 0);
         return { x: s.x / z, y: s.y / z };
       },
+      headH: (id) => this.renderer.charTop(id),
     };
   }
 
@@ -2339,8 +2340,9 @@ export class App {
       const d = Math.hypot(me.x - x, me.y - y);
       if (d < r && d < bd) [bd, best] = [d, { kind, i }];
     };
+    // (labels over heads: each character's own height, D-91; they were at a fixed height, across faces)
     g.hubNpcs.forEach((n, i) => {
-      const s = toS(n.x, n.y, 112);
+      const s = toS(n.x, n.y, this.renderer.charTop(n.char.id) + 12);
       if (shown(s)) labels.push({ x: s.x, y: s.y, text: n.char.name, sub: `at ${HUB_NPCS.find((d) => d.char === n.char.id)?.at ?? ''}`, kind: 'npc' });
       consider('npc', i, n.x, n.y, 115);
     });
@@ -2361,7 +2363,7 @@ export class App {
     if (g.players.length > 1) {
       g.players.forEach((p, i) => {
         if (i === this.localIndex) return;
-        const s = toS(p.x, p.y, 100);
+        const s = toS(p.x, p.y, this.renderer.charTop(p.char.id) + 12);
         if (shown(s)) labels.push({ x: s.x, y: s.y, text: p.name, kind: 'player', cls: `p${i + 1}` });
       });
     }

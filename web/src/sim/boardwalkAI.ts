@@ -518,11 +518,8 @@ export function payBack(g: Game, e: Enemy): void {
   const n = Math.min(12, Math.max(3, Math.round(total / 15)));
   const each = Math.max(1, Math.round(total / n));
   for (let i = 0; i < n; i++) {
-    if (g.gemsOnGround >= g.maxGems) {
-      if (!g.bankPickup || !g.bankPickup.alive) g.bankPickup = g.spawnPickup('bank', e.x, e.y, 0);
-      g.bankPickup.value += each;
-      continue;
-    }
+    // (at the cap the farthest tickets roll up to make room, D-91)
+    if (g.gemsOnGround >= g.maxGems) g.rollUpFarTickets();
     const pk = g.spawnPickup('ticket', e.x, e.y, each);
     const a = (i / n) * TAU + g.rng.range(-0.3, 0.3), sp = g.rng.range(220, 380);
     pk.vx = Math.cos(a) * sp;

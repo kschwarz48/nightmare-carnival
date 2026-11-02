@@ -311,6 +311,8 @@ export class Pickup {
   life = 0;
   t = 0;
   rolls = 0;
+  /** A ticket roll's count of the tickets rolled into it (D-91; for the night's tally). */
+  tickets = 0;
   /** Where a chest came from (boss / brute / elite / event) — drives the prize-wheel presentation. */
   src = '';
   vx = 0;

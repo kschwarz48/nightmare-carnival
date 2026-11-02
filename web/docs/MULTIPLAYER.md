@@ -257,6 +257,19 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### Teammates on screen and off it (D-91)
+
+- **The party frames** stand over your own health bar (they were down the left from the top); the chat box sits
+  above them.
+- **Name tags** float over each teammate's head (from their character's own height), not across their face, in a
+  night and on the Midway.
+- **Off screen**, a teammate is a circle with their portrait in their colour, a coffin while they're down, with a
+  notch toward them; a boss shows its face in red; chests, food and golden tickets are bigger discs.
+- **Rings** at each player's feet: their colour on a dark band, four arcs turning round it and a notch where they
+  face, the arcs and notch drawn over the crowd.
+- No wire change (PROTO stays 18). The ticket rolls are host-side; a guest sees the rolls as before. The sim
+  changed, so its fingerprint did: a tab still on the D-90 build is refused until it reloads.
+
 ### The Ghost Train at the whistle (D-90, PROTO 18)
 
 - **The train is host state now.** It was a pure function of the night's time; since the players drive it

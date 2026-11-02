@@ -154,6 +154,8 @@ export class GameRenderer3D {
   private abilityBatches = new Set<ActorBatch>();
   private batches = new Map<string, ActorBatch>();
   private batchList: ActorBatch[] = [];
+  /** each playable character's height, read off its model (charTop) */
+  private charTops = new Map<string, number>();
   private yaw = new Map<number, number>();
   private yawSweep = 0;
   private viewW = 1600;
@@ -400,6 +402,24 @@ export class GameRenderer3D {
   snapCamera(x: number, y: number): void {
     this.camX = x;
     this.camY = y;
+  }
+
+  /**
+   * How tall a playable character stands, feet to the top of the head or hat, in world units (D-91: for the co-op
+   * name tags over them). Read off the model once it's drawn; a fair guess until then.
+   */
+  charTop(id: string): number {
+    const known = this.charTops.get(id);
+    if (known !== undefined) return known;
+    const b = this.batches.get(`char_${id}`), def = CHARACTERS[id];
+    if (!b || !def) return 150;
+    const geo = b.mesh.geometry;
+    geo.computeBoundingBox();
+    const top = geo.boundingBox?.max.y ?? 0;
+    if (!(top > 20)) return 150; // (still sculpting)
+    const t = top * (def.scale ?? 1) * ACTOR_SCALE * ACTOR_STRETCH;
+    this.charTops.set(id, t);
+    return t;
   }
 
   /**
@@ -1616,6 +1636,33 @@ export class GameRenderer3D {
     return [run, idle, 1 - a.move];
   }
 
+  /**
+   * Who is who in co-op (D-91: it was a faint halo, lost in a fight): at each player's feet a ring in their colour on
+   * a dark band, on the ground; round it four arcs turning slowly and a notch where they face, drawn over everything
+   * (a crowd standing on the ring can't hide them); a little glow.
+   */
+  private drawFeetRing(p: Player, px: number, py: number, yaw: number): void {
+    const c = PLAYER_COLS[p.index % PLAYER_COLS.length];
+    // (deeper and a touch under full strength, so the night's grade keeps the colour instead of washing it to white)
+    const r = c[0] ** 1.6 * 0.9, g = c[1] ** 1.6 * 0.9, b = c[2] ** 1.6 * 0.9;
+    const Z = this.zoneShapes, L = this.teleLine;
+    Z.circle(px, py, 44, 0, 0, 0, 0.3, 0);
+    Z.ring(px, py, 25, 35, 0.03, 0.02, 0.04, 0.78, 0.78);
+    Z.ring(px, py, 27.5, 32.5, r, g, b, 0.95, 0.95);
+    const t = this.time * 0.8 + p.index * 1.3;
+    for (let k = 0; k < 4; k++) {
+      const a0 = t + (k * Math.PI) / 2;
+      L.ring(px, py, 37, 41.5, 0.03, 0.02, 0.04, 0.7, 0.7, a0 - 0.05, a0 + 0.67);
+      L.ring(px, py, 38, 40.5, r, g, b, 0.95, 0.95, a0, a0 + 0.62);
+    }
+    // the notch: a small arrowhead just outside the ring, where they face
+    const fx = Math.sin(yaw), fy = Math.cos(yaw), sx = -fy, sy = fx;
+    const tip = 54, base = 43, w = 7;
+    L.tri(px + fx * (tip + 2.5), py + fy * (tip + 2.5), px + fx * (base - 1.5) + sx * (w + 2.5), py + fy * (base - 1.5) + sy * (w + 2.5), px + fx * (base - 1.5) - sx * (w + 2.5), py + fy * (base - 1.5) - sy * (w + 2.5), 0.03, 0.02, 0.04, 0.75);
+    L.tri(px + fx * tip, py + fy * tip, px + fx * base + sx * w, py + fy * base + sy * w, px + fx * base - sx * w, py + fy * base - sy * w, r, g, b, 0.95);
+    this.addShapes.ring(px, py, 26, 46, r, g, b, 0.16, 0);
+  }
+
   /** A fallen co-op player: a coffin with a revive gauge that fills faster with a teammate beside it. */
   private drawCoffin(p: Player, px: number, py: number): void {
     const b = this.batch('coffin', ITEM_MODELS.coffin, 4);
@@ -1700,11 +1747,7 @@ export class GameRenderer3D {
     const yaw = this.smoothYaw(yawId, target, dt, 12);
     const s = def.scale ?? 1;
     const [ra, rb, bl] = this.playerRows(p, px, py, dt, p.char.id);
-    if (g.players.length > 1 && !npc) {
-      // who is who: a soft coloured halo at each player's feet
-      const col = PLAYER_COLS[p.index % PLAYER_COLS.length];
-      this.addShapes.ring(px, py, 24, 30, col[0], col[1], col[2], 0.0, 0.45);
-    }
+    if (g.players.length > 1 && !npc) this.drawFeetRing(p, px, py, yaw);
     // the Undertow's launch (D-78): its rider stands in the lead car on a rail of light (drawRails)
     const rail = this.rails.get(p.index);
     if (p.dashT > 0 && !npc) {

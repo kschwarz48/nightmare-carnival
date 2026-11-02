@@ -53,6 +53,12 @@ import { addHazardPull, moveBody, steer } from './movement';
 import { KB_FATIGUE_S, KB_SCALE, KB_WEAR, NOBODY, TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 export { TICK, VIEW_HALF_X, VIEW_HALF_Y };
 const GEM_CAP = 400;
+/**
+ * Ticket rolls (D-91): past the cap, the tickets farthest from every standing player roll up where they lie, a
+ * tenth of the cap at a time, so the kills in front of you always drop their own tickets. A roll gathers what lies
+ * within `mergeR` of it; there are at most `max` rolls (beyond that, the nearest one takes the rest).
+ */
+const ROLLS = { batch: 0.1, mergeR: 320, max: 10 };
 const IFRAMES = 0.45;
 
 export interface RunConfig {
@@ -269,7 +275,6 @@ export class Game {
   weaponDamage = new Map<string, number>();
   enemiesSeen = new Set<string>();
   gemsOnGround = 0;
-  bankPickup: Pickup | null = null;
   foodTimer = 0;
   goldenTimer = 0;
   hitstop = 0;
@@ -1709,6 +1714,7 @@ export class Game {
     pk.t = 0;
     pk.life = kind === 'food' ? 30 : kind === 'golden' ? GOLDEN.life : kind === 'funnel' ? 14 : 1e9;
     pk.rolls = 0;
+    pk.tickets = 0;
     pk.vx = pk.vy = 0;
     if (kind === 'ticket') this.gemsOnGround++;
     return pk;
@@ -1716,15 +1722,56 @@ export class Game {
 
   dropTickets(x: number, y: number, value: number): void {
     const v = Math.max(1, Math.round(value * this.ticketMult));
-    if (this.gemsOnGround >= this.maxGems) {
-      // Red Gem Bank (doc 03 §6): vacuum overflow into one accumulating gem.
-      if (!this.bankPickup || !this.bankPickup.alive) {
-        this.bankPickup = this.spawnPickup('bank', x, y, 0);
-      }
-      this.bankPickup.value += v;
+    // at the cap, the farthest tickets roll up to make room (D-91; the newest drops used to go into one roll);
+    // if none can (all of them on their way to somebody), this drop rolls instead
+    if (this.gemsOnGround >= this.maxGems && !this.rollUpFarTickets()) {
+      this.addToRoll(x, y, v, 1);
       return;
     }
     this.spawnPickup('ticket', x + this.rng.range(-6, 6), y + this.rng.range(-6, 6), v);
+  }
+
+  /**
+   * Roll up the tickets lying farthest from every standing player (a tenth of the cap) into ticket rolls where they
+   * lie (D-91). False when there was nothing to roll: every ticket on the ground is already flying to someone.
+   */
+  rollUpFarTickets(): boolean {
+    const up = this.players.filter((p) => this.isUp(p));
+    const from = up.length ? up : this.players;
+    const far: { pk: Pickup; d: number }[] = [];
+    for (const pk of this.pickups) {
+      if (!pk.alive || pk.kind !== 'ticket' || pk.magnet) continue;
+      let d = Infinity;
+      for (const p of from) d = Math.min(d, dist2(pk.x, pk.y, p.x, p.y));
+      far.push({ pk, d });
+    }
+    if (!far.length) return false;
+    far.sort((a, b) => b.d - a.d);
+    const n = Math.min(far.length, Math.max(1, Math.round(this.maxGems * ROLLS.batch)));
+    for (let i = 0; i < n; i++) {
+      const pk = far[i].pk;
+      pk.alive = false;
+      this.gemsOnGround--;
+      this.addToRoll(pk.x, pk.y, pk.value, 1);
+    }
+    return true;
+  }
+
+  /** Add `count` tickets worth `value` to the ticket roll lying nearest (x, y) within reach, or to a new roll there. */
+  private addToRoll(x: number, y: number, value: number, count: number): void {
+    let best: Pickup | null = null, bd = Infinity, rolls = 0;
+    for (const pk of this.pickups) {
+      if (!pk.alive || pk.kind !== 'bank' || pk.magnet) continue;
+      rolls++;
+      const d = dist2(pk.x, pk.y, x, y);
+      if (d < bd) {
+        bd = d;
+        best = pk;
+      }
+    }
+    if (!best || (bd > ROLLS.mergeR * ROLLS.mergeR && rolls < ROLLS.max)) best = this.spawnPickup('bank', x, y, 0);
+    best.value += value;
+    best.tickets += count;
   }
 
   private updatePickups(dt: number): void {
@@ -1784,10 +1831,10 @@ export class Game {
         this.bus.emit('pickup', { kind: 'ticket', value: pk.value, player: p.index });
         break;
       case 'bank':
+        p.runTickets += pk.tickets;
         this.addXp(pk.value);
         this.fx.push('pickup', pk.x, pk.y, 2, 0, 0, 'bank');
         this.bus.emit('pickup', { kind: 'bank', value: pk.value, player: p.index });
-        this.bankPickup = null;
         break;
       case 'food':
       case 'funnel': {

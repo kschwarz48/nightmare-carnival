@@ -115,6 +115,25 @@ understate that character.
 
 ---
 
+## Ticket rolls, arrows and markers, party frames, name tags, rings — 2026-11-02 (D-91)
+
+- `npm test`: 29 files, 434 tests pass. `tests/core.test.ts`'s ticket-cap test now checks the new rule: past the
+  cap the far tickets roll up and every new drop stays loose, nothing is lost, the roll counts its tickets; and far
+  tickets in two places make two rolls, each picked up like a ticket. `tsc` is clean and `npm run build` passes.
+- **Captures** (dev server, an Electron window at 1600×900 and 1280×720; a local four- and six-player night with the
+  co-op HUD switched on in the page, since co-op needs a second machine):
+  - the party frames over the health bar (3 and 5 teammates), the chat box over them;
+  - name tags over the Strongman's and the Ringleader's heads; the Midway's cast label over the Carny;
+  - edge markers: a teammate's portrait in pink, a downed teammate's coffin in lime, the Ringmaster's face in red,
+    an off-screen chest, each with its notch toward it, and kept clear of the party frames;
+  - the circling arrows toward a chest and a golden ticket, and the bigger arrows over them;
+  - the rings close up and in a crowd of 26 creatures, where the arcs and notch stay visible;
+  - a ticket field over the cap: the 40 newest drops stay loose round the player, the far ones become two rolls.
+- **Found by looking, and fixed:** the rings washed out to white (deeper colours, less glow); a crowd hid the ring
+  (the arcs and notch moved to the layer over everything); the Midway's labels sat across faces too.
+- **Not checked:** an actual online session (the co-op HUD was switched on locally; nothing about it is on the
+  wire); a phone-sized window.
+
 ## The Ghost Train at the whistle, the Last Train Home's new first half, the Unclaimed — 2026-11-02 (D-90)
 
 - `npm test`: 29 files, 433 tests pass. `tests/ghosttrain.test.ts` replaced its timetable tests: the train waits

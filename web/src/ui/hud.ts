@@ -1,7 +1,7 @@
 // In-run HUD (doc 02 §8): XP marquee bar, level stub, moon→sun clock, Act name, HP bar, weapon /
 // passive tray, boss bar with phase segments, banners, boss warnings, toasts, coach marks, and the
 // level-up draft + chest reveal overlays. D-85: the live Lost Tickets count, the damage meter
-// (dmgMeter.ts) and, in co-op, the party frames down the left.
+// (dmgMeter.ts) and, in co-op, the party frames (D-91: over the health bar).
 
 import { ACT_NAMES, DAWN_TIME } from '../data/waves';
 import { BOSS_MAP } from '../data/bosses';
@@ -31,6 +31,8 @@ export interface HudScreen {
   w: number;
   h: number;
   toScreen: (x: number, y: number, h?: number) => { x: number; y: number };
+  /** how tall a playable character stands (world units, feet to the top of the head or hat) */
+  headH?: (charId: string) => number;
 }
 
 /** How high each boss's overhead bar floats (world units above its feet; D-65). */
@@ -44,8 +46,15 @@ const MARK_SVG = '<svg viewBox="0 0 24 24"><path d="M4 3 L12 21 L20 3 L12 8 Z" f
 /** What gets a bouncing arrow over it, and how high above the ground the arrow hangs (D-71). */
 const MARKED: Partial<Record<string, number>> = { chest: 74, food: 48, funnel: 48, golden: 66 };
 
-/** A chest arrow (points along +x; rotated toward its chest). */
-const ARROW_SVG = '<svg viewBox="0 0 24 24"><path d="M3 4 L21 12 L3 20 L8 12 Z" fill="#f2c14e" stroke="#17110e" stroke-width="2.4" stroke-linejoin="round"/></svg>';
+/** An arrow round your character toward a chest or a golden ticket (points along +x; coloured by the CSS). */
+const ARROW_SVG = '<svg viewBox="0 0 24 24"><path d="M3 4 L21 12 L3 20 L8 12 Z" fill="currentColor" stroke="#17110e" stroke-width="2.4" stroke-linejoin="round"/></svg>';
+/** A coffin, for a fallen teammate's off-screen marker (D-91); its cross takes their colour. */
+const COFFIN_SVG = '<svg viewBox="0 0 24 24"><path d="M9 1.5 L15 1.5 L19 6.5 L16 22.5 L8 22.5 L5 6.5 Z" fill="#6a3a22" stroke="#17110e" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 6 V16 M8.6 9.4 H15.4" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+/** How far in from the screen's edge an off-screen marker's centre stands (it and its notch fit inside). */
+const EDGE_IN = 46;
+/** The party frames' distance from the bottom of the screen (D-91: over the health bar; match `.hud .party`). */
+const PARTY_BOTTOM = 128;
+const onScreen = (s: { x: number; y: number }, screen: HudScreen) => s.x > 0 && s.x < screen.w && s.y > 0 && s.y < screen.h;
 
 /** What the co-op layer of the HUD shows (set by the app every frame during an online run). */
 export interface CoopHud {
@@ -145,6 +154,11 @@ export class Hud {
   private buildTip = h('div', { class: 'tray-tip pf-tip hidden' });
   private buildFor: number | null = null;
   private buildKey = '';
+  /** the party frames' height, measured with `keepOut` (the chat box sits over them) */
+  private partyH = 0;
+  /** the off-screen markers on show, by what they mark (D-91: kept from frame to frame, so a portrait isn't rebuilt) */
+  private edges = new Map<string, { el: HTMLElement; ptr: HTMLElement }>();
+  private edgeSeen = new Set<string>();
   /** where the meter and the party frames stand (the edge arrows keep clear of them), measured four times a second */
   private keepOut: { x: number; y: number; w: number; h: number }[] = [];
   private keepOutT = 0;
@@ -367,7 +381,9 @@ export class Hud {
     this.keepOutT -= dt;
     if (this.keepOutT <= 0) {
       this.keepOutT = 0.25;
-      this.keepOut = [this.meter.rect(), this.partyRect()].filter((r): r is NonNullable<typeof r> => !!r);
+      const party = this.partyRect();
+      this.partyH = party?.h ?? 0;
+      this.keepOut = [this.meter.rect(), party].filter((r): r is NonNullable<typeof r> => !!r);
     }
     this.updateIndicators(g, screen);
     this.updateBars(g, screen);
@@ -393,9 +409,10 @@ export class Hud {
     this.promptEl.style.top = `${Math.max(70, Math.min(screen.h - 150, s.y))}px`;
   }
 
-  /** How far up from the bottom the chat box sits: above the health bar and its portrait. */
+  /** How far up from the bottom the chat box sits: above the health bar and its portrait, and above the party frames
+   *  when they're up (D-91: they moved there from the top left). */
   chatBottom(): number {
-    return 118;
+    return this.party.classList.contains('hidden') || !this.partyH ? 118 : PARTY_BOTTOM + this.partyH + 12;
   }
 
   /** The party frames' box in UI pixels, or null without them. */
@@ -404,11 +421,11 @@ export class Hud {
     return { x: this.party.offsetLeft, y: this.party.offsetTop, w: this.party.offsetWidth, h: this.party.offsetHeight };
   }
 
-  /** An edge arrow's x, moved in past the meter or the party frames when it would sit on them (D-85). */
+  /** An edge marker's x, moved in past the meter or the party frames when it would sit on them (D-85). */
   private clearX(x: number, y: number, screenW: number): number {
     for (const r of this.keepOut) {
-      if (y < r.y - 18 || y > r.y + r.h + 18 || x < r.x - 18 || x > r.x + r.w + 18) continue;
-      x = r.x > screenW / 2 ? r.x - 26 : r.x + r.w + 26;
+      if (y < r.y - EDGE_IN || y > r.y + r.h + EDGE_IN || x < r.x - EDGE_IN || x > r.x + r.w + EDGE_IN) continue;
+      x = r.x > screenW / 2 ? r.x - EDGE_IN : r.x + r.w + EDGE_IN;
     }
     return x;
   }
@@ -496,11 +513,12 @@ export class Hud {
     }
   }
 
-  /** Small arrows circling your character toward the nearest chests (D-65); gone once you're on top of one. */
+  /** Arrows circling your character toward the nearest chests and golden tickets (D-65; D-91: golden tickets too, and
+   *  bigger); gone once you're on top of one. */
   private updateChestArrows(g: Game, screen: HudScreen): void {
     const p = g.player;
     const list = g.pickups
-      .filter((pk) => pk.alive && pk.kind === 'chest')
+      .filter((pk) => pk.alive && (pk.kind === 'chest' || pk.kind === 'golden'))
       .map((pk) => ({ pk, d: Math.hypot(pk.x - p.x, pk.y - p.y) }))
       .filter((c) => c.d > 170)
       .sort((a, b) => a.d - b.d)
@@ -517,7 +535,8 @@ export class Hud {
       if (!c) return;
       const s = screen.toScreen(c.pk.x, c.pk.y, 20);
       const a = Math.atan2(s.y - ps.y, s.x - ps.x);
-      const R = 78 + i * 10;
+      const R = 98 + i * 13;
+      if (el.dataset.kind !== c.pk.kind) el.dataset.kind = c.pk.kind;
       el.style.left = `${ps.x + Math.cos(a) * R}px`;
       el.style.top = `${ps.y + Math.sin(a) * R}px`;
       el.style.transform = `translate(-50%, -50%) rotate(${a}rad)`;
@@ -560,18 +579,13 @@ export class Hud {
       return;
     }
     this.updateParty(g, info);
-    // name tags over the other players, or an arrow at the screen edge when they are off-screen
+    // name tags over the other players' heads (D-91: they sat at face height); off screen, their marker at the edge
+    // (updateIndicators)
     const kids: HTMLElement[] = [];
     for (const q of g.players) {
-      if (q.index === info.local) continue;
-      const s = screen.toScreen(q.x, q.y);
-      const cls = `p${q.index + 1}`;
-      if (s.x > 0 && s.x < screen.w && s.y > 60 && s.y < screen.h) kids.push(h('div', { class: `coop-tag ${cls}`, style: { left: `${s.x}px`, top: `${s.y - 74}px` } }, q.downed ? `⚰ ${q.name}` : q.name));
-      else {
-        const m = 30;
-        const y = Math.max(m + 100, Math.min(screen.h - m - 70, s.y)), x = this.clearX(Math.max(m, Math.min(screen.w - m, s.x)), y, screen.w);
-        kids.push(h('div', { class: 'indicator', style: { left: `${x}px`, top: `${y}px` } }, h('i', { style: { background: PLAYER_CSS[q.index % PLAYER_CSS.length], color: '#17110e' } }, q.downed ? '⚰' : q.name.slice(0, 1).toUpperCase())));
-      }
+      if (q.index === info.local || !onScreen(screen.toScreen(q.x, q.y), screen)) continue;
+      const s = screen.toScreen(q.x, q.y, (q.downed ? 64 : screen.headH?.(q.char.id) ?? 150) + 12);
+      kids.push(h('div', { class: `coop-tag p${q.index + 1}`, style: { left: `${s.x}px`, top: `${s.y}px` } }, q.downed ? `⚰ ${q.name}` : q.name));
     }
     this.tags.replaceChildren(...kids);
     const sk = info.status ? info.status.text + (info.status.action?.label ?? '') : '';
@@ -591,9 +605,10 @@ export class Hud {
   }
 
   /**
-   * A frame per teammate down the left (D-85, after the MMO party frames): their portrait, name, health and
-   * what is happening to them. Built once per party; the bars and lines update in place, so a portrait under
-   * the pointer stays put. Hover a portrait for their build.
+   * A frame per teammate, stacked over your own health bar (D-85, after the MMO party frames; D-91 moved them
+   * there from the top left): their portrait, name, health and what is happening to them. Built once per party;
+   * the bars and lines update in place, so a portrait under the pointer stays put. Hover a portrait for their
+   * build.
    */
   private updateParty(g: Game, info: CoopHud): void {
     const others = g.players.filter((q) => q.index !== info.local);
@@ -673,25 +688,52 @@ export class Hud {
     );
   }
 
-  /** Edge arrows pointing at off-screen chests, food and bosses. */
+  /**
+   * Markers at the screen's edge for what is off it (D-91: bigger circles, each with a notch toward what it marks):
+   * chests, food and golden tickets; bosses, their face in red; in co-op, each teammate's portrait in their colour,
+   * a coffin while they are down.
+   */
   private updateIndicators(g: Game, screen: HudScreen): void {
-    const marks: { x: number; y: number; col: string; txt: string }[] = [];
-    for (const pk of g.pickups) {
+    this.edgeSeen.clear();
+    for (let i = 0; i < g.pickups.length; i++) {
+      const pk = g.pickups[i];
       if (!pk.alive) continue;
-      if (pk.kind === 'chest') marks.push({ x: pk.x, y: pk.y, col: '#f2c14e', txt: '★' });
-      else if (pk.kind === 'food') marks.push({ x: pk.x, y: pk.y, col: '#6fe07a', txt: '+' });
-      else if (pk.kind === 'golden') marks.push({ x: pk.x, y: pk.y, col: '#ffe98a', txt: '$' });
+      const mk = pk.kind === 'chest' ? ['#f2c14e', '★'] : pk.kind === 'food' ? ['#6fe07a', '+'] : pk.kind === 'golden' ? ['#ffe066', '$'] : null;
+      if (mk) this.edgeMark(screen, `pk${i}:${pk.gen}`, pk.x, pk.y, 'item', mk[0], () => [mk[1]]);
     }
-    for (const b of g.bosses) if (b.awake && !b.dead) marks.push({ x: b.x, y: b.y, col: '#ff4a2a', txt: '!' });
-    const kids: HTMLElement[] = [];
-    const m = 30;
-    for (const mk of marks) {
-      const s = screen.toScreen(mk.x, mk.y);
-      if (s.x > 0 && s.x < screen.w && s.y > 0 && s.y < screen.h) continue;
-      const y = Math.max(m + 100, Math.min(screen.h - m - 70, s.y)), x = this.clearX(Math.max(m, Math.min(screen.w - m, s.x)), y, screen.w);
-      kids.push(h('div', { class: 'indicator', style: { left: `${x}px`, top: `${y}px` } }, h('i', { style: { background: mk.col, color: '#17110e' } }, mk.txt)));
+    for (const b of g.bosses) if (b.awake && !b.dead) this.edgeMark(screen, `boss${b.uid}`, b.x, b.y, 'boss', '#ff4a2a', () => [h('img', { src: this.assets.bossImage(b.def.id), alt: '' })]);
+    const info = this.coopInfo;
+    if (info && g.players.length > 1) for (const q of g.players) {
+      if (q.index === info.local) continue;
+      const down = q.downed || q.dead;
+      this.edgeMark(screen, `mate${q.index}:${q.char.id}:${down ? 1 : 0}`, q.x, q.y, down ? 'mate down' : 'mate', PLAYER_CSS[q.index % PLAYER_CSS.length],
+        () => [down ? h('span', { class: 'coffin', html: COFFIN_SVG }) : h('img', { src: this.assets.portrait(q.char.id), alt: '' })]);
     }
-    if (kids.length || this.indicators.childElementCount) this.indicators.replaceChildren(...kids);
+    for (const [k, m] of this.edges) if (!this.edgeSeen.has(k)) {
+      m.el.remove();
+      this.edges.delete(k);
+    }
+  }
+
+  /** One off-screen marker (made the first time, moved after): at the edge nearest (wx, wy), clear of the party
+   *  frames and the meter, its notch turned toward it. Nothing while it's on screen. */
+  private edgeMark(screen: HudScreen, key: string, wx: number, wy: number, cls: string, col: string, content: () => (Node | string)[]): void {
+    const s = screen.toScreen(wx, wy);
+    if (onScreen(s, screen)) return;
+    this.edgeSeen.add(key);
+    let m = this.edges.get(key);
+    if (!m) {
+      const ptr = h('b');
+      const el = h('div', { class: `indicator ${cls}` }, ptr, h('i', {}, ...content()));
+      el.style.setProperty('--pc', col);
+      this.indicators.append(el);
+      m = { el, ptr };
+      this.edges.set(key, m);
+    }
+    const y = Math.max(EDGE_IN + 100, Math.min(screen.h - EDGE_IN - 70, s.y)), x = this.clearX(Math.max(EDGE_IN, Math.min(screen.w - EDGE_IN, s.x)), y, screen.w);
+    m.el.style.left = `${x}px`;
+    m.el.style.top = `${y}px`;
+    m.ptr.style.transform = `rotate(${Math.atan2(s.y - y, s.x - x).toFixed(3)}rad)`;
   }
 
   banner(text: string, sub?: string, style = '', dur = 2.6): void {
@@ -831,6 +873,8 @@ export class Hud {
     this.partyKey = '';
     this.hideBuild();
     this.meter.reset();
+    for (const m of this.edges.values()) m.el.remove();
+    this.edges.clear();
   }
 }
 

@@ -151,12 +151,44 @@ describe('XP & leveling', () => {
     expect(g.xp + g.level * 1000).toBeGreaterThan(xp0);
   });
 
-  it('ground gem cap overflows into the Ticket Bank', () => {
+  it('past the ground cap, the farthest tickets roll up and the newest drops stay loose (D-91)', () => {
     const g = makeGame();
-    g.maxGems = 5;
-    for (let i = 0; i < 20; i++) g.dropTickets(1500, 1500, 1);
-    expect(g.gemsOnGround).toBe(5);
-    expect(g.bankPickup?.value).toBe(15);
+    g.maxGems = 10;
+    const p = g.player;
+    // ten tickets far off, then ten at the player's feet
+    for (let i = 0; i < 10; i++) g.dropTickets(p.x + 1600, p.y + 900, 1);
+    for (let i = 0; i < 10; i++) g.dropTickets(p.x + 60, p.y, 1);
+    const loose = g.pickups.filter((pk) => pk.alive && pk.kind === 'ticket');
+    const rolls = g.pickups.filter((pk) => pk.alive && pk.kind === 'bank');
+    expect(g.gemsOnGround).toBe(loose.length);
+    expect(loose.length).toBeLessThanOrEqual(10);
+    // every one of the newest drops is still loose; only the far ones rolled
+    expect(loose.filter((pk) => Math.hypot(pk.x - p.x, pk.y - p.y) < 200).length).toBe(10);
+    expect(rolls.length).toBe(1);
+    expect(Math.hypot(rolls[0].x - (p.x + 1600), rolls[0].y - (p.y + 900))).toBeLessThan(20);
+    // nothing is lost: the roll holds the far tickets' worth, and counts them for the night's tally
+    expect(rolls[0].value + loose.reduce((n, pk) => n + pk.value, 0)).toBe(20);
+    expect(rolls[0].tickets).toBe(rolls[0].value);
+  });
+
+  it('far tickets in two places roll up into two rolls, each picked up like a ticket (D-91)', () => {
+    const g = makeGame();
+    g.maxGems = 6;
+    const p = g.player;
+    for (let i = 0; i < 3; i++) g.dropTickets(p.x + 1700, p.y - 600, 2);
+    for (let i = 0; i < 3; i++) g.dropTickets(p.x - 1700, p.y + 900, 2);
+    for (let i = 0; i < 6; i++) g.dropTickets(p.x + 40, p.y + 10, 1);
+    const rolls = g.pickups.filter((pk) => pk.alive && pk.kind === 'bank');
+    expect(rolls.length).toBe(2);
+    expect(rolls.map((r) => r.value).sort()).toEqual([6, 6]);
+    expect(g.pickups.filter((pk) => pk.alive && pk.kind === 'ticket').length).toBe(6);
+    const tally = p.runTickets;
+    const r = rolls[0];
+    r.x = r.px = p.x + 30;
+    r.y = r.py = p.y;
+    for (let i = 0; i < 20; i++) g.tick();
+    expect(r.alive).toBe(false);
+    expect(p.runTickets).toBeGreaterThanOrEqual(tally + 3);
   });
 });
 

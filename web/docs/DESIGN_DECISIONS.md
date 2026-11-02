@@ -1789,3 +1789,31 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
 - **Not done:** the four lost passengers are still the simple pale figures of D-80; Stillwater's church clock
   interaction still stands on the church's north side (it works, half hidden by the church's roof);
   no human play-through or cross-network co-op of the new night yet.
+
+### D-91 · The farthest tickets roll up; bigger arrows and markers; party frames over the health bar; name tags over heads; rings at the feet
+
+- **The ask:** at the ticket cap, the newest kills stopped dropping tickets (they went into the roll); roll up the
+  tickets farthest from the player instead. Bigger arrows toward golden tickets and chests, and over them. Bigger
+  circle markers for off-screen teammates and bosses; a teammate's marker their portrait ringed in their colour,
+  a coffin when dead. The party frames over your own health bar, not top left. Co-op name tags over heads, not
+  across faces. A more stylized, pronounced ring under players. Then push and deploy (approved in the ask).
+- **Ticket rolls** (`Game.dropTickets`, `rollUpFarTickets`): past the cap (400), the tickets lying farthest from
+  every standing player roll up where they lie, a tenth of the cap at a time. Each joins the nearest roll within
+  320 or starts one there (at most 10 rolls; beyond that the nearest takes it). A ticket already flying to someone
+  never rolls; if nothing can, the drop itself rolls (the old behaviour, as a last resort). A roll carries its
+  ticket count (`Pickup.tickets`), so the night's tally still counts what was in it. The Prize Collector's payback
+  goes the same way.
+- **Arrows:** the arrows circling your character now point at golden tickets as well as chests (golden ones
+  yellow), 26 → 40 px and a little farther out; the arrows bobbing over chests, food and golden tickets 22 → 34 px.
+- **Off-screen markers:** 28 → 50 px circles (60 for a boss) with a notch pointing at what they mark. A teammate's
+  is their portrait ringed in their colour, a coffin in their colour while down or dead; a boss's is its face in
+  red; chests, food and golden tickets keep their glyphs on filled discs. They're kept from frame to frame (a
+  portrait isn't rebuilt every frame) and still step round the party frames and the meter.
+- **Party frames** stand over your health bar, stacked up from it; the chat box moves up over them.
+- **Name tags** sit over each teammate's head at their own character's height (read off the model,
+  `GameRenderer3D.charTop`; they were a fixed 74 px over the feet), in a night and on the Midway. The Midway's
+  labels over the cast moved the same way.
+- **Rings at the feet** (co-op, as before): each player's colour on a dark band on the ground, four arcs turning
+  slowly round it and a notch where they face. The arcs and notch are drawn over everything, so a crowd standing
+  on the ring can't hide it. The colour is deepened a little so the night's grade doesn't wash it to white.
+- **Not changed:** solo play still has no ring under the player.

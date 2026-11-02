@@ -43,9 +43,12 @@ before the next draft. (This supersedes the Godot `5 + 3L + L^1.6` curve that D-
 
 ## Ticket value
 
-An enemy drops `def.tickets × (1 + 0.012 × minutes)`, ×5 for elites. Tickets on the ground merge into
-a Ticket Bank when there are too many. Multipliers: victory lap ×3, Endless ×1.5, post-boss recovery
-×1.25, Calliope Crescendo event ×1.5 (`TICKETS`).
+An enemy drops `def.tickets × (1 + 0.012 × minutes)`, ×5 for elites. The ground holds 400 tickets; past that
+the ones lying **farthest from every player** roll up where they lie into ticket rolls (40 at a time; a roll
+gathers what lies within 320 of it, at most 10 rolls), so the enemies you are killing always drop their own
+tickets (D-91; the newest drops used to go into one bank instead). Nothing is lost: a roll is worth what went
+into it and counts its tickets in the night's tally. Multipliers: victory lap ×3, Endless ×1.5, post-boss
+recovery ×1.25, Calliope Crescendo event ×1.5 (`TICKETS`).
 
 ## Pacing (spawns)
 
