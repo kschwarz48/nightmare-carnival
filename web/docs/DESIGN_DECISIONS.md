@@ -1581,7 +1581,7 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   | | Before | After |
   |---|---|---|
   | Strongman | 58.6k | 66.9k |
-  | Fortune Teller | 73.3k | 66.3k |
+  | Fortune Teller | 73.3k | 66.1k |
   | Commodore | 54.1k | 60.9k |
   | Mira | 60.3k | 52.8k |
   | Lost Child | 47.0k | 57.7k |
@@ -1648,3 +1648,64 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
 - **Cost.** In a mixed crowd of 62 first-map and patterned creatures, about +0.6 ms a frame on this PC
   (3.4–4.3 ms against 2.8–3.4, the original and new code run alternately). Late combat showed no
   measurable change (3.4–4.4 against 3.2–4.6).
+
+### D-89 · The other maps' humanoids in layers
+
+- **The ask** (after D-88 was deployed): rebuild the other maps' humanoid creatures too, then deploy. D-88 had
+  given them the shared pass, but they kept the old one-piece `humanBody` bodies and `head()` faces.
+- **The approach.** A creature-figure kit in the toolkit (`sculpt/figure.ts`), so each rebuild is costume
+  work like the cast's:
+  - `joints` puts each layer's pieces where `humanBones` puts the joints;
+  - `torsoShell`, `armShell` and `legShell` build a garment `g` out from the bare body, cut anywhere along a
+    limb and flared at its end;
+  - `neckShell`, `ring`, `across` and `alongRot`, `onSurface`;
+  - `surfaceAt` and `hatFrame` moved from `characters.ts` unchanged (the cast's triangle counts are identical).
+
+  `styleFace` can now leave out its mouth line, for faces that paint their own.
+- **Rebuilt:** all 24 builders that used `humanBody` (26 enemy ids: the Grand Display, the Great Barnacle and the
+  Inspector share theirs). Each keeps its skeleton and extra bones, its clips and its size, in two to eight
+  layers with a styled head and face (or its own: porcelain, glass, a hood, a helmet, a mask), modelled
+  garment edges, per-pixel patterns (hoops, tweed, pinstripe, check, kelp fronds, a rotted suit's holes, a
+  veil's net), clean hands and shoes, and an identity from above (a hat, a hood, a crown, a ruff, a collar).
+  The details per figure are in CHARACTER_ART_QUALITY_STANDARD §14.
+- **Fixed on the way:**
+  - robes and skirts hung through the floor (down to −18): every one is cut at the boards;
+  - barnacles were scattered in space, half buried: they are seated on the sculpt;
+  - the glasswalker's capture: it hides behind the glass between visits, so the capture steps it out.
+- **Budgets** (triangles; regular enemy ≤ 15k, miniboss ≤ 38k):
+
+  | | Before | After |
+  |---|---|---|
+  | Grinning Mannequin (and the Grand Display) | 7.2k | 11.8k |
+  | Doppelganger | 8.1k | 12.1k |
+  | Glasswalker | 10.1k | 9.1k |
+  | Marionette | 5.4k | 11.9k |
+  | Crooked Clown | 7.3k | 11.7k |
+  | Reflection Thief | 10.9k | 9.0k |
+  | The Drowned | 7.4k | 12.1k |
+  | Ticket Taker | 8.0k | 12.8k |
+  | Barnacle Brute / the Great Barnacle | 10.3k / 11.6k | 14.9k / 16.3k |
+  | Prize Collector | 11.1k | 21.7k |
+  | Tidecaller | 9.2k | 13.8k |
+  | The Ticketless | 7.3k | 8.9k |
+  | The Porter | 13.1k | 14.7k |
+  | The Navvy | 23.6k | 24.0k |
+  | Mourning Passenger | 13.0k | 9.1k |
+  | The Signalman | 8.0k | 12.6k |
+  | Clockwork Commuter | 7.8k | 10.9k |
+  | Newsboy Specter | 7.4k | 9.9k |
+  | Gravebound | 6.5k | 8.4k |
+  | Slag Golem | 13.4k | 17.2k |
+  | Riveter | 8.6k | 10.6k |
+  | Still Folk | 9.1k | 11.2k |
+  | The Watcher | 9.9k | 9.4k |
+  | Ticket Puncher / the Inspector | 9.0k / 23.4k | 10.5k / 18.2k |
+- **Cost** (this PC, 1600×900; each map's rebuilt figures in a crowd round the player on their own map, 240
+  frames twice, the original and new code run alternately):
+  - the Fun House, 80 figures: 5.7–6.7 ms a frame against 5.2–6.1 ms, about +0.5;
+  - the Boardwalk, 66–90 figures heavy with divers and prize collectors: 5.5–6.1 against 4.7–4.9, about +1;
+  - the Ghost Train, 59 figures: 3.9–4.5 against 3.8–3.9, about +0.3;
+  - the first map's late combat (a control: none of these figures in it): unchanged, 3.4–4.7 against 3.6–4.6.
+- **Not done:** the plush stuffie still uses the old helpers (a swarm toy, it reads well); the bosses as in
+  D-88; the coaster wraith's rider, the pallbearers and the collected are built on their own rigs and were
+  left as the shared pass made them.

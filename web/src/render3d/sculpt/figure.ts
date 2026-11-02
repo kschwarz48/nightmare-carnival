@@ -11,7 +11,7 @@
 
 import * as THREE from 'three';
 import { C, SURF, ellipsoid, rbox, sphere, tube, type ColorFn, type Surf, type V3 } from '../core/geo';
-import { Sculpt, type BuildOpts } from './sdf';
+import { Sculpt, type BuildOpts, type Pattern } from './sdf';
 import type { Proportions } from './humanoid';
 import { REAL, frontZ } from './realism';
 
@@ -123,7 +123,7 @@ export interface FaceOpts {
   spread?: number;
   y?: number;
   brow?: number;
-  /** inner ends of the brows: up (+, worried) or down (−, scowling) */
+  /** the brows' tilt: + lowers their inner ends (a scowl), − raises them (worried, sad) */
   browTilt?: number;
   browW?: number;
   lid?: number;
@@ -131,6 +131,7 @@ export interface FaceOpts {
   /** the mouth's corners: + smile, − frown; `smirk` lifts one corner */
   smile?: number;
   smirk?: number;
+  /** 0 draws no mouth line: the face paints its own (a grin, a slack jaw) */
   mouthW?: number;
 }
 
@@ -154,6 +155,7 @@ export function styleFace(sc: Sculpt, P: Proportions, bone: number, o: FaceOpts 
     const bw = (o.browW ?? 1) * r;
     sc.detail(rbox(bw * 0.4, r * 0.085, r * 0.1, r * 0.035, 1), { col: o.brow ?? 0x1c130e, bone, pos: [bx, by, frontZ(sc, bx, by) + r * 0.01], rot: [0, s * 0.3, s * (o.browTilt ?? 0.18)], surf: FAM.hair, ink: false });
   }
+  if (o.mouthW === 0) return;
   const my = y - 0.5 * r, mw = (o.mouthW ?? 1) * r;
   const sm = o.smile ?? 0, sk = o.smirk ?? 0;
   const pts: V3[] = [-1, -0.45, 0, 0.45, 1].map((u) => {
@@ -204,4 +206,108 @@ export function styleHair(sc: Sculpt, P: Proportions, bone: number, col: number,
   sc.add({ t: 'ell', c: [0, y + r * 0.08, -r * 0.36], r: [r * 0.95, r * 0.72 * (o.back ?? 1), r * 0.76] }, { ...hair, k: 1 });
   if (o.sideburns !== false) for (const s of [1, -1]) sc.add({ t: 'cap', a: [s * r * 0.87, y + r * 0.3, r * 0.08], b: [s * r * 0.86, y - r * 0.24, r * 0.26], ra: r * 0.14, rb: r * 0.08 }, { ...hair, k: 0.4 });
   for (const [a, b] of o.fringe ?? []) sc.add({ t: 'cap', a, b, ra: r * 0.2, rb: r * 0.07 }, { ...hair, k: 0.35 });
+}
+
+// ---------------------------------------------------------------- creature figures (D-89)
+// The other maps' humanoid creatures are built in layers like the cast, on their own ADULT-scaled skeletons.
+// These put each layer's pieces where `humanBones` and `humanBody` put the joints, `g` proud of the bare body:
+// g = 0 is skin, a close garment about 0.6–1, a coat 1.2–2.
+
+export type Bones = (n: string) => number;
+export const SIDES = [[1, 'L'], [-1, 'R']] as const;
+/** The point `u` of the way from a to b. */
+export const along = (a: V3, b: V3, u: number): V3 => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+
+/** A side's joints where `humanBones` and `humanBody` put them (s = +1 for the left). */
+export function joints(P: Proportions, s: number): { sh: V3; el: V3; wr: V3; hp: V3; kn: V3; an: V3 } {
+  return {
+    sh: [s * P.shoulderX, P.shoulderY, 0],
+    el: [s * (P.shoulderX + P.armOut), P.elbowY, -0.8],
+    wr: [s * (P.shoulderX + P.armOut * 1.6), P.wristY, 0.8],
+    hp: [s * P.stance, P.hip - 2, 0],
+    kn: [s * (P.stance + 0.4), P.knee, 0.6],
+    an: [s * (P.stance + 0.4), P.ankle + 1, 0],
+  };
+}
+
+/** What a layer's piece is made of. */
+export interface Part { col: Col; surf?: Surf; pat?: Pattern; ink?: boolean; emit?: number }
+
+/**
+ * The torso as one shell `g` proud of the bare body: the hips, waist and chest masses and the shoulders' caps
+ * (humanBody's forms). `hips: false` for a top that stops at the waist, `chest: false` for trousers' seat.
+ */
+export function torsoShell(sc: Sculpt, P: Proportions, b: Bones, g: number, part: Part, o: { hips?: boolean; chest?: boolean; shoulders?: boolean; k?: number } = {}): void {
+  const k = o.k ?? 1, p = { surf: FAM.cloth, ...part };
+  if (o.hips !== false) sc.add({ t: 'ell', c: [0, P.hip + 1, 0], r: [P.hipW + g, 7 + g * 0.5, (P.hipW + g) * P.depth] }, { ...p, bone: b('hips'), k: 2 * k });
+  if (o.chest === false) return;
+  sc.add({ t: 'ell', c: [0, P.waist, 0.4], r: [P.waistW + g, 8 + g * 0.5, (P.waistW + g) * P.depth] }, { ...p, bone: b('spine'), k: 5 * k });
+  sc.add({ t: 'ell', c: [0, P.chest + 1, 0.6], r: [P.chestW + g, 9 + g * 0.5, (P.chestW + g) * P.depth] }, { ...p, bone: b('chest'), k: 5 * k });
+  if (o.shoulders !== false) for (const s of [1, -1]) sc.add({ t: 'sph', c: [s * (P.shoulderX - 1), P.shoulderY - 0.5, 0], r: P.arm[0] + 1.2 + g }, { ...p, bone: b('chest'), k: 3 * k });
+}
+
+/**
+ * An arm's shell on side s from `from` to `to` along it (0 the shoulder, 1 the elbow, 2 the wrist), `g` proud of
+ * the bare arm and `flare` wider still at its end (a bell sleeve).
+ */
+export function armShell(sc: Sculpt, P: Proportions, b: Bones, s: number, g: number, part: Part, o: { from?: number; to?: number; flare?: number; k?: number } = {}): void {
+  const n = s > 0 ? 'L' : 'R', { sh, el, wr } = joints(P, s);
+  const from = o.from ?? 0, to = o.to ?? 2, k = o.k ?? 1, p = { surf: FAM.cloth, ...part };
+  const at = (u: number) => (u <= 1 ? along(sh, el, u) : along(el, wr, u - 1));
+  const rad = (u: number) => (u <= 1 ? P.arm[0] + (P.arm[1] - P.arm[0]) * u : P.arm[1] + (P.arm[2] - P.arm[1]) * (u - 1)) + g + (u === to ? o.flare ?? 0 : 0);
+  if (from < 1) sc.add({ t: 'cap', a: at(from), b: at(Math.min(1, to)), ra: rad(from), rb: rad(Math.min(1, to)) }, { ...p, bone: b(`arm${n}`), k: 2 * k });
+  if (to > 1) sc.add({ t: 'cap', a: at(Math.max(1, from)), b: at(to), ra: rad(Math.max(1, from)), rb: rad(to) }, { ...p, bone: b(`fore${n}`), k: 1.5 * k });
+}
+
+/** A leg's shell on side s from `from` to `to` (0 the hip, 1 the knee, 2 the ankle), `g` proud of the bare leg. */
+export function legShell(sc: Sculpt, P: Proportions, b: Bones, s: number, g: number, part: Part, o: { from?: number; to?: number; flare?: number; k?: number } = {}): void {
+  const n = s > 0 ? 'L' : 'R', { hp, kn, an } = joints(P, s);
+  const from = o.from ?? 0, to = o.to ?? 2, k = o.k ?? 1, p = { surf: FAM.cloth, ...part };
+  const at = (u: number) => (u <= 1 ? along(hp, kn, u) : along(kn, an, u - 1));
+  const rad = (u: number) => (u <= 1 ? P.leg[0] + (P.leg[1] - P.leg[0]) * u : P.leg[1] + (P.leg[2] - P.leg[1]) * (u - 1)) + g + (u === to ? o.flare ?? 0 : 0);
+  if (from < 1) sc.add({ t: 'cap', a: at(from), b: at(Math.min(1, to)), ra: rad(from), rb: rad(Math.min(1, to)) }, { ...p, bone: b(`thigh${n}`), k: 3 * k });
+  if (to > 1) sc.add({ t: 'cap', a: at(Math.max(1, from)), b: at(to), ra: rad(Math.max(1, from)), rb: rad(to) }, { ...p, bone: b(`shin${n}`), k: 1.5 * k });
+}
+
+/** The neck, under the head (`r` × the head radius thick). */
+export function neckShell(sc: Sculpt, P: Proportions, b: Bones, part: Part, r = 0.34): void {
+  sc.add({ t: 'cap', a: [0, P.neck - 3, 0], b: [0, P.neck + 3, 0.3], ra: P.headR * r, rb: P.headR * (r - 0.03) }, { surf: FAM.skin, ...part, bone: b('neck'), k: 1.5 });
+}
+
+/** The rotation that turns a ring (a torus detail) square across the segment a→b: a cuff, a sleeve's band. */
+export function across(a: V3, b: V3): V3 {
+  const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]).normalize();
+  return [Math.atan2(-d.y, d.z), Math.asin(d.x), 0];
+}
+
+/** The rotation that turns +Y along a→b: a sculpted ring (`tor`) round a limb, a box along it. */
+export function alongRot(a: V3, b: V3): V3 {
+  const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]).normalize();
+  const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d));
+  return [e.x, e.y, e.z];
+}
+
+/** The point where the sculpt's surface is met looking from `o` (inside) toward `p`, lifted `lift` off it. */
+export function onSurface(sc: Sculpt, o: V3, p: V3, lift = 0.3): V3 {
+  const d: V3 = [p[0] - o[0], p[1] - o[1], p[2] - o[2]], L = Math.hypot(...d), u: V3 = [d[0] / L, d[1] / L, d[2] / L];
+  const q = surfaceAt(sc, o, u, L * 2);
+  return [q[0] + u[0] * lift, q[1] + u[1] * lift, q[2] + u[2] * lift];
+}
+
+/** A cuff, hem or band: a ring round a limb at `at`. */
+export function ring(sc: Sculpt, at: V3, R: number, r: number, part: Part, bone: number, rot?: V3): void {
+  sc.add({ t: 'tor', c: at, R, r, rot }, { surf: FAM.cloth, ...part, bone, k: 0.3 });
+}
+
+/** Where the surface sculpted so far is met coming in along `d` toward `o` (coins round an edge). */
+export function surfaceAt(sc: Sculpt, o: V3, d: V3, from = 30): V3 {
+  let t = from;
+  while (t > 0 && sc.field(o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t) > 0) t -= 0.25;
+  return [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
+}
+
+/** A hat built as crisp parts in its own frame, `tip` radians back (so the camera sees under the brim). */
+export function hatFrame(at: V3, tip: number, tilt = 0) {
+  const M = new THREE.Matrix4().makeTranslation(...at).multiply(new THREE.Matrix4().makeRotationX(tip)).multiply(new THREE.Matrix4().makeRotationZ(tilt));
+  return (g: THREE.BufferGeometry, p: V3 = [0, 0, 0], rx = 0): THREE.BufferGeometry => g.applyMatrix4(new THREE.Matrix4().makeRotationX(rx).premultiply(new THREE.Matrix4().makeTranslation(...p)).premultiply(M));
 }

@@ -115,6 +115,45 @@ understate that character.
 
 ---
 
+## The other maps' humanoids in layers — 2026-11-02 (D-89)
+
+- `npm test`: 29 files, 428 tests pass. One is new, in `tests/characterArt.test.ts`: each of the 26 rebuilt
+  figures keeps its role's budget (15k regular, 38k miniboss), its skeleton and extra bones, its clips (the
+  drowned's and the gravebound's `rise`), its height within 10%, and nothing below the floor. `tsc` is
+  clean and `npm run build` passes. The playable cast's triangle counts are unchanged by the toolkit move.
+- **Captures** (dev server, the inspector, one 1600×900 Electron window; baselines from the committed code):
+  every figure from the game's angle (front, 3/4, back), at eye level in studio light, mid-walk and
+  mid-attack, before and after, and again after each round of fixes (four rounds).
+  Sheets (`web/artifacts/visual/d89/`, git-ignored): `cmp-d89-<map>-<n>.png`, each figure before and after at
+  the game's angle and at eye level.
+- **Found by looking, and fixed:**
+  - belts floating round the waist like hoops (the search caught the arms): found on the body alone;
+  - the ticket taker's tails cut off with his coat's hem: on a layer of their own;
+  - the drowned's ribbed cap read as a target from above, and kelp down his chest as a beard;
+  - narrow V's ragged at these cells (navvy, signalman, doppelganger): cut wider;
+  - the slag golem washed gold by its own core's bloom: a smaller, warmer core, dimmer cracks;
+  - three faces scowling or worried the wrong way round (`browTilt` read backwards);
+  - the Watcher's chest a ball on a stick: a frock coat's body;
+  - the mannequin's waist seam and the thief's belt caught on the arms; a marionette's sleeve band floating;
+  - the signalman's lamp glass hidden inside its can.
+- **Seen and left:** the slag golem keeps a bronze cast in game light from its warm rim (its readability
+  setting, as before); V-neck edges are still a little uneven on the coarsest garments; the glasswalker must
+  be stepped out of the glass to be seen in a frozen lineup (its own behaviour).
+- **Shader health:** `__nc.inspect.shaders()` was clean in every capture run.
+- **Measured** (ms a frame, two 240-frame runs, original and new code alternately):
+
+  | Scene | After | Before |
+  |---|---|---|
+  | Fun House crowd, 80 | 5.7–6.7 (8.2–9.0 M triangles) | 5.2–6.1 (6.8–7.4 M) |
+  | Boardwalk crowd, 66–90 | 5.5–6.1 (5.0–5.8 M) | 4.7–4.9 (3.7–4.2 M) |
+  | Ghost Train crowd, 59 | 3.9–4.5 (3.8 M) | 3.8–3.9 (3.5 M) |
+  | Late combat, first map (control) | 3.4–4.7 | 3.6–4.6 |
+- **Scorecard** (the other maps' enemies, 0–3): **Enemies 2 → 2.5:** designed faces and costumes with
+  modelled edges on every humanoid, a silhouette from above for each; **Materials 2 → 2.5:** porcelain, chrome,
+  glass, velvet, crape, brass, iron and slag read as themselves.
+- **Not checked:** motion as video (poses held in the inspector; clips unchanged); a slower GPU; the
+  figures in real waves on their maps beyond the benched crowds.
+
 ## The enemy roster on the character art standard — 2026-11-02 (D-88)
 
 - `npm test`: 29 files, 427 tests pass. Three are new, in `tests/characterArt.test.ts`:

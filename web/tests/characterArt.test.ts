@@ -1,7 +1,8 @@
 // The character art standard (D-86, docs/CHARACTER_ART_QUALITY_STANDARD.md): the sculpt pipeline's new
 // guarantees (vertices on the true surface, occlusion as data, crisp seams, patterns, per-part ink), the
 // three benchmark models' budgets and animation interface, the rest of the playable cast rebuilt on it
-// (D-87), and the enemy roster's pass (D-88), so later work can't quietly regress them.
+// (D-87), the enemy roster's pass (D-88), and the other maps' humanoids rebuilt in layers (D-89), so later work
+// can't quietly regress them.
 
 import { describe, expect, it } from 'vitest';
 import type { BufferGeometry } from 'three';
@@ -140,6 +141,36 @@ describe('the enemy roster (D-88)', () => {
       const m = creatureModel(id);
       expect(tris(m.geo), id).toBeLessThan(38_000);
       for (const c of ['move', 'attack']) expect(m.rig.has(c), `${id} ${c}`).toBe(true);
+    }
+  });
+});
+
+describe("the other maps' humanoids (D-89)", () => {
+  it("each within its role's budget, on its skeleton with its clips, at its old size, standing on the floor", () => {
+    // [id, budget, its own extra bones, its own extra clips, the top of its head, hat or prop before the rebuild]
+    const R = 15_000, M = 38_000;
+    const rebuilt: [string, number, string[], string[], number][] = [
+      ['grinning_mannequin', R, [], [], 88], ['doppelganger', R, [], [], 85.5], ['glasswalker', R, [], [], 98.6], ['marionette', R, [], [], 165],
+      ['crooked_clown', R, [], [], 104], ['reflection_thief', R, [], [], 88.6],
+      ['drowned', R, [], ['rise'], 87], ['ticket_taker', R, [], [], 91.7], ['barnacle_brute', R, [], [], 100.6], ['great_barnacle', M, [], [], 151],
+      ['prize_collector', M, [], [], 110.9], ['tidecaller', R, ['staff'], [], 140.2],
+      ['gt_ticketless', R, ['case'], [], 87], ['gt_porter', R, ['trunk'], [], 113.8], ['gt_navvy', M, ['hammer'], [], 144], ['gt_mourner', R, ['veil'], [], 98.5],
+      ['gt_signalman', R, ['lantern'], [], 91.3], ['gt_commuter', R, ['key', 'brolly'], [], 89.6], ['gt_newsboy', R, ['paper'], [], 68.7],
+      ['gt_gravebound', R, [], ['rise'], 86.4], ['gt_slag', M, [], [], 117.4], ['gt_riveter', R, ['gun'], [], 88.1], ['gt_stillfolk', R, [], [], 87.2],
+      ['gt_watcher', R, [], [], 163.4], ['gt_puncher', R, ['punch'], [], 85.9], ['gt_inspector', M, ['punch'], [], 151.2],
+    ];
+    for (const [id, budget, extra, extraClips, top] of rebuilt) {
+      const m = creatureModel(id);
+      expect(tris(m.geo), id).toBeLessThan(budget);
+      const names = m.rig.bones.map((b) => b.name);
+      for (const n of [...HUMAN, ...extra]) expect(names, `${id} ${n}`).toContain(n);
+      for (const c of ['move', 'attack', ...extraClips]) expect(m.rig.has(c), `${id} ${c}`).toBe(true);
+      m.geo.computeBoundingBox();
+      const bb = m.geo.boundingBox!;
+      expect(bb.max.y, id).toBeGreaterThan(top * 0.9);
+      expect(bb.max.y, id).toBeLessThan(top * 1.1);
+      // robes and skirts are cut at the floor (they hung through it, down to -18)
+      expect(bb.min.y, id).toBeGreaterThan(-2.5);
     }
   });
 });

@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { C, SURF, cone, cyl, ellipsoid, lathe, rbox, sphere, torus, tube, type Surf, type V3 } from '../core/geo';
 import { PAL } from './kit';
 import { Sculpt, layered, type Shape } from '../sculpt/sdf';
-import { FAM, HERO, LAYER, shadowedJaw, styleFace, styleHair, styleHand, styleHead, styleShoe, vertical } from '../sculpt/figure';
+import { FAM, HERO, LAYER, hatFrame, shadowedJaw, styleFace, styleHair, styleHand, styleHead, styleShoe, surfaceAt, vertical } from '../sculpt/figure';
 import { Rig, type ClipDef, type Pose, ease, mix, pulse, sin, cos } from '../sculpt/rig';
 import { type Gait, type Proportions, gaitPose, humanBones, hurtPose, idlePose, scaleP } from '../sculpt/humanoid';
 import { bareHand, frontZ, torsoShapes } from '../sculpt/realism';
@@ -201,19 +201,6 @@ function armForms(P: Proportions, s: number, g = 0): { delt: Shape; upper: Shape
     upper: { t: 'cap', a: [s * (P.shoulderX + 0.1), P.shoulderY - dr * 0.7, 0], b: elbowAt(P, s), ra: dr * 0.97 + g, rb: P.arm[1] + g },
     fore: { t: 'cap', a: elbowAt(P, s), b: wristAt(P, s), ra: P.arm[1] + g, rb: P.arm[2] + g },
   };
-}
-
-/** Where the surface sculpted so far is met coming in along `d` toward `o` (coins round an edge). */
-function surfaceAt(sc: Sculpt, o: V3, d: V3, from = 30): V3 {
-  let t = from;
-  while (t > 0 && sc.field(o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t) > 0) t -= 0.25;
-  return [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t];
-}
-
-/** A hat built as crisp parts in its own frame, `tip` radians back (so the camera sees under the brim). */
-function hatFrame(at: V3, tip: number, tilt = 0) {
-  const M = new THREE.Matrix4().makeTranslation(...at).multiply(new THREE.Matrix4().makeRotationX(tip)).multiply(new THREE.Matrix4().makeRotationZ(tilt));
-  return (g: THREE.BufferGeometry, p: V3 = [0, 0, 0], rx = 0): THREE.BufferGeometry => g.applyMatrix4(new THREE.Matrix4().makeRotationX(rx).premultiply(new THREE.Matrix4().makeTranslation(...p)).premultiply(M));
 }
 
 // ---------------------------------------------------------------- The Strongman

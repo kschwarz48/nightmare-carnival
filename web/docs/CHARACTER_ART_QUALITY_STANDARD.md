@@ -109,10 +109,11 @@ pattern is per pixel and their edges are modelled.
 | `vertical`, `shadowedJaw` | smooth, deliberate colour: top light, a crisp-edged five o'clock shadow |
 | `LAYER`, `FAM` | standard build options per layer, material families |
 | `CREATURE`, `flat` | for a creature sculpted in one piece (D-88): the standard's build options; a flat colour where `weather()` noise was |
+| `joints`, `torsoShell`, `armShell`, `legShell`, `neckShell` | a creature figure's layers on its own ADULT-scaled skeleton (D-89): each piece where `humanBones` puts the joints, `g` proud of the bare body; a sleeve or trouser leg cut anywhere along the limb, flared at its end |
+| `ring`, `across`, `alongRot`, `onSurface`, `surfaceAt`, `hatFrame` | cuffs and bands square across a limb; details seated on the sculpted surface; a hat in its own frame, tipped back |
 
-The older humanoid helpers (`humanBody`, `head`, `eyeDetails` in `sculpt/humanoid.ts`) still build most
-creatures. Since D-88 `humanBody` takes a per-pixel costume pattern (`torsoPat`, `armPat`), and
-`eyeDetails` seats the eyes on the face as sculpted rather than on an assumed sphere.
+The older humanoid helpers (`humanBody`, `head`, `eyeDetails` in `sculpt/humanoid.ts`) now build only the
+plush stuffie. Since D-89 every humanoid creature is built in layers with the helpers above.
 
 ## 5. Proportion and anatomy
 
@@ -349,6 +350,47 @@ Lessons from the cast:
   triangles and can only leak ink.
 - **Child figures need their eyes clear of a brim from 50° in their idle pose,** which often looks down.
 
+**The other maps' humanoids (D-89)**, 24 builders (26 enemy ids), each in two to eight layers on its own skeleton:
+- **The Fun House:** the mannequin in glossy porcelain with moulded, painted marcel waves, a painted grin far
+  too wide, every limb a separate piece on a dark ball joint; the doppelganger as a whole person poured in
+  chrome (hair, jacket, collar and tie, shoes) with a blank glowing face and a crack; the glasswalker as long
+  faceted mirror panes with a gap at every joint and a shard for a head; the marionette carved and painted,
+  its jaw on a hinge, in a velvet doublet with puffed sleeves and a torn lace ruff; the crooked clown long and
+  thin in violet hoops under a tiny top hat; the reflection thief's deep hood with a pointed tail, bell
+  sleeves, a robe in folds and a belt hung with stolen mirror shards.
+- **The Boardwalk:** the drowned bather's tank suit cut to two straps over bare shoulders, a coral cap and its
+  strap, kelp lying on the body and barnacles seated on it; the ticket taker's crimson tailcoat, striped
+  trousers, pillbox cap and a grin of too many teeth; the diver's canvas suit rotted through to the flesh,
+  brass corselet and grilled helmet, lead boots and the barnacle rock on his back and fist; the prize
+  collector's check jacket open off a mustard waistcoat, bow tie, eyeshade and burlap sack; the tidecaller's
+  kelp robe with a standing collar of fronds, long wet hair under a crown of shells, the bell on her staff.
+- **The Ghost Train:** period dress for the line's dead — the ticketless's tweed overcoat and cardboard
+  suitcase; the porter's tunic, belt and banded trunk; the navvy on the Brute's lines (rolled sleeves over bare
+  forearms, neckerchief, waistcoat, moleskins tied below the knee, a forged sledge); the mourner's crape dress
+  with leg-of-mutton sleeves and a bustle under a hat and net veil; the signalman's shirtsleeves, garters,
+  waistcoat and red lamp; the clockwork commuter's brass head behind a porcelain mask, bowler and pinstripe;
+  the newsboy's puffed cap, outsized jacket, bare knees and satchel; the gravebound's rotted burial suit over
+  ribs and bone-thin shins; the slag golem as plates of crust with the melt glowing in the cracks between them
+  (it was noise in the colour); the riveter's banded boiler, pauldrons and porthole eye; the still folk's
+  stone face with watch-face eyes under a bonnet, a shawl and an apron; the Watcher's long frock coat and
+  stovepipe; the puncher's and the Inspector's double-breasted frock coats, peaked caps and brass punch.
+
+Lessons from the creatures:
+- **Find a body's surface on the body alone.** A search for a waist on a garment from far out caught the
+  hanging arms, and belts floated round them like hoops. Search a probe sculpt of the torso, or from just
+  outside it.
+- **Seat small details on the surface** (`onSurface`, `surfaceAt`). Barnacles scattered in space were half
+  buried and half floating.
+- **Cut robes and skirts at the floor** with a box. A flared cone's round end hung through the boards, down
+  to −18.
+- **A V narrower than about two cells comes out ragged.** At a regular enemy's 2–3 unit cells, cut it at least
+  4–5 units wide at the top, or lay the shirt front on as its own piece.
+- **Keep bright sources small on a dark figure.** The slag golem's wide, white-hot core bloomed over the whole
+  figure at play and turned it gold; a smaller, warmer core and dimmer cracks read as slag.
+- **`browTilt` lowers the inner ends of the brows when positive** (a scowl). Three faces had it backwards.
+- **A figure on a thin frame needs a column for a body.** The Watcher's chest ellipsoid read as a ball on a
+  stick until a frock coat's body ran from his hips to his shoulders.
+
 ## 15. Rolling it out
 
 When the benchmarks are approved, move the rest of the roster across in this order:
@@ -361,7 +403,8 @@ When the benchmarks are approved, move the rest of the roster across in this ord
 3. **The swarm** (balloons and stuffies) last. Light passes only: they already read well. Keep them
    ≤ 10k, and fix only their noise colour and ink blots. **Done in D-88** by the shared pass.
 4. **The other maps' creatures**, map by map, each batch measured in its own late-combat state. **Done in
-   D-88** by the shared pass, tighter blends on the humanoids and a few fixes.
+   D-88** by the shared pass, tighter blends on the humanoids and a few fixes; **the 24 humanoid figures
+   rebuilt in layers in D-89** (8.4k–24k triangles), each map's crowd measured on its own map.
 5. **The bosses** (non-sculpted; they use the prop shader with `detail`) as a separate pass with their own
    inspector lineup. **Analysed in D-88 and left:** they're primitive-built set pieces without the
    figures' muddy causes (no occlusion or curvature paint baked into colour, no soft seams), and they read
