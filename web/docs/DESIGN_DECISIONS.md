@@ -1852,3 +1852,16 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
 - 32 px, the largest a custom cursor can be anywhere in the window (Chromium swaps bigger ones for its own near the
   window's edge). Text fields keep the text cursor. Until the cursors are drawn, or where a browser can't, the
   browser's own cursors stand in (`:root` in style.css).
+
+### D-94 · Updates are noticed within a minute or two
+
+- **The report:** after a deploy, the Restart & Update card didn't come up. The game had looked at `version.json`
+  every 10 minutes and on the step from a night or a lobby into a safe moment, so a player sitting in the menus
+  or the Midway could wait up to ten minutes (D-93 went live three minutes before the report).
+- **Now** it looks every 2 minutes, on every safe screen (not only the first after a night or a lobby), and
+  whenever the game's window comes back to the front (focus, or the tab shown again): the moment after a deploy
+  is usually the moment the player switches back to the game. Never more than once a minute, as before.
+- Unchanged: the card shows only at a safe moment (menus, the Midway alone, a finished night), never in a night,
+  a lobby or a co-op Midway; *Later* hides it for 30 minutes.
+- **Checked** on a production build served locally: a newer build faked into the page's `version.json` requests
+  brought the card up within a second and a half of the window regaining focus; nothing showed before.

@@ -20,8 +20,9 @@ export interface Manifest {
   desktop?: { windows?: { version: string; url: string } | null } | null;
 }
 
-/** How often a running game looks (plus at every safe moment), and never more often than this. */
-const POLL_MS = 10 * 60 * 1000;
+/** How often a running game looks (plus at every safe moment and whenever its window comes back to the front), and
+ *  never more often than this. (D-94: it was every 10 minutes, so a deploy could sit unseen for that long.) */
+const POLL_MS = 2 * 60 * 1000;
 const MIN_GAP_MS = 60 * 1000;
 
 export class UpdateChecker {

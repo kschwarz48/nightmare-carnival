@@ -333,7 +333,8 @@ advisory GHSA-jr5w-w6x2-84p9):
 - **Game updates (ordinary changes):**
   - every build gets an id (commit + time) and publishes `version.json`: id, version, protocol, simulation
     fingerprint, asset list;
-  - games poll it at boot, every 10 minutes and at every safe moment;
+  - games poll it at boot, every 2 minutes, on every safe screen and whenever the game's window comes back to the
+    front, never more than once a minute (D-94; it was every 10 minutes and only on the step into a safe moment);
   - a newer build is offered at safe moments only (menus, the Midway alone, results), never during a match,
     lobby or connection. *Later* hides it for 30 minutes.
   - *Restart & Update* checks the server first, saves, leaves any party politely, then reloads. The browser

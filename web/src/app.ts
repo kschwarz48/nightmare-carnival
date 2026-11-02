@@ -1772,13 +1772,14 @@ export class App {
     const s = this.session();
     const key = `${s.state}:${s.safe}`;
     if (key === this.sessionKey) return;
-    const wasSafe = this.sessionKey.endsWith(':true');
     this.sessionKey = key;
     desktop?.setSession(s.state, s.safe);
     if (!s.safe) this.updatePrompt?.hide();
-    else if (!wasSafe) {
-      void this.updates.check().then(() => this.offerUpdate());
+    else {
+      // every safe screen offers what's known and looks again (at most once a minute; D-94: only the step from a
+      // night or a lobby to one did)
       this.offerUpdate();
+      void this.updates.check().then(() => this.offerUpdate());
     }
   }
 
@@ -1797,6 +1798,13 @@ export class App {
       this.showDownload();
     };
     this.updates.start();
+    // coming back to the game's window (from a browser tab or another app) looks too: that is when a deploy is
+    // likeliest to be waiting (D-94; at most once a minute)
+    const look = () => {
+      if (document.visibilityState === 'visible') void this.updates.check().then(() => this.offerUpdate());
+    };
+    window.addEventListener('focus', look);
+    document.addEventListener('visibilitychange', look);
     desktop?.onShellUpdate((u) => {
       this.shellUpdate = u;
       this.offerUpdate();
