@@ -435,6 +435,25 @@ export class Game {
     }
     return best;
   }
+  /**
+   * The nearest standing player for something at (x, y) to go after: on the Ghost Train, only one in the same place
+   * (its places stand far apart in one world, and a nearer player in another is out of reach but not out of a
+   * beam's; D-95). Anyone, failing that.
+   */
+  nearestPlayerFor(x: number, y: number): Player {
+    if (this.mapId !== 'ghost_train') return this.nearestLiving(x, y);
+    const r = gtRegionAt(x, y);
+    let best: Player | null = null, bd = Infinity;
+    for (const p of this.players) {
+      if (!this.isUp(p) || gtRegionAt(p.x, p.y) !== r) continue;
+      const d = dist2(p.x, p.y, x, y);
+      if (d < bd) {
+        bd = d;
+        best = p;
+      }
+    }
+    return best ?? this.nearestLiving(x, y);
+  }
   /** A random standing player to anchor spawns and drops around. */
   spawnAnchor(): Player {
     if (this.players.length === 1) return this.players[0];
@@ -454,8 +473,10 @@ export class Game {
     const st = b as BossBase & { _tgt?: number; _tgtT?: number };
     st._tgtT = (st._tgtT ?? 0) - TICK;
     const cur = this.players[st._tgt ?? 0];
-    if (st._tgtT <= 0 || !cur || !this.isUp(cur)) {
-      st._tgt = this.nearestLiving(b.x, b.y).index;
+    // (on the Ghost Train a target who has gone to another place is let go at once, D-95)
+    const gone = !!cur && this.mapId === 'ghost_train' && gtRegionAt(cur.x, cur.y) !== gtRegionAt(b.x, b.y);
+    if (st._tgtT <= 0 || !cur || !this.isUp(cur) || gone) {
+      st._tgt = this.nearestPlayerFor(b.x, b.y).index;
       st._tgtT = COOP.bossRetarget;
     }
     return this.players[st._tgt ?? 0];
@@ -523,11 +544,20 @@ export class Game {
     this.quests.update(dt);
     if (P) pt = perf.sysMark(SYS.director, pt);
     this.nav.update(this, dt);
+    const gt = this.mapId === 'ghost_train';
     for (let i = 0; i < this.active.length; i++) {
       const e = this.active[i];
       e.px = e.x;
       e.py = e.y;
-      if (multi) this.setCtx(this.nearestLiving(e.x, e.y));
+      // the Ghost Train (D-95): a creature holds still where nobody stands, as a boss does, and goes only after
+      // somebody in its own place. It went after the nearest player wherever they were, so a Watcher's gaze or a
+      // Riveter's lane at a station reached across the world into the moving train
+      if (gt && !anyoneIn(this, gtRegionAt(e.x, e.y))) {
+        e.vx = e.vy = 0;
+        this.updateStatuses(e, dt);
+        continue;
+      }
+      if (multi) this.setCtx(gt ? this.nearestPlayerFor(e.x, e.y) : this.nearestLiving(e.x, e.y));
       updateEnemy(this, e, dt);
       if (e.alive) this.nav.steer(this, e, dt);
       this.updateStatuses(e, dt);
@@ -1530,8 +1560,10 @@ export class Game {
         continue;
       }
       if (h.safe) continue;
-      // Pull (Inhale): applies regardless of contact (shared with the co-op guest's prediction).
-      if (h.pull !== 0) for (const p of this.players) if (this.isUp(p)) addHazardPull(p, h);
+      // Pull (Inhale): applies regardless of contact (shared with the co-op guest's prediction). A shove (a negative
+      // pull with no reach of its own: the Porter's bash) lands only on whoever the blow touches (D-95: it reached
+      // four times the bash's size, all round, and a crowd of Porters bounced players about the map)
+      if (h.pull !== 0) for (const p of this.players) if (this.isUp(p) && (h.pull > 0 || h.pullR > 0 || this.hazardTouches(h, p.x, p.y, p.r))) addHazardPull(p, h);
       if (h.dmg <= 0) continue;
       if (h.tick > 0) {
         h.tickAcc -= dt;

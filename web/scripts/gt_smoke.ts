@@ -6,6 +6,7 @@ import { makeGame, autopilot, autoDraft } from '../tests/helpers';
 import { regionAt, TRANSIT, trainOrigin, REGIONS, PHANTOM_AT } from '../src/data/ghosttrain';
 import { trainNow } from '../src/sim/ghosttrain';
 import { LT_TRAIN, PHANTOM_DOOR } from '../src/data/gtStations';
+import { LT, type LastTrainChain } from '../src/sim/quest/lastTrain';
 
 const secs = Number(process.argv[2] ?? 600);
 /** seconds the bot fights at each station before it boards */
@@ -21,6 +22,10 @@ const steer = (x: number, y: number, slack = 24) => {
   g.input.moveY = l > slack ? dy / l : 0;
   return l;
 };
+// the bot doesn't play the hidden quest's opening, and the guard won't whistle the train out until its timetable is
+// mended (D-95): mended from the start
+const lt = g.quests.get<LastTrainChain>('last_train');
+if (lt) lt.stage = LT.Stations;
 for (let i = 0; i < secs * 60 && g.phase !== 'ended'; i++) {
   autoDraft(g);
   const p = g.player;

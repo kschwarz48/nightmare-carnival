@@ -14,7 +14,7 @@ import { isPetId } from '../data/pets';
 import { isSource, type MeterPlayer } from '../sim/meter';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 18;
+export const PROTO = 19;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;

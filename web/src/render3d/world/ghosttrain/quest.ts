@@ -270,10 +270,11 @@ export class GtQuest {
   addLights(g: Game, time: number, train: TrainRender): void {
     const ch = g.quests?.get<LastTrainChain>('last_train');
     if (ch) {
-      const c = ch.coalBy === 255 ? null : g.players[ch.coalBy];
-      if (c) pool.add(c.x, c.y, 200, 0.8, 1, 0.45, 0.15, 40, 1.6);
-      const tp = ch.taperBy === 255 ? null : g.players[ch.taperBy];
-      if (tp) pool.add(tp.x, tp.y, 170, 0.7, 1, 0.75, 0.4, 50, 1.6);
+      // each player's own shovelful of glowing coal, each player's own taper (D-95: one of each at a time before)
+      for (const p of g.players) {
+        if (ch.coalCarry & (1 << p.index)) pool.add(p.x, p.y, 200, 0.8, 1, 0.45, 0.15, 40, 1.6);
+        if (ch.tapers & (1 << p.index)) pool.add(p.x, p.y, 170, 0.7, 1, 0.75, 0.4, 50, 1.6);
+      }
       // the grave lamps lit, the candles always; the crucible's melt, the ladle on its rails
       LT_VESPER.lamps.forEach((l, k) => { if (ch.lamps & (1 << k) || ch.running(V)) pool.add(l.x + GRAVE_LANTERN.dx * GRAVE_LAMP_S, l.y, 190, 0.8, 1, 0.75, 0.4, 60, 1.6); });
       pool.add(LT_VESPER.candles.x, LT_VESPER.candles.y, 150, 0.6, 1, 0.78, 0.45, 50, 1.6);
@@ -393,7 +394,7 @@ export class GtQuest {
         G.draw(glow, fx, l.y, fh, 0.14, 0.14, 0, 1, 0.92, 0.7, 1);
       }
       else if (stage === LT.Stations && ch && ch.step[V] === 0) {
-        const taper = ch.taperBy !== 255;
+        const taper = ch.tapers !== 0;
         G.draw(glow, fx, l.y, fh, 0.26, 0.26, 0, 0.7, 0.85, 1, (taper ? 0.3 : 0.12) + (taper ? 0.15 : 0.06) * Math.sin(t * 2.4 + k));
       }
     });
@@ -579,13 +580,15 @@ export class GtQuest {
     };
     const kb = ch.keyBy === 255 || stage >= LT.Prepare ? null : g.players[ch.keyBy];
     if (kb) this.key.add(kb.x + 16, kb.y + 6, 30, 0.4, 0.8);
-    const tp = ch.taperBy === 255 ? null : g.players[ch.taperBy];
-    if (tp) {
-      const left = Math.max(0, ch.taperT / LAST_TRAIN.taper);
-      G.draw(glow, tp.x + 14, tp.y, 58, 0.18 + left * 0.18, 0.18 + left * 0.18, 0, 1, 0.75, 0.35, 0.95);
+    for (const p of g.players) {
+      const bit = 1 << p.index;
+      if (ch.tapers & bit) {
+        const left = Math.max(0, ch.taperT[p.index] / LAST_TRAIN.taper);
+        G.draw(glow, p.x + 14, p.y, 58, 0.18 + left * 0.18, 0.18 + left * 0.18, 0, 1, 0.75, 0.35, 0.95);
+      }
+      if (ch.scrapCarry & bit) this.cog(p.x + 18, p.y + 6, 40, t * 1.5 + p.index, 0.6);
+      if (ch.coalCarry & bit) G.draw(glow, p.x + 14, p.y, 40, 0.35, 0.35, 0, 1, 0.45, 0.15, 0.7);
     }
-    const sb = ch.scrapBy === 255 ? null : g.players[ch.scrapBy];
-    if (sb) this.cog(sb.x + 18, sb.y + 6, 40, t * 1.5, 0.6);
     const pb = ch.pendulumBy === 255 ? null : g.players[ch.pendulumBy];
     if (pb) {
       this.e.set(0, 0, Math.sin(t * 4) * 0.3);
@@ -602,7 +605,6 @@ export class GtQuest {
     }
     carried(ch.punchBy, [1, 0.88, 0.5], 50, 0.25);
     carried(ch.letterBy, [1, 0.95, 0.85], 50, 0.25);
-    carried(ch.coalBy, [1, 0.45, 0.15], 40, 0.35);
     // ---- fixtures waiting to be used
     if (stage === LT.Prepare && !ch.batteryIn && ch.batteryBy === 255) {
       this.battery.add(JUNCTION.lamproom.x, JUNCTION.lamproom.y - 6, 0, 0.4, 1.1);

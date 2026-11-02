@@ -41,12 +41,12 @@ the reel and the signal, and none of them fails anything if missed.
 
 | # | Stage | Where | What |
 |---|---|---|---|
-| 0 | Ticket | Hollow Junction, booking office window | **Ask at the booking office**: a ticket for THE LAST TRAIN HOME, "not valid until the line keeps time". Every clock has stopped |
+| 0 | Ticket | Hollow Junction, booking office window, or its stopped platform clock | **Ask at the booking office** (a ticket for THE LAST TRAIN HOME, "not valid until the line keeps time") **or look at the stopped clock** (D-95): either starts it. Every clock has stopped |
 | 1 | Key | about the Junction (one of five places, seeded) | the station clocks' **brass winding key**: under a waiting bench, at the dry fountain's rim, beside the hearse, on a luggage pile, under the water tower. A glint catches the eye now and then. The stopped clock says the key is gone |
 | 2 | Junction | the Junction's platform clock | **wind it while the train stands in** (the key's carrier). Aboard, in the sleeper (the second car from the back), the four **compartment doors** slide open, and the card says to gather the pages inside |
-| 3 | Pages | the sleeper's four compartments (any copy of the train) | a torn timetable page drifts in each (one of two places each, seeded). With all four: THE LAST TRAIN HOME calls where each station's clock keeps time, goes at the guard's whistle, and the footnote gives tonight's three **levers** |
+| 3 | Pages | the sleeper's four compartments (any copy of the train) | a torn timetable page drifts in each (one of two places each, seeded). With all four: THE LAST TRAIN HOME calls where each station's clock keeps time; get every clock going. **Until then the guard won't whistle the train out of a station** (D-95): the cord says what's still wanted |
 | 4 | Stations | Saint Vesper's, the Cinder Works, Stillwater (any order) | each station's clock has its own trouble (below). Look at the clock and it says what it needs; once mended, the key's carrier winds it. The whistle takes you on |
-| 5 | Prepare | back at the Junction | take the **signal battery** from the lamp room under the signal box, fit it to the train's **lamp box** at the front of the tender (the train's signal lamp burns red), and pull the signal box's **levers in the footnote's order** (3 of 5; a wrong one springs them all back). Either order |
+| 5 | Prepare | back at the Junction | take the **signal battery** from the lamp room under the signal box, fit it to the train's **lamp box** at the front of the tender (the train's signal lamp burns red), and pull the signal box's **levers in the order of the timetable's footnote** (read the TIMETABLE board on the concourse; 3 of 5; a wrong one springs them all back). Either order |
 | 6 | Signal | aboard, on any journey | a signal stands at danger part-way along (seeded per journey, 30–70 % of the leg). The call-out comes 2.5 s ahead; **switch the lamp box to green** (green for 3 s) as the engine passes it: the points swing over and **this journey goes to the End of the Line**. Missed, the train runs on to its usual stop and the signal stands again on the next journey |
 | 7 | Punch | the End of the Line, ticket box at the barrier | take the Conductor's spare punch (carried) |
 | 8 | Passengers | the End of the Line's platform | **while the train stands there**, the punch's carrier punches the four passengers' tickets; they board |
@@ -134,12 +134,17 @@ fallen, at 34:00 at the earliest, and the night's clock waits at 34:59 until the
 
 ## Co-op
 
-One shared chain, the host runs it; guests receive it as 51 bytes (`NET_BYTES`), including `eFrom` (two bytes,
+One shared chain, the host runs it; guests receive it as 56 bytes (`NET_BYTES`), including `eFrom` (two bytes,
 a whole second). The train's own state rides the `gt_line` chain (12 bytes), so a guest's doors, HUD line and
 route are the host's exactly. Any standing player can act; nothing needs two players at once, but the stations
 reward a party: one keeps the vigil, the moments or the ladle company while the others hold the crowd off.
-Carried things (the key, a taper, brass, the pendulum, the battery, the punch, Ada's letter, a shovel of coal)
-pass to the nearest standing player if the carrier falls; a taper goes out instead.
+
+- **The party's things** (D-95): the key, the pendulum, the battery, the punch and Ada's letter are the party's
+  once found. Whoever finds one carries it, but anyone can use it: wind a clock, hang the pendulum, fit the
+  battery, punch a ticket, post the letter. It passes to the nearest standing player if its carrier falls.
+- **Each player's own** (D-95): a brass cog, a lit taper, a shovel of coal. Everyone may carry one at once (only
+  one carrier at a time before). A fallen carrier's cog goes back where it lay, their shovelful is spilt, their
+  taper goes out. No more shovels leave the chute than the tender still needs.
 
 D-90 replaced the old first half (pages anywhere aboard, the stations' clocks wound while the train stood in,
 the battery and the train's lamp shown green at every signal of a loop, then the points and a whistle on the

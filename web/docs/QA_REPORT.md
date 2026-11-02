@@ -115,6 +115,21 @@ understate that character.
 
 ---
 
+## The Ghost Train in co-op: timetable first, shared things, the crowd, the shove — 2026-11-02 (D-95)
+
+- `npm test`: 29 files, 440 tests pass. New in `tests/ghosttrain.test.ts`: the stopped clock starts the quest; the
+  cord won't take the train out at any stage before the pages (and answers "locked"), then does; two players, one
+  finds the key and the other winds with it, hangs the pendulum and fits the battery; two players each carry a cog,
+  both melt, and a fallen carrier's cog lies where it was again; a Porter-like bash moves a player in front of it
+  and not one beside it; a Watcher stirred up at Stillwater does nothing while the only player rides the train and
+  stares once somebody walks into its station. The whistle tests mend the timetable first. `tsc` is clean.
+- `scripts/gt_smoke.ts 240` (the timetable mended at the start: the bot doesn't play the opening): four
+  transfers, no faults.
+- **Captures** (dev server): the TIMETABLE plate on the board; in the tender before the pages, the HUD line and the
+  pull's answer ("2 of 4 found; the sleeper is the second car from the back"), written whole into the log.
+- **Not checked:** an online co-op session (the shared and per-player items were played with two local players in
+  tests only).
+
 ## The game's own cursors — 2026-11-02 (D-93)
 
 - `npm test`: 29 files, 434 tests pass; `tsc` clean; `npm run build` passes.

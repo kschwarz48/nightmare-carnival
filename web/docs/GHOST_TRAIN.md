@@ -71,6 +71,11 @@ platform's railing). Nothing boards in view, and nothing boards while nobody rid
 are mostly meat: Navvies above all, Porters, Ticketless, few casters. The pace is unchanged for the first
 eleven minutes, then climbs harder (rate up to 2.6 a second, up to 110 aboard; it was 1.6 and 64).
 
+**A creature keeps to its place** (D-95): where nobody stands, it holds still and does nothing, as a boss does, and
+it only goes after players in its own place. It went after the nearest player wherever they were, so creatures the
+hidden quest stirs up (exempt from the despawn leash: Riveters at the ladle, a Watcher at the jetty) aimed their
+lanes and gaze from a station across the world into the moving train.
+
 **Bosses** fight at stations (`sim/bosses/gtBoss.ts`). A boss due while every player is riding waits for the
 next platform anyone stands on. A boss holds still while nobody is in its place, and **follows the party down
 the line**: once its station has stood empty for 4 s and somebody stands at another, it is waiting there
@@ -112,6 +117,9 @@ Station order: Hollow Junction (J) → Saint Vesper's (V) → Cinder Works (C) �
 Line (E) → J. The night starts with the train **approaching J through the fog**, in at **0:30**. After that
 **the players drive it**. The timetable is gone: no departure times, no countdown, no board of times.
 
+- **The guard waits for the timetable** (D-95): until the hidden quest's four pages are gathered, the cord won't
+  take the train out of a station, so every night begins at the Junction with its stopped clock, the brass key and
+  the sleeper's pages. The HUD line and the cord say what's still wanted.
 - **The whistle cord** hangs at the front of the tender (`LT_TRAIN.whistle`), in every copy of the train.
   Pulling it at a station (`pullWhistle`, `sim/ghosttrain.ts`) sounds the guard's whistle and the bell, "All
   aboard!", and **4 s later** (`WHISTLE_LEAD`) the doors close and the train leaves for the next stop. A second

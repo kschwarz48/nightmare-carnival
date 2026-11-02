@@ -416,7 +416,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   gt_porter: E({
     id: 'gt_porter', name: 'The Porter', hp: 120, speed: 55, contact: 12, tickets: 6,
     behavior: 'gt_porter', radius: 18, sep: 24, knockbackTaken: 0.25, canElite: true, eliteName: 'Head Porter',
-    params: { home: 'junction,end', shield: 0.4, arc: 1.05, reach: 80, windup: 0.6, shove: 520, bashDmg: 10, cool: 2.2 },
+    params: { home: 'junction,end', shield: 0.4, arc: 1.05, reach: 80, windup: 0.6, shove: 420, bashDmg: 10, cool: 2.2 },
     deathFx: 'wood', hitSfx: 'knock', deathSfx: 'trunkslam', drawScale: 2.9, act: 2, role: 'Shielded tank',
     lore: 'He carries a steamer trunk in front of him and never sets it down. Nobody has ever seen what is inside.',
     tell: 'The trunk soaks hits from the front; get round him. Lowers his shoulder to bash you out of the way.',

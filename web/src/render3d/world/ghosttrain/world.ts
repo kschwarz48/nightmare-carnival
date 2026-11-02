@@ -95,6 +95,7 @@ export class GhostTrainWorld {
       this.root.add(m);
     };
     letter('TICKETS', 106, 15, JUNCTION.office.x, 136, JUNCTION.office.y + 72.6);
+    letter('TIMETABLE', 164, 22, JUNCTION.board.x, 256, JUNCTION.board.y + 2.6);
     letter('SIGNAL BOX', 196, 26, JUNCTION.signalbox.x, 114, JUNCTION.signalbox.y + 122.6);
     letter('SIGNAL BOX', 104, 16, JUNCTION.fingerpost.x - 62, 150, JUNCTION.fingerpost.y + 3.8);
     letter('BOOKING OFFICE', 104, 16, JUNCTION.fingerpost.x + 62, 118, JUNCTION.fingerpost.y + 3.8);

@@ -1020,7 +1020,8 @@ export class App {
     if (g.mapId !== 'ghost_train') return;
     const me = g.players[this.localIndex] ?? g.player;
     const st = trainNow(g);
-    this.lineBoard.update(g.phase === 'play' ? lineText(st, me.x, me.y) : null);
+    const ltq = g.quests?.get<LastTrainChain>('last_train');
+    this.lineBoard.update(g.phase === 'play' ? lineText(st, me.x, me.y, !!ltq && ltq.stage < LT.Stations) : null);
     const here = gtRegionAt(me.x, me.y);
     const riding = here === TRANSIT;
     const speed = st.phase === 'travel' ? legSpeed(st.t, st.len) / CRUISE : 0;
@@ -1096,7 +1097,8 @@ export class App {
       a.duckMusic(3);
       a.play('fortune', { vol: 0.7 });
       this.fortune.show(`${line[0]} ${line[1] ?? ''}`, dur, who);
-      this.chat.add({ kind: 'fortune', who, text: line[1] || line[0] });
+      // the whole card in the log (D-95: only its second line went there, and the timetable's said only the levers)
+      this.chat.add({ kind: 'fortune', who, text: [line[0], line[1]].filter(Boolean).join(' ') });
     };
     const ch = g.quests?.get<LastTrainChain>('last_train');
     const lever = (m: number) => [m % 5, Math.floor(m / 5) % 5, Math.floor(m / 25) % 5];
@@ -1119,6 +1121,12 @@ export class App {
         // a pull that sends the train off is heard from the train itself (ghostTrainFrame); the others here
         if (q.a !== WHISTLE.go) a.play('gt_whistle', { vol: 0.9, pan: pan(q.x) });
         if (q.a === WHISTLE.terminus && q.x !== undefined && q.y !== undefined && Math.hypot((g.players[this.localIndex] ?? g.player).x - q.x, (g.players[this.localIndex] ?? g.player).y - q.y) < 300) this.hud.whisper('This train terminates here', 'The Midnight Line goes no further tonight.', 4);
+        // no timetable yet (D-95): the guard won't, and says what's wanted, to whoever is in the tender
+        if (q.a === WHISTLE.locked && q.x !== undefined && q.y !== undefined && Math.hypot((g.players[this.localIndex] ?? g.player).x - q.x, (g.players[this.localIndex] ?? g.player).y - q.y) < 300) {
+          let found = 0;
+          for (let m = ch?.pages ?? 0; m; m &= m - 1) found++;
+          say(LT_TEXT.whistleLocked(ch?.stage ?? 0, found), 6);
+        }
         break;
       case 'gt_phantom_open':
         this.hud.banner('THE DOORS HAVE OPENED', 'On every platform, a door stands open to the End of the Line', 'danger', 4);
@@ -1168,7 +1176,7 @@ export class App {
         fx('spark', 'gold', 6);
         break;
       case 'lt_pages':
-        card(LT_TEXT.pagesDone(lever(q.a ?? 0)), 'THE MENDED TIMETABLE', 14);
+        card(LT_TEXT.pagesDone, 'THE MENDED TIMETABLE', 14);
         a.play('gt_chime', { vol: 0.7 });
         break;
       // ---- the stations' clocks (D-90)

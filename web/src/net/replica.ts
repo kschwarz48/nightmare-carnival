@@ -458,8 +458,9 @@ export class Replica {
     useMap(this.g.mapId);
     const p = this.g.players[this.local];
     const [mx, my] = steer(p, ix, iy);
-    // an inhale pulls the guest exactly as the host will (same formula, replicated hazard)
-    for (const h of this.g.hazards) if (h.alive && h.pull !== 0 && h.tele <= 0 && h.active > 0 && !h.safe) addHazardPull(p, h);
+    // an inhale pulls the guest exactly as the host will (same formula, replicated hazard); a shove only where the
+    // blow lands, as on the host (D-95)
+    for (const h of this.g.hazards) if (h.alive && h.pull !== 0 && h.tele <= 0 && h.active > 0 && !h.safe && (h.pull > 0 || h.pullR > 0 || this.g.hazardTouches(h, p.x, p.y, p.r))) addHazardPull(p, h);
     // and so does a boss's stage ring (D-61), and the Fun House's conveyors and moving walls (D-63)
     for (const b of this.g.bosses) if (b.ringR > 0) addRingPull(p, b);
     if (this.g.mapId === 'fun_house') {

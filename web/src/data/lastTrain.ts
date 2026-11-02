@@ -43,10 +43,17 @@ export const LT_TEXT = {
   key: ['A brass winding key as long as your forearm: the station clocks\'.', 'The Junction\'s clock first, while the train is in.'],
   junctionClock: ['The Junction\'s clock ticks again. Aboard, the sleeper car\'s four compartment doors slide open.', 'A torn timetable page lies in each compartment: gather all four. (The sleeper is the second car from the back.)'],
   page: (n: number) => [`A torn page of a timetable (${n} of 4).`, n === 4 ? 'The timetable is whole again.' : 'The rest are in the other compartments.'],
-  pagesDone: (levers: number[]) => [
-    'The thirteenth train: THE LAST TRAIN HOME. "Calls at Saint Vesper\'s, the Cinder Works and Stillwater, once each station\'s clock keeps time." Look at each station\'s clock to see what it needs; the whistle cord in the tender takes the train on.',
-    `"Departs at the guard's whistle. Route 13 to the End of the Line: levers ${levers.map((l) => l + 1).join(' · ')}."`,
+  pagesDone: [
+    'The timetable is whole: THE LAST TRAIN HOME, calling at Saint Vesper\'s, the Cinder Works and Stillwater once each station\'s clock keeps time.',
+    'Get every station\'s clock going: look at each one to see what it needs. The guard will give the whistle now (the cord is in the tender).',
   ],
+  /** the whistle cord before the timetable is mended (D-95: the train waits for it), by the quest's stage */
+  whistleLocked: (stage: number, pages: number) =>
+    stage <= 1
+      ? ['The guard won\'t give the whistle: this train has no timetable, and every clock on the line has stopped.', 'Start with the Junction\'s clock.']
+      : stage === 2
+        ? ['The guard won\'t give the whistle until the Junction\'s clock keeps time.', 'Wind it with the brass key while the train is in.']
+        : ['The guard won\'t give the whistle without the timetable.', `Its torn pages are in the sleeper's compartments (${pages} of 4 found); the sleeper is the second car from the back.`],
   /** what a stopped clock says it needs, by station and step (the key's carrier winds it once its trouble is mended) */
   trouble: [
     [],
@@ -78,7 +85,7 @@ export const LT_TEXT = {
   pendulum: ['The pendulum: heavy brass, still dripping.', 'Stillwater\'s clock is on the platform.'],
   pendulumHung: ['The pendulum swings.', 'Wind the clock.'],
   clock: (r: string, n: number) => [`${r}'s clock is ticking again.`, n === 4 ? 'The Midnight Line keeps time again. Back to Hollow Junction.' : `${n} of 4 station clocks running. Pull the whistle cord to go on.`],
-  clocks: ['The line keeps time.', 'At the Junction: the signal battery for the train\'s lamp, and the levers in the signal box.'],
+  clocks: ['The line keeps time.', 'Back at the Junction: the signal battery for the train\'s lamp, and the levers in the signal box (their order is the footnote on the timetable board).'],
   battery: ['The signal battery: heavy, its brass terminals still bright.', 'The train\'s own signal lamp is dark. Fit the battery to the lamp box at the front of the tender.'],
   batteryIn: ['The train\'s signal lamp burns red.', ''],
   prepared: ['The train is ready for the End of the Line.', 'Pull the whistle. A signal will stand at danger on the way: switch the train\'s lamp to green as it passes.'],
@@ -113,11 +120,11 @@ export const LT_TEXT = {
   complete: ['THE LAST TRAIN HOME', 'Every ticket punched. The Midnight Line runs no more.'],
   hint: [
     ['THE BOOKING CLERK', '"Every journey starts with a ticket. Ask at the window."'],
-    ['THE BOOKING CLERK', '"The clocks\' key? Somebody dropped it about the concourse. Look where people sit, and wait, and leave their things."'],
+    ['THE BOOKING CLERK', '"The clocks\' key? Somebody dropped it about the concourse. Look where people sit, and wait, and leave their things. The guard won\'t take her out till the line keeps time."'],
     ['THE BOOKING CLERK', '"Wind the Junction\'s clock while the train is in."'],
     ['THE BOOKING CLERK', '"The sleeper\'s compartments are open at last, and there\'s a torn page in each. The sleeper\'s the second car from the back."'],
     ['THE BOOKING CLERK', '"Each station\'s clock has its own trouble. Look at the clock, and the station will tell you. The whistle cord takes you on."'],
-    ['THE BOOKING CLERK', '"The battery is in the lamp room under the signal box. The levers are in the box: the footnote has the order."'],
+    ['THE BOOKING CLERK', '"The battery is in the lamp room under the signal box. The levers are in the box, and their order is the timetable\'s footnote: read the timetable board on the concourse."'],
     ['THE BOOKING CLERK', '"Get her moving, and give the signal the green as you pass it."'],
     ['THE BOOKING CLERK', '"The punch is on the ticket box at the End of the Line."'],
     ['THE BOOKING CLERK', '"Punch their tickets while the train is in, and they\'ll board."'],

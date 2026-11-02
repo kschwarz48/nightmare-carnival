@@ -1865,3 +1865,32 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   a lobby or a co-op Midway; *Later* hides it for 30 minutes.
 - **Checked** on a production build served locally: a newer build faked into the page's `version.json` requests
   brought the card up within a second and a half of the window regaining focus; nothing showed before.
+
+### D-95 · The Ghost Train in co-op: the timetable first, shared things, the crowd kept to its place, the Porter's shove
+
+- **The ask** (Kevin's co-op play-through): the key should come from the clock as well as the booking office; the
+  pages should be needed before the whistle can move the train; the log line after the pages spoke of levers, not
+  clocks; items should be the party's, not only their finder's; more than one player should be able to carry a
+  cog; the levers' hint should say the timetable's footnote, and the board should be labelled; creatures off the
+  train hit the party with long lines from another place; Porters bounced players about, their shove reaching past
+  their hit.
+- **The opening:** the Junction's stopped clock starts the quest as the booking office does (stage Key). The guard
+  won't whistle the train out of a station until the four pages are gathered (`LineChain`; a pull answers with what
+  is still wanted, by stage, and the HUD line says the guard won't whistle her out without a timetable). This
+  makes the quest's opening part of every night: the train leaves the Junction only after the key, the clock and
+  the pages. A party that never does it stays at the Junction until the phantom doors (the night still ends).
+- **The words:** a quest card's whole text goes in the log (only its second line did). The mended timetable says
+  to get every station's clock going; the levers now come only from the timetable board's footnote, and the
+  clerk's hint and the "line keeps time" card point to the TIMETABLE board, which is lettered so on its gilt plate.
+- **Shared and per-player things:** the key, the pendulum, the battery, the punch and Ada's letter are the
+  party's once found (anyone uses them). Cogs, tapers and shovels of coal are each player's own, several at once:
+  bitmasks, a taper's time per player; a fallen carrier's cog goes back where it lay. The chain's bytes grew from
+  51 to 56: PROTO 19.
+- **The crowd kept to its place:** on the Ghost Train a creature holds still where nobody stands and only targets
+  players in its own place (`Game.nearestPlayerFor`); a boss lets go of a target who has gone elsewhere at once.
+  The cause: creatures the quest stirs up are exempt from the despawn leash, and the nearest player could be in
+  another place; a Watcher's gaze and a Riveter's lane are drawn to the target at any range, across the world.
+- **The Porter's shove:** a hazard's push (a negative pull without its own reach) now lands only where the hazard
+  touches, on the host and in a guest's prediction alike. It used to push everyone within four times the bash's
+  radius, all round (440 for a 110 bash). The shove is also 20% weaker (520 to 420).
+

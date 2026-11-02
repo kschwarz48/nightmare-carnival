@@ -2,8 +2,8 @@
 // docs/EASTER_EGG_GHOST_TRAIN.md). The train goes at the whistle since D-90, so the quest is a journey down the line,
 // station by station, mending each stopped clock with the help of the place it stands in.
 //
-//   0 TICKET      Ask at Hollow Junction's booking office: a ticket for THE LAST TRAIN HOME, "not valid until the
-//                 line keeps time". Every station clock has stopped.
+//   0 TICKET      Ask at Hollow Junction's booking office (a ticket for THE LAST TRAIN HOME, "not valid until the
+//                 line keeps time"), or look at its stopped clock (D-95): every station clock has stopped.
 //   1 KEY         The clocks' winding key lies somewhere about the Junction (one of five places a night).
 //   2 JUNCTION    Wind the Junction's clock while the train stands in: aboard, the sleeper's compartment doors
 //                 slide open (they were shut all night).
@@ -37,9 +37,11 @@
 //  14 COMPLETE    …the true dawn, an achievement, the Conductor's Punch unlocked.
 //
 // Everything is a press of interact within reach, or standing somewhere. Co-op: one shared chain, any standing player
-// can act, and whatever is carried (the key, a taper, brass, the pendulum, the battery, the punch, Ada's letter, a
-// shovel of coal) passes to the nearest standing player if its carrier falls. The host runs it; guests receive its
-// state as bytes (`netState`), including `eFrom` (when the End of the Line opened for the hidden quest).
+// can act. The one-of-a-kind things (the key, the pendulum, the battery, the punch, Ada's letter) are the party's
+// once found (D-95): whoever finds one carries it, anyone can use it, and it passes to the nearest standing player if
+// its carrier falls. Brass cogs, tapers and shovels of coal are each player's own: everyone may carry one at once
+// (D-95: one carrier at a time before). The host runs it; guests receive its state as bytes (`netState`), including
+// `eFrom` (when the End of the Line opened for the hidden quest).
 
 import { dist2 } from '../../core/math';
 import { Rng } from '../../core/rng';
@@ -95,7 +97,8 @@ export const LADLE_LEN = pathLength(LT_WORKS.ladle);
 
 export class LastTrainChain extends QuestChain {
   readonly id = LAST_TRAIN.id;
-  /** where the winding key lies tonight (an index of LT_KEY_SPOTS), and who carries it */
+  /** where the winding key lies tonight (an index of LT_KEY_SPOTS), and who carries it (255: not found; anyone
+   *  in the party can use it once found) */
   keyAt = 0;
   keyBy = 255;
   /** which of each compartment's two places holds its page tonight (bit per compartment), and the pages taken */
@@ -104,16 +107,17 @@ export class LastTrainChain extends QuestChain {
   /** the station clocks running (bit per station J, V, C, S), and how far each station's trouble is mended */
   clocks = 0;
   step = [0, 0, 0, 0];
-  /** Saint Vesper's: the grave lamps lit (bits), the taper's carrier and its seconds left, the vigil (0..1) */
+  /** Saint Vesper's: the grave lamps lit (bits), who holds a lit taper (bit per player) and each taper's seconds
+   *  left, the vigil (0..1) */
   lamps = 0;
-  taperBy = 255;
-  taperT = 0;
+  tapers = 0;
+  taperT = [0, 0, 0, 0, 0, 0];
   vigil = 0;
-  /** the Cinder Works: which three of the five places hold brass tonight (bits), the ones taken, who carries one,
-   *  how many are in the crucible, and how far the ladle has come along its rails (units) */
+  /** the Cinder Works: which three of the five places hold brass tonight (bits), the ones taken, who carries a cog
+   *  (bit per player), how many are in the crucible, and how far the ladle has come along its rails (units) */
   scrapAt = 0b00111;
   scrapsTaken = 0;
-  scrapBy = 255;
+  scrapCarry = 0;
   crucible = 0;
   ladle = 0;
   /** Stillwater: each frozen moment's waking (0..1), the pond's reeling (0..1), who carries the pendulum */
@@ -140,8 +144,8 @@ export class LastTrainChain extends QuestChain {
   /** Eli's bells: the order (rope indices, west to east) and how far along it */
   bellOrder = [0, 1, 2];
   bellStep = 0;
-  /** Theo's coal: who carries a shovelful, how many are in the tender, the good stokes so far */
-  coalBy = 255;
+  /** Theo's coal: who carries a shovelful (bit per player), how many are in the tender, the good stokes so far */
+  coalCarry = 0;
   coal = 0;
   stokes = 0;
   /** Mira's hour: where the church clock stands and where it should */
@@ -156,6 +160,8 @@ export class LastTrainChain extends QuestChain {
   private lastDist = 0;
   /** host-side pacing for the creatures each mending stirs up */
   private stirT = 0;
+  /** host-side: the place each player's cog came from (it goes back there if they fall) */
+  private scrapFrom = [-1, -1, -1, -1, -1, -1];
 
   init(): void {
     const r = (this.rng = new Rng((this.g.cfg.seed ^ 0x13181899) >>> 0));
@@ -240,13 +246,18 @@ export class LastTrainChain extends QuestChain {
     };
     // the booking clerk answers at every stage (the ticket first, then a hint)
     if (this.stage < LT.Finale && here === J) push('booking', 0, JUNCTION.booking, this.stage === LT.Ticket ? 'Ask at the booking office' : 'Ask the booking clerk');
+    const mine = 1 << who;
     switch (this.stage) {
+      case LT.Ticket:
+        // the stopped clock starts it as well as the booking office (D-95)
+        if (here === J) push('clock', J, STATION_CLOCK[J], 'Look at the stopped clock');
+        break;
       case LT.Key:
         if (here === J && this.keyBy === 255) push('key', 0, LT_KEY_SPOTS[this.keyAt], 'Pick up the brass key');
         if (here === J) push('clock', J, STATION_CLOCK[J], 'Look at the stopped clock');
         break;
       case LT.Junction:
-        if (here === J) push('clock', J, STATION_CLOCK[J], this.keyBy === who ? 'Wind the station clock' : 'Look at the stopped clock');
+        if (here === J) push('clock', J, STATION_CLOCK[J], this.keyBy !== 255 ? 'Wind the station clock' : 'Look at the stopped clock');
         break;
       case LT.Pages:
         for (let k = 0; k < 4; k++) if (!(this.pages & (1 << k))) push('page', k, this.inTrain(x, y, this.pageSpot(k)), 'Pick up the torn page');
@@ -254,15 +265,15 @@ export class LastTrainChain extends QuestChain {
       case LT.Stations:
         if (here >= V && here <= S) {
           const st = this.step[here];
-          push('clock', here, STATION_CLOCK[here], st === CLOCK_STEPS[here] - 1 && this.keyBy === who ? 'Wind the station clock' : here === S && st === 2 && this.pendulumBy === who ? 'Hang the pendulum' : 'Look at the stopped clock');
+          push('clock', here, STATION_CLOCK[here], st === CLOCK_STEPS[here] - 1 && this.keyBy !== 255 ? 'Wind the station clock' : here === S && st === 2 && this.pendulumBy !== 255 ? 'Hang the pendulum' : 'Look at the stopped clock');
         }
         if (here === V && this.step[V] === 0) {
-          if (this.taperBy === 255) push('candles', 0, LT_VESPER.candles, 'Light a taper at the altar candles');
-          if (this.taperBy === who) LT_VESPER.lamps.forEach((l, k) => { if (!(this.lamps & (1 << k))) push('gravelamp', k, l, 'Light the grave lamp'); });
+          if (!(this.tapers & mine)) push('candles', 0, LT_VESPER.candles, 'Light a taper at the altar candles');
+          else LT_VESPER.lamps.forEach((l, k) => { if (!(this.lamps & (1 << k))) push('gravelamp', k, l, 'Light the grave lamp'); });
         }
         if (here === C && this.step[C] === 0) {
-          if (this.scrapBy === 255) LT_WORKS.scrapSpots.forEach((sp, k) => { if ((this.scrapAt & (1 << k)) && !(this.scrapsTaken & (1 << k))) push('scrap', k, sp, 'Pick up the brass cog'); });
-          if (this.scrapBy === who) push('crucible', 0, LT_WORKS.crucible, 'Melt the cog in the crucible');
+          if (!(this.scrapCarry & mine)) LT_WORKS.scrapSpots.forEach((sp, k) => { if ((this.scrapAt & (1 << k)) && !(this.scrapsTaken & (1 << k))) push('scrap', k, sp, 'Pick up the brass cog'); });
+          else push('crucible', 0, LT_WORKS.crucible, 'Melt the cog in the crucible');
         }
         if (here === S && this.step[S] === 2 && this.pendulumBy === 255) push('pendulum', 0, LT_STILL.bank, 'Pick up the pendulum');
         break;
@@ -270,11 +281,11 @@ export class LastTrainChain extends QuestChain {
         if (here === J) {
           if (!this.batteryIn && this.batteryBy === 255) push('lamproom', 0, JUNCTION.lamproom, 'Take the signal battery');
           if (this.leverStep < LAST_TRAIN.leverSteps) {
-            push('board', 1, JUNCTION.board, 'Read the departures board');
+            push('board', 1, JUNCTION.board, 'Read the timetable');
             for (let k = 0; k < LAST_TRAIN.levers; k++) push('lever', k, { x: JUNCTION.levers.x, y: JUNCTION.levers.y + (k - 2) * 38 }, `Pull lever ${k + 1}`);
           }
         }
-        if (!this.batteryIn && this.batteryBy === who) push('lampbox', 0, this.inTrain(x, y, LT_TRAIN.lampbox), 'Fit the battery to the signal lamp');
+        if (!this.batteryIn && this.batteryBy !== 255) push('lampbox', 0, this.inTrain(x, y, LT_TRAIN.lampbox), 'Fit the battery to the signal lamp');
         break;
       case LT.Signal:
         push('lampbox', 1, this.inTrain(x, y, LT_TRAIN.lampbox), 'Switch the signal lamp to green');
@@ -282,12 +293,13 @@ export class LastTrainChain extends QuestChain {
       case LT.Deliveries:
         if (!(this.tasks & 1)) {
           if (this.letterBy === 255) push('letter', 0, this.inTrain(x, y, LT_TRAIN.letter), 'Take Ada\'s letter');
-          else if (this.letterBy === who && here === J) push('postbox', 0, JUNCTION.postbox, 'Post Ada\'s letter');
+          else if (here === J) push('postbox', 0, JUNCTION.postbox, 'Post Ada\'s letter');
         }
         if (!(this.tasks & 2)) {
           if (this.coal < LAST_TRAIN.coalLoads) {
-            if (this.coalBy === 255 && here === C) push('chute', 0, CINDER.chute, 'Take a shovel of coal');
-            if (this.coalBy === who) push('coal', 0, this.inTrain(x, y, LT_TRAIN.firebox), 'Shovel the coal into the tender');
+            // a shovel each, but no more out at once than the tender still needs
+            if (!(this.coalCarry & mine) && here === C && this.coal + popcount(this.coalCarry) < LAST_TRAIN.coalLoads) push('chute', 0, CINDER.chute, 'Take a shovel of coal');
+            if (this.coalCarry & mine) push('coal', 0, this.inTrain(x, y, LT_TRAIN.firebox), 'Shovel the coal into the tender');
           } else if (regionAt(x, y) === TRANSIT) push('stoke', 0, this.inTrain(x, y, LT_TRAIN.firebox), 'Stoke the firebox');
         }
         if (!(this.tasks & 4) && here === S) push('church', 0, STILLWATER.church, 'Turn the church clock\'s hands');
@@ -296,8 +308,8 @@ export class LastTrainChain extends QuestChain {
     }
     if (here === E) {
       if (this.stage === LT.Punch) push('punch', 0, END.barrier, 'Take the Conductor\'s punch');
-      if (this.stage === LT.Passengers && this.punchBy === who) END.passengers.forEach((p, k) => { if (!(this.boarded & (1 << k))) push('passenger', k, p, `Punch ${PASSENGERS[k]}'s ticket`); });
-      if (this.stage === LT.LastTicket && this.punchBy === who) push('ticket', 0, END.barrier, 'Punch your own ticket');
+      if (this.stage === LT.Passengers && this.punchBy !== 255) END.passengers.forEach((p, k) => { if (!(this.boarded & (1 << k))) push('passenger', k, p, `Punch ${PASSENGERS[k]}'s ticket`); });
+      if (this.stage === LT.LastTicket && this.punchBy !== 255) push('ticket', 0, END.barrier, 'Punch your own ticket');
     }
     let best: LTInteraction | null = null, bd = Infinity;
     for (const it of list) {
@@ -332,20 +344,27 @@ export class LastTrainChain extends QuestChain {
       return up.length ? g.nearestLiving(c?.x ?? 0, c?.y ?? 0).index : by;
     };
     this.keyBy = pass(this.keyBy);
-    this.scrapBy = pass(this.scrapBy);
     this.pendulumBy = pass(this.pendulumBy);
     this.batteryBy = pass(this.batteryBy);
     this.punchBy = pass(this.punchBy);
     this.letterBy = pass(this.letterBy);
-    this.coalBy = pass(this.coalBy);
-    // a taper burns down (and goes out with its carrier)
-    if (this.taperBy !== 255) {
-      this.taperT -= dt;
-      const c = g.players[this.taperBy];
-      if (this.taperT <= 0 || !c || !g.isUp(c)) {
-        this.cue('lt_taper_out', c ? { x: c.x, y: c.y } : {});
-        this.taperBy = 255;
-        this.taperT = 0;
+    // each player's own: a fallen player's cog goes back where it lay, their shovelful is spilt, their taper goes
+    // out; a taper burns down
+    for (let i = 0; i < 6; i++) {
+      const bit = 1 << i, c = g.players[i], up = !!c && g.isUp(c);
+      if (this.scrapCarry & bit && !up) {
+        this.scrapCarry &= ~bit;
+        if (this.scrapFrom[i] >= 0) this.scrapsTaken &= ~(1 << this.scrapFrom[i]);
+        this.scrapFrom[i] = -1;
+      }
+      if (this.coalCarry & bit && !up) this.coalCarry &= ~bit;
+      if (this.tapers & bit) {
+        this.taperT[i] -= dt;
+        if (this.taperT[i] <= 0 || !up) {
+          this.cue('lt_taper_out', c ? { x: c.x, y: c.y, b: i } : {});
+          this.tapers &= ~bit;
+          this.taperT[i] = 0;
+        }
       }
     }
     this.greenT = Math.max(0, this.greenT - dt);
@@ -507,27 +526,29 @@ export class LastTrainChain extends QuestChain {
         }
         break;
       case 'candles':
-        this.taperBy = who;
-        this.taperT = LAST_TRAIN.taper;
-        this.cue('lt_taper', at);
+        this.tapers |= 1 << who;
+        this.taperT[who] = LAST_TRAIN.taper;
+        this.cue('lt_taper', { ...at, b: who });
         break;
       case 'gravelamp':
         this.lamps |= 1 << it.i;
         this.cue('lt_gravelamp', { ...at, a: it.i, b: popcount(this.lamps) });
         if (this.lamps === 7) {
           this.step[V] = 1;
-          this.taperBy = 255;
-          this.taperT = 0;
+          this.tapers = 0;
+          this.taperT.fill(0);
           this.cue('lt_vigil', LT_VESPER.vigil);
         }
         break;
       case 'scrap':
         this.scrapsTaken |= 1 << it.i;
-        this.scrapBy = who;
-        this.cue('lt_scrap', at);
+        this.scrapCarry |= 1 << who;
+        this.scrapFrom[who] = it.i;
+        this.cue('lt_scrap', { ...at, b: who });
         break;
       case 'crucible':
-        this.scrapBy = 255;
+        this.scrapCarry &= ~(1 << who);
+        this.scrapFrom[who] = -1;
         this.crucible++;
         this.cue('lt_crucible', { ...at, a: this.crucible });
         if (this.crucible >= 3) {
@@ -596,12 +617,13 @@ export class LastTrainChain extends QuestChain {
           this.cue('lt_chute_wait', at);
           break;
         }
-        this.coalBy = who;
-        this.cue('lt_chute', at);
+        this.coalCarry |= 1 << who;
+        this.cue('lt_chute', { ...at, b: who });
         break;
       case 'coal':
-        this.coalBy = 255;
+        this.coalCarry &= ~(1 << who);
         this.coal++;
+        if (this.coal >= LAST_TRAIN.coalLoads) this.coalCarry = 0;
         this.cue('lt_coal', { ...at, a: this.coal });
         break;
       case 'stoke':
@@ -651,8 +673,15 @@ export class LastTrainChain extends QuestChain {
 
   /** A press at station r's clock: it says what it needs, or (with the key, its trouble mended) it is wound. */
   private useClock(r: number, who: number, at: { x: number; y: number }): void {
+    void who;
     if (r === J) {
-      if (this.stage === LT.Key || this.keyBy !== who) {
+      // the stopped clock starts the quest as the booking office does (D-95): its key is gone, and now lies somewhere
+      if (this.stage === LT.Ticket) {
+        this.stage = LT.Key;
+        this.cue('lt_clock_trouble', { ...at, a: J, b: 0 });
+        return;
+      }
+      if (this.stage === LT.Key || this.keyBy === 255) {
         this.cue('lt_clock_trouble', { ...at, a: J, b: 0 });
         return;
       }
@@ -666,13 +695,13 @@ export class LastTrainChain extends QuestChain {
       return;
     }
     const step = this.step[r], last = CLOCK_STEPS[r] - 1;
-    if (r === S && step === 2 && this.pendulumBy === who) {
+    if (r === S && step === 2 && this.pendulumBy !== 255) {
       this.pendulumBy = 255;
       this.step[S] = 3;
       this.cue('lt_pendulum_hung', at);
       return;
     }
-    if (step < last || this.keyBy !== who) {
+    if (step < last || this.keyBy === 255) {
       // what this clock needs (b: the step it is at; 9: only the key)
       this.cue('lt_clock_trouble', { ...at, a: r, b: step < last ? step : 9 });
       return;
@@ -740,13 +769,13 @@ export class LastTrainChain extends QuestChain {
     const ladle = Math.round(this.ladle);
     return [
       this.stage, this.keyAt, this.keyBy, this.pageAt, this.pages, this.clocks, ...this.step,
-      this.lamps, this.taperBy, u8(this.taperT * 8), u8(this.vigil * 255),
-      this.scrapAt, this.scrapsTaken, this.scrapBy, this.crucible, ladle >> 8, ladle & 255,
+      this.lamps, this.tapers, ...this.taperT.map((t) => u8(t * 8)), u8(this.vigil * 255),
+      this.scrapAt, this.scrapsTaken, this.scrapCarry, this.crucible, ladle >> 8, ladle & 255,
       ...this.moments.map((v) => u8(v * 255)), u8(this.reel * 255), this.pendulumBy,
       this.batteryBy, this.batteryIn, u8(this.greenT * 40), this.levers[0] + this.levers[1] * 5 + this.levers[2] * 25, this.leverStep,
       ...this.sigAt.map((f) => u8(((f - 0.3) / 0.4) * 255)), this.clearedTrip, ef >> 8, ef & 255,
       this.punchBy, this.boarded, this.tasks, this.letterBy, this.bellOrder[0] + this.bellOrder[1] * 3 + this.bellOrder[2] * 9, this.bellStep,
-      this.coalBy, this.coal, this.stokes, this.hour, this.targetHour,
+      this.coalCarry, this.coal, this.stokes, this.hour, this.targetHour,
       u8(this.finaleT * 8), u8(this.homewardT * 8),
     ];
   }
@@ -763,12 +792,12 @@ export class LastTrainChain extends QuestChain {
     this.clocks = n();
     this.step = [n(), n(), n(), n()];
     this.lamps = n();
-    this.taperBy = n();
-    this.taperT = n() / 8;
+    this.tapers = n();
+    this.taperT = [n() / 8, n() / 8, n() / 8, n() / 8, n() / 8, n() / 8];
     this.vigil = n() / 255;
     this.scrapAt = n();
     this.scrapsTaken = n();
-    this.scrapBy = n();
+    this.scrapCarry = n();
     this.crucible = n();
     this.ladle = (n() << 8) | n();
     this.moments = [n() / 255, n() / 255, n() / 255];
@@ -791,7 +820,7 @@ export class LastTrainChain extends QuestChain {
     const bo = n();
     this.bellOrder = [bo % 3, Math.floor(bo / 3) % 3, Math.floor(bo / 9) % 3];
     this.bellStep = n();
-    this.coalBy = n();
+    this.coalCarry = n();
     this.coal = n();
     this.stokes = n();
     this.hour = n();
@@ -803,7 +832,7 @@ export class LastTrainChain extends QuestChain {
 }
 
 /** How many bytes the chain sends (netState's length). */
-export const NET_BYTES = 51;
+export const NET_BYTES = 56;
 
 function popcount(m: number): number {
   let n = 0;

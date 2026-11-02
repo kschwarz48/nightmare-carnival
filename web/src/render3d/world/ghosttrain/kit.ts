@@ -218,7 +218,8 @@ export const GT_KIT: Record<string, (variant: number) => THREE.BufferGeometry> =
     m.add(rbox(250, 120, 12, 3), { col: 0x14100e, pos: [0, 176, 0], surf: SURF.paint });
     m.add(box(256, 6, 16), { col: GT.gilt, pos: [0, 239, 0], surf: SURF.gold });
     for (let i = 0; i < 6; i++) m.add(box(230, 13, 1), { col: i === 5 ? 0x5a1a14 : 0x2a2622, pos: [0, 216 - i * 17, 6.6], surf: SURF.paint, emit: 0.1 });
-    m.add(rbox(60, 20, 4, 3), { col: GT.gilt, pos: [0, 252, 0], surf: SURF.gold });
+    // its nameplate (D-95: lettered TIMETABLE by the world)
+    m.add(rbox(178, 28, 4, 3), { col: GT.gilt, pos: [0, 256, 0], surf: SURF.gold });
   }),
   gt_booking: () => B((m) => {
     // the booking office: a panelled kiosk with a frosted window, a brass grille and a lamp in it

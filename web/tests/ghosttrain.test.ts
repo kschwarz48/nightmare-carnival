@@ -19,6 +19,7 @@ import { CINDER, END, JUNCTION, LT_KEY_SPOTS, LT_STILL, LT_TRAIN, LT_VESPER, LT_
 import { LAST_TRAIN } from '../src/data/lastTrain';
 import { FOLLOW_AFTER, bossStation, eOpenOf, homeOk, placeTrain, pullWhistle, runOf, stationAnchor, trainNow } from '../src/sim/ghosttrain';
 import { LT, NET_BYTES, gaugeAt, type LastTrainChain } from '../src/sim/quest/lastTrain';
+import { WHISTLE } from '../src/sim/quest/gtLine';
 import { createBoss } from '../src/sim/bosses';
 import type { BossBase } from '../src/sim/bosses/boss';
 import { SnapshotEncoder, decodeSnapshot, type View } from '../src/net/snapshot';
@@ -120,8 +121,11 @@ describe('the Ghost Train on the map registry (D-80)', () => {
 });
 
 describe('the Midnight Line goes at the whistle (D-90)', () => {
-  /** a tick with the player in station r's tender at the whistle cord, pressing interact */
+  /** a tick with the player in station r's tender at the whistle cord, pressing interact (the timetable mended first:
+   *  the guard waits for it since D-95) */
   const pull = (g: Game, r: number) => {
+    const ch = chainOf(g);
+    if (ch.stage < LT.Stations) ch.stage = LT.Stations;
     const w = inCar(r, LT_TRAIN.whistle.x - 10, LT_TRAIN.whistle.y + 20);
     press(g, w.x, w.y);
   };
@@ -551,7 +555,7 @@ describe('The Last Train Home, solo (D-80, reworked in D-90)', () => {
     // 4 Saint Vesper's: a taper from the altar candles to the three grave lamps, the vigil at the empty grave, the key
     dwellAt(g, V);
     press(g, LT_VESPER.candles.x, LT_VESPER.candles.y + 30);
-    expect(ch.taperBy).toBe(0);
+    expect(ch.tapers).toBe(1);
     for (const l of LT_VESPER.lamps) press(g, l.x, l.y + 20);
     expect(ch.step[V]).toBe(1);
     const vg = LT_VESPER.vigil;
@@ -700,7 +704,7 @@ describe('The Last Train Home, solo (D-80, reworked in D-90)', () => {
     const l0 = LT_VESPER.lamps[0];
     press(g, l0.x, l0.y + 20);
     for (let i = 0; i < 60 * (LAST_TRAIN.taper + 1); i++) step(g, l0.x, l0.y + 20);
-    expect([ch.taperBy, ch.lamps]).toEqual([255, 1]);
+    expect([ch.tapers, ch.lamps]).toEqual([0, 1]);
     // the vigil slips back while nobody keeps it
     ch.step[V] = 1;
     const vg = LT_VESPER.vigil;
@@ -773,6 +777,150 @@ describe("the train's signal lamp and the signal at danger (D-84, D-90)", () => 
     placeTrain(g, 'dwell', S);
     tickN(g, 1);
     expect(trainNow(g).to).toBe(E);
+  });
+});
+
+describe('the timetable first, shared things, and the crowd kept to its place (D-95)', () => {
+  const duo = () => gt({ seed: 21, players: [{ character: 'carny', name: 'A' }, { character: 'strongman', name: 'B' }] } as never);
+  const cord = (r: number) => inCar(r, LT_TRAIN.whistle.x - 10, LT_TRAIN.whistle.y + 20);
+
+  it('starts with the stopped clock as well as the booking office', () => {
+    const g = gt();
+    noBosses(g);
+    const ch = chainOf(g);
+    at(g, 20);
+    expect(ch.stage).toBe(LT.Ticket);
+    press(g, STATION_CLOCK[J].x, STATION_CLOCK[J].y + 40);
+    expect(ch.stage).toBe(LT.Key);
+  });
+
+  it("won't be whistled out of a station until the timetable's pages are gathered, and says what's wanted", () => {
+    const g = gt();
+    noBosses(g);
+    const ch = chainOf(g);
+    at(g, 60);
+    const cues: number[] = [];
+    g.bus.on('quest', (q) => q.event === 'gt_whistle' && cues.push(q.a ?? -1));
+    for (const stage of [LT.Ticket, LT.Key, LT.Junction, LT.Pages]) {
+      ch.stage = stage;
+      press(g, cord(J).x, cord(J).y);
+      expect(trainNow(g).departIn).toBe(Infinity);
+    }
+    expect(cues.filter((a) => a === WHISTLE.locked).length).toBe(4);
+    ch.stage = LT.Stations;
+    press(g, cord(J).x, cord(J).y);
+    expect(trainNow(g).departIn).toBeLessThanOrEqual(WHISTLE_LEAD);
+  });
+
+  it('shares the key, the pendulum and the battery with the whole party', () => {
+    const g = duo();
+    noBosses(g);
+    const ch = chainOf(g);
+    at(g, 40);
+    ch.stage = LT.Key;
+    // A finds the key, B winds the Junction's clock with it
+    const k = LT_KEY_SPOTS[ch.keyAt];
+    press(g, k.x, k.y + 20, 0);
+    expect(ch.keyBy).toBe(0);
+    dwellAt(g, J);
+    press(g, STATION_CLOCK[J].x, STATION_CLOCK[J].y + 40, 1);
+    expect(ch.stage).toBe(LT.Pages);
+    // B hangs the pendulum A brought up
+    ch.stage = LT.Stations;
+    ch.step[S] = 2;
+    ch.pendulumBy = 0;
+    dwellAt(g, S);
+    press(g, STATION_CLOCK[S].x, STATION_CLOCK[S].y + 40, 1);
+    expect(ch.step[S]).toBe(3);
+    // B fits the battery A carried from the lamp room
+    ch.stage = LT.Prepare;
+    ch.batteryBy = 0;
+    dwellAt(g, J);
+    const box = inCar(J, LT_TRAIN.lampbox.x - 20, LT_TRAIN.lampbox.y - 10);
+    press(g, box.x, box.y, 1);
+    expect(ch.batteryIn).toBe(1);
+  });
+
+  it('lets everyone carry a cog of their own, and puts a fallen carrier\'s cog back where it lay', () => {
+    const g = duo();
+    noBosses(g);
+    const ch = chainOf(g);
+    at(g, 200);
+    ch.stage = LT.Stations;
+    ch.clocks = 1;
+    dwellAt(g, C);
+    const spots = LT_WORKS.scrapSpots.map((sp, k) => ({ sp, k })).filter(({ k }) => ch.scrapAt & (1 << k));
+    // park B well away while A picks up, then the other way round
+    const park = (who: number) => step(g, LT_WORKS.crucible.x + 900, LT_WORKS.crucible.y - 300, false, who);
+    park(1);
+    press(g, spots[0].sp.x, spots[0].sp.y + 20, 0);
+    park(0);
+    press(g, spots[1].sp.x, spots[1].sp.y + 20, 1);
+    expect(ch.scrapCarry).toBe(3);
+    // both into the crucible
+    press(g, LT_WORKS.crucible.x, LT_WORKS.crucible.y + 40, 0);
+    press(g, LT_WORKS.crucible.x, LT_WORKS.crucible.y + 40, 1);
+    expect([ch.scrapCarry, ch.crucible]).toEqual([0, 2]);
+    // the third: A picks it up and falls with it; it lies where it was again
+    press(g, spots[2].sp.x, spots[2].sp.y + 20, 0);
+    expect(ch.scrapCarry).toBe(1);
+    g.players[0].downed = true;
+    tickN(g, 2);
+    expect(ch.scrapCarry).toBe(0);
+    expect(ch.scrapsTaken & (1 << spots[2].k)).toBe(0);
+  });
+
+  it("shoves only whoever a Porter's bash lands on", () => {
+    const g = gt();
+    noBosses(g);
+    at(g, 60);
+    for (const e of g.active) g.despawnEnemy(e);
+    const p = g.player;
+    const x0 = 0, y0 = trackY(J) + 700;
+    // a bash facing east: the player beside it (out of its cone, well inside four times its size) isn't moved
+    p.x = p.px = x0;
+    p.y = p.py = y0 + 160;
+    g.spawnHazard('sector', 'porter_bash', x0, y0, { r: 110, angle: 0, half: 0.65, tele: 0.01, active: 0.15, dmg: 0, pull: -420 });
+    const bx = p.x, by = p.y;
+    tickN(g, 12);
+    expect(Math.hypot(p.x - bx, p.y - by)).toBeLessThan(2);
+    // in front of it, it is shoved off
+    p.x = p.px = x0 + 60;
+    p.y = p.py = y0;
+    g.spawnHazard('sector', 'porter_bash', x0, y0, { r: 110, angle: 0, half: 0.65, tele: 0.01, active: 0.15, dmg: 0, pull: -420 });
+    tickN(g, 12);
+    expect(p.x - (x0 + 60)).toBeGreaterThan(25);
+  });
+
+  it('keeps every creature to its own place: nobody there, it holds still and casts nothing across the world', () => {
+    const g = gt({ seed: 5 });
+    noBosses(g);
+    at(g, 300);
+    for (const e of g.active) g.despawnEnemy(e);
+    const sx = REGIONS[S].cx + 300, sy = REGIONS[S].cy + 300;
+    // (stirred up by the hidden quest at the jetty, as in play: such creatures stay when the party leaves)
+    const w = g.spawnEnemy('gt_watcher', sx, sy, { exact: true })!;
+    w.spawnT = 9;
+    w.leashExempt = true;
+    // the only player aboard the moving train
+    placeTrain(g, 'travel', C, S, 5);
+    const o = trainOrigin(TRANSIT);
+    for (let i = 0; i < 60 * 6; i++) {
+      g.player.x = g.player.px = o.x + 600;
+      g.player.y = g.player.py = o.y;
+      tickN(g, 1);
+    }
+    expect(g.hazards.some((h) => h.alive && h.owner === w.uid)).toBe(false);
+    expect([Math.round(w.x), Math.round(w.y)]).toEqual([Math.round(sx), Math.round(sy)]);
+    // somebody walks into its station: it stares
+    g.player.x = g.player.px = sx + 420;
+    g.player.y = g.player.py = sy;
+    let gazed = false;
+    for (let i = 0; i < 60 * 6 && !gazed; i++) {
+      tickN(g, 1);
+      gazed = g.hazards.some((h) => h.alive && h.owner === w.uid && h.style === 'gaze');
+    }
+    expect(gazed).toBe(true);
   });
 });
 

@@ -257,6 +257,15 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### The Last Train Home's shared things (D-95, PROTO 19)
+
+- The hidden quest's chain changed shape: tapers, cogs and shovels of coal are carried by each player at once
+  (bitmasks, and a taper's seconds left for each of six players), so its bytes grew from 51 to 56. The key, the
+  pendulum, the battery, the punch and the letter can be used by any player (host-side rules, no new bytes).
+- A Porter's shove lands only on whoever its bash touches, on the host and in a guest's prediction alike (the same
+  rule in `Game.step` and `Replica.step`), so a guest is never corrected for a shove the host didn't give.
+- **PROTO 19.** Old builds can't join new lobbies.
+
 ### Teammates on screen and off it (D-91)
 
 - **The party frames** stand over your own health bar (they were down the left from the top); the chat box sits
