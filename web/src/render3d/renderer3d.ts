@@ -66,6 +66,9 @@ const PET_SCALE = 1.4;
  * clones (an Extra Token's worth) took every place and the player wasn't drawn (D-72).
  */
 const CHAR_CAP = 128;
+/** Instances for something every player of a full party can have at once: a coffin, the Ghost Ticket (D-105: the
+ *  ticket held one, so in co-op only the host's character showed it and everyone else's had its glow alone). */
+const PARTY_CAP = 6;
 
 const DANGER: [number, number, number] = [1, 0.25, 0.12];
 const CAUTION: [number, number, number] = [1, 0.8, 0.25];
@@ -1904,7 +1907,7 @@ export class GameRenderer3D {
 
   /** A fallen co-op player: a coffin with a revive gauge that fills faster with a teammate beside it. */
   private drawCoffin(p: Player, px: number, py: number): void {
-    const b = this.batch('coffin', ITEM_MODELS.coffin, 4);
+    const b = this.batch('coffin', ITEM_MODELS.coffin, PARTY_CAP);
     const j = b.add(px, py, 0, 0, ACTOR_SCALE * 1.15);
     b.anim(j, 0, 0, 0, 0);
     const col = PLAYER_COLS[p.index % PLAYER_COLS.length];
@@ -2026,12 +2029,12 @@ export class GameRenderer3D {
       bb.tint(j, 1.2, 0.5, 0.55);
       bb.anim(j, this.time * 2, 0, 0, 0);
     }
-    // the Ghost Ticket orbits whoever carries it to the Ringmaster (D-32)
+    // the Ghost Ticket orbits whoever carries it to the Ringmaster (D-32): in co-op, every player of the party
     const ls = g.quests?.get<LastSongChain>('last_song');
     if (ls?.carrying) {
-      const gt = this.batch('ghost_ticket', ITEM_MODELS.golden, 1);
-      const a = this.time * 1.4;
-      const j = gt.add(px + Math.cos(a) * 46, py + Math.sin(a) * 30, 64 + Math.sin(this.time * 3) * 6, a * 2, 1.1);
+      const gt = this.batch('ghost_ticket', ITEM_MODELS.golden, PARTY_CAP);
+      const a = this.time * 1.4 + p.index * 1.1;
+      const j = gt.add(px + Math.cos(a) * 46, py + Math.sin(a) * 30, 64 + Math.sin(this.time * 3 + p.index) * 6, a * 2, 1.3);
       gt.tint(j, 0.35, 1.0, 0.7, 1.6);
       this.glow.draw(this.f('fx_glow_0'), px + Math.cos(a) * 46, py + Math.sin(a) * 30, 64, 0.9, 0.9, 0, 0.4, 1, 0.7, 0.6);
       pool.add(px, py, 220, 0.6, 0.45, 1, 0.7, 70, 3);

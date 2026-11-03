@@ -207,6 +207,8 @@ export class App {
   private joinCode = '';
   /** where the local player stood on screen last frame, for mouse aim */
   private aimFrom = { x: 0, y: 0 };
+  /** the ghost lamps a cue has said are lit this night (a guest's copy of the quest can lag its cues; D-105) */
+  private lampsNamed: { g: Game | null; lit: Set<number> } = { g: null, lit: new Set() };
   /** the first night's opening look at Zoltana's booth (D-98): its clock, its overlay, whether the whisper has played */
   private cut: { t: number; el: HTMLElement; note: HTMLElement; whisper: boolean } | null = null;
   /** the world tier's unlock ceremony on screen (D-97), if any */
@@ -327,6 +329,7 @@ export class App {
     this.audio.loadLineSong();
     this.draft = new DraftView(this.assets, (i) => this.pickDraft(i), () => this.rerollDraft(), (i) => this.banishDraft(i), () => this.skipDraft());
     this.prizeUi = new PrizeOverlay(() => this.prize.skip(false));
+    this.prizeUi.confetti.sound = (id, vol, pitch) => this.audio.play(id, { vol, pitch });
     this.prize = new PrizeWheel(this.renderer.overlay, this.assets, this.prizeUi, this.audio);
     this.ctx = {
       save: this.save, assets: this.assets, audio: this.audio, input: this.input,
@@ -905,10 +908,15 @@ export class App {
         break;
       case 'lamp_lit': {
         a.play('lamp_lit', { vol: 0.7, pan: pan(q.x) });
+        // which lamps burn: the night's state, and every lamp a cue has named tonight (D-105: a guest's copy of the
+        // state can be a snapshot behind the cue, and its fourth lamp read "3 of 4" while the host's read four)
         const ls = g.quests.get<{ lit: boolean[] } & import('./sim/quest').QuestChain>('last_song');
-        const lit = ls ? ls.lit.filter(Boolean).length : 1;
+        if (this.lampsNamed.g !== g) this.lampsNamed = { g, lit: new Set() };
+        if (q.a !== undefined) this.lampsNamed.lit.add(q.a);
+        const burns = LAST_SONG.lamps.map((_, k) => !!ls?.lit[k] || this.lampsNamed.lit.has(k));
+        const lit = burns.filter(Boolean).length;
         const name = q.a !== undefined ? LAST_SONG.lamps[q.a].id : 'lamp';
-        this.hud.whisper(`The ${name} lamp remembers…`, LAST_SONG.lamps.map((_, k) => (ls?.lit[k] ? '●' : '○')).join(' ') + (lit >= 4 ? '' : '   the others are still cold'));
+        this.hud.whisper(`The ${name} lamp remembers…`, burns.map((b) => (b ? '●' : '○')).join(' ') + (lit >= 4 ? '' : '   the others are still cold'));
         if (q.b) bell(q.b, 0.5, q.x);
         if (q.x !== undefined && q.y !== undefined) {
           fx('ring', q.x, q.y, 'gravity', 220);

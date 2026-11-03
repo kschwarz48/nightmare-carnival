@@ -5,14 +5,24 @@ import type { ChestEntry } from '../sim/draft';
 import type { PrizeUi } from '../render3d/prizeWheel';
 import { h } from './dom';
 import { devText, refreshDevText } from './glyphs';
+import { QUALITY } from '../data/quality';
+import { Confetti, type ConfettiKind } from './confetti';
 
 const KIND_LABEL: Record<ChestEntry['type'], string> = {
   evolution: '✦ EVOLUTION ✦', level: 'LEVEL UP', passive: 'CHARM', new: 'NEW!', voucher: 'LOST & FOUND', heal: 'A SMALL MERCY',
   party: '★ FOR EVERYONE ★',
 };
 
+/** The confetti for a prize (D-105): its quality, or its kind's own (an evolution, the party's favours, a voucher). */
+function confettiFor(e: ChestEntry): ConfettiKind {
+  if (e.type === 'evolution' || e.type === 'party' || e.type === 'voucher' || e.type === 'heal') return e.type;
+  return e.type === 'new' ? 'uncommon' : e.quality ?? 'common';
+}
+
 export class PrizeOverlay implements PrizeUi {
   root = h('div', { class: 'prize-ui hidden' });
+  /** thrown as each prize is revealed, more the rarer it is (D-105) */
+  readonly confetti = new Confetti();
   /** Co-op: player names by slot, so every prize shows whose it is (null in solo). */
   owners: string[] | null = null;
   private titleEl = h('div', { class: 'prize-title' });
@@ -50,7 +60,12 @@ export class PrizeOverlay implements PrizeUi {
     const gifts = e.gifts?.length
       ? h('div', { class: 'gifts' }, ...e.gifts.map((gift) => h('span', {}, iconOf ? h('img', { src: iconOf(gift), alt: '' }) : null, this.who(gift), gift.label)))
       : null;
-    this.capEl.replaceChildren(h('img', { src: icon, alt: '' }), h('div', {}, h('small', {}, this.who(e), KIND_LABEL[e.type]), h('b', {}, e.label), gifts));
+    // its quality on a tag, and what it gave on a line of its own (D-105); a voucher's or a crumb's label says it all
+    const qual = e.quality ? h('span', { class: `qual q-${e.quality}` }, QUALITY[e.quality].name) : null;
+    const label = e.quality ? e.label.replace(/ \((Uncommon|Rare|Legendary)\)$/, '') : e.label;
+    const note = e.note && e.type !== 'voucher' && e.type !== 'heal' ? h('div', { class: 'note' }, e.note) : null;
+    this.capEl.replaceChildren(h('img', { src: icon, alt: '' }), h('div', {}, h('small', {}, this.who(e), KIND_LABEL[e.type], qual), h('b', {}, label), note, gifts));
+    this.confetti.celebrate(confettiFor(e));
   }
 
   summary(entries: ChestEntry[], icons: string[], iconOf?: (e: ChestEntry) => string): void {

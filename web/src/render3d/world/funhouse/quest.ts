@@ -230,9 +230,10 @@ export class QuestVisuals {
         const mb = w.batch('fh_q_mira', miraGeo, 1, 2.4);
         const a = t * 1.1;
         const x = c.x + Math.cos(a) * 48, y = c.y + Math.sin(a) * 30;
-        const j = mb.add(x, y, 22 + Math.sin(t * 2.3) * 5, Math.atan2(c.x - x, c.y - y), 1.25);
-        mb.tint(j, 0.85, 1, 1, 0.8);
-        r.glow.draw(glowF, x, y, 50, 1.1, 1.1, 0, 0.6, 1, 0.95, 0.16);
+        // (D-105: pale glass, she read as little more than her glow in a crowd; a little larger, lit from within)
+        const j = mb.add(x, y, 22 + Math.sin(t * 2.3) * 5, Math.atan2(c.x - x, c.y - y), 1.45);
+        mb.tint(j, 0.85, 1, 1, 1.7);
+        r.glow.draw(glowF, x, y, 50, 1.2, 1.2, 0, 0.6, 1, 0.95, 0.24);
         pool.add(x, y, 180, 0.4, 0.6, 1, 0.95, 60, 3);
       }
     }

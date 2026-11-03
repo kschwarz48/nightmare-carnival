@@ -2299,3 +2299,55 @@ with Chrome's and Firefox's ids and layouts. The menus, the night, the quick cha
 settings were driven in the browser with a scripted pad standing in for the Gamepad API. No physical Xbox or PlayStation
 pad was used, and rumble wasn't checked.
 
+### D-105 · Co-op fixes, and the prize wheel's rarity
+
+Kevin's playtest with his brother, a guest, turned up three problems.
+
+**The ghost lamps' count on a guest's screen.** Feeding the Carnival Core's lamps, the guest's fourth lamp read "3 of
+4", while the host's read four.
+
+- **Why:** a quest's cue reaches a guest as a reliable message, and its state comes with the next snapshot. The
+  whisper counted the lamps from the guest's copy of the state, which could be a snapshot behind the cue that lit the
+  fourth.
+- **Fix:** the whisper counts every lamp the state shows plus every lamp a cue has named that night. A lamp never goes
+  out again, so the count can't overshoot.
+
+**The floating quest items for guests.**
+
+- **The Ghost Ticket.** It orbits every player of the party, but its batch held one instance. So in co-op only the first
+  character drawn, the host's, showed the ticket, and every other player had its glow alone, on every screen. It now
+  holds a full party (six), and each player's ticket starts at its own point of the orbit.
+- **The coffins.** Downed players' coffins held four, so a fifth or sixth downed player in a big party showed none. They
+  now hold six too.
+- **Mira's Reflection and the founder's bell.** A two-window check over real WebRTC showed both did draw round a guest
+  who carried them, on the host's screen and the guest's. But they read as little more than their glow: Mira is pale
+  glass, and the bell was small dark bronze. Mira is a little larger and lit from within. The bell floats larger, with a
+  sea-green glow round the bronze while it circles its ringer.
+
+**The prize wheel's card.**
+
+- **Before:** the card showed the prize's kind, its picture, its name and one line (its level, or the stat text in
+  place of it). It never showed the quality it rolled (D-99), though what it gave depends on it, and a long stat line ran
+  off the card.
+- **Now:** a badge under the ribbon names the quality: Common, Uncommon, ✦ Rare ✦ or ★ Legendary ★. The card's rule takes
+  the quality's colour, with a glow from Uncommon up. The level ("Level 4", "MAX LEVEL") and what it gave at that quality
+  ("+3 cards, +8 damage, +10% area") each get a line in the quality's ink; a long one shrinks, then wraps to two lines.
+- **The caption** under the wheel tags the quality, says what it gave, and is edged in the quality's colour.
+
+**Confetti** (`src/ui/confetti.ts`) is thrown as each prize is revealed, more the rarer it is:
+
+- **Common:** a pinch from the card.
+- **Uncommon:** a handful.
+- **Rare:** both corner cannons and a burst from the card, with gold stars.
+- **Legendary:** an absurd celebration lasting nearly three seconds. Volley after volley from both corners, bursts from
+  the card, a downpour from the top, streamers and gold stars, to cymbals and crackles; about 2,200 pieces in the air at
+  the peak.
+- **Other prizes:** an evolution, the party's favours, a voucher (a shower of gold) and a crumb each have their own.
+
+It is drawn on a canvas over the whole window, only while paper is in the air, each colour's pieces in one path. A
+Legendary measured 2.4 ms a frame on average and 3.6 ms at its peak on this PC, while the wheel holds the night. Each
+screen of a co-op party throws its own.
+
+**Compatibility.** UI and rendering only. Nothing reaches the sim, the protocol or the fingerprint, so it plays with
+D-104's build.
+

@@ -83,6 +83,8 @@ export class BoardwalkQuest {
   private conch: THREE.Mesh;
   private ship: THREE.Mesh;
   private bell: THREE.Group;
+  /** a sea-green ghost round the bronze while the bell floats round its ringer (D-105) */
+  private bellGhost: THREE.Mesh;
   private lamps: StaticBatch;
   private claw: THREE.Mesh;
   private float: THREE.Mesh;
@@ -141,6 +143,13 @@ export class BoardwalkQuest {
     const bell = new THREE.Mesh(bm.build({ ao: 0.2 }), this.mat);
     bell.frustumCulled = false;
     this.bell.add(bell);
+    // floating round its ringer it glows sea-green from within (D-105: dark bronze alone read as a smudge in the halo,
+    // as if only the glow were there)
+    this.bellGhost = new THREE.Mesh(bell.geometry, new THREE.MeshBasicMaterial({ color: 0x5cf0c8, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.bellGhost.scale.setScalar(1.1);
+    this.bellGhost.frustumCulled = false;
+    this.bellGhost.visible = false;
+    this.bell.add(this.bellGhost);
     this.bell.visible = false;
     // the four tide lamps: iron posts with a glass lantern, dark until lit
     const lm = new ModelBuilder();
@@ -342,16 +351,19 @@ export class BoardwalkQuest {
     // ---- the founder's bell: in the mud, winched up, hanging from the hoist, then following its ringer
     this.bell.visible = st >= SE.LowWater && st <= SE.Account;
     this.chain.hide();
+    this.bellGhost.visible = false;
     if (this.bell.visible) {
       const hookX = PIER_FIX.crane.x + 300, hookY = PIER_FIX.crane.y, hookH = 134;
       const ringer = ch.bellBy !== 255 ? g.players[ch.bellBy] : undefined;
       if (st === SE.Account && ringer) {
+        this.bellGhost.visible = true;
+        (this.bellGhost.material as THREE.MeshBasicMaterial).opacity = 0.26 + 0.06 * Math.sin(t * 2.2);
         // D-78: a ghost of it floats round its ringer's shoulders, like the Ghost Ticket and Mira's Reflection,
         // swaying as if it hung from something nobody can see, lit sea-green from within
         const a = t * 1.25;
         const bx = ringer.x + Math.cos(a) * 50, by = ringer.y + Math.sin(a) * 32, bh = 46 + Math.sin(t * 2.6) * 6;
         this.bell.position.set(bx, bh, by);
-        this.bell.scale.setScalar(0.62);
+        this.bell.scale.setScalar(0.82);
         this.bell.rotation.set(Math.sin(t * 1.9) * 0.22, a * 0.6, Math.cos(t * 1.6) * 0.18);
         halo(bx, by, bh + 12, 1.1 + 0.1 * Math.sin(t * 3), [0.45, 1, 0.85], 0.5);
       } else if (st >= SE.Ledger) {

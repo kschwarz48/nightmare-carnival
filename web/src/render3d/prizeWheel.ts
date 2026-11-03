@@ -15,6 +15,7 @@
 
 import * as THREE from 'three';
 import type { ChestEntry } from '../sim/draft';
+import { QUALITY, type Quality } from '../data/quality';
 import type { Assets } from '../render/assets';
 import { ModelBuilder, SURF, box, cone, cyl, ellipsoid, extrude, lathe, rbox, smoothShape, sphere, starShape, torus, tube, weather } from './core/geo';
 import { actorMaterial, setObjectState } from './core/materials';
@@ -58,6 +59,13 @@ const KIND: Record<ChestEntry['type'], [string, string]> = {
 const BULB_COLS: [number, number, number][] = [[1, 0.06, 0.06], [1, 0.42, 0.02], [1, 0.82, 0.04], [0.12, 1, 0.16], [0.04, 0.78, 1], [0.16, 0.26, 1], [0.66, 0.12, 1], [1, 0.12, 0.56]];
 /** the co-op player colours (style.css .p1-.p6) */
 const PLAYER_HEX = ['#ffd27a', '#8af4ff', '#ff8fb0', '#a8ff7a', '#c7a2ff', '#ffb066'];
+/** A quality on the card (D-105): its rule round the card, its badge's lettering, and its ink on the cream stock. */
+const CARD_Q: Record<Quality, { rule: string; badge: string; ink: string }> = {
+  common: { rule: '#b8862e', badge: '#e8dcc0', ink: '#6a4a34' },
+  uncommon: { rule: '#2fbf63', badge: '#5dff94', ink: '#178a44' },
+  rare: { rule: '#2f8ae8', badge: '#6cc4ff', ink: '#1c62c0' },
+  legendary: { rule: '#f08a1c', badge: '#ffb24a', ink: '#c25a08' },
+};
 
 export class PrizeWheel {
   root = new THREE.Group();
@@ -536,14 +544,27 @@ export class PrizeWheel {
       x.closePath();
     };
     x.clearRect(0, 0, W, H);
-    // cream card stock, a gilt double rule
+    // the quality it rolled (D-105: the card never said, though the stats it gave depend on it)
+    const q = e.quality ? CARD_Q[e.quality] : null;
+    // cream card stock, a double rule: gilt, or the quality's colour
     const bg = x.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#fffaea');
     bg.addColorStop(1, '#f1dfb4');
     x.fillStyle = bg;
     rr(0, 0, W, H, 30);
     x.fill();
-    x.strokeStyle = '#b8862e';
+    if (q && e.quality !== 'common') {
+      // a glow of the quality round the edge
+      x.save();
+      x.shadowColor = q.rule;
+      x.shadowBlur = e.quality === 'legendary' ? 34 : 20;
+      x.strokeStyle = q.rule;
+      x.lineWidth = 9;
+      rr(16, 16, W - 32, H - 32, 22);
+      x.stroke();
+      x.restore();
+    }
+    x.strokeStyle = q?.rule ?? '#b8862e';
     x.lineWidth = 9;
     rr(16, 16, W - 32, H - 32, 22);
     x.stroke();
@@ -560,9 +581,26 @@ export class PrizeWheel {
     x.fillStyle = '#fff4d6';
     x.font = '600 44px Oswald, "Arial Narrow", sans-serif';
     x.fillText(e.type === 'evolution' ? `✦ ${kind} ✦` : kind, W / 2, 85);
+    // the quality's badge under the ribbon
+    if (q && e.quality) {
+      const name = QUALITY[e.quality].name.toUpperCase();
+      const label = e.quality === 'legendary' ? `★ ${name} ★` : e.quality === 'rare' ? `✦ ${name} ✦` : name;
+      x.font = '600 34px Oswald, "Arial Narrow", sans-serif';
+      const bw = Math.max(200, x.measureText(label).width + 64);
+      x.fillStyle = '#1c1218';
+      rr(W / 2 - bw / 2, 128, bw, 50, 25);
+      x.fill();
+      x.strokeStyle = q.rule;
+      x.lineWidth = 3;
+      rr(W / 2 - bw / 2, 128, bw, 50, 25);
+      x.stroke();
+      x.fillStyle = q.badge;
+      x.fillText(label, W / 2, 154);
+    }
     // the prize itself
     const im = this.image(icon);
-    if (im.complete && im.naturalWidth) x.drawImage(im, W / 2 - 115, 136, 230, 230);
+    const isz = q ? 196 : 230, iy = q ? 186 : 136;
+    if (im.complete && im.naturalWidth) x.drawImage(im, W / 2 - isz / 2, iy, isz, isz);
     else im.addEventListener('load', () => this.cardEntry === e && this.drawCard(e, icon), { once: true });
     // its name: as large as fits, on up to two lines
     const name = e.name ?? e.label.replace(/^New: /, '').replace(/ Lv \d+$/, '');
@@ -576,24 +614,48 @@ export class PrizeWheel {
       const words = name.split(' ');
       let cut = 1;
       while (cut < words.length - 1 && fits(words.slice(0, cut + 1).join(' '))) cut++;
-      x.fillText(words.slice(0, cut).join(' '), W / 2, 396);
+      x.fillText(words.slice(0, cut).join(' '), W / 2, 400);
       x.fillText(words.slice(cut).join(' '), W / 2, 446);
     }
-    // its level (or what it's worth)
-    const lvl = e.type === 'evolution' ? 'Evolved!' : e.note ?? (e.max ? 'MAX LEVEL' : e.level ? `Level ${e.level}` : '');
+    // its level, then what it gave (at its quality), each on its own line (D-105: the level line showed only one)
+    const lvl = e.type === 'evolution' ? 'Evolved!' : e.max ? 'MAX LEVEL' : e.level ? `Level ${e.level}` : '';
+    const gain = e.type === 'evolution' ? '' : e.note ?? '';
     x.fillStyle = e.max ? '#a8781e' : '#6a4a34';
-    x.font = '600 40px Oswald, "Arial Narrow", sans-serif';
-    x.fillText(lvl, W / 2, 506);
+    x.font = '600 36px Oswald, "Arial Narrow", sans-serif';
+    if (lvl) x.fillText(lvl, W / 2, gain ? 486 : 506);
+    if (gain) {
+      // as large as fits on one line, else two
+      x.fillStyle = q?.ink ?? '#6a4a34';
+      let gs = 34;
+      const room = W - 100;
+      x.font = `600 ${gs}px Oswald, "Arial Narrow", sans-serif`;
+      while (gs > 26 && x.measureText(gain).width > room) x.font = `600 ${(gs -= 1)}px Oswald, "Arial Narrow", sans-serif`;
+      const y0 = lvl ? 528 : 506;
+      if (x.measureText(gain).width <= room) x.fillText(gain, W / 2, y0);
+      else {
+        // split at a comma (or a space) near the middle
+        const at = (() => {
+          const mid = gain.length / 2;
+          let best = -1;
+          for (let i = 0; i < gain.length; i++) if ((gain[i] === ',' || gain[i] === ' ') && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i;
+          return best;
+        })();
+        const a = at > 0 ? gain.slice(0, gain[at] === ',' ? at + 1 : at).trim() : gain;
+        const b = at > 0 ? gain.slice(at + 1).trim() : '';
+        x.fillText(a, W / 2, y0 - 6);
+        if (b) x.fillText(b, W / 2, y0 + 26);
+      }
+    }
     // and whose it is
     const owner = this.ui.owners && e.player !== undefined ? this.ui.owners[e.player] ?? `Player ${e.player + 1}` : null;
     if (e.type === 'party') {
       // Party Favors (D-74): won by the whole party, lettered in every player's colour
       x.fillStyle = '#1c1218';
-      rr(52, 560, W - 104, 96, 16);
+      rr(52, 572, W - 104, 90, 16);
       x.fill();
       x.fillStyle = '#d8c8a8';
       x.font = '600 22px Oswald, "Arial Narrow", sans-serif';
-      x.fillText('WON BY', W / 2, 584);
+      x.fillText('WON BY', W / 2, 594);
       x.font = '600 40px Oswald, "Arial Narrow", sans-serif';
       const label = 'THE WHOLE PARTY';
       const tw = x.measureText(label).width;
@@ -601,23 +663,23 @@ export class PrizeWheel {
       const grad = x.createLinearGradient(W / 2 - tw / 2, 0, W / 2 + tw / 2, 0);
       for (let i = 0; i < n; i++) grad.addColorStop(i / (n - 1), PLAYER_HEX[i % PLAYER_HEX.length]);
       x.fillStyle = grad;
-      x.fillText(label, W / 2, 626);
+      x.fillText(label, W / 2, 634);
     } else if (owner) {
       x.fillStyle = '#1c1218';
-      rr(52, 560, W - 104, 96, 16);
+      rr(52, 572, W - 104, 90, 16);
       x.fill();
       x.fillStyle = '#d8c8a8';
       x.font = '600 22px Oswald, "Arial Narrow", sans-serif';
-      x.fillText('WON BY', W / 2, 584);
+      x.fillText('WON BY', W / 2, 594);
       x.fillStyle = PLAYER_HEX[e.player! % PLAYER_HEX.length];
       let os = 40;
       x.font = `600 ${os}px Oswald, "Arial Narrow", sans-serif`;
       while (os > 24 && x.measureText(owner).width > W - 140) x.font = `600 ${(os -= 2)}px Oswald, "Arial Narrow", sans-serif`;
-      x.fillText(owner, W / 2, 626);
+      x.fillText(owner, W / 2, 634);
     } else {
-      x.fillStyle = '#b8862e';
+      x.fillStyle = q?.rule ?? '#b8862e';
       x.font = '400 30px Rye, Georgia, serif';
-      x.fillText('★  YOUR PRIZE  ★', W / 2, 606);
+      x.fillText('★  YOUR PRIZE  ★', W / 2, 616);
     }
     this.cardTex.needsUpdate = true;
   }

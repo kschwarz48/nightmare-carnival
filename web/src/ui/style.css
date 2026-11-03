@@ -965,3 +965,18 @@ body.pad, body.pad * { cursor: none !important; }
 .settings .confirm-panel { width: min(560px, 92cqw); text-align: center; }
 .settings .confirm-panel .cs-actions { justify-content: center; }
 @media (max-width: 760px) { .settings .pad-layout { grid-template-columns: 1fr; } }
+
+/* The prize wheel's quality (D-105): its tag and what it gave on the caption; the confetti over everything */
+.prize-cap .qual { margin-left: 0.7em; padding: 0 0.55em; border: 2px solid currentColor; border-radius: 999px; font-size: 0.95em; letter-spacing: 0.08em; }
+.prize-cap .qual.q-common { color: #d8c8a8; }
+.prize-cap .qual.q-uncommon { color: #39ff7a; }
+.prize-cap .qual.q-rare { color: #5ab8ff; }
+.prize-cap .qual.q-legendary { color: #ffa83a; box-shadow: 0 0 12px rgba(255, 154, 42, 0.6); }
+.prize-cap .note { margin-top: 0.15em; font-family: var(--body); font-size: 1.05em; color: #e8dcc0; }
+.prize-cap.q-uncommon .note { color: #9dffbc; }
+.prize-cap.q-rare .note { color: #9fd6ff; }
+.prize-cap.q-legendary .note { color: #ffd08a; }
+.prize-cap.q-uncommon { border-color: #2fbf63; }
+.prize-cap.q-rare { border-color: #2f8ae8; box-shadow: 0 0 34px rgba(47, 138, 232, 0.4); }
+.prize-cap.q-legendary { border-color: #f08a1c; box-shadow: 0 0 48px rgba(240, 138, 28, 0.55); }
+.confetti { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 70; }
