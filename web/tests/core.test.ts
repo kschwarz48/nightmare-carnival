@@ -114,7 +114,7 @@ describe('damage, i-frames, shields, revives', () => {
   });
 
   it('elite shielded affix absorbs hits; frozen enemies take +25%', () => {
-    const g = makeGame({ difficulty: 'nightmare' });
+    const g = makeGame({ tier: 'nightmare' });
     const e = g.spawnEnemy('evil_clown', 300, 300)!;
     e.shield = 2;
     expect(g.damageEnemy(e, 10, false, 0, 0, 0, '')).toBe(0);

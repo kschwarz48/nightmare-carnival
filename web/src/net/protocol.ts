@@ -5,16 +5,16 @@
 // field before anything acts on them; malformed input is dropped, persistent abuse disconnects.
 
 import { CHARACTER_MAP } from '../data/characters';
-import { DIFFICULTY_MAP } from '../data/difficulty';
 import { PERKS } from '../data/meta';
 import { PASSIVES, WEAPONS } from '../data/weapons';
 import { Reader, Writer } from './codec';
 import { isMapId, type MapId } from '../data/maps';
+import { isTierId, type TierId } from '../data/tiers';
 import { isPetId } from '../data/pets';
 import { isSource, type MeterPlayer } from '../sim/meter';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 19;
+export const PROTO = 20;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
@@ -27,7 +27,6 @@ export const INPUT_REDUNDANCY = 6;
 export const BIN_SNAPSHOT = 1; // must equal snapshot.ts SNAP
 export const BIN_INPUT = 2;
 
-export type Diff = 'midway' | 'nightmare' | 'hell' | string;
 export type AimMode = 'auto' | 'hybrid' | 'manual';
 
 export interface LobbyPlayer {
@@ -38,13 +37,16 @@ export interface LobbyPlayer {
   rtt: number;
   /** browsing the Lost & Found from the lobby (D-74): not ready until they come back */
   away?: boolean;
+  /** tonight's tier and map count toward this player's own campaign (D-97: their save has both open) */
+  counts?: boolean;
 }
 export interface LobbyState {
   code: string;
   players: (LobbyPlayer | null)[];
   /** which night the host has chosen (D-63) */
   map: MapId;
-  difficulty: string;
+  /** the night's world tier (D-97) */
+  tier: TierId;
   curse: boolean;
   /** true while a run is in progress (late joiners are refused unless reconnecting) */
   inRun: boolean;
@@ -67,12 +69,15 @@ export interface GuestProfile {
   unlocks?: string[];
   /** their companion (D-84): it follows them, its passive on their stats */
   pet?: string;
+  /** the tier and map pairs their own save has open, as `tier:map` (D-97), so the host's lobby shows whom a night counts for */
+  open?: string[];
 }
 
 /** The shared run definition the host sends at start; the guest builds its mirror Game from it. */
 export interface StartCfg {
   seed: number;
-  difficulty: string;
+  /** the world tier (D-97) */
+  tier: TierId;
   curse: boolean;
   unlocked: string[];
   questMemory: Record<string, number>;
@@ -217,6 +222,7 @@ export function cleanProfile(v: unknown): GuestProfile | null {
     pref: isStr(v.pref, 32) && CHARACTER_MAP[v.pref as keyof typeof CHARACTER_MAP] ? v.pref : undefined,
     unlocks: cleanUnlocks(v.unlocks),
     pet: isPetId(v.pet) ? v.pet : undefined,
+    open: Array.isArray(v.open) ? v.open.filter(isOpenPair).slice(0, 16) : undefined,
   };
 }
 
@@ -330,6 +336,13 @@ export function parseHostMsg(raw: unknown): HostMsg | null {
   return null;
 }
 
+/** `tier:map`, both known (a guest's open nights, D-97) */
+function isOpenPair(s: unknown): s is string {
+  if (!isStr(s, 40)) return false;
+  const [t, m] = s.split(':');
+  return isTierId(t) && isMapId(m);
+}
+
 function cleanLobby(v: unknown): LobbyState | null {
   if (!isObj(v) || !Array.isArray(v.players) || v.players.length > MAX_PLAYERS) return null;
   const players = v.players.map((p) =>
@@ -341,6 +354,7 @@ function cleanLobby(v: unknown): LobbyState | null {
           connected: p.connected !== false,
           rtt: isNum(p.rtt) ? Math.max(0, Math.min(9999, p.rtt)) : 0,
           away: p.away === true,
+          counts: p.counts !== false,
         }
       : null,
   );
@@ -348,7 +362,7 @@ function cleanLobby(v: unknown): LobbyState | null {
     code: isStr(v.code, 16) ? v.code : '',
     players,
     map: isMapId(v.map) ? v.map : 'carnival_core',
-    difficulty: isStr(v.difficulty, 24) && DIFFICULTY_MAP[v.difficulty as keyof typeof DIFFICULTY_MAP] ? v.difficulty : 'midway',
+    tier: isTierId(v.tier) ? v.tier : 'normal',
     curse: v.curse === true,
     inRun: v.inRun === true,
   };
@@ -376,7 +390,7 @@ function cleanStart(v: unknown): StartCfg | null {
     hub,
     map: isMapId(v.map) ? v.map : undefined,
     seed: v.seed,
-    difficulty: isStr(v.difficulty, 24) && DIFFICULTY_MAP[v.difficulty as keyof typeof DIFFICULTY_MAP] ? v.difficulty : 'midway',
+    tier: isTierId(v.tier) ? v.tier : 'normal',
     curse: v.curse === true,
     unlocked,
     questMemory,

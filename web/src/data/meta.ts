@@ -69,6 +69,8 @@ export interface AchievementDef {
   name: string;
   desc: string;
   reward: number;
+  /** can no longer be earned (D-97: the old difficulties'); shown only on saves that have it */
+  retired?: boolean;
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
@@ -78,8 +80,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'beat_puppet_king', name: 'No Strings Attached', desc: 'Defeat the Puppet King.', reward: 80 },
   { id: 'beat_ringmaster', name: 'Show’s Over', desc: 'Defeat the Ringmaster and see the dawn.', reward: 150 },
   { id: 'reach_12', name: 'Halfway House', desc: 'Survive to 12:00.', reward: 30 },
-  { id: 'win_carnival', name: 'Carnival Champion', desc: 'Win on Carnival difficulty.', reward: 150 },
-  { id: 'win_nightmare', name: 'Nightmare Survivor', desc: 'Win on Nightmare difficulty.', reward: 300 },
+  { id: 'win_carnival', name: 'Carnival Champion', desc: 'Won on the old Carnival difficulty.', reward: 150, retired: true },
+  { id: 'win_nightmare', name: 'Nightmare Survivor', desc: 'Won on the old Nightmare difficulty.', reward: 300, retired: true },
   { id: 'win_cursed', name: 'Cursed and Victorious', desc: 'Win with the Curse active.', reward: 200 },
   { id: 'first_evolution', name: 'Evolutionist', desc: 'Evolve a weapon.', reward: 30 },
   { id: 'full_house', name: 'Full House', desc: 'Discover every evolution.', reward: 400 },

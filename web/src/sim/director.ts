@@ -171,7 +171,7 @@ export class Director {
       alive++;
     }
     // 2) steady pressure
-    const mult = g.events.spawnRateMult * (g.cfg.curse ? 1 / CURSE.intervalMult : 1);
+    const mult = (g.events.spawnRateMult * (g.cfg.curse ? 1 / CURSE.intervalMult : 1)) / g.diff.spawnMult;
     this.intervalAcc += dt * mult;
     const interval = Math.max(0.05, B.interval);
     while (this.intervalAcc >= interval) {
@@ -221,7 +221,7 @@ export class Director {
       if (def?.maxAlive) {
         let n = 0;
         for (const e of this.g.active) if (e.def.id === id) n++;
-        const allowed = def.maxAlive + (this.g.diff.id === 'nightmare' ? 1 : 0);
+        const allowed = def.maxAlive + (this.g.diff.index >= 1 ? 1 : 0);
         if (n >= allowed) continue;
       }
       return id;
@@ -239,7 +239,7 @@ export class Director {
     if (!id) return false;
     const pt = this.spawnPoint();
     if (id === 'puppet_soldier' && !forceElite) {
-      const n = 3 + Math.min(3, this.g.act - 2) + (this.g.diff.id === 'nightmare' ? 1 : 0);
+      const n = 3 + Math.min(3, this.g.act - 2) + (this.g.diff.index >= 1 ? 1 : 0);
       // D-61: the firing squads proved too much, so half of each rank comes as Evil Clowns instead (the
       // crowd stays as dense): a rank of 4 is 2 muskets and 2 clowns, a rank of 5 is 2 and 3
       const muskets = Math.max(2, Math.floor(n / 2));

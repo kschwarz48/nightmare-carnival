@@ -1,9 +1,10 @@
-// Menu screens: title, character select (+difficulty/curse), daily run, pause, results, Lost &
+// Menu screens: title, character select (+world tier/map/curse), daily run, pause, results, Lost &
 // Found, Carnival-pedia, settings. Every interactive element carries data-nav for controller play.
 
 import { MAP_IDS, MAP_LOCK, MAPS, isMapId, type MapId } from '../data/maps';
 import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
-import { DIFFICULTIES, CURSE } from '../data/difficulty';
+import { CURSE } from '../data/difficulty';
+import { TIERS, TIER_IDS, type TierId } from '../data/tiers';
 import { ACHIEVEMENTS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNLOCKS, type UnlockDef } from '../data/meta';
 import { BOSSES } from '../data/bosses';
 import { ENEMIES, PEDIA_ENEMIES } from '../data/enemies';
@@ -27,7 +28,7 @@ export interface UICtx {
   input: Input;
   click: () => void;
   go: (screen: string, arg?: any) => void;
-  startRun: (o: { character: string; difficulty: string; curse: boolean; daily?: boolean; map?: MapId }) => void;
+  startRun: (o: { character: string; tier: TierId; curse: boolean; daily?: boolean; map?: MapId }) => void;
   applySettings: () => void;
   /** the Windows app's published installer (browsers only; see App.showDownload) */
   desktopDownload?: { version: string; url: string };
@@ -91,13 +92,39 @@ export function pressStart(c: UICtx, onStart: () => void): HTMLElement {
   return el;
 }
 
+/** Why `id` can't be chosen on tier `t` (D-97): Normal's own rules, or the map before it on that tier. */
+export function mapLockOn(t: TierId, id: MapId): string {
+  const prev = MAP_IDS[MAP_IDS.indexOf(id) - 1];
+  return t === 'normal' || !prev ? MAP_LOCK[id] : `Locked \u2014 win ${MAPS[prev].name} on ${TIERS[t].name}`;
+}
+
+/** The world-tier choice (D-97): each tier's button, locked ones with what opens them. */
+export function tierButtons(c: UICtx, sel: TierId, pick: (t: TierId) => void): HTMLElement[] {
+  return TIER_IDS.map((t) => {
+    const ok = c.save.tierUnlocked(t);
+    const done = c.save.tierComplete(t);
+    return h('button', { class: `diff-btn tier-btn tier-${t}${t === sel ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? `${TIERS[t].title}${done ? ' · campaign finished' : ''}` : `Locked \u2014 ${TIERS[t].unlockText}`, onclick: () => { c.click(); pick(t); } }, ok ? `${done ? '\u2605 ' : ''}${TIERS[t].name}` : `\u{1F512} ${TIERS[t].name}`);
+  });
+}
+
+/** The maps open on tier `t`, each won one ticked (D-97). */
+export function mapButtons(c: UICtx, t: TierId, sel: MapId, pick: (m: MapId) => void): HTMLElement[] {
+  return MAP_IDS.map((id) => {
+    const ok = c.save.mapAvailableOn(t, id);
+    const won = c.save.tierWins(t, id) > 0;
+    return h('button', { class: `diff-btn${id === sel ? ' sel' : ''}${won ? ' won' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? `${MAPS[id].tagline}${won ? ` \u00b7 won on ${TIERS[t].name}` : ''}` : mapLockOn(t, id), onclick: () => { c.click(); pick(id); } }, ok ? `${won ? '\u2713 ' : ''}${MAPS[id].name}` : `\u{1F512} ${MAPS[id].name}`);
+  });
+}
+
 // ===================================================================== character select
 export function charSelectScreen(c: UICtx): HTMLElement {
   const s = c.save;
   let selChar = s.characterAvailable(s.data.last.character) ? s.data.last.character : 'carny';
-  let selDiff = s.difficultyAvailable(s.data.last.difficulty) ? s.data.last.difficulty : 'midway';
   let curse = s.curseAvailable() && s.data.last.curse;
-  let selMap: MapId = isMapId(s.data.last.map) && s.mapAvailable(s.data.last.map) ? s.data.last.map : 'carnival_core';
+  // the world tier first, then a map open on it (D-97); a map chosen at a Midway gate brings the tier it is open on
+  const want: MapId = isMapId(s.data.last.map) ? s.data.last.map : 'carnival_core';
+  let selTier: TierId = s.bestTierFor(want, s.lastTier());
+  let selMap: MapId = s.mapAvailableOn(selTier, want) ? want : 'carnival_core';
   const grid = h('div', { class: 'char-grid panel' });
   const detail = h('div', { class: 'char-detail panel' });
   const render = () => {
@@ -117,18 +144,12 @@ export function charSelectScreen(c: UICtx): HTMLElement {
       h('div', { class: 'quirk' }, h('b', {}, ch.quirkName), ' — ', ch.quirkDesc),
       h('div', { class: 'weapon-line' }, h('img', { src: c.assets.weaponIcon(w.id), alt: '' }), h('div', {}, h('b', {}, w.name), h('div', { class: 'muted' }, w.desc))),
       avail ? '' : h('div', { class: 'unlock-note' }, s.characterRequirementMet(ch.id) ? `Requirement met! Unlock in the Lost & Found for ${ch.unlock!.cost} Lost Tickets.` : `Locked — ${ch.unlock!.reqText}, then ${ch.unlock!.cost} Lost Tickets.`),
+      h('div', { class: 'section-title', style: { margin: '0.4em 0 0' } }, 'World'),
+      h('div', { class: 'diff-row tier-row' }, ...tierButtons(c, selTier, (t) => { selTier = t; if (!s.mapAvailableOn(t, selMap)) selMap = 'carnival_core'; render(); })),
+      h('div', { class: `muted tier-desc tier-${selTier}` }, h('b', {}, TIERS[selTier].title), ' \u2014 ', TIERS[selTier].desc),
       h('div', { class: 'section-title', style: { margin: '0.4em 0 0' } }, 'Tonight'),
-      h('div', { class: 'diff-row map-row' }, ...MAP_IDS.map((id) => {
-        const ok = s.mapAvailable(id);
-        return h('button', { class: `diff-btn${id === selMap ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? MAPS[id].tagline : MAP_LOCK[id], onclick: () => { c.click(); selMap = id; render(); } }, ok ? MAPS[id].name : `🔒 ${MAPS[id].name}`);
-      })),
+      h('div', { class: 'diff-row map-row' }, ...mapButtons(c, selTier, selMap, (m) => { selMap = m; render(); })),
       h('div', { class: 'muted' }, MAPS[selMap].tagline),
-      h('div', { class: 'section-title', style: { margin: '0.4em 0 0' } }, 'Difficulty'),
-      h('div', { class: 'diff-row' }, ...DIFFICULTIES.map((d) => {
-        const ok = s.difficultyAvailable(d.id);
-        return h('button', { class: `diff-btn${d.id === selDiff ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? d.desc : `Locked — ${d.unlock?.reqText}`, onclick: () => { c.click(); selDiff = d.id; render(); } }, ok ? d.name : `🔒 ${d.name}`);
-      })),
-      h('div', { class: 'muted' }, DIFFICULTIES.find((d) => d.id === selDiff)!.desc),
       h('div', { class: `toggle${curse ? ' on' : ''}${s.curseAvailable() ? '' : ' disabled'}`, 'data-nav': '', onclick: () => { c.click(); curse = !curse; render(); } },
         h('span', { class: 'box' }), s.curseAvailable() ? `Curse — faster, denser, tougher · +35% Lost Tickets` : `Curse (locked — ${CURSE.unlock.reqText})`),
       // a companion (D-84): those earned to choose, the rest locked with what brings them
@@ -145,7 +166,7 @@ export function charSelectScreen(c: UICtx): HTMLElement {
       })()),
       h('div', { class: 'cs-actions' },
         btn('Back', () => { c.click(); c.go('title'); }, 'small red'),
-        btn('Start the Night!', () => { if (!avail) return; c.click(); c.startRun({ character: selChar, difficulty: selDiff, curse, map: selMap }); }, '', { disabled: !avail || undefined, 'data-default': '' }),
+        btn('Start the Night!', () => { if (!avail) return; c.click(); c.startRun({ character: selChar, tier: selTier, curse, map: selMap }); }, '', { disabled: !avail || undefined, 'data-default': '' }),
       ),
     );
   };
@@ -171,11 +192,11 @@ export function dailyScreen(c: UICtx): HTMLElement {
   return h('div', { class: 'screen dim' }, h('div', { class: 'panel bulbs', style: { padding: '1.6em 2.4em', width: 'min(620px, 94vw)', textAlign: 'center' } },
     h('h2', { class: 'title-text', style: { fontSize: '2.4em' } }, 'Daily Run'),
     h('div', { class: 'progress-line' }, `Seed ${d.seed} (UTC)`),
-    h('div', { style: { display: 'flex', gap: '1em', alignItems: 'center', justifyContent: 'center', margin: '1em 0' } }, h('img', { src: c.assets.portrait(ch.id), style: { width: '96px', height: '96px', borderRadius: '50%', border: '3px solid #17110e' } }), h('div', { style: { textAlign: 'left' } }, h('h3', {}, ch.name), h('div', {}, 'Carnival difficulty'), h('div', { class: 'muted' }, d.modName))),
+    h('div', { style: { display: 'flex', gap: '1em', alignItems: 'center', justifyContent: 'center', margin: '1em 0' } }, h('img', { src: c.assets.portrait(ch.id), style: { width: '96px', height: '96px', borderRadius: '50%', border: '3px solid #17110e' } }), h('div', { style: { textAlign: 'left' } }, h('h3', {}, ch.name), h('div', {}, 'Daily scaling: tougher than Normal'), h('div', { class: 'muted' }, d.modName))),
     h('p', { class: 'muted' }, 'Everyone gets the same seed today: same character, same draws, same night. All characters and weapons are available. Scores are kept locally on this device — there is no online leaderboard.'),
     h('div', { class: 'payout', style: { fontSize: '1.4em' } }, best ? `Your best today: ${fmtNum(best.score)}${best.won ? ' ✦' : ''}` : 'No attempt yet today'),
     recent.length ? h('div', { class: 'muted', style: { margin: '0.6em 0' } }, 'Recent: ' + recent.map(([k, v]) => `${k.slice(4, 6)}/${k.slice(6)} ${fmtNum(v.score)}`).join(' · ')) : null,
-    h('div', { class: 'cs-actions' }, btn('Back', () => { c.click(); c.go('title'); }, 'small red'), btn('Begin', () => { c.click(); c.startRun({ character: d.character, difficulty: 'carnival', curse: d.mod === 'curse', daily: true }); }, '', { 'data-default': '' })),
+    h('div', { class: 'cs-actions' }, btn('Back', () => { c.click(); c.go('title'); }, 'small red'), btn('Begin', () => { c.click(); c.startRun({ character: d.character, tier: 'normal', curse: d.mod === 'curse', daily: true }); }, '', { 'data-default': '' })),
   ));
 }
 
@@ -264,7 +285,7 @@ export function resultsScreen(c: UICtx, st: RunStats, extra: { achievements: str
   return h('div', { class: 'screen results dim' }, h('div', { class: 'panel bulbs' },
     h('h1', { class: `title-text ${won ? 'win' : 'lose'}` }, st.trueEnding ? (house ? 'THE UNREFLECTED' : 'THE LAST SONG') : st.endless ? 'CURTAIN CALL' : won ? 'DAWN!' : 'YOU DIED'),
     h('div', { class: 'flavor' }, flavor),
-    h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.8em' } }, h('img', { src: c.assets.portrait(st.character), style: { width: '64px', height: '64px', borderRadius: '50%', border: '3px solid #17110e' } }), h('div', {}, h('b', {}, ch?.name ?? ''), h('div', { class: 'muted' }, `${st.difficulty[0].toUpperCase()}${st.difficulty.slice(1)}${st.curse ? ' · Cursed' : ''}${st.daily ? ' · Daily' : ''}`))),
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: '0.8em' } }, h('img', { src: c.assets.portrait(st.character), style: { width: '64px', height: '64px', borderRadius: '50%', border: '3px solid #17110e' } }), h('div', {}, h('b', {}, ch?.name ?? ''), h('div', { class: 'muted' }, `${st.daily ? 'Daily Run' : TIERS[st.tier]?.name ?? 'Normal'}${st.curse ? ' · Cursed' : ''}`))),
     h('div', { class: 'stat-grid' },
       h('div', {}, h('b', {}, fmtTime(st.time)), 'Survived'), h('div', {}, h('b', {}, fmtNum(st.kills)), 'Defeated'),
       h('div', {}, h('b', {}, String(st.level)), 'Level'), h('div', {}, h('b', {}, `${st.bosses}/4`), 'Bosses'),
@@ -362,7 +383,7 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
       h('div', { class: 'muted' }, 'Click a weapon or passive you own to leave it out of your drafts, or to put it back. Daily Runs always use the full pool.'),
       h('div', { class: 'lf-grid' }, ...unlocks),
       h('div', { class: 'section-title' }, 'Achievements'),
-      h('div', { class: 'lf-grid' }, ...ACHIEVEMENTS.map((a) => h('div', { class: `lf-item${s.hasAchievement(a.id) ? '' : ' locked'}` }, h('img', { src: c.assets.uiIcon('luck'), alt: '' }), h('div', { class: 'nm' }, a.name), h('div', { class: 'ds' }, a.desc), h('div', { class: 'cost', style: { gridColumn: '2' } }, s.hasAchievement(a.id) ? '✓ Earned' : `+${a.reward} LT`)))),
+      h('div', { class: 'lf-grid' }, ...ACHIEVEMENTS.filter((a) => !a.retired || s.hasAchievement(a.id)).map((a) => h('div', { class: `lf-item${s.hasAchievement(a.id) ? '' : ' locked'}` }, h('img', { src: c.assets.uiIcon('luck'), alt: '' }), h('div', { class: 'nm' }, a.name), h('div', { class: 'ds' }, a.retired ? `${a.desc} (retired)` : a.desc), h('div', { class: 'cost', style: { gridColumn: '2' } }, s.hasAchievement(a.id) ? '✓ Earned' : `+${a.reward} LT`)))),
     ));
     root.querySelector<HTMLElement>('.panel')!.scrollTop = top;
   };

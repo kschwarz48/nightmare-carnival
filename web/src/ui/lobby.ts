@@ -1,17 +1,18 @@
 // Online co-op screens (D-52): the Multiplayer menu (name, host, join), the join-by-code screen and
 // the lobby — a marquee with the lobby code, both players' cards, a character grid (characters are
-// exclusive, as in Vampire Survivors), ready toggles and, for the host, difficulty and the start lever.
+// exclusive, as in Vampire Survivors), ready toggles and, for the host, the world tier, map and the start lever.
 
 import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
-import { DIFFICULTIES, CURSE } from '../data/difficulty';
-import { MAP_IDS, MAP_LOCK, MAPS, type MapId } from '../data/maps';
+import { CURSE } from '../data/difficulty';
+import { MAPS, type MapId } from '../data/maps';
+import { TIERS, type TierId } from '../data/tiers';
 import { WEAPONS } from '../data/weapons';
 import { PETS, PET_MAP } from '../data/pets';
 import { ACHIEVEMENTS } from '../data/meta';
 import type { LobbyState } from '../net/protocol';
 import type { Reach } from '../net/peer';
 import { CODE_LENGTH } from '../net/codes';
-import type { UICtx } from './screens';
+import { mapButtons, tierButtons, type UICtx } from './screens';
 import { h } from './dom';
 
 const btn = (label: string | Node, onclick: () => void, cls = '', extra: Record<string, unknown> = {}) => h('button', { class: `btn ${cls}`, 'data-nav': '', onclick, ...extra }, label);
@@ -92,7 +93,8 @@ export function joinScreen(c: UICtx, o: { status: string; tone: 'info' | 'warn';
 export interface LobbyActions {
   pick: (id: string) => void;
   ready: (r: boolean) => void;
-  difficulty: (id: string, curse: boolean) => void;
+  /** host only: the night's world tier (D-97) and the Curse */
+  tier: (t: TierId, curse: boolean) => void;
   /** host only: choose the night's map (D-63) */
   map?: (id: MapId) => void;
   start: () => void;
@@ -118,6 +120,10 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
     );
   };
   const copyBtn = btn('Copy', () => { c.click(); copy(); }, 'small purple');
+  // the world tier (D-97): whom tonight counts for. On Normal only the Ghost Train matters (it opens Nightmare): its
+  // other maps still open through their bosses' achievements, as they always have.
+  const tier = TIERS[lobby.tier] ?? TIERS.normal;
+  const visiting = (counts: boolean | undefined) => counts === false && (lobby.tier !== 'normal' || lobby.map === 'ghost_train');
   const card = (i: number) => {
     const p = lobby.players[i];
     if (!p) return h('div', { class: 'mp-card empty' }, h('div', { class: 'mp-who' }, `Player ${i + 1}`), h('div', { class: 'mp-wait' }, 'Open seat'), i === guests + 1 ? h('div', { class: 'muted' }, 'Send a friend the code above.') : null);
@@ -129,6 +135,7 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
       h('div', { class: 'mp-char' }, ch ? ch.name : 'Choosing…'),
       h('div', { class: `mp-badge${p.ready ? ' on' : ''}${p.away ? ' away' : ''}` }, !p.connected ? 'Reconnecting…' : p.away ? 'At the Lost & Found' : p.ready ? 'READY' : 'Not ready'),
       i !== me && p.rtt ? h('div', { class: 'mp-ping' }, `${p.rtt} ms`) : null,
+      visiting(p.counts) ? h('div', { class: 'mp-visit', title: `${tier.name}'s ${MAPS[lobby.map]?.name ?? 'night'} isn't open on their save: tonight won't count toward their own campaign` }, 'Visiting') : null,
     );
   };
   const grid = h('div', { class: 'mp-grid' }, ...CHARACTERS.map((ch) => {
@@ -147,18 +154,21 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
   const detail = chDef
     ? h('div', { class: 'mp-detail' }, h('b', {}, chDef.name), ' — ', chDef.quirkName, h('div', { class: 'muted' }, `Starts with ${WEAPONS[chDef.startWeapon].name}. ${chDef.quirkDesc}`))
     : h('div', { class: 'mp-detail muted' }, 'Pick your fool. Friends may pick the same one.');
+  const tierRow = host
+    ? h('div', { class: 'diff-row tier-row' }, ...tierButtons(c, lobby.tier, (t) => o.actions.tier(t, lobby.curse)),
+        h('div', { class: `toggle${lobby.curse ? ' on' : ''}${s.curseAvailable() ? '' : ' disabled'}`, 'data-nav': '', onclick: () => { if (!s.curseAvailable()) return; c.click(); o.actions.tier(lobby.tier, !lobby.curse); } }, h('span', { class: 'box' }), s.curseAvailable() ? 'Curse' : `Curse (locked \u2014 ${CURSE.unlock.reqText})`))
+    : h('div', { class: `muted tier-desc tier-${tier.id}` }, h('b', {}, `${tier.name}: ${tier.title}`), `${lobby.curse ? ' \u00b7 Cursed' : ''} (the host chooses)`);
   const mapRow = host && o.actions.map
-    ? h('div', { class: 'diff-row map-row' }, ...MAP_IDS.map((id) => {
-        const ok = s.mapAvailable(id);
-        return h('button', { class: `diff-btn${id === lobby.map ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? MAPS[id].tagline : MAP_LOCK[id], onclick: () => { c.click(); o.actions.map!(id); } }, ok ? MAPS[id].name : `🔒 ${MAPS[id].name}`);
-      }))
+    ? h('div', { class: 'diff-row map-row' }, ...mapButtons(c, lobby.tier, lobby.map, (m) => o.actions.map!(m)))
     : h('div', { class: 'muted' }, `Tonight: ${MAPS[lobby.map]?.name ?? lobby.map}${host ? '' : ' (the host chooses)'}`);
-  const diffRow = host
-    ? h('div', { class: 'diff-row' }, ...DIFFICULTIES.map((d) => {
-        const ok = s.difficultyAvailable(d.id);
-        return h('button', { class: `diff-btn${d.id === lobby.difficulty ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: ok ? d.desc : `Locked — ${d.unlock?.reqText}`, onclick: () => { c.click(); o.actions.difficulty(d.id, lobby.curse); } }, ok ? d.name : `🔒 ${d.name}`);
-      }), h('div', { class: `toggle${lobby.curse ? ' on' : ''}${s.curseAvailable() ? '' : ' disabled'}`, 'data-nav': '', onclick: () => { if (!s.curseAvailable()) return; c.click(); o.actions.difficulty(lobby.difficulty, !lobby.curse); } }, h('span', { class: 'box' }), s.curseAvailable() ? 'Curse' : `Curse (locked — ${CURSE.unlock.reqText})`))
-    : h('div', { class: 'muted' }, `Difficulty: ${DIFFICULTIES.find((d) => d.id === lobby.difficulty)?.name ?? lobby.difficulty}${lobby.curse ? ' · Cursed' : ''} (the host chooses)`);
+  // a guest hears whether tonight counts for them; the host, for whom it doesn't
+  const visitors = lobby.players.flatMap((p, i) => (p && i > 0 && visiting(p.counts) ? [p.name] : []));
+  const mineCounts = s.countsFor(lobby.tier, lobby.map) || !visiting(false);
+  const countLine = host
+    ? visitors.length ? h('div', { class: 'muted tier-note warn' }, `Tonight won't count toward ${visitors.join(', ')}'s own campaign (not open on their save); they keep their Lost Tickets and achievements.`) : null
+    : h('div', { class: `muted tier-note${mineCounts ? '' : ' warn'}` }, mineCounts
+      ? `Tonight counts toward your own ${tier.name} campaign.`
+      : `Tonight won't count toward your own campaign: ${s.tierUnlocked(lobby.tier) ? `${MAPS[lobby.map]?.name} isn't open on ${tier.name} on your save yet` : `${tier.name} isn't open on your save (${tier.unlockText.toLowerCase()})`}. You keep your Lost Tickets and achievements.`);
   const ready = !!mine?.ready;
   const actions = h('div', { class: 'cs-actions' },
     btn('Leave', () => { c.click(); o.actions.leave(); }, 'small red'),
@@ -178,8 +188,9 @@ export function lobbyScreen(c: UICtx, lobby: LobbyState, me: number, o: { canSta
     h('div', { class: 'mp-cards six' }, ...lobby.players.map((_, i) => card(i))),
     grid,
     detail,
+    tierRow,
     mapRow,
-    diffRow,
+    countLine,
     h('div', { class: 'muted mp-hint' }, hint),
     actions,
     h('div', { class: `mp-status ${o.tone}${o.status ? '' : ' hidden'}` }, o.status),

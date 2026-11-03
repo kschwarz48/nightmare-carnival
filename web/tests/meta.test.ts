@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SaveManager, migrate, SAVE_VERSION, type StorageLike } from '../src/meta/save';
-import { DIFFICULTY_MAP } from '../src/data/difficulty';
+import { TIERS } from '../src/data/tiers';
 import { makeGame, runFor } from './helpers';
 import { generateDraft } from '../src/sim/draft';
 import { CHARACTERS } from '../src/data/characters';
@@ -73,8 +73,6 @@ describe('save system', () => {
     expect(s.characterAvailable('ride_operator')).toBe(false);
     expect(s.buyCharacter('ride_operator')).toBe(false);
     s.grantAchievements(['beat_ferris_wheel']);
-    expect(s.difficultyAvailable('carnival')).toBe(true);
-    expect(s.difficultyAvailable('nightmare')).toBe(false);
     // D-78: the Commodore waits for the Boardwalk to be survived, and costs 6,000
     expect(s.characterRequirementMet('ride_operator')).toBe(false);
     expect(s.buyCharacter('ride_operator')).toBe(false);
@@ -141,7 +139,7 @@ describe('save system', () => {
       achievements: ['first_night', 'all_characters', 'summers_end', 'last_song', 'beat_leviathan'], pedia: ['hall_of_mirrors'], quests: { last_song: { completions: 1, bestStage: 7 } },
     };
     const d = migrate(v4);
-    expect(d.version).toBe(5);
+    expect(d.version).toBe(SAVE_VERSION);
     // Brass Knuckles 40+64+102+164+262, Funnel Cake 50+80, the Spare Balloon 200, the Orbs 60, the Mirror 160,
     // the Skip Ticket 50, the Fortune Teller 150, the Ringleader 500; less the Whole Troupe's 150, withdrawn
     const refund = 632 + 130 + 200 + 60 + 160 + 50 + 150 + 500 - 150;
@@ -269,12 +267,12 @@ describe('save system', () => {
 
 describe('difficulty & modes', () => {
   it('tiers scale enemy HP/damage and cap population', () => {
-    const m = makeGame({ difficulty: 'midway' });
-    const n = makeGame({ difficulty: 'nightmare' });
+    const m = makeGame({ tier: 'normal' });
+    const n = makeGame({ tier: 'nightmare' });
     const em = m.spawnEnemy('evil_clown', 0, 800)!;
     const en = n.spawnEnemy('evil_clown', 0, 800)!;
-    expect(en.maxHp / em.maxHp).toBeCloseTo(DIFFICULTY_MAP.nightmare.hpMult, 2);
-    expect(en.dmg / em.dmg).toBeCloseTo(DIFFICULTY_MAP.nightmare.dmgMult, 2);
+    expect(en.maxHp / em.maxHp).toBeCloseTo(TIERS.nightmare.hpMult, 2);
+    expect(en.dmg / em.dmg).toBeCloseTo(TIERS.nightmare.dmgMult, 2);
     for (const g of [m, n]) {
       runFor(g, 400);
       expect(g.active.length).toBeLessThanOrEqual(g.diff.cap + 80); // swarm overlay may briefly exceed by its size

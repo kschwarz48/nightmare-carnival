@@ -1,28 +1,7 @@
-// Difficulty tiers + Curse (doc 01 §10, doc 03 §7.3, D-02).
+// The Curse and time scaling (doc 01 §10, doc 03 §7.3, D-02). The per-night difficulties that lived here (Midway,
+// Carnival, Nightmare) are retired: the world tiers (data/tiers.ts, D-97) set a night's numbers now.
 
 import { TICKETS } from './progression';
-
-export interface DifficultyDef {
-  id: 'midway' | 'carnival' | 'nightmare';
-  name: string;
-  desc: string;
-  hpMult: number;
-  dmgMult: number;
-  cap: number;
-  greed: number;
-  minibossInterval: number;
-  eliteAffixes: number; // affixes rolled per elite
-  eliteChanceMult: number;
-  unlock: null | { req: string; reqText: string };
-}
-
-export const DIFFICULTIES: DifficultyDef[] = [
-  { id: 'midway', name: 'Midway', desc: 'The intended first night. Readable crowds, honest bosses.', hpMult: 1.0, dmgMult: 1.0, cap: 180, greed: 0, minibossInterval: 140, eliteAffixes: 0, eliteChanceMult: 1, unlock: null },
-  { id: 'carnival', name: 'Carnival', desc: 'Denser, tougher, +30% Lost Tickets.', hpMult: 1.5, dmgMult: 1.25, cap: 280, greed: 0.3, minibossInterval: 120, eliteAffixes: 1, eliteChanceMult: 1.25, unlock: { req: 'beat_ferris_wheel', reqText: 'Defeat the Ferris Wheel' } },
-  { id: 'nightmare', name: 'Nightmare', desc: 'The carnival at full appetite. Elites carry two affixes. +60% Lost Tickets.', hpMult: 2.2, dmgMult: 1.6, cap: 400, greed: 0.6, minibossInterval: 105, eliteAffixes: 2, eliteChanceMult: 1.5, unlock: { req: 'win_carnival', reqText: 'Win on Carnival' } },
-];
-
-export const DIFFICULTY_MAP = Object.fromEntries(DIFFICULTIES.map((d) => [d.id, d])) as Record<DifficultyDef['id'], DifficultyDef>;
 
 export const CURSE = {
   intervalMult: 0.8,

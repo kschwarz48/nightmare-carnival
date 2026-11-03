@@ -1,0 +1,357 @@
+// World tiers (D-97, docs/WORLD_TIER_DESIGN.md): the save migration, the unlock rules, each tier's numbers and the
+// co-op tier sync with its eligibility rules.
+
+import { describe, expect, it } from 'vitest';
+import { makeGame } from './helpers';
+import { Game } from '../src/sim/game';
+import { SaveManager, migrate, NORMAL_FINALS, PRE_MIGRATION, SAVE_VERSION, freshSave, type StorageLike } from '../src/meta/save';
+import { DAILY_SCALING, TIERS, TIER_IDS, nextTier, tierAtLeast } from '../src/data/tiers';
+import { MAP_IDS } from '../src/data/maps';
+import { LoopbackNet } from '../src/net/link';
+import { GuestSession, HostSession, runConfigFromStart, type HostProfile } from '../src/net/session';
+import { PROTO, parseHostMsg, type GuestProfile } from '../src/net/protocol';
+
+function mem(init: Record<string, string> = {}): StorageLike & { m: Map<string, string> } {
+  const m = new Map(Object.entries(init));
+  return { m, getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) };
+}
+
+/** A v5 save as the live alpha writes them (D-78 onward), with the given achievements and extras. */
+function v5(achievements: string[], extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    version: 5, lostTickets: 4321, totalEarned: 9876, perks: { might: 3, greed: 2 }, unlocks: ['w_orbs', 'char_mira', 'w_calliope'],
+    achievements, pedia: ['evil_clown', 'w_orbs'], stats: { runs: 40, wins: 9, kills: 52000, bestTime: 1500, bossKills: { ringmaster: 4 }, playSeconds: 36000 },
+    history: [{ date: '2026-10-01T00:00:00.000Z', character: 'carny', difficulty: 'carnival', won: true, time: 1500, kills: 2000, level: 40, lostTickets: 900, curse: false, endless: false, daily: false }],
+    daily: { '20261001': { score: 5000, won: true, character: 'mira' } }, last: { character: 'mira', difficulty: 'nightmare', curse: true, map: 'boardwalk' },
+    settings: { master: 0.5, music: 0.2 }, quests: { last_song: { completions: 2, bestStage: 6 }, unreflected: { completions: 0, bestStage: 3 } },
+    pet: 'milo', spent: 1200, midwayTester: true,
+    ...extra,
+  };
+}
+
+const ALL_FINALS = Object.values(NORMAL_FINALS);
+
+// ===================================================================================== the migration
+describe('save v6: the world-tier migration', () => {
+  it('a fresh v5 save gets Normal only, no wins, no ceremonies seen', () => {
+    const d = migrate(v5([]));
+    expect(d.version).toBe(SAVE_VERSION);
+    expect(SAVE_VERSION).toBe(6);
+    expect(d.tiers).toEqual({ unlocked: ['normal'], wins: { normal: {}, nightmare: {}, hell: {} }, seen: [] });
+    expect(d.last.tier).toBe('normal');
+  });
+
+  it('a partly played save carries its Normal wins over from the final bosses, opening no tier', () => {
+    const d = migrate(v5(['first_night', 'beat_ringmaster', 'beat_proprietor']));
+    expect(d.tiers.unlocked).toEqual(['normal']);
+    expect(d.tiers.wins.normal).toEqual({ carnival_core: 1, fun_house: 1 });
+    expect(d.tiers.wins.nightmare).toEqual({});
+  });
+
+  it('a save that finished the Ghost Train opens Nightmare, never Hell', () => {
+    const d = migrate(v5(['beat_ringmaster', 'beat_proprietor', 'beat_leviathan', 'beat_night_express', 'win_carnival', 'win_nightmare']));
+    expect(d.tiers.unlocked).toEqual(['normal', 'nightmare']);
+    expect(d.tiers.wins.normal).toEqual({ carnival_core: 1, fun_house: 1, boardwalk: 1, ghost_train: 1 });
+    expect(d.tiers.wins.nightmare).toEqual({});
+    expect(d.tiers.wins.hell).toEqual({});
+    // the ceremony is still to be shown (the reveal for testers who already finished)
+    expect(d.tiers.seen).toEqual([]);
+  });
+
+  it('a Ghost Train win alone (a tester flag skipped the maps before it) still opens Nightmare', () => {
+    const d = migrate(v5(['beat_night_express'], { ghosttrainTester: true }));
+    expect(d.tiers.unlocked).toEqual(['normal', 'nightmare']);
+    expect(d.tiers.wins.normal).toEqual({ ghost_train: 1 });
+  });
+
+  it('keeps everything else of a rich save exactly', () => {
+    const raw = v5([...ALL_FINALS, 'win_carnival', 'win_nightmare', 'full_house']);
+    const before = JSON.parse(JSON.stringify(raw));
+    const d = migrate(raw);
+    expect(d.lostTickets).toBe(4321);
+    expect(d.totalEarned).toBe(9876);
+    expect(d.perks).toEqual({ might: 3, greed: 2 });
+    expect(d.unlocks).toEqual(['w_orbs', 'char_mira', 'w_calliope']);
+    expect(d.achievements).toEqual(before.achievements);
+    expect(d.pedia).toEqual(before.pedia);
+    expect(d.stats).toEqual(before.stats);
+    expect(d.history).toEqual(before.history);
+    expect(d.daily).toEqual(before.daily);
+    expect(d.quests).toEqual(before.quests);
+    expect(d.pet).toBe('milo');
+    expect(d.spent).toBe(1200);
+    expect(d.midwayTester).toBe(true);
+    expect(d.settings.master).toBe(0.5);
+    expect(d.last.character).toBe('mira');
+    expect(d.last.map).toBe('boardwalk');
+    expect(d.last.curse).toBe(true);
+  });
+
+  it('is deterministic and idempotent', () => {
+    const raw = v5([...ALL_FINALS]);
+    const a = migrate(JSON.parse(JSON.stringify(raw)));
+    const b = migrate(JSON.parse(JSON.stringify(raw)));
+    expect(a).toEqual(b);
+    expect(migrate(JSON.parse(JSON.stringify(a)))).toEqual(a);
+  });
+
+  it('runs the whole chain from a v1 (Godot-era) save', () => {
+    const d = migrate({ lost_tickets: 77, unlocks: ['crystal_orbs'], perks: {}, pedia: [] });
+    expect(d.version).toBe(6);
+    expect(d.lostTickets).toBeGreaterThanOrEqual(77);
+    expect(d.tiers.unlocked).toEqual(['normal']);
+  });
+
+  it('cleans a damaged tier record: Normal always open, unknown tiers and maps and bad counts dropped', () => {
+    const d = migrate({ ...freshSave(), tiers: { unlocked: ['hell', 'bogus', 'hell'], wins: { normal: { carnival_core: 2.7, nowhere: 3, fun_house: -1 }, nightmare: 'x', limbo: { carnival_core: 1 } }, seen: ['nightmare', 7] }, last: { character: 'carny', curse: false, tier: 'purgatory' } });
+    expect(d.tiers.unlocked).toEqual(['normal', 'hell']);
+    expect(d.tiers.wins).toEqual({ normal: { carnival_core: 2 }, nightmare: {}, hell: {} });
+    expect(d.tiers.seen).toEqual(['nightmare']);
+    expect(d.last.tier).toBe('normal');
+  });
+
+  it('falls back to Normal when the last tier played is not open', () => {
+    const d = migrate({ ...freshSave(), last: { character: 'carny', curse: false, tier: 'hell' } });
+    expect(d.last.tier).toBe('normal');
+  });
+
+  it('keeps the text of an older save once, under its old version, before migrating it', () => {
+    const txt = JSON.stringify(v5(['beat_night_express']));
+    const store = mem({ nightmare_carnival_save: txt });
+    const s = new SaveManager(store);
+    expect(s.tierUnlocked('nightmare')).toBe(true);
+    expect(store.m.get(PRE_MIGRATION + '5')).toBe(txt);
+    s.save();
+    // the next load reads v6: no copy of it, and the v5 copy stays as it was
+    store.m.set(PRE_MIGRATION + '5', txt);
+    const again = new SaveManager(store);
+    expect(again.tierUnlocked('nightmare')).toBe(true);
+    expect(store.m.get(PRE_MIGRATION + '6')).toBeUndefined();
+    expect(store.m.get(PRE_MIGRATION + '5')).toBe(txt);
+    // a second read of a v5 save never overwrites the first copy
+    const store2 = mem({ nightmare_carnival_save: txt, [PRE_MIGRATION + '5']: 'first' });
+    new SaveManager(store2);
+    expect(store2.m.get(PRE_MIGRATION + '5')).toBe('first');
+  });
+
+  it('recovers from a corrupt main save through the backup, migrating it too', () => {
+    const store = mem({ nightmare_carnival_save: '{not json', nightmare_carnival_save_backup: JSON.stringify(v5(['beat_night_express'])) });
+    const s = new SaveManager(store);
+    expect(s.recovered).toBe(true);
+    expect(s.tierUnlocked('nightmare')).toBe(true);
+    expect(s.data.lostTickets).toBe(4321);
+  });
+});
+
+// ===================================================================================== the rules
+describe('world tiers: unlocks and maps', () => {
+  it('orders the tiers and opens each from the one before', () => {
+    expect(TIER_IDS).toEqual(['normal', 'nightmare', 'hell']);
+    expect(nextTier('normal')).toBe('nightmare');
+    expect(nextTier('nightmare')).toBe('hell');
+    expect(nextTier('hell')).toBeNull();
+    expect(tierAtLeast('hell', 'nightmare')).toBe(true);
+    expect(tierAtLeast('normal', 'nightmare')).toBe(false);
+    // each tier is tougher than the one before on every axis, and pays more
+    for (const k of ['hpMult', 'dmgMult', 'cap', 'greed', 'eliteAffixes', 'eliteChanceMult', 'xpMult', 'speedMult'] as const) {
+      expect(TIERS.nightmare[k]).toBeGreaterThan(TIERS.normal[k]);
+      expect(TIERS.hell[k]).toBeGreaterThan(TIERS.nightmare[k]);
+    }
+    expect(TIERS.nightmare.spawnMult).toBeLessThan(1);
+    expect(TIERS.hell.spawnMult).toBeLessThan(TIERS.nightmare.spawnMult);
+  });
+
+  it('keeps Normal on its own rules (bosses, the Midway, tester flags)', () => {
+    const s = new SaveManager(mem());
+    expect(MAP_IDS.map((m) => s.mapAvailableOn('normal', m))).toEqual([true, false, false, false]);
+    s.grantAchievements(['beat_ringmaster']);
+    expect(s.mapAvailableOn('normal', 'fun_house')).toBe(true);
+    s.data.boardwalkTester = true;
+    expect(s.mapAvailableOn('normal', 'boardwalk')).toBe(true);
+    // a Normal win records but opens nothing by itself (Normal's maps follow their bosses)
+    expect(s.recordTierWin('normal', 'carnival_core')).toEqual({ maps: [], tier: null });
+    expect(s.tierWins('normal', 'carnival_core')).toBe(1);
+  });
+
+  it('chains Nightmare and Hell map by map, with no Easter egg needed', () => {
+    const s = new SaveManager(mem());
+    for (const m of MAP_IDS) expect(s.mapAvailableOn('nightmare', m)).toBe(false);
+    s.data.ghosttrainTester = true;
+    // the Normal campaign's end opens Nightmare
+    expect(s.countsFor('normal', 'ghost_train')).toBe(true);
+    expect(s.recordTierWin('normal', 'ghost_train')).toEqual({ maps: [], tier: 'nightmare' });
+    expect(s.tierUnlocked('nightmare')).toBe(true);
+    expect(MAP_IDS.map((m) => s.mapAvailableOn('nightmare', m))).toEqual([true, false, false, false]);
+    expect(s.recordTierWin('nightmare', 'carnival_core')).toEqual({ maps: ['fun_house'], tier: null });
+    expect(s.recordTierWin('nightmare', 'fun_house')).toEqual({ maps: ['boardwalk'], tier: null });
+    expect(s.recordTierWin('nightmare', 'boardwalk')).toEqual({ maps: ['ghost_train'], tier: null });
+    expect(s.tierUnlocked('hell')).toBe(false);
+    expect(s.recordTierWin('nightmare', 'ghost_train')).toEqual({ maps: [], tier: 'hell' });
+    expect(MAP_IDS.map((m) => s.mapAvailableOn('hell', m))).toEqual([true, false, false, false]);
+    // a second win opens nothing new; Hell's Ghost Train opens no tier
+    expect(s.recordTierWin('nightmare', 'ghost_train')).toEqual({ maps: [], tier: null });
+    expect(s.tierWins('nightmare', 'ghost_train')).toBe(2);
+    for (const m of MAP_IDS) s.recordTierWin('hell', m);
+    expect(s.tierComplete('hell')).toBe(true);
+    expect(s.data.quests).toEqual({});
+    // earlier tiers stay open, their records untouched
+    expect(s.tierWins('normal', 'ghost_train')).toBe(1);
+    expect(s.mapAvailableOn('nightmare', 'ghost_train')).toBe(true);
+  });
+
+  it('only counts a night for a save that has its tier and map open', () => {
+    const s = new SaveManager(mem());
+    expect(s.countsFor('nightmare', 'carnival_core')).toBe(false);
+    expect(s.countsFor('normal', 'fun_house')).toBe(false);
+    s.unlockTier('nightmare');
+    expect(s.countsFor('nightmare', 'carnival_core')).toBe(true);
+    expect(s.countsFor('nightmare', 'fun_house')).toBe(false);
+    expect(s.countsFor('hell', 'carnival_core')).toBe(false);
+    expect(s.openPairs()).toEqual(['normal:carnival_core', 'nightmare:carnival_core']);
+  });
+
+  it('picks the tier a map is open on, preferring the one asked for', () => {
+    const s = new SaveManager(mem());
+    s.unlockTier('nightmare');
+    s.grantAchievements(['beat_ringmaster']);
+    expect(s.bestTierFor('fun_house', 'nightmare')).toBe('normal');
+    expect(s.bestTierFor('carnival_core', 'nightmare')).toBe('nightmare');
+    s.recordTierWin('nightmare', 'carnival_core');
+    expect(s.bestTierFor('fun_house', 'normal')).toBe('normal');
+    expect(s.bestTierFor('fun_house', 'hell')).toBe('nightmare');
+  });
+
+  it('closes a tier and those above it (the dev tools), the last tier falling back', () => {
+    const s = new SaveManager(mem());
+    s.unlockTier('nightmare');
+    s.unlockTier('hell');
+    s.data.last.tier = 'hell';
+    s.lockTier('nightmare');
+    expect(s.data.tiers.unlocked).toEqual(['normal']);
+    expect(s.lastTier()).toBe('normal');
+    s.lockTier('normal');
+    expect(s.data.tiers.unlocked).toEqual(['normal']);
+  });
+});
+
+// ===================================================================================== each tier's night
+describe('world tiers: the night', () => {
+  it('scales the crowd by the tier', () => {
+    const base = makeGame({ tier: 'normal' }).spawnEnemy('evil_clown', 0, 800)!;
+    for (const t of ['nightmare', 'hell'] as const) {
+      const g = makeGame({ tier: t });
+      expect(g.tier).toBe(t);
+      const e = g.spawnEnemy('evil_clown', 0, 800)!;
+      expect(e.maxHp / base.maxHp).toBeCloseTo(TIERS[t].hpMult, 2);
+      expect(e.dmg / base.dmg).toBeCloseTo(TIERS[t].dmgMult, 2);
+      expect(e.speed / base.speed).toBeCloseTo(TIERS[t].speedMult, 2);
+      expect(g.diff.cap).toBe(TIERS[t].cap);
+    }
+  });
+
+  it('keeps the Daily Run on its own scaling and the Midway on Normal', () => {
+    const d = makeGame({ tier: 'hell', daily: true, dailyMod: 'none' });
+    expect(d.tier).toBe('normal');
+    expect(d.diff).toBe(DAILY_SCALING);
+    const hub = new Game({ character: 'carny', tier: 'hell', curse: false, seed: 1, hub: { npcs: [] } });
+    expect(hub.tier).toBe('normal');
+    expect(makeGame({ tier: 'bogus' as never }).tier).toBe('normal');
+  });
+
+  it('pays more on the higher tiers and reports the tier in the night\'s results', () => {
+    const run = (t: 'normal' | 'hell') => {
+      const g = makeGame({ tier: t, godMode: true });
+      g.time = 600;
+      g.kills = 3000;
+      g.endRun(true);
+      return g.endStats!;
+    };
+    const n = run('normal'), h = run('hell');
+    expect(h.tier).toBe('hell');
+    expect(n.tier).toBe('normal');
+    expect(h.lostTickets).toBeGreaterThan(n.lostTickets);
+    // the old difficulties' wins are no longer earned
+    expect(h.achievementsHit).not.toContain('win_nightmare');
+    expect(h.achievementsHit).not.toContain('win_carnival');
+  });
+});
+
+// ===================================================================================== co-op
+const hostProfile: HostProfile = { name: 'Kevin', meta: [], rerolls: 0, banishes: 0, canSkip: false, aimMode: 'auto' };
+const guestOf = (open?: string[]): GuestProfile => ({ name: 'Brother', meta: [], rerolls: 0, banishes: 0, canSkip: false, aimMode: 'auto', chars: ['carny', 'strongman'], open });
+
+function party(open?: string[]) {
+  const net = new LoopbackNet({});
+  const host = new HostSession('TIERS2', hostProfile);
+  const [h, g] = net.pair();
+  host.accept(h);
+  let now = 1000;
+  const guest = new GuestSession(g, guestOf(open), null, now);
+  guest.onStart = (cfg) => new Game(runConfigFromStart(cfg));
+  const run = (ms: number) => {
+    const end = now + ms;
+    while (now < end) {
+      now += 1000 / 60;
+      net.pump(now);
+      host.update(now, 1000 / 60);
+      guest.update(now);
+    }
+  };
+  run(300);
+  return { host, guest, run };
+}
+
+describe('world tiers in co-op', () => {
+  it('syncs the host\'s tier to every guest and into the night', () => {
+    expect(PROTO).toBe(20);
+    const { host, guest, run } = party(['normal:carnival_core', 'nightmare:carnival_core']);
+    host.setTier('nightmare', true);
+    host.setCharacter('carny');
+    guest.pick('strongman');
+    run(200);
+    expect(guest.lobby?.tier).toBe('nightmare');
+    expect(guest.lobby?.curse).toBe(true);
+    host.setReady(true);
+    guest.setReady(true);
+    run(200);
+    const cfg = host.start({ seed: 7, unlocked: [], questMemory: {} })!;
+    expect(cfg.tier).toBe('nightmare');
+    run(300);
+    expect(guest.game?.tier).toBe('nightmare');
+    expect(guest.game?.diff.hpMult).toBe(TIERS.nightmare.hpMult);
+  });
+
+  it('tells the lobby whom a night counts for, from each guest\'s own progress', () => {
+    const { host, guest, run } = party(['normal:carnival_core']);
+    expect(host.lobby.players[0]?.counts).toBe(true);
+    expect(host.lobby.players[1]?.counts).toBe(true);
+    host.setTier('hell', false);
+    run(200);
+    expect(host.lobby.players[1]?.counts).toBe(false);
+    expect(guest.lobby?.players[1]?.counts).toBe(false);
+    // the guest opens Nightmare and Hell's first map: the profile update changes the answer
+    guest.sendProfile(guestOf(['normal:carnival_core', 'hell:carnival_core']));
+    run(200);
+    expect(host.lobby.players[1]?.counts).toBe(true);
+    host.setMap('fun_house');
+    run(100);
+    expect(host.lobby.players[1]?.counts).toBe(false);
+  });
+
+  it('validates the tier and the open pairs on arrival', () => {
+    const start = (tier: unknown) => parseHostMsg(JSON.stringify({ t: 'start', slot: 1, epoch: 1, cfg: { seed: 5, tier, curse: false, unlocked: [], questMemory: {}, players: [{ character: 'carny', name: 'A' }] } }));
+    const ok = start('hell');
+    expect(ok && ok.t === 'start' && ok.cfg.tier).toBe('hell');
+    const bad = start('purgatory');
+    expect(bad && bad.t === 'start' && bad.cfg.tier).toBe('normal');
+    const lobby = parseHostMsg(JSON.stringify({ t: 'lobby', you: 1, lobby: { code: 'ABC234', players: [{ name: 'A', character: 'carny', ready: false, counts: false }], map: 'fun_house', tier: 'nightmare', curse: false, inRun: false } }));
+    expect(lobby && lobby.t === 'lobby' && lobby.lobby.tier).toBe('nightmare');
+    expect(lobby && lobby.t === 'lobby' && lobby.lobby.players[0]?.counts).toBe(false);
+  });
+
+  it('drops unknown pairs from a guest profile', async () => {
+    const { cleanProfile } = await import('../src/net/protocol');
+    const p = cleanProfile({ ...guestOf(), open: ['normal:carnival_core', 'hell:nowhere', 'heaven:fun_house', 42, 'nightmare:ghost_train'] });
+    expect(p?.open).toEqual(['normal:carnival_core', 'nightmare:ghost_train']);
+  });
+});

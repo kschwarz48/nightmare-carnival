@@ -19,7 +19,7 @@ function mem(): StorageLike {
 
 const ALL = HUB_NPCS.map((n) => n.char);
 const hub = (players = [{ character: 'carny', name: 'Kevin' }]) =>
-  new Game({ character: players[0].character, difficulty: 'midway', curse: false, seed: 9, players, hub: { npcs: ALL } });
+  new Game({ character: players[0].character, tier: 'normal', curse: false, seed: 9, players, hub: { npcs: ALL } });
 
 describe('the Midway hub (D-60)', () => {
   it('opens only once the first night is fully completed (the Last Song carried to True Dawn)', () => {
@@ -52,13 +52,13 @@ describe('the Midway hub (D-60)', () => {
   });
 
   it('puts only the unlocked cast at their games, on open ground inside the map', () => {
-    const g = new Game({ character: 'carny', difficulty: 'midway', curse: false, seed: 1, hub: { npcs: ['carny', 'strongman'] } });
+    const g = new Game({ character: 'carny', tier: 'normal', curse: false, seed: 1, hub: { npcs: ['carny', 'strongman'] } });
     expect(g.hubNpcs.map((n) => n.char.id)).toEqual(['carny', 'strongman']);
     for (const d of HUB_NPCS) {
       expect(CHARACTERS.some((c) => c.id === d.char), d.char).toBe(true);
       expect(d.lines.length).toBeGreaterThanOrEqual(3);
       // standing where a player could walk up to them: inside the bounds, not inside a solid prop
-      const probe = new Game({ character: 'carny', difficulty: 'midway', curse: false, seed: 1, hub: { npcs: [] } }).player;
+      const probe = new Game({ character: 'carny', tier: 'normal', curse: false, seed: 1, hub: { npcs: [] } }).player;
       probe.x = d.x;
       probe.y = d.y;
       collideBody(probe, []);
@@ -72,7 +72,7 @@ describe('the Midway hub (D-60)', () => {
   });
 
   it('keeps players where they stood when it is rebuilt for someone joining', () => {
-    const g = new Game({ character: 'carny', difficulty: 'midway', curse: false, seed: 1, players: [{ character: 'carny' }, { character: 'strongman' }], hub: { npcs: [], at: [{ x: -400, y: 500 }, { x: 300, y: 600 }] } });
+    const g = new Game({ character: 'carny', tier: 'normal', curse: false, seed: 1, players: [{ character: 'carny' }, { character: 'strongman' }], hub: { npcs: [], at: [{ x: -400, y: 500 }, { x: 300, y: 600 }] } });
     expect([g.players[0].x, g.players[0].y, g.players[1].x, g.players[1].y]).toEqual([-400, 500, 300, 600]);
   });
 });

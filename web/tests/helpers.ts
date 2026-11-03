@@ -2,7 +2,7 @@ import { Game, type RunConfig } from '../src/sim/game';
 
 export function makeGame(o: Partial<RunConfig> = {}): Game {
   return new Game({
-    character: 'carny', difficulty: 'midway', curse: false, seed: 12345,
+    character: 'carny', tier: 'normal', curse: false, seed: 12345,
     unlocked: new Set(['w_orbs', 'w_cannon', 'w_laser', 'w_bell', 'w_mirror', 'p_season_pass', 'p_coin_purse', 'p_rabbits_foot']),
     ...o,
   });

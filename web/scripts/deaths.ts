@@ -1,6 +1,6 @@
 import { makeGame, runFor } from '../tests/helpers';
 for (const seed of [11, 22, 33, 44]) {
-  const g = makeGame({ character: 'carny', difficulty: 'midway', seed });
+  const g = makeGame({ character: 'carny', tier: 'normal', seed });
   const src = new Map<string, number>();
   const orig = g.hurtPlayer.bind(g);
   let ctx = 'other';

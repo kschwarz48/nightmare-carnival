@@ -8,7 +8,7 @@ import type { MapId } from '../src/data/maps';
 const map = (process.argv[2] ?? 'fun_house') as MapId;
 const character = process.argv[3] ?? 'carny';
 for (const seed of [11, 22, 33]) {
-  const g = makeGame({ character, difficulty: 'midway', seed, map });
+  const g = makeGame({ character, tier: 'normal', seed, map });
   const src = new Map<string, number>();
   let ctx = 'other';
   const orig = g.hurtPlayer.bind(g);

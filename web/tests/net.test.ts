@@ -414,7 +414,7 @@ describe('protocol validation', () => {
     const p = cleanProfile({ name: 'Bo', meta: [], chars: [], unlocks: ['w_laser', 'f_skip', 'bogus', 'w_laser', 'p_ada_conch', 42] })!;
     expect(p.unlocks).toEqual(['w_laser', 'p_ada_conch']);
     expect(cleanProfile({ name: 'Old', meta: [], chars: [] })!.unlocks).toEqual([]);
-    const m = parseHostMsg(JSON.stringify({ t: 'start', cfg: { seed: 1, difficulty: 'midway', unlocked: [], players: [{ character: 'carny', name: 'A', unlocked: ['w_orbs', 'nope'] }, { character: 'carny', name: 'B' }] } }));
+    const m = parseHostMsg(JSON.stringify({ t: 'start', cfg: { seed: 1, tier: 'normal', unlocked: [], players: [{ character: 'carny', name: 'A', unlocked: ['w_orbs', 'nope'] }, { character: 'carny', name: 'B' }] } }));
     expect(m && m.t === 'start' && m.cfg.players.map((x) => x.unlocked)).toEqual([['w_orbs'], undefined]);
     const r = parseGuestMsg(JSON.stringify({ t: 'profile', profile: { name: 'Bo', meta: [], chars: ['carny'], unlocks: ['w_bell'] } }));
     expect(r && r.t === 'profile' && r.profile.unlocks).toEqual(['w_bell']);

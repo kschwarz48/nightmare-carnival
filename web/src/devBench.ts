@@ -60,7 +60,7 @@ export async function runBenchScenario(app: App, advance: (sec: number) => unkno
     app.save.data.boardwalkTester = true;
     app.save.data.ghosttrainTester = true;
     const s0 = performance.now();
-    app.startRun({ character: sc.char ?? 'carny', difficulty: 'midway', curse: false, map: sc.map ?? 'carnival_core', seed: sc.seed ?? 777 });
+    app.startRun({ character: sc.char ?? 'carny', tier: 'normal', curse: false, map: sc.map ?? 'carnival_core', seed: sc.seed ?? 777 });
     startRunMs = performance.now() - s0;
     const g0 = app.game!;
     g0.cfg.godMode = true;

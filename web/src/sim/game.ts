@@ -8,7 +8,8 @@ import { SpatialGrid } from '../core/grid';
 import { clamp, dist2, segDist2, TAU } from '../core/math';
 import { Rng } from '../core/rng';
 import { CHARACTER_MAP } from '../data/characters';
-import { CURSE, DIFFICULTY_MAP, timeScaling, type DifficultyDef } from '../data/difficulty';
+import { CURSE, timeScaling } from '../data/difficulty';
+import { DAILY_SCALING, TIERS, isTierId, type TierDef, type TierId } from '../data/tiers';
 import { ENEMIES, ELITE_AFFIXES, type EnemyDef } from '../data/enemies';
 import { GREASE_SLICKS, MAP_HALF, PLAYER_BOUNDS, PLAYER_SPAWN, PROPS, TILT_A_WHIRL, type Prop } from '../data/map';
 import { ACT_GATES, DAWN_TIME } from '../data/waves';
@@ -63,7 +64,8 @@ const IFRAMES = 0.45;
 
 export interface RunConfig {
   character: string;
-  difficulty: DifficultyDef['id'];
+  /** the world tier (D-97): Normal when absent */
+  tier?: TierId;
   curse: boolean;
   seed: number;
   daily?: boolean;
@@ -130,7 +132,8 @@ export interface RunStats {
   weapons: { id: string; level: number; damage: number }[];
   passives: { id: string; level: number }[];
   character: string;
-  difficulty: string;
+  /** the night's world tier (D-97) */
+  tier: TierId;
   curse: boolean;
   endless: boolean;
   endlessTime: number;
@@ -195,7 +198,9 @@ export class Game {
   rng: Rng;
   bus = new EventBus<GameEvents>();
   fx = new FxQueue();
-  diff: DifficultyDef;
+  /** the world tier (D-97) and the numbers the night plays by (the Daily Run keeps its own) */
+  tier: TierId;
+  diff: TierDef;
   time = 0; // run clock (seconds)
   realTime = 0; // total simulated seconds (includes stalls/dawn)
   tickCount = 0;
@@ -318,7 +323,8 @@ export class Game {
     useMap(this.mapId);
     this.nav = new Nav();
     this.rng = new Rng(cfg.seed);
-    this.diff = DIFFICULTY_MAP[cfg.difficulty] ?? DIFFICULTY_MAP.midway;
+    this.tier = isTierId(cfg.tier) && !cfg.daily && !cfg.hub ? cfg.tier : 'normal';
+    this.diff = cfg.daily ? DAILY_SCALING : TIERS[this.tier];
     const party = cfg.players?.length ? cfg.players.slice(0, COOP.maxPlayers) : [{ character: cfg.character }];
     party.forEach((pc, i) => {
       const pl = new Player(pc.character);
@@ -831,8 +837,8 @@ export class Game {
     const eliteHp = elite ? 6 : 1;
     e.maxHp = e.hp = def.hp * sc.hp * this.diff.hpMult * curseHp * eliteHp * (opts.hpMult ?? 1) * this.partyScale.hp;
     e.dmg = def.contact * sc.dmg * this.diff.dmgMult * (elite ? 1.5 : 1);
-    e.speed = def.speed * sc.speed * curseSpd * (elite ? 0.85 : 1);
-    e.tickets = Math.max(1, Math.round(def.tickets * sc.tickets * (elite ? 5 : 1)));
+    e.speed = def.speed * sc.speed * curseSpd * this.diff.speedMult * (elite ? 0.85 : 1);
+    e.tickets = Math.max(1, Math.round(def.tickets * sc.tickets * this.diff.xpMult * (elite ? 5 : 1)));
     e.r = def.radius * (elite ? 1.3 : 1);
     e.scale = elite ? 1.3 : 1;
     e.state = 0;
@@ -877,7 +883,7 @@ export class Game {
       this.rng.shuffle(pool);
       for (let i = 0; i < this.diff.eliteAffixes; i++) e.affixes.push(pool[i]);
       if (e.affixes.includes('shielded')) e.shield = 4;
-      if (e.affixes.includes('hasted')) e.speed = def.speed * sc.speed * curseSpd * 1.15;
+      if (e.affixes.includes('hasted')) e.speed = def.speed * sc.speed * curseSpd * this.diff.speedMult * 1.15;
     }
     e.inActive = true;
     this.active.push(e);
@@ -2228,14 +2234,7 @@ export class Game {
     // only the extra beyond what was banked at dawn
     const lt = (pl: Player) => (this.endless ? Math.max(0, this.payout(pl, won) - this.wonPayoutBanked) : this.payout(pl, won));
     if (this.time >= 720) this.achievementsHit.add('reach_12');
-    if (won) {
-      if (this.diff.id === 'carnival') this.achievementsHit.add('win_carnival');
-      if (this.diff.id === 'nightmare') {
-        this.achievementsHit.add('win_nightmare');
-        this.achievementsHit.add('win_carnival');
-      }
-      if (this.cfg.curse) this.achievementsHit.add('win_cursed');
-    }
+    if (won && this.cfg.curse) this.achievementsHit.add('win_cursed');
     if (this.kills >= 1000) this.achievementsHit.add('kills_1000');
     if (this.kills >= 5000) this.achievementsHit.add('kills_5000');
     if (this.level >= 40) this.achievementsHit.add('level_40');
@@ -2283,7 +2282,7 @@ export class Game {
       weapons: p.weapons.list.map((w) => ({ id: w.def.id, level: w.level, damage: Math.round(p.dmgBy.get(lineOf(w.def.id)) ?? 0) })),
       passives: [...p.passives.entries()].map(([id, level]) => ({ id, level })),
       character: p.char.id,
-      difficulty: this.diff.id,
+      tier: this.tier,
       curse: this.cfg.curse,
       endless: this.endless,
       endlessTime: endlessExtra,

@@ -4,12 +4,46 @@
 import { ACHIEVEMENTS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNLOCKS } from '../data/meta';
 import { PET_MAP } from '../data/pets';
 import { CHARACTERS } from '../data/characters';
-import { CURSE, DIFFICULTIES } from '../data/difficulty';
+import { CURSE } from '../data/difficulty';
 import { EVOLUTION_IDS, PASSIVES, WEAPONS } from '../data/weapons';
+import { TIER_IDS, isTierId, nextTier, type TierId } from '../data/tiers';
+import { MAP_IDS, isMapId, type MapId } from '../data/maps';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 const KEY = 'nightmare_carnival_save';
 const BACKUP = 'nightmare_carnival_save_backup';
+/** a save's text from before its first migration is kept once under this prefix and its old version (D-97) */
+export const PRE_MIGRATION = 'nightmare_carnival_save_v';
+
+/** Each map's final boss on Normal: its achievement is how a save from before the world tiers shows the map won (D-97). */
+export const NORMAL_FINALS: Record<MapId, string> = { carnival_core: 'beat_ringmaster', fun_house: 'beat_proprietor', boardwalk: 'beat_leviathan', ghost_train: 'beat_night_express' };
+
+/** World-tier progress (D-97): the tiers open, each tier's wins per map, the unlock ceremonies already shown. */
+export interface TierProgress {
+  unlocked: TierId[];
+  wins: Record<TierId, Partial<Record<MapId, number>>>;
+  seen: TierId[];
+}
+
+const freshTiers = (): TierProgress => ({ unlocked: ['normal'], wins: { normal: {}, nightmare: {}, hell: {} }, seen: [] });
+
+/** A valid tier record from whatever a save holds (Normal always open; unknown tiers and maps dropped). */
+function cleanTiers(raw: unknown): TierProgress {
+  const t = freshTiers();
+  if (!raw || typeof raw !== 'object') return t;
+  const r = raw as Partial<TierProgress>;
+  if (Array.isArray(r.unlocked)) for (const id of r.unlocked) if (isTierId(id) && !t.unlocked.includes(id)) t.unlocked.push(id);
+  t.unlocked.sort((a, b) => TIER_IDS.indexOf(a) - TIER_IDS.indexOf(b));
+  if (r.wins && typeof r.wins === 'object') {
+    for (const tier of TIER_IDS) {
+      const w = (r.wins as Record<string, unknown>)[tier];
+      if (!w || typeof w !== 'object') continue;
+      for (const [map, n] of Object.entries(w)) if (isMapId(map) && typeof n === 'number' && isFinite(n) && n >= 1) t.wins[tier][map] = Math.floor(n);
+    }
+  }
+  if (Array.isArray(r.seen)) for (const id of r.seen) if (isTierId(id) && !t.seen.includes(id)) t.seen.push(id);
+  return t;
+}
 
 export interface Settings {
   master: number;
@@ -38,6 +72,7 @@ export interface Settings {
 export interface RunRecord {
   date: string;
   character: string;
+  /** the world tier (D-97; the old difficulty on older records) */
   difficulty: string;
   won: boolean;
   time: number;
@@ -60,10 +95,13 @@ export interface SaveData {
   stats: { runs: number; wins: number; kills: number; bestTime: number; bossKills: Record<string, number>; playSeconds: number };
   history: RunRecord[];
   daily: Record<string, { score: number; won: boolean; character: string }>;
-  last: { character: string; difficulty: string; curse: boolean; map?: string };
+  /** the last night's choices (`difficulty`: the old per-night difficulty, kept on older saves, unused) */
+  last: { character: string; difficulty?: string; curse: boolean; map?: string; tier?: TierId };
   settings: Settings;
   /** Easter-egg memory per quest chain (D-32): completions and furthest stage ever reached. */
   quests: Record<string, { completions: number; bestStage: number }>;
+  /** the world tiers (D-97) */
+  tiers: TierProgress;
   /** the Midway hub was opened by the alpha-testing unlock (D-60), not by finishing the Last Song */
   midwayTester?: boolean;
   /** alpha testing aid: `?unlock=funhouse` opens the Fun House on this save (D-63) */
@@ -113,7 +151,8 @@ export function freshSave(): SaveData {
   return {
     version: SAVE_VERSION, lostTickets: 0, totalEarned: 0, perks: {}, unlocks: [], achievements: [], pedia: [],
     stats: { runs: 0, wins: 0, kills: 0, bestTime: 0, bossKills: {}, playSeconds: 0 },
-    history: [], daily: {}, last: { character: 'carny', difficulty: 'midway', curse: false }, settings: defaultSettings(), quests: {},
+    history: [], daily: {}, last: { character: 'carny', curse: false, tier: 'normal' }, settings: defaultSettings(), quests: {},
+    tiers: freshTiers(),
   };
 }
 
@@ -191,6 +230,20 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
     d.version = 5;
     return d;
   },
+  // v5 → v6 (D-97): the world tiers. The per-night difficulties are retired and what an older save has won carries
+  // over: each map whose final boss it has beaten counts as won on Normal, and a save that has finished the Ghost
+  // Train (the Normal campaign) opens Nightmare. Nothing in an older save is a Nightmare completion, so never Hell.
+  // Everything else stays (the old difficulties' achievements too, shown as retired).
+  5: (d) => {
+    const ach: string[] = Array.isArray(d.achievements) ? d.achievements.filter((a: unknown) => typeof a === 'string') : [];
+    const t = freshTiers();
+    for (const map of MAP_IDS) if (ach.includes(NORMAL_FINALS[map])) t.wins.normal[map] = 1;
+    if (ach.includes(NORMAL_FINALS.ghost_train)) t.unlocked.push('nightmare');
+    d.tiers = t;
+    d.last = { ...(d.last && typeof d.last === 'object' ? d.last : {}), tier: 'normal' };
+    d.version = 6;
+    return d;
+  },
 };
 
 export function migrate(raw: any): SaveData {
@@ -206,7 +259,8 @@ export function migrate(raw: any): SaveData {
   }
   // fill any missing fields with defaults (forward compatibility)
   const base = freshSave();
-  const out: SaveData = { ...base, ...d, settings: { ...base.settings, ...(d.settings ?? {}) }, stats: { ...base.stats, ...(d.stats ?? {}) }, last: { ...base.last, ...(d.last ?? {}) }, quests: { ...(d.quests ?? {}) } };
+  const out: SaveData = { ...base, ...d, settings: { ...base.settings, ...(d.settings ?? {}) }, stats: { ...base.stats, ...(d.stats ?? {}) }, last: { ...base.last, ...(d.last ?? {}) }, quests: { ...(d.quests ?? {}) }, tiers: cleanTiers(d.tiers) };
+  if (!isTierId(out.last.tier) || !out.tiers.unlocked.includes(out.last.tier)) out.last.tier = 'normal';
   out.settings.bindings = { ...DEFAULT_BINDINGS, ...(out.settings.bindings ?? {}) };
   out.version = SAVE_VERSION;
   if (typeof out.lostTickets !== 'number' || !isFinite(out.lostTickets) || out.lostTickets < 0) out.lostTickets = 0;
@@ -247,7 +301,12 @@ export class SaveManager {
       try {
         const txt = this.store.getItem(k);
         if (!txt) return null;
-        return migrate(JSON.parse(txt));
+        const raw = JSON.parse(txt);
+        // the first time a newer version reads a save, its text is kept once under its old version (D-97), besides the
+        // backup slot (which the next save overwrites)
+        const v = raw && typeof raw === 'object' && typeof raw.version === 'number' ? raw.version : 1;
+        if (k === KEY && v < SAVE_VERSION && !this.store.getItem(PRE_MIGRATION + v)) this.store.setItem(PRE_MIGRATION + v, txt);
+        return migrate(raw);
       } catch {
         return null;
       }
@@ -391,9 +450,70 @@ export class SaveManager {
     this.save();
     return true;
   }
-  difficultyAvailable(id: string): boolean {
-    const d = DIFFICULTIES.find((x) => x.id === id);
-    return !!d && (!d.unlock || this.hasAchievement(d.unlock.req));
+  // ---------------------------------------------------------------- world tiers (D-97)
+  tierUnlocked(t: TierId): boolean {
+    return this.data.tiers.unlocked.includes(t);
+  }
+  /** Open a tier; whether it was newly opened. */
+  unlockTier(t: TierId): boolean {
+    if (this.tierUnlocked(t)) return false;
+    this.data.tiers.unlocked.push(t);
+    this.data.tiers.unlocked.sort((a, b) => TIER_IDS.indexOf(a) - TIER_IDS.indexOf(b));
+    return true;
+  }
+  /** Close a tier again (the dev tools only): the tiers above it close too, and its last-played choice falls back. */
+  lockTier(t: TierId): void {
+    if (t === 'normal') return;
+    const i = TIER_IDS.indexOf(t);
+    this.data.tiers.unlocked = this.data.tiers.unlocked.filter((x) => TIER_IDS.indexOf(x) < i);
+    if (!this.tierUnlocked(this.data.last.tier ?? 'normal')) this.data.last.tier = 'normal';
+  }
+  /** How often this save has won `map` on `tier`. */
+  tierWins(t: TierId, map: MapId): number {
+    return this.data.tiers.wins[t]?.[map] ?? 0;
+  }
+  /**
+   * Can `map` be chosen on `tier`? Normal keeps its own rules (`mapAvailable`); on Nightmare and Hell the Carnival
+   * Core opens with the tier and each next map once the one before it has been won on that tier.
+   */
+  mapAvailableOn(t: TierId, map: MapId): boolean {
+    if (t === 'normal') return this.mapAvailable(map);
+    if (!this.tierUnlocked(t)) return false;
+    const i = MAP_IDS.indexOf(map);
+    return i === 0 || (i > 0 && this.tierWins(t, MAP_IDS[i - 1]) > 0);
+  }
+  /** Does a night of `map` on `tier` count for this save's own campaign: the tier open here and the map open on it? */
+  countsFor(t: TierId, map: MapId): boolean {
+    return this.tierUnlocked(t) && this.mapAvailableOn(t, map);
+  }
+  /**
+   * A won night of `map` on `tier` that counts for this save (the caller checks `countsFor`): one more win, and what
+   * it opened, the next map on this tier or (the Ghost Train) the next tier.
+   */
+  recordTierWin(t: TierId, map: MapId): { maps: MapId[]; tier: TierId | null } {
+    const before = MAP_IDS.filter((m) => this.mapAvailableOn(t, m));
+    (this.data.tiers.wins[t] ??= {})[map] = this.tierWins(t, map) + 1;
+    const maps = MAP_IDS.filter((m) => !before.includes(m) && this.mapAvailableOn(t, m));
+    const nt = map === 'ghost_train' ? nextTier(t) : null;
+    return { maps, tier: nt && this.unlockTier(nt) ? nt : null };
+  }
+  /** The tier a menu opens on: the last one played, while it is open. */
+  lastTier(): TierId {
+    const t = this.data.last.tier;
+    return t && this.tierUnlocked(t) ? t : 'normal';
+  }
+  /** The tier to show `map` on: `prefer` when it is open there, else the highest tier it is open on (else Normal). */
+  bestTierFor(map: MapId, prefer: TierId): TierId {
+    if (this.mapAvailableOn(prefer, map)) return prefer;
+    return [...TIER_IDS].reverse().find((t) => this.mapAvailableOn(t, map)) ?? 'normal';
+  }
+  /** Every tier and map this save has open, as `tier:map` (a guest's profile carries them, D-97). */
+  openPairs(): string[] {
+    return TIER_IDS.flatMap((t) => MAP_IDS.filter((m) => this.countsFor(t, m)).map((m) => `${t}:${m}`));
+  }
+  /** Has this save finished the campaign on `t` (its Ghost Train won)? */
+  tierComplete(t: TierId): boolean {
+    return this.tierWins(t, 'ghost_train') > 0;
   }
   curseAvailable(): boolean {
     return this.hasAchievement(CURSE.unlock.req);

@@ -1,6 +1,7 @@
 // Development-only timeline & testing tools. Imported dynamically under import.meta.env.DEV only,
 // so none of this ships in production builds.
 import type { MapId } from './data/maps';
+import { TIERS, TIER_IDS, type TierId } from './data/tiers';
 import type { App } from './app';
 import { CHARACTERS } from './data/characters';
 import { UNLOCKS } from './data/meta';
@@ -81,7 +82,7 @@ export function installDevTools(app: App): void {
       /** Freeze a run for visual inspection: optional restart, teleport, zoom and camera offset. */
       shot(o: { restart?: boolean; char?: string; map?: MapId; t?: number; zoom?: number; x?: number; y?: number; dx?: number; dy?: number; hud?: boolean } = {}) {
         if (!app.game || o.restart) {
-          app.startRun({ character: o.char ?? 'carny', difficulty: 'midway', curse: false, map: o.map });
+          app.startRun({ character: o.char ?? 'carny', tier: 'normal', curse: false, map: o.map });
           api.advance(o.t ?? 30);
         }
         const g = app.game!;
@@ -217,7 +218,7 @@ export function installDevTools(app: App): void {
           const copies = o.copies ?? 1;
           const chars = (o.chars ?? []).flatMap((c) => Array(copies).fill(c) as string[]).slice(0, 6);
           const enemies = (o.enemies ?? []).flatMap((e) => Array(copies).fill(e) as string[]);
-          const g = new Game({ character: chars[0] ?? 'carny', difficulty: 'midway', curse: false, seed: 1, godMode: true, map: o.map, players: (chars.length ? chars : ['carny']).map((c) => ({ character: c, name: c })) });
+          const g = new Game({ character: chars[0] ?? 'carny', tier: 'normal', curse: false, seed: 1, godMode: true, map: o.map, players: (chars.length ? chars : ['carny']).map((c) => ({ character: c, name: c })) });
           (app as unknown as { beginRun(g: Game, c: string, t: string, s: string): void }).beginRun(g, chars[0] ?? 'carny', '', '');
           (app as unknown as { state: string }).state = 'playing';
           app.overlayPause = true;
@@ -340,8 +341,42 @@ export function installDevTools(app: App): void {
         app.save.data.lostTickets += n;
         app.save.save();
       },
+      /**
+       * The world tiers (D-97), development builds only: `tiers.unlock('hell')` opens it and the tiers below it,
+       * `tiers.lock('nightmare')` closes it and those above, `tiers.win('nightmare', 'fun_house')` records a completion
+       * as a counting night would (and opens what it opens), `tiers.reset()` leaves Normal only (no wins, no ceremonies
+       * seen), `tiers.show()` prints the record, and `tiers.play('hell', 'boardwalk')` starts a night on any tier and map
+       * whatever the save has open (a preview: it records nothing the save hasn't reached).
+       */
+      tiers: {
+        show: () => JSON.parse(JSON.stringify(app.save.data.tiers)) as typeof app.save.data.tiers,
+        unlock(t: TierId) {
+          for (const x of TIER_IDS.slice(1, TIERS[t].index + 1)) app.save.unlockTier(x);
+          app.save.save();
+          return api.tiers.show();
+        },
+        lock(t: TierId) {
+          app.save.lockTier(t);
+          app.save.save();
+          return api.tiers.show();
+        },
+        win(t: TierId, map: MapId) {
+          const r = app.save.recordTierWin(t, map);
+          app.save.save();
+          return r;
+        },
+        reset() {
+          app.save.data.tiers = { unlocked: ['normal'], wins: { normal: {}, nightmare: {}, hell: {} }, seen: [] };
+          app.save.data.last.tier = 'normal';
+          app.save.save();
+          return api.tiers.show();
+        },
+        play(t: TierId, map: MapId = 'carnival_core', char = 'carny') {
+          app.startRun({ character: char, tier: t, curse: false, map, preview: true });
+        },
+      },
       unlockAll() {
-        for (const a of ['reach_12', 'beat_tent', 'beat_ferris_wheel', 'beat_puppet_king', 'beat_ringmaster', 'win_carnival']) if (!app.save.data.achievements.includes(a)) app.save.data.achievements.push(a);
+        for (const a of ['reach_12', 'beat_tent', 'beat_ferris_wheel', 'beat_puppet_king', 'beat_ringmaster']) if (!app.save.data.achievements.includes(a)) app.save.data.achievements.push(a);
         for (const c of CHARACTERS) if (c.unlock && !app.save.data.unlocks.includes(`char_${c.id}`)) app.save.data.unlocks.push(`char_${c.id}`);
         for (const u of UNLOCKS.map((x) => x.id)) if (!app.save.data.unlocks.includes(u)) app.save.data.unlocks.push(u);
         app.save.data.stats.runs = Math.max(1, app.save.data.stats.runs);
@@ -414,7 +449,7 @@ export function installDevTools(app: App): void {
       if (map === 'fun_house') app.save.data.funhouseTester = true;
       if (map === 'boardwalk') app.save.data.boardwalkTester = true;
       if (map === 'ghost_train') app.save.data.ghosttrainTester = true;
-      app.startRun({ character: char, difficulty: 'midway', curse: false, seed, map });
+      app.startRun({ character: char, tier: 'normal', curse: false, seed, map });
       app.game!.cfg.godMode = true;
       return app.game!;
     };

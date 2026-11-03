@@ -16,7 +16,7 @@ import { BOSS_MAP } from './data/bosses';
 import { PERKS } from './data/meta';
 import { WEAPONS, PASSIVES } from './data/weapons';
 import { ENEMIES } from './data/enemies';
-import { DIFFICULTIES } from './data/difficulty';
+import { TIERS, type TierId } from './data/tiers';
 import { DraftView, Hud, PLAYER_CSS, type HudScreen } from './ui/hud';
 import { kitOf } from './ui/recipes';
 import { ChatBox } from './ui/chat';
@@ -146,7 +146,7 @@ export class App {
   private last = performance.now();
   fps = 60;
   private settingsBack: () => void = () => this.go('title');
-  private lastRun: { character: string; difficulty: string; curse: boolean; daily?: boolean; map?: MapId } | null = null;
+  private lastRun: { character: string; tier: TierId; curse: boolean; daily?: boolean; map?: MapId } | null = null;
   private dawnT = -1;
   simSpeed = 1;
   autopilot = false;
@@ -497,7 +497,7 @@ export class App {
 
   private makeDemo(): void {
     const ch = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)].id;
-    this.demo = new Game({ character: ch, difficulty: 'midway', curse: false, seed: (Math.random() * 1e9) | 0, godMode: true, unlocked: new Set(['w_orbs', 'w_laser', 'w_bell', 'w_cannon', 'w_mirror']) });
+    this.demo = new Game({ character: ch, curse: false, seed: (Math.random() * 1e9) | 0, godMode: true, unlocked: new Set(['w_orbs', 'w_laser', 'w_bell', 'w_cannon', 'w_mirror']) });
     // give the attract mode some spectacle
     this.demo.time = 120;
     this.demo.weapons.add('fireworks');
@@ -512,19 +512,22 @@ export class App {
   }
 
   // =================================================================== runs
-  startRun(o: { character: string; difficulty: string; curse: boolean; daily?: boolean; seed?: number; map?: MapId }): void {
+  startRun(o: { character: string; tier: TierId; curse: boolean; daily?: boolean; seed?: number; map?: MapId; preview?: boolean }): void {
     this.audio.unlock();
     this.lastRun = o;
-    const map: MapId = o.daily ? 'carnival_core' : o.map && this.save.mapAvailable(o.map) ? o.map : 'carnival_core';
-    if (!o.daily) {
-      this.save.data.last = { character: o.character, difficulty: o.difficulty, curse: o.curse, map };
+    // the world tier (D-97), then a map open on it; the Daily Run is the Carnival Core at its own scaling. `preview`
+    // (the dev tools only) plays any tier and map: the night end's own checks keep it from counting.
+    const tier: TierId = !o.daily && (o.preview || this.save.tierUnlocked(o.tier)) ? o.tier : 'normal';
+    const map: MapId = o.daily ? 'carnival_core' : o.map && (o.preview || this.save.mapAvailableOn(tier, o.map)) ? o.map : 'carnival_core';
+    if (!o.daily && !o.preview) {
+      this.save.data.last = { ...this.save.data.last, character: o.character, curse: o.curse, map, tier };
       this.save.save();
     }
     const perk = (id: string) => this.save.perkLevel(id);
     const seed = o.seed ?? (o.daily ? hashSeed('nc-daily-' + dailyInfo().seed) : (Math.random() * 2 ** 31) | 0);
     const cfg: RunConfig = {
       character: o.character,
-      difficulty: o.difficulty as RunConfig['difficulty'],
+      tier,
       curse: o.curse,
       seed,
       daily: o.daily,
@@ -541,7 +544,8 @@ export class App {
     };
     this.localIndex = 0;
     const intro = MAPS[map].intro;
-    this.beginRun(new Game(cfg), o.character, o.daily ? 'DAILY RUN' : intro.title, o.daily ? dailyInfo().modName : intro.sub);
+    const sub = tier === 'normal' ? intro.sub : `${TIERS[tier].title} · ${intro.sub}`;
+    this.beginRun(new Game(cfg), o.character, o.daily ? 'DAILY RUN' : intro.title, o.daily ? dailyInfo().modName : sub);
   }
 
   /** Common run setup for solo, the co-op host's night and the co-op guest's mirror. */
@@ -1659,7 +1663,7 @@ export class App {
     // the furthest the night's hidden quest got (persisted progress memory, not run state)
     const qrec = (s.data.quests[MAPS[st.map ?? 'carnival_core'].quest.id] ??= { completions: 0, bestStage: 0 });
     qrec.bestStage = Math.max(qrec.bestStage, st.questStage);
-    s.data.history.unshift({ date: new Date().toISOString(), character: st.character, difficulty: st.difficulty, won: st.won, time: st.time, kills: st.kills, level: st.level, lostTickets: st.lostTickets, curse: st.curse, endless: st.endless, daily: st.daily });
+    s.data.history.unshift({ date: new Date().toISOString(), character: st.character, difficulty: st.daily ? 'daily' : st.tier, won: st.won, time: st.time, kills: st.kills, level: st.level, lostTickets: st.lostTickets, curse: st.curse, endless: st.endless, daily: st.daily });
     s.data.history = s.data.history.slice(0, 30);
     let dailyBest = false;
     if (st.daily) {
@@ -1673,16 +1677,18 @@ export class App {
     // achievements + new unlock notices
     const beforeChars = CHARACTERS.filter((c) => s.characterRequirementMet(c.id)).map((c) => c.id);
     const beforeUnlocks = UNLOCKS.filter((u) => s.unlockRequirementMet(u.id)).map((u) => u.id);
-    const beforeDiffs = DIFFICULTIES.filter((d) => s.difficultyAvailable(d.id)).map((d) => d.id);
     const beforeCurse = s.curseAvailable();
+    // the world tiers (D-97), judged on what this save had open when the night began (before its achievements)
+    const tierRes = this.tierProgress(st);
     const earned = s.grantAchievements(st.achievementsHit);
-    const notes: string[] = [];
+    const notes: string[] = [...tierRes.notes];
     for (const c of CHARACTERS) if (!beforeChars.includes(c.id) && s.characterRequirementMet(c.id)) notes.push(`${c.name} can now be unlocked in the Lost & Found!`);
     for (const u of UNLOCKS) if (u.req && !beforeUnlocks.includes(u.id) && s.unlockRequirementMet(u.id)) notes.push(`${u.name} can now be bought in the Lost & Found!`);
-    for (const d of DIFFICULTIES) if (!beforeDiffs.includes(d.id) && s.difficultyAvailable(d.id)) notes.push(`${d.name} difficulty unlocked!`);
     if (!beforeCurse && s.curseAvailable()) notes.push('The Curse can now be toggled at character select.');
     if (st.achievementsHit.includes('beat_ringmaster') && earned.some((a) => a.id === 'beat_ringmaster')) notes.push('Endless "Lock-In" unlocked — choose to stay after dawn.');
     s.save();
+    // a guest's host learns at once whom the next night counts for
+    if (tierRes.changed && this.net?.role === 'guest') this.net.guest.sendProfile(this.guestProfile(this.net.guest.profile.name));
     this.audio.play(st.won ? 'victory' : 'defeat', { vol: 0.8 });
     this.audio.setCue('results');
     this.draft.hide();
@@ -1712,6 +1718,36 @@ export class App {
       this.nav.ensure();
     }, st.won ? 400 : 1100);
     void g;
+  }
+
+  /**
+   * The world tiers at a night's end (D-97): a won night (not a Daily Run) completes its tier and map when this save
+   * has both open, and may open the next map on that tier or (the Ghost Train) the next tier; returned as results
+   * lines. A night that doesn't count (a guest visiting a tier or map they haven't reached) still pays its Lost
+   * Tickets and achievements.
+   */
+  private tierProgress(st: RunStats): { notes: string[]; tier: TierId | null; changed: boolean } {
+    const s = this.save;
+    const out = { notes: [] as string[], tier: null as TierId | null, changed: false };
+    const map = st.map ?? 'carnival_core';
+    if (!st.won || st.daily) return out;
+    const t = TIERS[st.tier];
+    if (!s.countsFor(st.tier, map)) {
+      // Normal's maps still open as they always have (their bosses' achievements): only its campaign's end is withheld
+      if (st.tier !== 'normal' || map === 'ghost_train') {
+        const why = s.tierUnlocked(st.tier) ? `${MAPS[map].name} isn't open on ${t.name} on your save yet` : `${t.name} isn't open on your save yet (${t.unlockText.toLowerCase()})`;
+        out.notes.push(`This night didn't count toward your own ${t.name} campaign: ${why}. The Lost Tickets and achievements are yours.`);
+      }
+      return out;
+    }
+    const r = s.recordTierWin(st.tier, map);
+    out.changed = true;
+    if (st.tier !== 'normal') for (const m of r.maps) out.notes.push(`${MAPS[m].name} is now open on ${t.name}.`);
+    if (r.tier) {
+      out.tier = r.tier;
+      out.notes.unshift(`${TIERS[r.tier].title.toUpperCase()} AWAITS: ${TIERS[r.tier].name} is open. Choose it before your next night.`);
+    }
+    return out;
   }
 
   private goEndless(): void {
@@ -2194,7 +2230,8 @@ export class App {
 
   private guestProfile(name: string): GuestProfile {
     // `unlocks`: the host keeps the draft-pool ones (D-74: a guest drafts from their own save's unlocks)
-    return { ...this.profileBase(name), chars: CHARACTERS.filter((c) => this.save.characterAvailable(c.id)).map((c) => c.id), pref: this.hubCharacter(), unlocks: [...this.save.unlockedSet()] };
+    // `open`: the tiers and maps this save has reached (D-97), so the host's lobby shows whom a night counts for
+    return { ...this.profileBase(name), chars: CHARACTERS.filter((c) => this.save.characterAvailable(c.id)).map((c) => c.id), pref: this.hubCharacter(), unlocks: [...this.save.unlockedSet()], open: this.save.openPairs() };
   }
 
   // =================================================================== the Midway hub (D-60)
@@ -2216,7 +2253,7 @@ export class App {
     this.endRunView();
     const ch = this.hubCharacter();
     const pet = this.save.petChoice();
-    const g = new Game({ character: ch, difficulty: 'midway', curse: false, seed: (Math.random() * 2 ** 31) | 0, players: [{ character: ch, name: L.loadName() || 'You', pet }], pet, hub: { npcs: this.hubCast(), at: was ? [{ x: was.x, y: was.y }] : undefined } });
+    const g = new Game({ character: ch, curse: false, seed: (Math.random() * 2 ** 31) | 0, players: [{ character: ch, name: L.loadName() || 'You', pet }], pet, hub: { npcs: this.hubCast(), at: was ? [{ x: was.x, y: was.y }] : undefined } });
     this.beginHub(g, 0);
   }
 
@@ -2493,7 +2530,11 @@ export class App {
           if (HUB_EXITS[t.i].id === gate && this.save.mapAvailable(map) && this.net?.role !== 'guest') {
             this.audio.play('select', { vol: 0.6 });
             if (this.net?.role === 'host') {
-              this.net.host.setMap(map);
+              // the lobby's tier follows if the map isn't open on it (D-97)
+              const hs = this.net.host;
+              const t = this.save.bestTierFor(map, hs.lobby.tier);
+              if (t !== hs.lobby.tier) hs.setTier(t, hs.lobby.curse);
+              hs.setMap(map);
               return this.hubToRunLobby();
             }
             this.save.data.last.map = map;
@@ -2618,7 +2659,7 @@ export class App {
       session.onChat = (from, name, text) => this.chatLine(from, name, text);
       const s = this.save;
       session.setCharacter(s.characterAvailable(s.data.last.character) ? s.data.last.character : 'carny');
-      session.setDifficulty(s.difficultyAvailable(s.data.last.difficulty) ? s.data.last.difficulty : 'midway', false);
+      session.setTier(s.lastTier(), false);
       this.mpBusy = false;
       this.mpStatus = '';
       this.startBgClock();
@@ -2709,7 +2750,13 @@ export class App {
       actions: {
         pick: (id) => (n.role === 'host' ? n.host.setCharacter(id) : n.guest.pick(id)),
         ready: (r) => (n.role === 'host' ? n.host.setReady(r) : n.guest.setReady(r)),
-        difficulty: (id, curse) => n.role === 'host' && n.host.setDifficulty(id, curse),
+        tier: (t, curse) => {
+          if (n.role !== 'host' || !this.save.tierUnlocked(t)) return;
+          n.host.setTier(t, curse);
+          if (!this.save.mapAvailableOn(t, n.host.lobby.map)) n.host.setMap('carnival_core');
+          this.save.data.last.tier = t;
+          this.save.save();
+        },
         map: n.role === 'host' ? (id) => n.host.setMap(id) : undefined,
         start: () => this.startHostRun(),
         leave: () => this.leaveNet(false, 'mp'),

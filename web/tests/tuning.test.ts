@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeGame } from './helpers';
 import { COOP } from '../src/data/progression';
-import { DIFFICULTIES } from '../src/data/difficulty';
+import { TIERS } from '../src/data/tiers';
 import { EVOLUTION_IDS, WEAPONS } from '../src/data/weapons';
 import { WAVES } from '../src/data/waves';
 import { generateDraft, grantChest } from '../src/sim/draft';
@@ -47,7 +47,7 @@ describe('playtest tuning (D-62)', () => {
   it("a party faces a crowd dense enough to earn a solo night's XP, within the enemy pool", () => {
     expect(COOP.density.slice(1)).toEqual([1, 2, 2.3, 2.5, 2.6, 2.6]);
     for (let n = 2; n <= 6; n++) expect(COOP.density[n]).toBeGreaterThanOrEqual(COOP.density[n - 1]);
-    const midway = DIFFICULTIES.find((d) => d.id === 'midway')!;
+    const midway = TIERS.normal;
     for (let n = 1; n <= 6; n++) expect(midway.cap * COOP.density[n]).toBeLessThanOrEqual(520);
     const duo = makeGame({ players: [{ character: 'carny' }, { character: 'strongman' }] });
     expect(duo.director.cap).toBe(Math.round(midway.cap * 2));

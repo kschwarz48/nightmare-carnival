@@ -136,7 +136,7 @@ export class Hud {
   /** whose build the tray's tooltips read (the local player, as the HUD last drew it; D-79) */
   private tipWho: Player | null = null;
   private statsR: HTMLDivElement;
-  /** the corner's lines: kills, the Lost Tickets earned so far (D-85), the difficulty */
+  /** the corner's lines: kills, the Lost Tickets earned so far (D-85), the world tier (D-97) */
   private killsEl = h('div', {});
   private ltNum = h('span', { class: 'ticket-count' });
   private ltEl = h('div', { class: 'lt-live' }, this.ltNum, h('small', {}, 'LT'));
@@ -340,7 +340,7 @@ export class Hud {
     }
     const kills = `☠ ${g.kills.toLocaleString('en-US')}`;
     if (this.killsEl.textContent !== kills) this.killsEl.textContent = kills;
-    const diff = `🎪 ${g.diff.name}${g.cfg.curse ? ' · Cursed' : ''}${g.cfg.daily ? ' · Daily' : ''}`;
+    const diff = `🎪 ${g.cfg.daily ? 'Daily Run' : g.diff.name}${g.cfg.curse ? ' · Cursed' : ''}`;
     if (this.diffEl.textContent !== diff) this.diffEl.textContent = diff;
     // the Lost Tickets earned so far tonight (D-85): it bumps when a boss, a voucher or the victory lap pays
     const local = this.coopInfo?.local ?? p.index;

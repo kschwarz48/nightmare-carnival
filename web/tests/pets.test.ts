@@ -76,7 +76,7 @@ describe('companions (D-84)', () => {
       { character: 'strongman', name: 'Guest', meta: [], aimMode: 'auto', rerolls: 0, banishes: 0, canSkip: false, pet: 'milo' },
       { character: 'carny', name: 'Third', meta: [], aimMode: 'auto', rerolls: 0, banishes: 0, canSkip: false, pet: 'a dragon' },
     ];
-    const msg = parseHostMsg(JSON.stringify({ t: 'start', slot: 1, epoch: 1, cfg: { seed: 5, difficulty: 'midway', curse: false, unlocked: [], questMemory: {}, players } }));
+    const msg = parseHostMsg(JSON.stringify({ t: 'start', slot: 1, epoch: 1, cfg: { seed: 5, tier: 'normal', curse: false, unlocked: [], questMemory: {}, players } }));
     expect(msg?.t).toBe('start');
     const cfg = (msg as Extract<NonNullable<typeof msg>, { t: 'start' }>).cfg;
     expect(cfg.players.map((p) => p.pet)).toEqual(['augustus', 'milo', undefined]);

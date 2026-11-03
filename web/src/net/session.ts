@@ -6,6 +6,7 @@
 // in tests over the loopback network.
 
 import type { MapId } from '../data/maps';
+import type { TierId } from '../data/tiers';
 import { BUILD } from '../platform/updates';
 import type { Game, GameEvents, RunConfig } from '../sim/game';
 import type { FxEvent } from '../sim/fx';
@@ -184,7 +185,7 @@ export function runConfigFromStart(c: StartCfg): RunConfig {
   const p0 = c.players[0];
   return {
     character: p0.character,
-    difficulty: c.difficulty as RunConfig['difficulty'],
+    tier: c.tier,
     curse: c.curse,
     seed: c.seed,
     meta: p0.meta,
@@ -249,7 +250,7 @@ export class HostSession {
   onClosed: (reason: string) => void = () => {};
 
   constructor(code: string, public self: HostProfile) {
-    this.lobby = { code, players: [this.lobbyHost(), ...Array.from({ length: MAX_PLAYERS - 1 }, () => null)], map: 'carnival_core', difficulty: 'midway', curse: false, inRun: false };
+    this.lobby = { code, players: [this.lobbyHost(), ...Array.from({ length: MAX_PLAYERS - 1 }, () => null)], map: 'carnival_core', tier: 'normal', curse: false, inRun: false };
   }
 
   /** Every seated guest, connected or not, in player order. */
@@ -273,14 +274,15 @@ export class HostSession {
   }
 
   private lobbyHost() {
-    return { name: this.self.name, character: this.hostCharacter, ready: this.hostReady, connected: true, rtt: 0, away: this.hostAway };
+    // the host only chooses tiers and maps their own save has open (D-97)
+    return { name: this.self.name, character: this.hostCharacter, ready: this.hostReady, connected: true, rtt: 0, away: this.hostAway, counts: true };
   }
 
   private broadcastLobby(): void {
     this.lobby.players[0] = this.lobbyHost();
     for (let i = 1; i < MAX_PLAYERS; i++) {
       const s = this.seats[i];
-      this.lobby.players[i] = s ? { name: s.profile.name, character: s.character, ready: s.ready, connected: s.connected, rtt: Math.round(s.rtt), away: s.away } : null;
+      this.lobby.players[i] = s ? { name: s.profile.name, character: s.character, ready: s.ready, connected: s.connected, rtt: Math.round(s.rtt), away: s.away, counts: (s.profile.open ?? []).includes(`${this.lobby.tier}:${this.lobby.map}`) } : null;
     }
     // each guest also learns its own seat (seats close up when someone leaves the lobby)
     for (const s of this.live) this.sendTo(s, { t: 'lobby', lobby: this.lobby, you: s.index });
@@ -318,9 +320,10 @@ export class HostSession {
   setSelf(p: HostProfile): void {
     this.self = { ...p, name: this.self.name };
   }
-  setDifficulty(id: string, curse: boolean): void {
+  /** The host picks the night's world tier (D-97) and the Curse. */
+  setTier(t: TierId, curse: boolean): void {
     if (this.lobby.inRun) return;
-    this.lobby.difficulty = id;
+    this.lobby.tier = t;
     this.lobby.curse = curse;
     this.broadcastLobby();
   }
@@ -344,7 +347,7 @@ export class HostSession {
     this.startCfg = {
       seed: o.seed >>> 0,
       map: this.lobby.map,
-      difficulty: this.lobby.difficulty,
+      tier: this.lobby.tier,
       curse: this.lobby.curse,
       unlocked: o.unlocked,
       questMemory: o.questMemory,
@@ -367,7 +370,7 @@ export class HostSession {
     const entry = (character: string, name: string, p: HostProfile | GuestProfile, unlocked: string[]) => ({ character, name, meta: p.meta, aimMode: p.aimMode, rerolls: p.rerolls, banishes: p.banishes, canSkip: p.canSkip, unlocked, pet: p.pet });
     this.startCfg = {
       seed: o.seed >>> 0,
-      difficulty: this.lobby.difficulty,
+      tier: 'normal',
       curse: false,
       unlocked: o.unlocked,
       questMemory: o.questMemory,
