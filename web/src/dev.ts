@@ -374,6 +374,13 @@ export function installDevTools(app: App): void {
         play(t: TierId, map: MapId = 'carnival_core', char = 'carny') {
           app.startRun({ character: char, tier: t, curse: false, map, preview: true });
         },
+        /** replay a tier's unlock ceremony (it opens the tier if needed; go to the title menu or the Midway to see it) */
+        ceremony(t: 'nightmare' | 'hell') {
+          api.tiers.unlock(t);
+          app.save.data.tiers.seen = app.save.data.tiers.seen.filter((x) => x !== t);
+          app.save.save();
+          app.go(app.game?.hub ? ('hub' as never) : 'title');
+        },
       },
       unlockAll() {
         for (const a of ['reach_12', 'beat_tent', 'beat_ferris_wheel', 'beat_puppet_king', 'beat_ringmaster']) if (!app.save.data.achievements.includes(a)) app.save.data.achievements.push(a);

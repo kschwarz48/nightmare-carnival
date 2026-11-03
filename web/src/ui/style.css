@@ -759,3 +759,21 @@ body:has(#nl-badge-frame) .title .corner { bottom: calc(1.2em + 64px); }
 .hub-download { position: absolute; left: 18px; top: 40px; pointer-events: auto; }
 .hub-download.hidden { display: none; }
 .hub-download small { display: block; margin-top: 0.4em; font-size: 0.72em; color: var(--cream); opacity: 0.75; text-shadow: 1px 1px 0 var(--ink); }
+
+/* the world tiers' unlock ceremonies (D-97, ui/ceremony.ts): the scene crosses over first, then the card */
+.ceremony { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; pointer-events: auto; }
+.ceremony .cer-veil { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.45) 20%, rgba(0, 0, 0, 0.85) 100%); opacity: 0; transition: opacity 1.4s ease; }
+.ceremony.shown .cer-veil { opacity: 1; }
+.ceremony .cer-card { position: relative; max-width: min(760px, 92vw); padding: 1.4em 2em; text-align: center; opacity: 0; transform: translateY(18px) scale(0.97); transition: opacity 0.9s ease, transform 0.9s ease; }
+.ceremony.shown .cer-card { opacity: 1; transform: none; }
+.ceremony.out { transition: opacity 0.45s ease; opacity: 0; }
+.ceremony .cer-kicker { font-family: var(--head); letter-spacing: 0.3em; font-size: 1.05em; opacity: 0.85; }
+.ceremony .cer-title { font-size: clamp(2.2em, 6vw, 4.4em); margin: 0.15em 0 0.4em; }
+.ceremony.tier-nightmare .cer-kicker, .ceremony.tier-nightmare .cer-title { color: #bfe8ff; text-shadow: 3px 3px 0 var(--ink), 0 0 26px rgba(143, 211, 255, 0.8); }
+.ceremony.tier-hell .cer-kicker, .ceremony.tier-hell .cer-title { color: #ffb070; text-shadow: 3px 3px 0 var(--ink), 0 0 26px rgba(255, 90, 30, 0.85); }
+.ceremony .cer-news { list-style: none; padding: 0; margin: 0 auto; text-align: left; max-width: 640px; color: var(--cream); text-shadow: 2px 2px 0 var(--ink); }
+.ceremony .cer-news li { margin: 0.45em 0; padding-left: 1.2em; position: relative; }
+.ceremony .cer-news li::before { content: ''; position: absolute; left: 0.2em; top: 0.55em; width: 0.42em; height: 0.42em; transform: rotate(45deg); background: var(--gold); box-shadow: 1px 1px 0 var(--ink); }
+.ceremony .cer-hint { margin-top: 1.2em; font-family: var(--head); opacity: 0; transition: opacity 0.6s ease; }
+.ceremony.ready .cer-hint { opacity: 0.8; animation: cer-pulse 1.6s ease-in-out infinite; }
+@keyframes cer-pulse { 50% { opacity: 0.35; } }

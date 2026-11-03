@@ -165,6 +165,8 @@ export class GameRenderer3D {
    */
   tierPreview: TierId | null = null;
   lookFade = 0;
+  /** seconds of the ceremony's flickering lights still to go */
+  flickerT = 0;
   private look: TierLook = NORMAL_LOOK;
   private lookKey = '';
   private lookK = 1;
@@ -894,8 +896,10 @@ export class GameRenderer3D {
       this.look = tierLook(tier, g.mapId);
       this.lookK = this.lookFade > 0 ? 0 : 1;
     }
-    if (this.lookK < 1) this.lookK = Math.min(1, this.lookK + Math.max(0, this.time - this.lookClock) / Math.max(0.05, this.lookFade));
+    const lookDt = Math.max(0, this.time - this.lookClock);
+    if (this.lookK < 1) this.lookK = Math.min(1, this.lookK + lookDt / Math.max(0.05, this.lookFade));
     this.lookClock = this.time;
+    if (this.flickerT > 0) this.flickerT -= lookDt;
     const L = this.look, lk = this.lookK * (1 - dawn);
     const lm = (v: number) => lerp(1, v, lk);
     this.moon.intensity = lerp(lerp(1.3 * cloud, 0.12, dark), 2.4, dawn) * (this.world.indoor ? 0.3 : 1) * lm(L.moonK); // indoors: a little light through high windows
@@ -943,6 +947,8 @@ export class GameRenderer3D {
     this.lantern.distance = 1300 + dark * 150;
 
     pool.scale = 1 - dark * 0.88;
+    // the unlock ceremony (D-97): the carnival's lights stutter as the world crosses over
+    if (this.flickerT > 0 && Math.sin(this.time * 37) * Math.sin(this.time * 13.7) > 0.15) pool.scale *= 0.12;
     pool.begin(cx, cy, this.viewW * 0.75 + 400);
     // the player's own glow (independent of Lights Out: it is the "seen" bubble)
     pool.add(px, py, 300, 0.5 / Math.max(0.12, pool.scale), 1.0, 0.82, 0.58, 60, 4);

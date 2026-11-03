@@ -348,6 +348,20 @@ export const RECIPES: Record<string, () => Float32Array> = {
   gt_rush: () => render([V('noise', 1, 1, 1.0, { vol: 0.4, lp: 2400, hp: 200, attack: 0.25, decay: 2.5 }), V('saw', 60, 40, 1.0, { vol: 0.15, lp: 300, attack: 0.3, decay: 2 })]),
   gt_tick: () => render([V('noise', 1, 1, 0.02, { vol: 0.35, decay: 150, hp: 3000 }), V('sine', 2200, 2000, 0.03, { vol: 0.12, decay: 90 })]),
   gt_toll: () => render([...[1, 2.0, 2.4, 3.0, 4.2].map((m, i) => V('sine', 196 * m, 196 * m, 3 - i * 0.4, { vol: 0.2 / (1 + i * 0.7), decay: 1.2 + i * 0.6 }))]),
+  // the world tiers' unlock ceremonies (D-97): Nightmare's a detuned choir swelling out of a low bell, its chord
+  // drifting out of tune; Hell's a sub-bass drop under an anvil strike and a low brass cluster that burns out
+  tier_nightmare: () => render([
+    V('sine', 98, 98, 4, { vol: 0.4, decay: 0.9 }), V('sine', 246, 245, 3.2, { vol: 0.12, decay: 1.1 }),
+    ...[0, 3, 7, 10].map((st, i) => V('saw', 196 * Math.pow(2, st / 12), 196 * Math.pow(2, st / 12) * 0.985, 3.6, { vol: 0.055, lp: 1400 + i * 300, attack: 0.9, decay: 0.9, vib: 0.02, vibRate: 4.3 + i * 0.6, delay: 0.25 + i * 0.12 })),
+    ...[0, 7].map((st) => V('sine', 784 * Math.pow(2, st / 12), 760 * Math.pow(2, st / 12), 3, { vol: 0.05, attack: 1.2, decay: 1, vib: 0.03, vibRate: 5.1, delay: 0.8 })),
+    V('noise', 1, 1, 2.4, { vol: 0.06, hp: 2500, lp: 6000, attack: 1.0, decay: 1.2, delay: 0.4 }),
+  ], 0.4),
+  tier_hell: () => render([
+    V('sine', 90, 32, 1.6, { vol: 0.6, decay: 1.4 }), V('noise', 1, 1, 0.5, { vol: 0.45, lp: 900, hp: 40, decay: 6 }),
+    ...[1, 2.76, 4.1, 5.9].map((m, i) => V('sine', 620 * m, 620 * m, 1.6 - i * 0.25, { vol: 0.14 / (1 + i), decay: 2.2 + i, delay: 0.05 })),
+    ...[0, 1, 6].map((st, i) => V('saw', 65 * Math.pow(2, st / 12), 62 * Math.pow(2, st / 12), 3, { vol: 0.09, lp: 700, attack: 0.35, decay: 0.8, delay: 0.3 + i * 0.05 })),
+    V('noise', 1, 1, 2.6, { vol: 0.16, lp: 2600, hp: 300, attack: 0.6, decay: 1.1, delay: 0.5 }),
+  ], 0.4),
   gt_chime: () => render([...[1, 2.76, 5.4].map((m, i) => V('sine', 880 * m, 880 * m, 1.4 - i * 0.3, { vol: 0.15 / (1 + i), decay: 2.5 + i * 2 }))]),
   gt_furnace: () => render([V('noise', 1, 1, 1.1, { vol: 0.5, lp: 600, hp: 60, attack: 0.08, decay: 2.2 }), V('saw', 55, 45, 1.0, { vol: 0.2, lp: 260, attack: 0.1, decay: 2 }), V('noise', 1, 1, 0.6, { vol: 0.12, hp: 3000, decay: 4, delay: 0.1 })]),
   gt_shovel: () => render([V('noise', 1, 1, 0.25, { vol: 0.35, hp: 1500, lp: 5000, decay: 9 }), ...Array.from({ length: 6 }, (_, i) => V('square', 700 + (i % 3) * 180, 500, 0.03, { vol: 0.08, decay: 70, delay: 0.18 + i * 0.04, lp: 2500 }))]),

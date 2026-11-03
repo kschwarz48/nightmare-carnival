@@ -17,6 +17,7 @@ import { PERKS } from './data/meta';
 import { WEAPONS, PASSIVES } from './data/weapons';
 import { ENEMIES } from './data/enemies';
 import { TIERS, type TierId } from './data/tiers';
+import { ceremonyEl } from './ui/ceremony';
 import { DraftView, Hud, PLAYER_CSS, type HudScreen } from './ui/hud';
 import { kitOf } from './ui/recipes';
 import { ChatBox } from './ui/chat';
@@ -185,6 +186,8 @@ export class App {
   private hubParty = '';
   /** this night unlocked the Midway (announced on the results) */
   private hubJustUnlocked = false;
+  /** the world tier's unlock ceremony on screen (D-97), if any */
+  private ceremony: { el: HTMLElement; skip: () => void } | null = null;
   /** where the Lost & Found's Back returns to when it was opened from the co-op lobby (D-74), or 'party':
    *  wherever the co-op party is by then (a guest who went shopping from the results, D-75) */
   private lfReturn: State | 'party' | null = null;
@@ -475,9 +478,43 @@ export class App {
     if (el) {
       this.ui.append(el);
       this.screenEl = el;
+      if (this.ceremony) el.style.visibility = 'hidden';
       this.nav = new FocusNav(el);
       if (this.input.usingGamepad || state !== 'press') this.nav.ensure();
     } else this.nav = null;
+    this.maybeCeremony();
+  }
+
+  /**
+   * A world tier opened and its ceremony hasn't been shown on this save (D-97): play it over the live scene at the
+   * next calm screen (the title menu or the Midway), once. A tester whose old save already finished the campaign
+   * sees Nightmare's as the reveal.
+   */
+  private maybeCeremony(): void {
+    if (this.ceremony || !(this.state === 'title' || this.state === 'hub')) return;
+    const seen = this.save.data.tiers.seen;
+    const tier = this.save.data.tiers.unlocked.find((t): t is 'nightmare' | 'hell' => t !== 'normal' && !seen.includes(t));
+    if (!tier) return;
+    const r = this.renderer;
+    r.lookFade = 2.4;
+    r.tierPreview = tier;
+    r.flickerT = 1.3;
+    setTimeout(() => this.audio.play(`tier_${tier}`, { vol: 0.9 }), 500);
+    // the menu (or the Midway's HUD) steps aside for it (a screen opened meanwhile too: see go())
+    if (this.screenEl) this.screenEl.style.visibility = 'hidden';
+    this.hubHud.root.style.visibility = 'hidden';
+    const c = ceremonyEl(tier, () => {
+      if (!this.save.data.tiers.seen.includes(tier)) this.save.data.tiers.seen.push(tier);
+      this.save.save();
+      r.tierPreview = null;
+      r.lookFade = 0;
+      if (this.screenEl) this.screenEl.style.visibility = '';
+      this.hubHud.root.style.visibility = '';
+      this.ceremony = null;
+      this.maybeCeremony();
+    });
+    this.ceremony = c;
+    this.ui.append(c.el);
   }
 
   /** A boss's stage ring (D-61): a twang the moment its strings start reeling you back in. */
@@ -1979,6 +2016,11 @@ export class App {
   }
 
   private onNav(e: NavEvent): void {
+    // an unlock ceremony on screen (D-97): any button moves on (once it may), nothing reaches the menu beneath
+    if (this.ceremony) {
+      if (e === 'confirm' || e === 'back' || e === 'pause' || e === 'interact') this.ceremony.skip();
+      return;
+    }
     if (e === 'chat') {
       this.chat.open();
       return;
