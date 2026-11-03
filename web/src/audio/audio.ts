@@ -482,6 +482,7 @@ export class AudioEngine {
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = rate;
+    src.detune.value = this.tierDetune;
     const g = ctx.createGain();
     g.gain.value = 0;
     g.gain.setTargetAtTime(SONG_GAIN, t, 0.05);
@@ -541,6 +542,7 @@ export class AudioEngine {
       };
     }
     src.playbackRate.value = rate;
+    src.detune.value = this.tierDetune;
     const g = ctx.createGain();
     g.gain.value = 0;
     g.gain.setTargetAtTime(SONG_GAIN, t, 0.4);
@@ -614,11 +616,25 @@ export class AudioEngine {
     }
   }
 
+  // ---------------------------------------------------------------- the world tiers' score (D-97)
+  /** the night's tier colours the music: Nightmare a semitone lower and drifting out of tune, Hell two lower */
+  private tierPitch = 1;
+  private tierWobble = 0;
+  private tierDetune = 0;
+  setTier(tier: 'normal' | 'nightmare' | 'hell'): void {
+    this.tierDetune = tier === 'hell' ? -200 : tier === 'nightmare' ? -100 : 0;
+    this.tierPitch = Math.pow(2, this.tierDetune / 1200);
+    this.tierWobble = tier === 'nightmare' ? 22 : tier === 'hell' ? 8 : 0;
+    if (this.ctx && this.trackSrc) this.trackSrc.detune.setTargetAtTime(this.tierDetune, this.ctx.currentTime, 0.6);
+  }
+
   private note(freq: number, t: number, dur: number, type: OscillatorType, vol: number, lp = 3000, vib = 0): void {
     const ctx = this.ctx!;
     const o = ctx.createOscillator();
     o.type = type;
+    freq *= this.tierPitch;
     o.frequency.value = freq;
+    if (this.tierWobble) o.detune.value = (Math.random() * 2 - 1) * this.tierWobble;
     if (vib) {
       const l = ctx.createOscillator();
       const lg = ctx.createGain();
@@ -646,7 +662,8 @@ export class AudioEngine {
     for (const [mult, v] of [[1, 1], [2.76, 0.18]] as const) {
       const o = ctx.createOscillator();
       o.type = 'sine';
-      o.frequency.value = freq * mult;
+      o.frequency.value = freq * mult * this.tierPitch;
+      if (this.tierWobble) o.detune.value = (Math.random() * 2 - 1) * this.tierWobble;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(vol * v, t + 0.006);

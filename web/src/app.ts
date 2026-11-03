@@ -592,6 +592,8 @@ export class App {
     if (!keepChat) this.chat.clear();
     this.game?.bus.clear();
     this.game = g;
+    // the night's tier colours its music (D-97)
+    this.audio.setTier(g.tier);
     g.setCtx(g.players[this.localIndex] ?? g.players[0]);
     this.wireGame(g);
     this.renderer.fx.clear();
@@ -1814,6 +1816,7 @@ export class App {
 
   /** Tear down the in-run views (HUD, overlays, the game) without leaving any session. */
   private endRunView(): void {
+    this.audio.setTier('normal');
     this.hubHud?.root.remove();
     this.hubTalk = null;
     this.chestQueue = [];
@@ -2300,6 +2303,7 @@ export class App {
     const ch = this.hubCharacter();
     const pet = this.save.petChoice();
     const g = new Game({ character: ch, curse: false, seed: (Math.random() * 2 ** 31) | 0, players: [{ character: ch, name: L.loadName() || 'You', pet }], pet, hub: { npcs: this.hubCast(), at: was ? [{ x: was.x, y: was.y }] : undefined } });
+    this.audio.setTier('normal'); // the Midway is always the Normal carnival (D-97)
     this.beginHub(g, 0);
   }
 
@@ -2367,6 +2371,7 @@ export class App {
 
   /** Guest: the host is on the Midway; build the mirror the session will feed. */
   private startGuestHub(cfg: StartCfg): Game {
+    this.audio.setTier('normal');
     void this.audio.unlock();
     this.mpStatus = '';
     this.mpBusy = false;
