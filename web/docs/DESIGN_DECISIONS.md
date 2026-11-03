@@ -2088,3 +2088,17 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   host and checks the press is used at the next tick (the old code never got it through).
 - PROTO 22: the input packet's per-input count byte goes, and the press record joins it.
 
+### D-102 · Character select fits the screen
+
+- **The problem.** The single-player character select ("Choose Your Fool") had outgrown a 1080-line screen. The
+  World, Tonight and Companion rows had joined its detail column, so it needed 1,087 lines with the Night Watchman
+  chosen, and more with a companion's line and the Curse open. Its title was cut off at the top and its Start button at
+  the bottom.
+- **The fix.**
+  - The Companion row moves to the foot of the performers' column, which had room to spare. Its cards had stretched
+    apart to match the detail column's height; they now sit packed at the top.
+  - The detail column tightens a little: the portrait a size smaller, smaller gaps.
+- **Now.** A 2000×837 window leaves 58 px above the title and below the panels. A window too short even for that
+  (under 810 px tall, where the UI's zoom stops shrinking) scrolls the screen instead of cutting its title off.
+- UI only.
+

@@ -125,7 +125,9 @@ export function charSelectScreen(c: UICtx): HTMLElement {
   const want: MapId = isMapId(s.data.last.map) ? s.data.last.map : 'carnival_core';
   let selTier: TierId = s.bestTierFor(want, s.lastTier());
   let selMap: MapId = s.mapAvailableOn(selTier, want) ? want : 'carnival_core';
-  const grid = h('div', { class: 'char-grid panel' });
+  const grid = h('div', { class: 'char-grid' });
+  // the companion who comes along sits under the performers (D-102: the detail column ran off a 1080-line screen)
+  const pets = h('div', { class: 'cs-pets' });
   const detail = h('div', { class: 'char-detail panel' });
   const render = () => {
     grid.replaceChildren(...CHARACTERS.map((ch) => {
@@ -138,6 +140,20 @@ export function charSelectScreen(c: UICtx): HTMLElement {
     const statBar = (label: string, v: number, max: number) => [h('span', {}, label), h('div', { class: 'bar' }, h('i', { style: { width: `${Math.min(100, (v / max) * 100)}%` } }))];
     const might = 1 + (ch.mods.might ?? 0);
     const w = WEAPONS[ch.startWeapon];
+    // a companion (D-84): those earned to choose, the rest locked with what brings them
+    pets.replaceChildren(
+      h('div', { class: 'section-title' }, 'Companion'),
+      h('div', { class: 'diff-row' }, ...[null, ...PETS.map((p) => p.id)].map((id) => {
+        const p = id ? PET_MAP[id] : null;
+        const ok = !p || s.petUnlocked(p.id);
+        const ach = p ? ACHIEVEMENTS.find((a) => a.id === p.achievement) : undefined;
+        return h('button', { class: `diff-btn${(s.petChoice() ?? null) === id ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: p ? (ok ? `${p.breed} · ${p.buffName}: ${p.buff}` : `Locked — ${ach?.name}: ${ach?.desc}`) : 'No companion', onclick: () => { c.click(); s.data.pet = id ?? undefined; s.save(); render(); } }, p ? (ok ? p.name : `🔒 ${p.name}`) : 'None');
+      })),
+      h('div', { class: 'muted' }, (() => {
+        const p = PET_MAP[s.petChoice() ?? ''];
+        return p ? `${p.name} the ${p.breed} — ${p.buffName}: ${p.buff}` : 'No companion tonight.';
+      })()),
+    );
     detail.replaceChildren(
       h('div', { class: 'hero' }, h('img', { src: c.assets.charFull(ch.id, 1), alt: '' }), h('div', {}, h('h3', {}, avail ? ch.name : '??? Locked'), h('div', { class: 'sub' }, ch.title), h('div', { class: 'muted', style: { marginTop: '0.4em' } }, avail ? ch.desc : ch.unlock?.reqText ?? ''))),
       h('div', { class: 'stat-row' }, ...statBar('Health', ch.hp, 150), ...statBar('Speed', ch.speed, 264), ...statBar('Might', might, 1.25)),
@@ -152,18 +168,6 @@ export function charSelectScreen(c: UICtx): HTMLElement {
       h('div', { class: 'muted' }, MAPS[selMap].tagline),
       h('div', { class: `toggle${curse ? ' on' : ''}${s.curseAvailable() ? '' : ' disabled'}`, 'data-nav': '', onclick: () => { c.click(); curse = !curse; render(); } },
         h('span', { class: 'box' }), s.curseAvailable() ? `Curse — faster, denser, tougher · +35% Lost Tickets` : `Curse (locked — ${CURSE.unlock.reqText})`),
-      // a companion (D-84): those earned to choose, the rest locked with what brings them
-      h('div', { class: 'section-title', style: { margin: '0.4em 0 0' } }, 'Companion'),
-      h('div', { class: 'diff-row' }, ...[null, ...PETS.map((p) => p.id)].map((id) => {
-        const p = id ? PET_MAP[id] : null;
-        const ok = !p || s.petUnlocked(p.id);
-        const ach = p ? ACHIEVEMENTS.find((a) => a.id === p.achievement) : undefined;
-        return h('button', { class: `diff-btn${(s.petChoice() ?? null) === id ? ' sel' : ''}`, 'data-nav': '', disabled: !ok || undefined, title: p ? (ok ? `${p.breed} · ${p.buffName}: ${p.buff}` : `Locked — ${ach?.name}: ${ach?.desc}`) : 'No companion', onclick: () => { c.click(); s.data.pet = id ?? undefined; s.save(); render(); } }, p ? (ok ? p.name : `🔒 ${p.name}`) : 'None');
-      })),
-      h('div', { class: 'muted' }, (() => {
-        const p = PET_MAP[s.petChoice() ?? ''];
-        return p ? `${p.name} the ${p.breed} — ${p.buffName}: ${p.buff}` : 'No companion tonight.';
-      })()),
       h('div', { class: 'cs-actions' },
         btn('Back', () => { c.click(); c.go('title'); }, 'small red'),
         btn('Start the Night!', () => { if (!avail) return; c.click(); c.startRun({ character: selChar, tier: selTier, curse, map: selMap }); }, '', { disabled: !avail || undefined, 'data-default': '' }),
@@ -171,7 +175,7 @@ export function charSelectScreen(c: UICtx): HTMLElement {
     );
   };
   render();
-  return h('div', { class: 'screen charselect dim' }, h('h2', { class: 'title-text' }, 'Choose Your Fool'), h('div', { class: 'layout' }, grid, detail));
+  return h('div', { class: 'screen charselect dim' }, h('h2', { class: 'title-text' }, 'Choose Your Fool'), h('div', { class: 'layout' }, h('div', { class: 'cs-left panel' }, grid, pets), detail));
 }
 
 // ===================================================================== daily run

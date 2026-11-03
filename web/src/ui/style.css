@@ -101,10 +101,15 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 @keyframes blink { 50% { opacity: 0.25; } }
 
 /* ------------------------------------------------------------ character select */
-.charselect { padding: 2cqh 2cqw; }
+/* (D-102: it ran off a 1080-line screen; a window shorter still scrolls it rather than cut its title off) */
+.charselect { padding: 2cqh 2cqw; justify-content: safe center; overflow-y: auto; }
 .charselect .layout { display: grid; grid-template-columns: minmax(280px, 520px) minmax(300px, 520px); gap: 2em; align-items: stretch; max-width: 1150px; width: 100%; }
 .charselect h2 { font-size: 2.2em; margin-bottom: 0.4em; text-align: center; }
-.char-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.9em; padding: 1.2em; }
+/* the left column: the performers packed at the top, the companion who comes along at its foot (D-102) */
+.cs-left { display: flex; flex-direction: column; }
+.char-grid { display: grid; grid-template-columns: repeat(3, 1fr); align-content: start; gap: 0.9em; padding: 1.2em; }
+.cs-pets { margin-top: auto; padding: 0 1.2em 1.2em; display: flex; flex-direction: column; gap: 0.5em; }
+.cs-pets .section-title { margin: 0.3em 0 0; }
 .char-card { aspect-ratio: 1 / 1.15; border: 4px solid var(--ink); border-radius: 14px; background: #2a1a3a; position: relative; overflow: hidden; cursor: var(--cur-hand); transition: transform 0.1s; box-shadow: 0 5px 0 var(--ink); }
 .char-card img { width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: auto; }
 .char-card .nm { position: absolute; left: 0; right: 0; bottom: 0; font-family: var(--head); font-size: 0.85em; text-align: center; background: rgba(23, 17, 14, 0.75); padding: 0.2em; white-space: nowrap; }
@@ -115,9 +120,9 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 .char-card.locked { background: radial-gradient(circle at 50% 40%, #5a3a7a, #1a0d28); }
 .char-card.locked img { filter: brightness(0) drop-shadow(0 0 3px #b08ad8); opacity: 0.9; }
 .char-card.locked::after { content: '?'; position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--head); font-size: 3em; color: var(--gold); text-shadow: 3px 3px 0 var(--ink); }
-.char-detail { padding: 1.4em 1.6em; display: flex; flex-direction: column; gap: 0.6em; }
+.char-detail { padding: 1.2em 1.6em; display: flex; flex-direction: column; gap: 0.55em; }
 .char-detail .hero { display: flex; gap: 1em; align-items: center; }
-.char-detail .hero img { width: 120px; height: 144px; object-fit: contain; animation: idleBob 1.6s ease-in-out infinite; }
+.char-detail .hero img { width: 106px; height: 128px; object-fit: contain; animation: idleBob 1.6s ease-in-out infinite; }
 @keyframes idleBob { 50% { transform: translateY(-4px) scaleY(1.02); } }
 .char-detail h3 { font-size: 1.8em; color: var(--gold); text-shadow: 2px 2px 0 var(--ink); }
 .char-detail .sub { font-family: var(--head); opacity: 0.85; }
