@@ -29,9 +29,11 @@ export function tierIcon(ctx: Ctx, w: number, h: number, id: string): boolean {
   const cx = w / 2, cy = h / 2, s = w * 0.18;
   const cold = ['second_chance', 'soul_collector', 'prize_hunter', 'opening_act', 'second_wind', 'deaths_door', 'soul_jar', 'lantern', 'chains', 'last_light', 'reapers_chain'].includes(id);
   const hot = ['devils_bargain', 'final_act', 'unfinished_business', 'infernal_resilience', 'ember_heart', 'brimstone', 'cinder_heart', 'breath', 'hellmouth'].includes(id);
-  if (!cold && !hot) return false;
-  const c = cold ? COLD : HOT;
-  badge(ctx, w, h, cold ? '#2c3f66' : '#5a1a10', id === 'last_light' || id === 'hellmouth' || id === 'reapers_chain');
+  // the maps' own rewards (D-98): brass and steam
+  const brass = ['steam_whistle', 'last_call', 'conductor_watch', 'last_song_score'].includes(id);
+  if (!cold && !hot && !brass) return false;
+  const c = cold ? COLD : hot ? HOT : { body: '#e8c878', dark: '#6a4a1a', glow: '#fff4d0' };
+  badge(ctx, w, h, cold ? '#2c3f66' : hot ? '#5a1a10' : '#4a3a24', id === 'last_light' || id === 'hellmouth' || id === 'reapers_chain' || id === 'last_call');
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -323,6 +325,67 @@ export function tierIcon(ctx: Ctx, w: number, h: number, id: string): boolean {
       }
       circle(ctx, cx - s * 0.75, cy, s * 0.42);
       fillInk(ctx, '#3a1a10', 2);
+      break;
+    }
+    case 'steam_whistle':
+    case 'last_call': {
+      // a brass steam whistle on its pipe, a plume of steam from its throat
+      for (const [dx, dy, rr] of [[0.2, -1.05, 0.42], [0.65, -1.25, 0.32], [-0.25, -1.3, 0.3]]) {
+        circle(ctx, cx + dx * s, cy + dy * s, rr * s);
+        ctx.fillStyle = 'rgba(240,244,250,0.85)';
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.rect(cx - s * 0.45, cy - s * 0.55, s * 0.9, s * 1.3);
+      fillInk(ctx, shade(ctx, cx - s * 0.2, cy - s * 0.2, s * 1.2, '#ffe6a0', '#8a6020'), 2.2);
+      ctx.beginPath();
+      ctx.rect(cx - s * 0.62, cy - s * 0.25, s * 1.24, s * 0.22);
+      fillInk(ctx, '#6a4a1a', 1.6);
+      ctx.beginPath();
+      ctx.rect(cx - s * 0.18, cy + s * 0.75, s * 0.36, s * 0.55);
+      fillInk(ctx, '#5a4a3a', 1.6);
+      break;
+    }
+    case 'conductor_watch': {
+      circle(ctx, cx, cy + s * 0.15, s * 0.95);
+      fillInk(ctx, shade(ctx, cx - s * 0.3, cy - s * 0.2, s * 1.4, '#ffe6a0', '#8a6020'), 2.4);
+      circle(ctx, cx, cy + s * 0.15, s * 0.72);
+      fillInk(ctx, '#f4ead0', 1.6);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + s * 0.15);
+      ctx.lineTo(cx, cy - s * 0.38);
+      ctx.moveTo(cx, cy + s * 0.15);
+      ctx.lineTo(cx + s * 0.3, cy + s * 0.28);
+      ctx.stroke();
+      circle(ctx, cx, cy - s * 0.95, s * 0.2);
+      fillInk(ctx, '#c8a050', 1.4);
+      break;
+    }
+    case 'last_song_score': {
+      // a sheet of music, its staves and a few notes
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.85, cy - s * 1.0);
+      ctx.lineTo(cx + s * 0.85, cy - s * 0.9);
+      ctx.lineTo(cx + s * 0.8, cy + s * 1.05);
+      ctx.lineTo(cx - s * 0.9, cy + s * 0.95);
+      ctx.closePath();
+      fillInk(ctx, '#f0e2c0', 2.2);
+      ctx.strokeStyle = 'rgba(40,24,10,0.7)';
+      ctx.lineWidth = 1;
+      for (const y of [-0.55, -0.35, -0.15, 0.25, 0.45, 0.65]) {
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.7, cy + y * s);
+        ctx.lineTo(cx + s * 0.68, cy + y * s);
+        ctx.stroke();
+      }
+      ctx.fillStyle = INK;
+      for (const [x, y] of [[-0.4, -0.35], [0, -0.55], [0.35, -0.15], [-0.2, 0.45], [0.3, 0.25]]) {
+        ctx.beginPath();
+        ctx.ellipse(cx + x * s, cy + y * s, s * 0.11, s * 0.08, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
       break;
     }
     case 'ember_heart': {

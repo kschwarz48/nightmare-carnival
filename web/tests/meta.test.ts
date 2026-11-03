@@ -133,7 +133,7 @@ describe('save system', () => {
     // the tiers' shelves (D-97)
     expect(total(PERKS.filter((p) => p.tier === 'nightmare'))).toBe(41195);
     expect(total(PERKS.filter((p) => p.tier === 'hell'))).toBe(91905);
-    expect(unlockTotal).toBe(8500);
+    expect(unlockTotal).toBe(5500); // D-98: the Funhouse Mirror (1,000) and the Undertow (2,000) are their bosses' prizes now
     expect(castTotal).toBe(16100);
     expect(CHARACTERS.length).toBe(9); // the seven and the world tiers' two (D-97)
   });
@@ -154,7 +154,8 @@ describe('save system', () => {
     expect(d.perks).toEqual({});
     expect(d.spent).toBe(0);
     expect(d.totalEarned).toBe(5000);
-    expect([...d.unlocks].sort()).toEqual(['p_ada_conch', 'p_running_shoes', 'w_calliope']);
+    // (and on through v7, D-98: the Leviathan's Undertow, the Last Song's score)
+    expect([...d.unlocks].sort()).toEqual(['p_ada_conch', 'p_last_song', 'p_running_shoes', 'w_calliope', 'w_undertow']);
     expect(d.achievements).toEqual(['first_night', 'summers_end', 'last_song', 'beat_leviathan']);
     expect(d.pedia).toEqual(['hall_of_mirrors']);
     expect(d.quests.last_song.completions).toBe(1);
@@ -196,13 +197,14 @@ describe('save system', () => {
     expect(dailySeen).toBe(true);
   });
 
-  it('sells the Undertow once the Boardwalk is survived; Running Shoes come from the Commodore (D-78)', () => {
+  it('gives the Undertow for the Boardwalk survived (D-98: it was sold); Running Shoes come from the Commodore (D-78)', () => {
     const s = new SaveManager(mem());
     s.data.lostTickets = 5000;
-    expect(s.unlockRequirementMet('w_undertow')).toBe(false);
+    expect(s.isUnlocked('w_undertow')).toBe(false);
     expect(s.buyUnlock('w_undertow')).toBe(false);
     s.grantAchievements(['beat_leviathan']);
-    expect(s.buyUnlock('w_undertow')).toBe(true);
+    expect(s.isUnlocked('w_undertow')).toBe(true);
+    expect(s.data.lostTickets).toBe(5000 + 150); // (the achievement's own reward)
     expect(WEAPONS.bumper.name).toBe('The Undertow');
     expect(WEAPONS.bumper.unlock).toBe('w_undertow');
     // without the unlocks neither is ever drafted; the Commodore still starts with his coaster car

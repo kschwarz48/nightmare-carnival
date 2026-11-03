@@ -193,10 +193,13 @@ describe('progression curve (D-43)', () => {
 });
 
 describe('the Last Song (D-32)', () => {
+  /** Stand at (x, y) and press interact there (D-98: the first map answers E like the others; it was walk-up). */
   function walkTo(g: Game, x: number, y: number): void {
     g.player.x = g.player.px = x;
     g.player.y = g.player.py = y;
+    g.inputs[0].interact = true;
     step(g);
+    step(g, 20); // (a person walks between things: each one's press cooldown has passed by the next)
   }
   const NEUTRAL = { x: 0, y: 700 };
 
@@ -350,7 +353,7 @@ describe('save v4 (quest memory)', () => {
     const v3 = { version: 3, lostTickets: 321, totalEarned: 999, perks: { might: 2 }, unlocks: ['w_orbs'], achievements: ['first_night'], pedia: [], stats: { runs: 4 }, history: [], daily: {} };
     const out = migrate(v3);
     expect(out.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(6);
+    expect(SAVE_VERSION).toBe(7);
     // v5 (D-78) refunds what was bought at the old prices: two levels of Brass Knuckles (40 + 64), the Orbs (60)
     expect(out.lostTickets).toBe(321 + 104 + 60);
     expect(out.unlocks).toEqual([]);
@@ -373,15 +376,17 @@ describe('save v4 (quest memory)', () => {
     expect(s2.isUnlocked('w_calliope')).toBe(true);
   });
 
-  it('the secret weapon stays out of Daily Runs and locked runs', () => {
+  it("the hidden quest's passive stays out of Daily Runs and locked runs; the Calliope, the Ringmaster's prize, is in every Daily (D-98)", () => {
     const daily = makeGame({ daily: true, seed: 3 });
     const pool = (g: Game) => {
       const out = new Set<string>();
       for (let i = 0; i < 200; i++) for (const o of generateDraft(g, new (g.rng.constructor as any)(i))) out.add(o.refId);
       return out;
     };
-    expect(pool(daily).has('steam_calliope')).toBe(false);
+    expect(pool(daily).has('last_song_score')).toBe(false);
+    expect(pool(makeGame({ seed: 3 })).has('last_song_score')).toBe(false);
     expect(pool(makeGame({ seed: 3 })).has('steam_calliope')).toBe(false);
+    expect(pool(daily).has('steam_calliope')).toBe(true);
   });
 });
 

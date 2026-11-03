@@ -1,7 +1,7 @@
 // Versioned persistent save (Godot SaveManager port, doc 08 §18 + 09 M8 "migration safety").
 // localStorage JSON with a migration chain, a backup slot, and corruption recovery.
 
-import { ACHIEVEMENTS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNLOCKS } from '../data/meta';
+import { ACHIEVEMENTS, BOSS_UNLOCKS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNLOCKS } from '../data/meta';
 import { PET_MAP } from '../data/pets';
 import { CHARACTERS } from '../data/characters';
 import { CURSE } from '../data/difficulty';
@@ -9,7 +9,7 @@ import { EVOLUTION_IDS, PASSIVES, WEAPONS } from '../data/weapons';
 import { TIER_IDS, isTierId, nextTier, type TierId } from '../data/tiers';
 import { MAP_IDS, isMapId, type MapId } from '../data/maps';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 const KEY = 'nightmare_carnival_save';
 const BACKUP = 'nightmare_carnival_save_backup';
 /** a save's text from before its first migration is kept once under this prefix and its old version (D-97) */
@@ -242,6 +242,24 @@ const MIGRATIONS: Record<number, (d: any) => any> = {
     d.tiers = t;
     d.last = { ...(d.last && typeof d.last === 'object' ? d.last : {}), tier: 'normal' };
     d.version = 6;
+    return d;
+  },
+  // v6 → v7 (D-98): each map's final boss gives its weapon and its hidden quest the passive that evolves it. What the
+  // save has beaten and solved is given now; the Funhouse Mirror and the Undertow, which were sold, are refunded at the
+  // price paid (kept: they are its anyway once their boss falls, and nobody loses a weapon they own).
+  6: (d) => {
+    const ach: string[] = Array.isArray(d.achievements) ? d.achievements.filter((a: unknown) => typeof a === 'string') : [];
+    const unlocks: string[] = Array.isArray(d.unlocks) ? d.unlocks.filter((u: unknown) => typeof u === 'string') : [];
+    let refund = 0;
+    for (const [id, price] of [['w_mirror', 1000], ['w_undertow', 2000]] as const) if (unlocks.includes(id)) refund += price;
+    for (const table of [BOSS_UNLOCKS, QUEST_UNLOCKS]) for (const [a, ids] of Object.entries(table)) if (ach.includes(a)) for (const id of ids) if (!unlocks.includes(id)) unlocks.push(id);
+    d.unlocks = unlocks;
+    if (refund > 0) {
+      d.lostTickets = (typeof d.lostTickets === 'number' && isFinite(d.lostTickets) ? Math.max(0, d.lostTickets) : 0) + refund;
+      d.spent = Math.max(0, (typeof d.spent === 'number' ? d.spent : 0) - refund);
+      d.notice = `The Funhouse Mirror and the Undertow are no longer sold: each map's final boss now gives its weapon. What you paid for them is back: +${refund.toLocaleString('en-US')} Lost Tickets.`;
+    }
+    d.version = 7;
     return d;
   },
 };
@@ -531,9 +549,9 @@ export class SaveManager {
   endlessAvailable(): boolean {
     return this.hasAchievement('beat_ringmaster');
   }
-  /** The Midway hub (D-60): the first night fully completed — its secret quest carried to True Dawn. */
+  /** The Midway hub (D-60): the first night survived (D-98: it waited for the Last Song, the first night's hidden quest). */
   hubUnlocked(): boolean {
-    return (this.data.quests.last_song?.completions ?? 0) > 0 || !!this.data.midwayTester;
+    return this.hasAchievement('beat_ringmaster') || (this.data.quests.last_song?.completions ?? 0) > 0 || !!this.data.midwayTester;
   }
   /**
    * Which nights can be chosen (D-63): the Carnival Core always; the Fun House once the first night
@@ -576,8 +594,24 @@ export class SaveManager {
       this.data.totalEarned += a.reward;
       out.push(a);
     }
+    this.claimRewards();
     out.push(...this.claimDerived());
     return out;
+  }
+
+  /** What the achievements held give (D-98: a map's weapon for its final boss, the quest's passive): newly added ids. */
+  claimRewards(): string[] {
+    const got: string[] = [];
+    for (const table of [BOSS_UNLOCKS, QUEST_UNLOCKS]) {
+      for (const [a, ids] of Object.entries(table)) {
+        if (!this.hasAchievement(a)) continue;
+        for (const id of ids) if (!this.data.unlocks.includes(id)) {
+          this.data.unlocks.push(id);
+          got.push(id);
+        }
+      }
+    }
+    return got;
   }
 
   /**

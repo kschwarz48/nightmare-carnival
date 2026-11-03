@@ -319,6 +319,8 @@ export class Pickup {
   py = 0;
   value = 1;
   magnet = false;
+  /** the player a magnetised pickup flies to (D-98: whoever's own pickup radius caught it), or -1 for the nearest */
+  to = -1;
   speed = 0;
   life = 0;
   t = 0;

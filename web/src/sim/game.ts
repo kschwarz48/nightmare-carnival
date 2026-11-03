@@ -1778,6 +1778,7 @@ export class Game {
     pk.y = pk.py = y;
     pk.value = value;
     pk.magnet = false;
+    pk.to = -1;
     pk.speed = 0;
     pk.t = 0;
     pk.life = kind === 'food' ? 30 : kind === 'golden' ? GOLDEN.life : kind === 'funnel' ? 14 : 1e9;
@@ -1867,13 +1868,34 @@ export class Game {
         pk.vy *= 0.9;
         if (Math.abs(pk.vx) < 2 && Math.abs(pk.vy) < 2) pk.vx = pk.vy = 0;
       }
-      const p = multi ? this.nearestLiving(pk.x, pk.y) : this.player;
+      // co-op (D-98): every player's own pickup radius counts (it was only the nearest player's, so a teammate standing
+      // a step nearer a ticket kept a Magnet Glove from pulling it); a pulled ticket keeps to whoever pulled it
+      let p = this.player;
+      if (multi) {
+        const held = pk.magnet && pk.to >= 0 ? this.players[pk.to] : null;
+        if (held && this.isUp(held)) p = held;
+        else {
+          let best: Player | null = null, bd = Infinity;
+          if (pk.kind === 'ticket' || pk.kind === 'bank') for (const q of this.players) {
+            if (!this.isUp(q)) continue;
+            const d = dist2(pk.x, pk.y, q.x, q.y), r = q.stats.pickupRadius();
+            if (d < r * r && d < bd) {
+              bd = d;
+              best = q;
+            }
+          }
+          p = best ?? this.nearestLiving(pk.x, pk.y);
+        }
+      }
       if (!this.isUp(p)) continue;
       const mag = p.stats.pickupRadius();
       const mag2 = mag * mag;
       const d2 = dist2(pk.x, pk.y, p.x, p.y);
       const grab = pk.kind === 'chest' ? 36 : pk.kind === 'food' || pk.kind === 'funnel' ? 30 : 18;
-      if (!pk.magnet && (pk.kind === 'ticket' || pk.kind === 'bank') && d2 < mag2) pk.magnet = true;
+      if (!pk.magnet && (pk.kind === 'ticket' || pk.kind === 'bank') && d2 < mag2) {
+        pk.magnet = true;
+        pk.to = p.index;
+      }
       if (pk.magnet) {
         pk.speed = Math.min(pk.speed + 1400 * dt, 1100);
         const d = Math.sqrt(d2) || 1;

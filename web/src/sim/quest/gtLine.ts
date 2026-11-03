@@ -2,8 +2,8 @@
 // the same way (the HUD asks every chain on the map).
 //
 // - The whistle cord at the front of every tender (D-90): pulled while the train stands at a station, it goes to the
-//   next stop; aboard a moving train it only whistles. The train keeps no timetable since D-90. The guard won't
-//   whistle her out of a station until the hidden quest's timetable is mended (its four pages; D-95).
+//   next stop; aboard a moving train it only whistles. The train keeps no timetable since D-90. (D-95 had the guard
+//   refuse the whistle until the hidden quest's timetable was mended; since D-98 the hidden quest gates nothing.)
 // - The Junction's departures board and every station clock say where the train is and how to make it go.
 // - From 33:00 the phantom doors stand open on every platform but the End of the Line's, one step to its platform,
 //   so nobody is stranded when the last train has gone and the Night Express is coming.
@@ -14,7 +14,6 @@ import { dist2 } from '../../core/math';
 import { E, PHANTOM_AT, RUN_BYTES, TRANSIT, packRun, regionAt, trainOrigin, unpackRun } from '../../data/ghosttrain';
 import { JUNCTION, LT_TRAIN, PHANTOM_ARRIVAL, PHANTOM_DOOR, STATION_CLOCK } from '../../data/gtStations';
 import { pullWhistle, runOf } from '../ghosttrain';
-import { LT } from './lastTrain';
 import { QuestChain } from './quest';
 
 export type LineKind = 'board' | 'phantom' | 'whistle';
@@ -27,18 +26,12 @@ export class LineChain extends QuestChain {
   private cool = new Map<string, number>();
   private opened = false;
 
-  /** The guard won't whistle the train out of a station yet: the hidden quest's timetable isn't mended (D-95). */
-  private locked(): boolean {
-    const lt = this.g.quests?.get<QuestChain & { stage: number }>('last_train');
-    return !!lt && lt.stage < LT.Stations;
-  }
-
   interaction(x: number, y: number): { kind: LineKind; i: number; x: number; y: number; label: string } | null {
     const r = regionAt(x, y);
     if (r < 0) return null;
     // the whistle cord, in whichever copy of the tender the player stands in
     const o = trainOrigin(r), w = LT_TRAIN.whistle;
-    if (dist2(x, y, o.x + w.x, o.y + w.y) < 80 * 80) return { kind: 'whistle', i: r, x: o.x + w.x, y: o.y + w.y, label: r === TRANSIT || this.locked() ? 'Pull the whistle cord' : 'Pull the whistle cord: depart' };
+    if (dist2(x, y, o.x + w.x, o.y + w.y) < 80 * 80) return { kind: 'whistle', i: r, x: o.x + w.x, y: o.y + w.y, label: r === TRANSIT ? 'Pull the whistle cord' : 'Pull the whistle cord: depart' };
     if (r > E) return null;
     if (r < E && this.g.time >= PHANTOM_AT) {
       const d = PHANTOM_DOOR[r];
@@ -69,12 +62,6 @@ export class LineChain extends QuestChain {
       this.cool.set(key, it.kind === 'whistle' ? 1.2 : 1.5);
       if (it.kind === 'board') this.cue('gt_board', { x: it.x, y: it.y, a: it.i, b: p.index });
       else if (it.kind === 'whistle') {
-        // (no timetable yet: the guard shakes his head, while the train stands there to be whistled out at all)
-        if (it.i !== TRANSIT && this.locked()) {
-          const run = runOf(g);
-          if (run.phase === 'dwell' && run.at === it.i) this.cue('gt_whistle', { x: it.x, y: it.y, a: WHISTLE.locked, b: it.i });
-          continue;
-        }
         const did = it.i === TRANSIT ? 'ride' : pullWhistle(g, it.i);
         if (did === 'away') continue;
         this.cue('gt_whistle', { x: it.x, y: it.y, a: WHISTLE[did], b: it.i });

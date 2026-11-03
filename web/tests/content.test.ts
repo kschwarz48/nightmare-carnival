@@ -40,7 +40,7 @@ describe('content integrity', () => {
       expect(w.lv.dmg.length).toBe(8);
       expect(w.levelText.length).toBeGreaterThanOrEqual(9);
     }
-    expect(EVOLUTION_IDS.length).toBe(22); // 18 + the Easter egg's Grand Requiem + the world tiers' three (D-97)
+    expect(EVOLUTION_IDS.length).toBe(23); // 18 + the Easter egg's Grand Requiem + the world tiers' three (D-97) + Last Call (D-98)
     expect(WEAPONS.grand_menagerie.evolvedFrom).toBe('tophat'); // D-07
   });
 

@@ -5,7 +5,7 @@ import { MAP_IDS, MAP_LOCK, MAPS, isMapId, type MapId } from '../data/maps';
 import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
 import { CURSE } from '../data/difficulty';
 import { TIERS, TIER_IDS, type TierId } from '../data/tiers';
-import { ACHIEVEMENTS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNLOCKS, type UnlockDef } from '../data/meta';
+import { ACHIEVEMENTS, BOSS_UNLOCKS, EARNED_UNLOCKS, PERKS, QUEST_UNLOCKS, SECRET_UNLOCKS, UNLOCKS, type UnlockDef } from '../data/meta';
 import { BOSSES } from '../data/bosses';
 import { ENEMIES, PEDIA_ENEMIES } from '../data/enemies';
 import { PASSIVES, WEAPONS, BASE_WEAPON_IDS, EVOLUTION_IDS, PASSIVE_IDS } from '../data/weapons';
@@ -377,7 +377,7 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
     // what the hidden quests (and the Commodore) gave: listed once earned, to switch in and out like the rest
     const earnedItems = [...SECRET_UNLOCKS, ...EARNED_UNLOCKS].filter((id) => s.isUnlocked(id)).map((id) => {
       const w = Object.values(WEAPONS).find((d) => d.unlock === id), p = Object.values(PASSIVES).find((d) => d.unlock === id);
-      const quest = Object.entries(QUEST_UNLOCKS).find(([, ids]) => ids.includes(id))?.[0];
+      const quest = [...Object.entries(QUEST_UNLOCKS), ...Object.entries(BOSS_UNLOCKS)].find(([, ids]) => ids.includes(id))?.[0];
       const how = ACHIEVEMENTS.find((a) => a.id === quest)?.name;
       return h('div', { class: `lf-item owned${s.inPool(id) ? ' on' : ' off'}`, 'data-nav': '', onclick: () => toggle(id) },
         h('img', { src: w ? c.assets.weaponIcon(w.id) : c.assets.passiveIcon(p!.id), alt: '' }), h('div', { class: 'nm' }, w?.name ?? p?.name ?? id),

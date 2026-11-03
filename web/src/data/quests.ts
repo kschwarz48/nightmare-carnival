@@ -31,7 +31,7 @@ export const LAST_SONG = {
   touchRadius: 85,
   /** The carousel plays the song's order on its music box when the player is within this range. */
   carousel: { x: -990, y: -150, hearRange: 950, interval: 7.5 },
-  /** The High Striker: step onto the pad as the puck light reaches the bell. */
+  /** The High Striker: strike it (interact, standing on the pad) as the puck light reaches the bell. */
   striker: { x: 520, y: -1560, padX: 520, padY: -1488, padR: 52, period: 2.4, window: 0.17, rings: 3, rearm: 95 },
   /** The secret finale rises where the Big Top stood. */
   finaleAt: { x: 0, y: -40 },

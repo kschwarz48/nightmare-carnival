@@ -36,7 +36,7 @@ const UPDATE_LATER_MS = 30 * 60 * 1000;
 import { FortuneCard, PrizeOverlay } from './ui/prize';
 import { PrizeWheel } from './render3d/prizeWheel';
 import { LAST_SONG } from './data/quests';
-import { QUEST_UNLOCKS, UNLOCKS } from './data/meta';
+import { BOSS_UNLOCKS, QUEST_UNLOCKS, UNLOCKS } from './data/meta';
 import { MIRA, PERFORMER_NAMES, PERFORMER_NOTES } from './data/funhouse';
 import type { UnreflectedChain } from './sim/quest/unreflected';
 import { ADA, CALL, GAME_NAMES, KEEPSAKES, SUMMERS_END, TIDE, callLength, nextTideTurn, shoreMix } from './data/boardwalk';
@@ -919,7 +919,7 @@ export class App {
         rec.bestStage = Math.max(rec.bestStage, 7);
         s.save();
         if (wasLocked) this.hubJustUnlocked = true;
-        this.hud.banner('THE LAST SONG', 'The music has ended. The Steam Calliope will remember you.', 'gold', 5);
+        this.hud.banner('THE LAST SONG', "The music has ended. The Calliope's Score is yours.", 'gold', 5);
         break;
       }
     }
@@ -1063,8 +1063,7 @@ export class App {
     if (g.mapId !== 'ghost_train') return;
     const me = g.players[this.localIndex] ?? g.player;
     const st = trainNow(g);
-    const ltq = g.quests?.get<LastTrainChain>('last_train');
-    this.lineBoard.update(g.phase === 'play' ? lineText(st, me.x, me.y, !!ltq && ltq.stage < LT.Stations) : null);
+    this.lineBoard.update(g.phase === 'play' ? lineText(st, me.x, me.y) : null);
     const here = gtRegionAt(me.x, me.y);
     const riding = here === TRANSIT;
     const speed = st.phase === 'travel' ? legSpeed(st.t, st.len) / CRUISE : 0;
@@ -1164,12 +1163,6 @@ export class App {
         // a pull that sends the train off is heard from the train itself (ghostTrainFrame); the others here
         if (q.a !== WHISTLE.go) a.play('gt_whistle', { vol: 0.9, pan: pan(q.x) });
         if (q.a === WHISTLE.terminus && q.x !== undefined && q.y !== undefined && Math.hypot((g.players[this.localIndex] ?? g.player).x - q.x, (g.players[this.localIndex] ?? g.player).y - q.y) < 300) this.hud.whisper('This train terminates here', 'The Midnight Line goes no further tonight.', 4);
-        // no timetable yet (D-95): the guard won't, and says what's wanted, to whoever is in the tender
-        if (q.a === WHISTLE.locked && q.x !== undefined && q.y !== undefined && Math.hypot((g.players[this.localIndex] ?? g.player).x - q.x, (g.players[this.localIndex] ?? g.player).y - q.y) < 300) {
-          let found = 0;
-          for (let m = ch?.pages ?? 0; m; m &= m - 1) found++;
-          say(LT_TEXT.whistleLocked(ch?.stage ?? 0, found), 6);
-        }
         break;
       case 'gt_phantom_open':
         this.hud.banner('THE DOORS HAVE OPENED', 'On every platform, a door stands open to the End of the Line', 'danger', 4);
@@ -1717,6 +1710,8 @@ export class App {
     const beforeChars = CHARACTERS.filter((c) => s.characterRequirementMet(c.id)).map((c) => c.id);
     const beforeUnlocks = UNLOCKS.filter((u) => s.unlockRequirementMet(u.id)).map((u) => u.id);
     const beforeCurse = s.curseAvailable();
+    const hubBefore = s.hubUnlocked();
+    const weaponsBefore = new Set(s.data.unlocks);
     // the world tiers (D-97), judged on what this save had open when the night began (before its achievements)
     const tierRes = this.tierProgress(st);
     const earned = s.grantAchievements([...st.achievementsHit, ...tierRes.hits]);
@@ -1725,6 +1720,14 @@ export class App {
     for (const u of UNLOCKS) if (u.req && !beforeUnlocks.includes(u.id) && s.unlockRequirementMet(u.id)) notes.push(`${u.name} can now be bought in the Lost & Found!`);
     if (!beforeCurse && s.curseAvailable()) notes.push('The Curse can now be toggled at character select.');
     if (st.achievementsHit.includes('beat_ringmaster') && earned.some((a) => a.id === 'beat_ringmaster')) notes.push('Endless "Lock-In" unlocked — choose to stay after dawn.');
+    // a map's final boss gives its weapon (D-98)
+    for (const ids of Object.values(BOSS_UNLOCKS)) for (const id of ids) {
+      if (weaponsBefore.has(id) || !s.data.unlocks.includes(id)) continue;
+      const w = Object.values(WEAPONS).find((d) => d.unlock === id);
+      if (w) notes.push(`${w.name} now appears in the draft pool, the night's own prize.`);
+    }
+    // the first dawn opens the Midway (D-98: it waited for the Last Song)
+    if (!hubBefore && s.hubUnlocked()) this.hubJustUnlocked = true;
     s.save();
     // a guest's host learns at once whom the next night counts for
     if (tierRes.changed && this.net?.role === 'guest') this.net.guest.sendProfile(this.guestProfile(this.net.guest.profile.name));
@@ -1740,7 +1743,8 @@ export class App {
       this.screenEl?.remove();
       this.state = 'results';
       this.hud.root.classList.add('under');
-      if (st.trueEnding) notes.unshift(st.map === 'fun_house' ? "Mira's Hand Mirror now appears in the draft pool (and evolves the Funhouse Mirror)." : st.map === 'boardwalk' ? "Ada's Conch and Running Shoes now appear in the draft pool." : 'The Steam Calliope now plays in the draft pool.');
+      // the hidden quest's passive: the one that evolves the map's weapon (D-98)
+      if (st.trueEnding) notes.unshift(st.map === 'fun_house' ? "Mira's Hand Mirror now appears in the draft pool (it evolves the Funhouse Mirror)." : st.map === 'boardwalk' ? "Running Shoes (they evolve the Undertow) and Ada's Conch now appear in the draft pool." : st.map === 'ghost_train' ? "The Conductor's Watch now appears in the draft pool (it evolves the Night Express Whistle)." : "The Calliope's Score now appears in the draft pool (it evolves the Steam Calliope).");
       if (this.hubJustUnlocked) {
         notes.unshift('THE MIDWAY IS YOURS: from now on the carnival opens as your hub. Walk the grounds, visit the cast, and enter the Big Top for another night.');
         this.hubJustUnlocked = false;

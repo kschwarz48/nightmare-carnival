@@ -67,9 +67,6 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'w_cannon', name: 'Carnival Cannon', desc: 'Adds the Carnival Cannon to the draft pool.', cost: 600, kind: 'weapon', ref: 'cannon' },
   { id: 'w_laser', name: 'Laser Light Show', desc: 'Adds the Laser Light Show to the draft pool.', cost: 750, kind: 'weapon', ref: 'laser' },
   { id: 'w_bell', name: 'Strongman Bell', desc: 'Adds the Strongman Bell to the draft pool.', cost: 750, kind: 'weapon', ref: 'bell' },
-  { id: 'w_mirror', name: 'Funhouse Mirror', desc: 'Adds the Funhouse Mirror to the draft pool.', cost: 1000, kind: 'weapon', ref: 'mirror' },
-  // D-78: the Commodore's coaster car, sold once the Boardwalk has been survived (no hidden quest needed)
-  { id: 'w_undertow', name: 'The Undertow', desc: "Adds the Undertow, the Boardwalk's coaster car, to the draft pool.", cost: 2000, kind: 'weapon', ref: 'bumper', req: 'beat_leviathan', reqText: 'Defeat the Leviathan' },
   { id: 'p_season_pass', name: 'Season Pass', desc: 'Adds Season Pass (+XP) to the draft pool.', cost: 500, kind: 'passive', ref: 'season_pass' },
   { id: 'p_coin_purse', name: 'Coin Purse', desc: 'Adds Coin Purse (+Greed) to the draft pool.', cost: 600, kind: 'passive', ref: 'coin_purse' },
   { id: 'p_rabbits_foot', name: "Rabbit's Foot", desc: "Adds Rabbit's Foot (+Revive) to the draft pool.", cost: 1500, kind: 'passive', ref: 'rabbits_foot' },
@@ -85,11 +82,17 @@ export const UNLOCKS: UnlockDef[] = [
 ];
 
 /** Unlocks that are never sold — earned only through discovery (each map's hidden quest); never in a Daily Run. */
-export const SECRET_UNLOCKS = ['w_calliope', 'p_hand_mirror', 'p_ada_conch'];
-/** Never sold either, but no secret (D-78): Running Shoes, the Undertow's partner, for beating the Commodore. */
-export const EARNED_UNLOCKS = ['p_running_shoes'];
-/** Which hidden quest grants which of them (Summer's End is completed by beating the Commodore). */
-export const QUEST_UNLOCKS: Record<string, string[]> = { last_song: ['w_calliope'], unreflected: ['p_hand_mirror'], summers_end: ['p_ada_conch', 'p_running_shoes'] };
+export const SECRET_UNLOCKS = ['p_last_song', 'p_hand_mirror', 'p_ada_conch', 'p_conductor_watch'];
+/** Never sold either, but no secret: each map's weapon, for seeing its dawn (D-98; the Calliope was the Last Song's, the
+ *  Funhouse Mirror and the Undertow were sold), and Running Shoes, for beating the Commodore (D-78). */
+export const EARNED_UNLOCKS = ['p_running_shoes', 'w_calliope', 'w_mirror', 'w_undertow', 'w_whistle'];
+/**
+ * What each map gives (D-98): its final boss, beaten at a standard dawn, a weapon; its hidden quest the passive that evolves
+ * that weapon (the Last Song: the Calliope's Score; the Unreflected: Mira's Hand Mirror; Summer's End: Running Shoes,
+ * with Ada's Conch kept; the Last Train Home: the Conductor's Watch). No hidden quest gates a map, the Midway or the train.
+ */
+export const BOSS_UNLOCKS: Record<string, string[]> = { beat_ringmaster: ['w_calliope'], beat_proprietor: ['w_mirror'], beat_leviathan: ['w_undertow'], beat_night_express: ['w_whistle'] };
+export const QUEST_UNLOCKS: Record<string, string[]> = { last_song: ['p_last_song'], unreflected: ['p_hand_mirror'], summers_end: ['p_ada_conch', 'p_running_shoes'], last_train: ['p_conductor_watch'] };
 
 export interface AchievementDef {
   id: string;

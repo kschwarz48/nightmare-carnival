@@ -45,15 +45,8 @@ export const LT_TEXT = {
   page: (n: number) => [`A torn page of a timetable (${n} of 4).`, n === 4 ? 'The timetable is whole again.' : 'The rest are in the other compartments.'],
   pagesDone: [
     'The timetable is whole: THE LAST TRAIN HOME, calling at Saint Vesper\'s, the Cinder Works and Stillwater once each station\'s clock keeps time.',
-    'Get every station\'s clock going: look at each one to see what it needs. The guard will give the whistle now (the cord is in the tender).',
+    'Get every station\'s clock going: look at each one to see what it needs.',
   ],
-  /** the whistle cord before the timetable is mended (D-95: the train waits for it), by the quest's stage */
-  whistleLocked: (stage: number, pages: number) =>
-    stage <= 1
-      ? ['The guard won\'t give the whistle: this train has no timetable, and every clock on the line has stopped.', 'Start with the Junction\'s clock.']
-      : stage === 2
-        ? ['The guard won\'t give the whistle until the Junction\'s clock keeps time.', 'Wind it with the brass key while the train is in.']
-        : ['The guard won\'t give the whistle without the timetable.', `Its torn pages are in the sleeper's compartments (${pages} of 4 found); the sleeper is the second car from the back.`],
   /** what a stopped clock says it needs, by station and step (the key's carrier winds it once its trouble is mended) */
   trouble: [
     [],

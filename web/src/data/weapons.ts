@@ -5,7 +5,9 @@ export type WeaponKind =
   | 'cards' | 'mallet' | 'tarot' | 'bumper' | 'plush' | 'tophat' | 'popcorn' | 'darts' | 'fireworks'
   | 'cotton' | 'rings' | 'cannon' | 'snowcone' | 'grill' | 'laser' | 'orbs' | 'bell' | 'mirror' | 'calliope'
   // the world tiers' (D-97)
-  | 'lantern' | 'chains' | 'breath';
+  | 'lantern' | 'chains' | 'breath'
+  // the Night Express's (D-98)
+  | 'whistle';
 
 export type Archetype = 'crit' | 'aoe' | 'dot' | 'orbit' | 'summon' | 'mobility';
 
@@ -299,13 +301,23 @@ export const WEAPONS: Record<string, WeaponDef> = {
     lore: 'In the funhouse there are two of you. Only one of you is scared.',
   }),
 
+  // D-98: the Night Express's, for seeing the Ghost Train's dawn (its partner is the Last Train Home's watch)
+  steam_whistle: W({
+    id: 'steam_whistle', name: 'Night Express Whistle', kind: 'whistle', unlock: 'w_whistle',
+    desc: 'A shriek of steam: a ring of scalding vapour rolls out from you, shoving the crowd back and scalding all it passes.',
+    levelText: ['', '', '+3 damage', '+12% reach, −0.2s cooldown', '+4 damage', '+12% reach, a second ring', '+4 damage, −0.2s cooldown', '+12% reach, −0.2s cooldown', '+5 damage'],
+    damage: 16, cooldown: 2.8, area: 1, amount: 1, speed: 1, pierce: 0, duration: 0.5, knockback: 1.5,
+    lv: { dmg: [0, 3, 0, 4, 0, 4, 0, 5], cd: [0, 0, -0.2, 0, 0, -0.2, -0.2, 0], area: [0, 0, 0.12, 0, 0.12, 0, 0.12, 0], amount: [0, 0, 0, 0, 1, 0, 0, 0] },
+    maxLevel: 8, evolvesTo: 'last_call', evoPassive: 'conductor_watch', archetypes: ['aoe'], aimable: false, weight: 0.9,
+    lore: 'Pulled from the Night Express as it went into the dark. It still screams for the last train.',
+  }),
   steam_calliope: W({
     id: 'steam_calliope', name: 'Steam Calliope', kind: 'calliope', unlock: 'w_calliope',
     desc: 'A tiny haunted organ plays spiralling notes that drift outward through the crowd.',
     levelText: ['', '', '+2 notes', '+3 damage', '−0.25s cooldown', '+2 notes, +1 pierce', '+4 damage', '−0.25s cooldown', '+2 notes, +5 damage'],
     damage: 9, cooldown: 2.2, area: 1, amount: 6, speed: 230, pierce: 1, duration: 1.8, knockback: 0.4,
     lv: { dmg: [0, 0, 3, 0, 0, 4, 0, 5], cd: [0, 0, 0, -0.25, 0, 0, -0.25, 0], area: Z8, amount: [0, 2, 0, 0, 2, 0, 0, 2], pierce: [0, 0, 0, 0, 1, 0, 0, 0] },
-    maxLevel: 8, evolvesTo: 'grand_requiem', evoPassive: 'magnet_glove', archetypes: ['aoe', 'dot'], aimable: false, weight: 0.9,
+    maxLevel: 8, evolvesTo: 'grand_requiem', evoPassive: 'last_song_score', archetypes: ['aoe', 'dot'], aimable: false, weight: 0.9,
     lore: 'Pulled from the Big Top ruins at dawn. It still knows the last song.',
   }),
 
@@ -412,6 +424,12 @@ export const WEAPONS: Record<string, WeaponDef> = {
     damage: 30, cooldown: 1.2, area: 1.6, amount: 5, speed: 1, pierce: 0, duration: 2, knockback: 0.5,
     archetypes: ['crit'], aimable: false, lore: 'Every soul in the jar pulls on it.',
   }, 'dndcdnD', 'link'),
+  last_call: EVO({
+    id: 'last_call', name: 'Last Call', kind: 'whistle', evolvedFrom: 'steam_whistle',
+    desc: 'The whistle screams three times over: ring after ring of scalding steam rolls out through the crowd.',
+    damage: 34, cooldown: 2.0, area: 1.55, amount: 3, speed: 1, pierce: 0, duration: 0.55, knockback: 1.8,
+    archetypes: ['aoe'], aimable: false, lore: 'All aboard. Nobody else is getting off.',
+  }, 'dacdadD', 'ring'),
   hellmouth: EVO({
     id: 'hellmouth', name: 'Hellmouth', kind: 'breath', evolvedFrom: 'breath',
     desc: 'Fire pours from you without end, front and back, and every burning thing bursts.',
@@ -493,6 +511,9 @@ export const PASSIVES: Record<string, PassiveDef> = {
   soul_jar: P({ id: 'soul_jar', name: 'Soul Jar', desc: 'Every 40 kills (fewer each level) the jar breaks in a spectral blast around you', effects: [{ axis: 'soulJar', perLevel: flat(1) }], maxLevel: 5, unlock: 'p_soul_jar', weight: 0.8, lore: 'Corked with wax from the Widow\'s candles. It fills on its own.' }),
   brimstone: P({ id: 'brimstone', name: 'Brimstone', desc: 'Hits may set creatures alight (+4% chance per level); burning creatures burst when they die', effects: [{ axis: 'brimstone', perLevel: flat(1) }], maxLevel: 5, unlock: 'p_brimstone', weight: 0.8, lore: 'A lump of something from under the Infernal Carnival. It never cools.' }),
   cinder_heart: P({ id: 'cinder_heart', name: 'Cinder Heart', desc: 'Burning creatures near you heal you a little (more each level)', effects: [{ axis: 'cinderHeart', perLevel: flat(1) }], maxLevel: 5, unlock: 'p_cinder_heart', weight: 0.8, lore: 'It beats warmer the closer the fire comes.' }),
+  // D-98: each map's hidden quest gives the passive that evolves the weapon its final boss gives
+  last_song_score: P({ id: 'last_song_score', name: "The Calliope's Score", desc: '+8% Duration and +4% Might', effects: [{ axis: 'duration', perLevel: flat(0.08) }, { axis: 'might', perLevel: flat(0.04) }], maxLevel: 5, unlock: 'p_last_song', weight: 0.8, lore: 'Every note of the Last Song, in a dead bandmaster\'s hand. The calliope plays it louder.' }),
+  conductor_watch: P({ id: 'conductor_watch', name: "The Conductor's Watch", desc: '−5% weapon cooldowns and +3% Move speed', effects: [{ axis: 'cooldown', perLevel: flat(0.05) }, { axis: 'moveSpeed', perLevel: flat(0.03) }], maxLevel: 5, unlock: 'p_conductor_watch', weight: 0.8, lore: 'Stopped at a quarter past the last train. Wind it, and the night keeps your time.' }),
   ada_conch: P({ id: 'ada_conch', name: "Ada's Conch", desc: '+12% Pickup radius and +0.25 HP regen per second', effects: [{ axis: 'pickup', perLevel: flat(0.12) }, { axis: 'regen', perLevel: flat(0.25) }], maxLevel: 5, unlock: 'p_ada_conch', weight: 0.8, lore: 'Hold it to your ear. Somebody on the other side is humming a song from 1933.' }),
   rabbits_foot: P({ id: 'rabbits_foot', name: "Rabbit's Foot", desc: '+1 Revive', effects: [{ axis: 'revive', perLevel: [1, 1] }], maxLevel: 2, unlock: 'p_rabbits_foot', weight: 0.35, lore: 'Lucky for you. Less so for the rabbit from the hat.' }),
 };

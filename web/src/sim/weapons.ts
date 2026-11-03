@@ -246,6 +246,7 @@ export class Weapons {
         case 'lantern': this.lantern(w, dt); break;
         case 'chains': this.chains(w, dt); break;
         case 'breath': this.breath(w, dt); break;
+        case 'whistle': this.whistle(w, dt); break;
       }
     }
   }
@@ -970,6 +971,47 @@ export class Weapons {
         this.hit(w, t, this.damage(w), p.x, p.y, 0.2);
         if (!t.isBoss) ignite(t as Enemy, 3, 6 * st.might, w.def.id, p.index);
       });
+    }
+  }
+
+  // ---------------------------------------------------------------- the Night Express Whistle (D-98)
+  /** How far the whistle's ring rolls out. */
+  whistleReach(w: WeaponInst): number {
+    return 230 * this.area(w);
+  }
+
+  /** A shriek of steam: a ring rolls out from you, shoving back and scalding what it passes (Last Call: ring after ring). */
+  private whistle(w: WeaponInst, dt: number): void {
+    if (!w.active) {
+      if (!this.ready(w, dt)) return;
+      w.active = true;
+      w.activeT = 0;
+      w.n = 0;
+      w.orbHits[0] = new HitTracker();
+      this.sfx('gt_whistle', 0.3);
+    }
+    w.activeT += dt;
+    const life = this.duration(w), R = this.whistleReach(w);
+    const r = 24 + (R - 24) * Math.min(1, w.activeT / life);
+    // the ring's radius rides the weapon's replicated angle, so a guest draws it where it is
+    w.angle = r;
+    const p = this.g.player, ht = w.orbHits[0], st = p.stats;
+    this.g.forEachTargetInCircle(p.x, p.y, r + 12, (t) => {
+      if (Math.hypot(t.x - p.x, t.y - p.y) < r - 40 - t.r) return;
+      if (ht.recent(t.uid, this.g.realTime, 99)) return;
+      ht.mark(t.uid, this.g.realTime);
+      this.hit(w, t, this.damage(w), p.x, p.y, 1);
+      if (!t.isBoss) ignite(t as Enemy, 2, 5 * st.might, w.def.id, p.index);
+    });
+    if (w.activeT >= life) {
+      if (++w.n < this.amount(w)) {
+        w.activeT = 0;
+        w.orbHits[0] = new HitTracker();
+      } else {
+        w.active = false;
+        w.angle = 0;
+        w.cd = this.cooldown(w);
+      }
     }
   }
 

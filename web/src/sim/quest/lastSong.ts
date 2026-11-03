@@ -1,12 +1,12 @@
 // "The Last Song" — the Carnival Core's hidden quest chain (solution: docs/EASTER_EGG_SOLUTION.md).
 //
 //   0 DORMANT   Zoltana the fortune automaton sits dark beside Madame Zelda's caravan.
-//   1 SOULS     Walking up to her wakes four cold "ghost lamps"; kills near a lamp feed it souls.
+//   1 SOULS     Using her (interact: E, or A on a pad, D-98) wakes four cold "ghost lamps"; kills near a lamp feed it souls.
 //   2 MELODY    All four lit → the dead carousel lurches into motion and its music box plays the
 //               lamps' notes in a per-run order (also painted on the canopy, starting at the brass
-//               skull). Touch the lamps in that order.
-//   3 CALLING   Song complete → Zoltana calls; visiting her prints the next fortune.
-//   4 STRIKER   Ring the High Striker three times by stepping on its pad as the puck light peaks.
+//               skull). Touch the lamps (interact) in that order.
+//   3 CALLING   Song complete → Zoltana calls; asking her prints the next fortune.
+//   4 STRIKER   Ring the High Striker three times: strike it (interact, on its pad) as the puck light peaks.
 //   5 CARRYING  A Ghost Ticket follows the player. Defeat the Ringmaster while carrying it…
 //   6 FINALE    …and the dawn is refused: the Calliope rises from the Big Top ruins.
 //   7 COMPLETE  Defeat the Calliope → True Dawn, permanent unlock, achievement.
@@ -34,10 +34,8 @@ export class LastSongChain extends QuestChain {
   carrying = false;
   finaleT = -1;
   musicT = 0;
-  /** Edge-trigger state per player (co-op shares the chain; any standing player can act, D-51). */
-  private inside: boolean[][] = [];
-  private padInside: boolean[] = [];
-  private machineInside: boolean[] = [];
+  /** Seconds before the same thing answers another press (a held or mashed key never double-counts; D-98). */
+  private cool = new Map<string, number>();
   private idleIdx = 0;
 
   init(): void {
@@ -61,42 +59,47 @@ export class LastSongChain extends QuestChain {
     return this.strikerHeight() >= 1 - LAST_SONG.striker.window;
   }
 
+  /**
+   * What a player standing at (x, y) could use with interact right now (D-98: the first map answers E like the others;
+   * it was walk-up): Zoltana, a lit ghost lamp, the High Striker's pad. The HUD shows its prompt.
+   */
+  interaction(x: number, y: number): { kind: 'zoltana' | 'lamp' | 'striker'; i: number; x: number; y: number; label: string } | null {
+    if (this.stage === LS.Finale) return null;
+    const m = LAST_SONG.machine, s = LAST_SONG.striker;
+    let best: { kind: 'zoltana' | 'lamp' | 'striker'; i: number; x: number; y: number; label: string } | null = null, bd = Infinity;
+    const offer = (kind: 'zoltana' | 'lamp' | 'striker', i: number, px: number, py: number, reach: number, label: string) => {
+      const d = dist2(x, y, px, py);
+      if (d < reach * reach && d < bd) {
+        bd = d;
+        best = { kind, i, x: px, y: py, label };
+      }
+    };
+    offer('zoltana', 0, m.x, m.y, m.r, this.stage === LS.Dormant ? 'Look into the fortune booth' : 'Ask Zoltana');
+    for (let i = 0; i < 4; i++) {
+      if (!this.lit[i]) continue;
+      const l = LAST_SONG.lamps[i];
+      if (this.stage < LS.Melody) offer('lamp', i, l.x, l.y, LAST_SONG.touchRadius, 'Listen to the lamp');
+      else if (this.stage === LS.Melody && !this.played(i)) offer('lamp', i, l.x, l.y, LAST_SONG.touchRadius, 'Touch the ghost lamp');
+    }
+    offer('striker', 0, s.padX, s.padY, s.padR + 12, this.stage === LS.Striker ? 'Strike the bell when the light is at the top' : 'Ring the High Striker');
+    return best;
+  }
+
   update(dt: number): void {
     const g = this.g;
     if (g.phase !== 'play') return;
+    for (const [k, t] of this.cool) if (t - dt <= 0) this.cool.delete(k); else this.cool.set(k, t - dt);
+    // presses: each player who pressed interact uses the nearest thing in reach (co-op shares the chain, D-51)
     for (const p of g.players) {
-      if (p.dead || p.downed) continue;
-      const k = p.index;
-      this.inside[k] ??= [false, false, false, false];
-      // Zoltana (edge-triggered so standing still never spams)
-      const m = LAST_SONG.machine;
-      const dm = dist2(p.x, p.y, m.x, m.y);
-      if (dm < m.r * m.r) {
-        if (!this.machineInside[k]) {
-          this.machineInside[k] = true;
-          this.onMachine();
-        }
-      } else if (dm > (m.r + 70) ** 2) this.machineInside[k] = false;
-      // lamps
-      for (let i = 0; i < 4; i++) {
-        const l = LAST_SONG.lamps[i];
-        const d = dist2(p.x, p.y, l.x, l.y);
-        if (d < LAST_SONG.touchRadius ** 2) {
-          if (!this.inside[k][i]) {
-            this.inside[k][i] = true;
-            this.onTouchLamp(i);
-          }
-        } else if (d > (LAST_SONG.touchRadius + 45) ** 2) this.inside[k][i] = false;
-      }
-      // High Striker pad
-      const s = LAST_SONG.striker;
-      const dp = dist2(p.x, p.y, s.padX, s.padY);
-      if (dp < s.padR * s.padR) {
-        if (!this.padInside[k]) {
-          this.padInside[k] = true;
-          this.onPad();
-        }
-      } else if (dp > s.rearm * s.rearm) this.padInside[k] = false;
+      if (p.dead || p.downed || !g.inputs[p.index]?.interact) continue;
+      const it = this.interaction(p.x, p.y) as { kind: 'zoltana' | 'lamp' | 'striker'; i: number } | null;
+      if (!it) continue;
+      const key = `${it.kind}${it.i}`;
+      if (this.cool.has(key)) continue;
+      this.cool.set(key, it.kind === 'striker' ? 0.35 : 0.3);
+      if (it.kind === 'zoltana') this.onMachine();
+      else if (it.kind === 'lamp') this.onTouchLamp(it.i);
+      else this.onPad();
     }
     // the carousel's music box gives away the order once it has woken
     if (this.stage >= LS.Melody && this.stage < LS.Finale) {

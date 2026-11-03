@@ -6,9 +6,8 @@
 import { E, REGIONS, TRANSIT, regionAt, type TrainState } from '../data/ghosttrain';
 import { h } from './dom';
 
-/** The line's state in words for a player standing at (x, y); `locked`: the guard won't whistle the train out yet
- *  (the hidden quest's timetable isn't mended, D-95). */
-export function lineText(st: TrainState, x: number, y: number, locked = false): { text: string; urgent: boolean } | null {
+/** The line's state in words for a player standing at (x, y). */
+export function lineText(st: TrainState, x: number, y: number): { text: string; urgent: boolean } | null {
   const here = regionAt(x, y);
   if (here < 0) return null;
   const name = (r: number) => REGIONS[r].short;
@@ -21,7 +20,6 @@ export function lineText(st: TrainState, x: number, y: number, locked = false): 
     if (st.terminated) return { text: `${name(here)} · this train terminates here`, urgent: false };
     if (Number.isFinite(st.departIn)) return { text: `${name(here)} → ${name(st.to)} · ALL ABOARD`, urgent: true };
     if (!st.doors) return { text: `${name(here)} → ${name(st.to)} · doors opening`, urgent: false };
-    if (locked) return { text: `${name(here)} · the guard won't whistle her out without a timetable`, urgent: false };
     return { text: `${name(here)} → ${name(st.to)} · pull the whistle cord in the tender to depart`, urgent: false };
   }
   if (st.phase === 'approach') return { text: 'the train is coming in', urgent: false };

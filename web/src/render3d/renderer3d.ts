@@ -1678,6 +1678,16 @@ export class GameRenderer3D {
           this.fxAdd.draw(glowF, px + cx * 22, py + cy * 22, 40, 0.5, 0.5, 0, c[0], c[1], c[2], 0.6);
           if (op > 0) pool.add(px + cx * L * 0.6, py + cy * L * 0.6, 170, 0.45 * op, c[0], c[1], c[2], 40, 1.5);
         }
+      } else if (k === 'whistle' && w.active && w.angle > 0) {
+        // the Night Express Whistle (D-98): a rolling ring of white steam, puffs billowing along it
+        const R = w.angle, f = Math.min(1, R / Math.max(1, g.weapons.whistleReach(w)));
+        const fade = 1 - f * 0.65;
+        A.ring(px, py, Math.max(0, R - 22), R + 4, 0.94, 0.96, 1, 0.24 * fade * op, 0);
+        A.ring(px, py, Math.max(0, R - 8), R + 2, 1, 1, 1, 0.36 * fade * op, 0.2);
+        for (let j = 0; j < 14; j++) {
+          const a = (j / 14) * Math.PI * 2 + R * 0.004;
+          this.fxAdd.draw(glowF, px + Math.cos(a) * R, py + Math.sin(a) * R, 22, 0.55 + 0.25 * f, 0.55 + 0.25 * f, 0, 0.9, 0.92, 0.96, 0.28 * fade * op);
+        }
       } else if (k === 'breath' && w.active) {
         // a fan of flame tongues that flicker, hottest at the mouth
         const { half, L } = g.weapons.breathCone(w);

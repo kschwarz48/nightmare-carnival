@@ -15,7 +15,7 @@ const KIND_COL: Record<WeaponKind, string> = {
   cards: '#e04a4e', mallet: '#d8893a', tarot: '#9d6bff', bumper: '#3fb8c8', plush: '#ff7cc0', tophat: '#8a70d8',
   popcorn: '#e8c43e', darts: '#ff6f8e', fireworks: '#f05ad2', cotton: '#ff9ccf', rings: '#f2b84e', cannon: '#8fa4b8',
   snowcone: '#6cc8f4', grill: '#ff7a3a', laser: '#4fe08a', orbs: '#b38aff', bell: '#c8a050', mirror: '#9fd8e8', calliope: '#d8a860',
-  lantern: '#ffe08a', chains: '#8fd3ff', breath: '#ff6a3a',
+  lantern: '#ffe08a', chains: '#8fd3ff', breath: '#ff6a3a', whistle: '#e6e2d6',
 };
 /** What isn't a weapon's: its name, colour and icon. */
 const OTHER: Record<string, { name: string; col: string; icon: (a: Assets) => string }> = {

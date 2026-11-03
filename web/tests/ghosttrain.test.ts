@@ -794,22 +794,18 @@ describe('the timetable first, shared things, and the crowd kept to its place (D
     expect(ch.stage).toBe(LT.Key);
   });
 
-  it("won't be whistled out of a station until the timetable's pages are gathered, and says what's wanted", () => {
-    const g = gt();
-    noBosses(g);
-    const ch = chainOf(g);
-    at(g, 60);
-    const cues: number[] = [];
-    g.bus.on('quest', (q) => q.event === 'gt_whistle' && cues.push(q.a ?? -1));
-    for (const stage of [LT.Ticket, LT.Key, LT.Junction, LT.Pages]) {
-      ch.stage = stage;
+  it('goes at the whistle whatever the hidden quest has reached (D-98: it gates nothing; D-95 had it wait for the pages)', () => {
+    for (const stage of [LT.Ticket, LT.Key, LT.Junction, LT.Pages, LT.Stations]) {
+      const g = gt();
+      noBosses(g);
+      chainOf(g).stage = stage;
+      at(g, 60);
+      const cues: number[] = [];
+      g.bus.on('quest', (q) => q.event === 'gt_whistle' && cues.push(q.a ?? -1));
       press(g, cord(J).x, cord(J).y);
-      expect(trainNow(g).departIn).toBe(Infinity);
+      expect(trainNow(g).departIn).toBeLessThanOrEqual(WHISTLE_LEAD);
+      expect(cues).toEqual([WHISTLE.go]);
     }
-    expect(cues.filter((a) => a === WHISTLE.locked).length).toBe(4);
-    ch.stage = LT.Stations;
-    press(g, cord(J).x, cord(J).y);
-    expect(trainNow(g).departIn).toBeLessThanOrEqual(WHISTLE_LEAD);
   });
 
   it('shares the key, the pendulum and the battery with the whole party', () => {

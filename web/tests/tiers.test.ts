@@ -36,7 +36,7 @@ describe('save v6: the world-tier migration', () => {
   it('a fresh v5 save gets Normal only, no wins, no ceremonies seen', () => {
     const d = migrate(v5([]));
     expect(d.version).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(6);
+    expect(SAVE_VERSION).toBe(7);
     expect(d.tiers).toEqual({ unlocked: ['normal'], wins: { normal: {}, nightmare: {}, hell: {} }, seen: [] });
     expect(d.last.tier).toBe('normal');
   });
@@ -71,7 +71,8 @@ describe('save v6: the world-tier migration', () => {
     expect(d.lostTickets).toBe(4321);
     expect(d.totalEarned).toBe(9876);
     expect(d.perks).toEqual({ might: 3, greed: 2 });
-    expect(d.unlocks).toEqual(['w_orbs', 'char_mira', 'w_calliope']);
+    // (D-98, on through v7: what its bosses give)
+    expect(d.unlocks).toEqual(['w_orbs', 'char_mira', 'w_calliope', 'w_mirror', 'w_undertow', 'w_whistle']);
     expect(d.achievements).toEqual(before.achievements);
     expect(d.pedia).toEqual(before.pedia);
     expect(d.stats).toEqual(before.stats);
@@ -97,7 +98,7 @@ describe('save v6: the world-tier migration', () => {
 
   it('runs the whole chain from a v1 (Godot-era) save', () => {
     const d = migrate({ lost_tickets: 77, unlocks: ['crystal_orbs'], perks: {}, pedia: [] });
-    expect(d.version).toBe(6);
+    expect(d.version).toBe(7);
     expect(d.lostTickets).toBeGreaterThanOrEqual(77);
     expect(d.tiers.unlocked).toEqual(['normal']);
   });
