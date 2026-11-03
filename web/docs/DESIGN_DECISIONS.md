@@ -2102,3 +2102,88 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   (under 810 px tall, where the UI's zoom stops shrinking) scrolls the screen instead of cutting its title off.
 - UI only.
 
+### D-103 · Weapon balance, identities, and the progression economy
+
+The full audit is in five reports: `WEAPON_BALANCE_AUDIT.md`, `WEAPON_IDENTITY_AND_EVOLUTIONS.md`,
+`LOST_AND_FOUND_ECONOMY.md`, `CAMPAIGN_PROGRESSION_AUDIT.md` and `BALANCE_PLAYTEST_GUIDE.md`.
+
+**Measured first.** A new bench, `scripts/bench/arsenal.ts`, measures every weapon at Lv 1, 4 and 8, at Evo Lv 1, and
+at Evo Lv 8 with a late kit:
+
+- **Fights:** a boss, an elite, a durable group, a swarm, runners, a mixed crowd, and the real Carnival Core night.
+- **Metrics:** useful damage (no overkill), overkill, uptime, kills and hits taken.
+- **Mixed builds:** counterfactuals of A alone, B alone and A+B.
+
+D-74's bench had two traps, both fixed, and the baseline was rerun on the old code:
+
+- Its pilot didn't aim, so "where you face" weapons read near zero.
+- Its controlled fights let level-up drafts add weapons mid-fight.
+
+**The outliers it found:**
+
+- **Weak everywhere:** Spirit Chains (0.16–0.40 of the median weapon); the Steam Calliope until evolved (0.21).
+- **Weak evolutions:** the Lantern's and Fire Breath's (0.34–0.60); the Whistle's (no boss damage).
+- **Overtuned:** the Grill at Lv 1 (2.97), Ring Toss at Lv 8 (2.08), the Death Card (1.84) and the High Striker (1.63)
+  at Evo Lv 8.
+- **The Crystal Orbs problem was opportunity, not raw damage.** Beside long-range weapons, Cosmic did 10–13% of a
+  pair's useful damage on the night.
+
+**New shapes.** Five lines attacked like their neighbours, and they got distinct patterns built from pieces that
+already replicate to guests (no protocol change):
+
+- **Whack-a-Mole Mallet:** targeted whacks in turn that daze. Whack Frenzy adds a ground-pound.
+- **Snow-Cone Machine:** lobbed cones that leave chilling, freezing slush. Blizzard sends roaming snowstorms that hunt
+  the crowd near you.
+- **Hot-Dog Grill:** a burning grease trail. Inferno Grill makes it hotter and adds rolling flame waves.
+- **Strongman Bell:** fissures. High Striker splits a turning star of them, with bells and jackpots at the tips.
+- **Crystal Orbs:** keep their orbit, but it swells outward once a turn, and the orbs grind harder on what stays in
+  them. Cosmic's gravity pulse reaches further.
+
+**Tuned with the bench, mostly in 10–25% steps:**
+
+| Raised | Trimmed |
+|---|---|
+| Spirit Chains (faster, more links, gentler falloff) | Ring Toss, Mallet and Fireworks at Lv 8 |
+| the Calliope's base | the Cannon at Lv 1 |
+| the Last Light | the Death Card |
+| Hellmouth | Sharpshooter |
+| the Whistle's rings on bosses (×2.5) | Grand Requiem |
+| Cosmic, Inferno, Laser, Undertow, Plush, Darts, the Menageries | |
+
+Sticky Situation was tried lower and kept as it was. With less damage its webs hold the crowd alive at the population
+cap, and its real-night kills collapsed (357 → 60 a minute).
+
+**After:** at Lv 8 every weapon sits in 0.58–1.42 of the median, against 0.20–2.08 before. The documented exceptions
+are the single-target specialists, the Whistle's control role, and the early Calliope. Spirit Chains' share beside cards
+went from 32% to 64%. Cosmic's night kills alone went from 72 to 409 per minute, and adding it beside the Whistle or the
+Lantern now multiplies the night's kills.
+
+**The Lost & Found.** The Nightmare and Hell shelves sold only conditional perks. The model
+(`scripts/progression_model.ts`) shows the gap: a player with everything bought stayed below a fresh Normal player
+against Hell, at 0.85–0.88 power.
+
+- **New core-stat ranks.** Nightmare: Phantom Knuckles (+4% Might ×5), Stopped Watch (−3% cooldowns ×4), Grave Broth
+  (+5% Max HP ×3). Hell: Infernal Knuckles (+4% Might ×5), Bellows (+5% Area ×4), Hellhide (+1 Armor ×2).
+- **Cheaper growth** for Unfinished Business and Infernal Resilience: 1.7 → 1.55.
+- **Higher-tier nights pay more:** Greed +75% on Nightmare and +150% on Hell (from +50% and +100%).
+- **Eight new one-time achievements** for a map's hidden quest solved again on Nightmare (1,200–1,500 LT) or Hell
+  (2,000–2,500 LT). They fill the tiers' reward deserts without gating anything.
+
+| State | Power before | Power after |
+|---|---:|---:|
+| Nightmare, fully upgraded | 1.11 | 1.31 |
+| Hell, fully upgraded | 0.85–0.88 | 1.16–1.20 |
+| Fresh guest on Nightmare | 0.76 | 0.76 |
+| Fresh guest on Hell | 0.55 | 0.55 |
+
+Bot nights after D-103: bots bought up to the tier win Nightmare and Hell; fresh and half-upgraded bots fall within 13
+minutes.
+
+**Fixed along the way.** A guest's perks went over the wire per perk, and the profile cleaner kept one entry per stat,
+so a guest's tier Might would have been dropped. The save now merges its bonuses per stat, and the clamp sums every
+perk on a stat.
+
+**Compatibility.** No requirement moved and no id was removed, so saves need no migration. The new perks start at rank
+0. PROTO stays 22: the new zone kinds, effect types and projectile kind travel by name. The weapons' behaviour changes
+the sim fingerprint, so mismatched builds are refused at join as before.
+

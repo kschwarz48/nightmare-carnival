@@ -315,7 +315,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     id: 'steam_calliope', name: 'Steam Calliope', kind: 'calliope', unlock: 'w_calliope',
     desc: 'A tiny haunted organ plays spiralling notes that drift outward through the crowd.',
     levelText: ['', '', '+2 notes', '+5 damage', '−0.25s cooldown', '+2 notes, +1 pierce', '+6 damage', '−0.25s cooldown', '+2 notes, +8 damage'],
-    damage: 17, cooldown: 1.8, area: 1, amount: 6, speed: 230, pierce: 1, duration: 1.8, knockback: 0.4,
+    damage: 19, cooldown: 1.8, area: 1, amount: 6, speed: 230, pierce: 1, duration: 1.8, knockback: 0.4,
     lv: { dmg: [0, 0, 5, 0, 0, 6, 0, 8], cd: [0, 0, 0, -0.25, 0, 0, -0.25, 0], area: Z8, amount: [0, 2, 0, 0, 2, 0, 0, 2], pierce: [0, 0, 0, 0, 1, 0, 0, 0] },
     maxLevel: 8, evolvesTo: 'grand_requiem', evoPassive: 'last_song_score', archetypes: ['aoe', 'dot'], aimable: false, weight: 0.9,
     lore: 'Pulled from the Big Top ruins at dawn. It still knows the last song.',
@@ -379,9 +379,9 @@ export const WEAPONS: Record<string, WeaponDef> = {
   sticky_situation: EVO({
     id: 'sticky_situation', name: 'Sticky Situation', kind: 'cotton', evolvedFrom: 'cotton',
     desc: 'Lays persistent candy-web fields under the crowd that bind and dissolve — the longer something stays stuck, the faster it melts.',
-    damage: 18, cooldown: 0.9, area: 1.3, amount: 2, speed: 0, pierce: 0, duration: 4.5, knockback: 0,
+    damage: 26, cooldown: 0.9, area: 1.3, amount: 2, speed: 0, pierce: 0, duration: 4.5, knockback: 0,
     archetypes: ['dot'], aimable: true, lore: 'You are stuck here. So are they. Only one of you is melting.',
-  }, 'dDdudDD', 'web'),
+  }, 'dadudaD', 'web'),
   saturn_rings: EVO({
     id: 'saturn_rings', name: "Saturn's Rings", kind: 'rings', evolvedFrom: 'rings',
     desc: 'Giant slow rings orbit you permanently, shredding everything they pass.',

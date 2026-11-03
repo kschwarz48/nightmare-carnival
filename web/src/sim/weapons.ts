@@ -62,6 +62,8 @@ const FISSURE_W = 30;
 const FISSURE_SEG = 4;
 /** the Crystal Orbs: how far the orbit swells out, the grind (per hit, most steps, and how soon the next must land) */
 const ORB_SWELL = 0.8;
+/** ...and Cosmic Convergence's (its gravity pulse already brings the crowd in: a wide swell sweeps past what hugs you) */
+const COSMIC_SWELL = 0.35;
 const GRIND_STEP = 0.25;
 const GRIND_MAX = 4;
 const GRIND_WINDOW = 1.2;
@@ -70,7 +72,7 @@ const CHAIN_FALLOFF = 0.92;
 /** the Night Express Whistle's rings on a boss (which they can't shove) */
 const WHISTLE_SCALD = 2.5;
 /** Cosmic Convergence's gravity pulse reaches this far past the ring */
-const COSMIC_PULL = 420;
+const COSMIC_PULL = 360;
 /**
  * Mira's Glass Halo (D-78): an aura round each of her mirror clones (px, times her Area) that cuts every
  * enemy inside it once a second, for `dmg` + `perLevel` per mirror level past the first (times Might;
@@ -1323,11 +1325,12 @@ export class Weapons {
   }
 
   orbRadius(w: WeaponInst): number {
-    const r = w.def.id === 'cosmic_convergence' ? Math.min(260, 105 * this.area(w)) : Math.min(220, 100 * this.area(w));
+    const cosmic = w.def.id === 'cosmic_convergence';
+    const r = cosmic ? Math.min(260, 105 * this.area(w)) : Math.min(220, 100 * this.area(w));
     // (D-103) the orbit swells out once a turn and back, sweeping the ground beyond the ring: the orbs reached only what
     // came to you, and a long-range weapon beside them killed that first. From the angle, so a guest draws the same.
     const k = Math.sin(w.angle / 2);
-    return r * (1 + ORB_SWELL * k * k);
+    return r * (1 + (cosmic ? COSMIC_SWELL : ORB_SWELL) * k * k);
   }
 
   // ---- Strongman Bell (D-103): a slam splits the ground, and a fissure races out toward the nearest creature, bursting up

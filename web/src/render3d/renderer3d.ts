@@ -1042,8 +1042,8 @@ export class GameRenderer3D {
           break;
         case 'slush':
           // the Snow-Cone Machine's slush (D-103): a pale icy puddle with a frosted rim
-          S.circle(z.x, z.y, z.r, 0.82, 0.93, 1, 0.32 * fade, 0.14 * fade);
-          A.ring(z.x, z.y, z.r * 0.82, z.r, 0.6, 0.85, 1, 0.3 * fade, 0.3 * fade);
+          S.circle(z.x, z.y, z.r, 0.62, 0.84, 1, 0.16 * fade, 0.07 * fade);
+          A.ring(z.x, z.y, z.r * 0.86, z.r, 0.55, 0.82, 1, 0.24 * fade, 0.24 * fade);
           if (Math.random() < 0.08) this.fx.handle([{ type: 'spark', x: z.x + (Math.random() - 0.5) * z.r, y: z.y + (Math.random() - 0.5) * z.r, a: 1, b: 0, c: 0, style: 'ice', own: true }]);
           break;
         case 'storm': {
