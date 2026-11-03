@@ -1980,6 +1980,10 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   1.2; Hell 2.4 → 2.2, 1.6 → 1.5). Bot nights this noisy settle nothing finer: playtests next.
 - **Dev tools** (development builds only, never deployed): `__nc.tiers.show / unlock / lock / win / reset / play /
   ceremony`.
-- **Not done yet** (see the design doc's status): the new characters, weapons and passives; fires and apparitions
-  as props; the score's tier transforms; bespoke per-boss staging; balance across maps and party sizes; the
-  real-GPU benchmark on the tiers; a cross-network co-op night.
+- **New content:** the tiers' passives (Death's Door, the Soul Jar, Brimstone, Cinder Heart) and weapons (the
+  Watchman's Lantern, Spirit Chains, Fire Breath) with their evolutions (the Last Light, the Reaper's Chain,
+  Hellmouth), sold once a map is won on its tier; they don't count toward Full House. The score takes the night's
+  tier (Nightmare a semitone lower and out of tune, Hell two lower).
+- **Not done yet** (see the design doc's status): the two new characters; fires and apparitions as props; bespoke
+  per-boss staging; balance across maps and party sizes; the real-GPU benchmark on the tiers; a cross-network
+  co-op night.

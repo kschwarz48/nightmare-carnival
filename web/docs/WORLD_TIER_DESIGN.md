@@ -7,11 +7,13 @@ difference is noted.
 
 ## Status (2026-11-02, branch `world-tiers`, not deployed)
 
-Implemented and tested (`tests/tiers.test.ts`, 38 tests; the whole suite passes): the tiers and their numbers, the
-rules and saves v6 with its migration, character select and the co-op lobby, the co-op sync and eligibility
-(PROTO 20), the dev tools, both Lost & Found shelves, the looks on all four maps (captures:
-`web/artifacts/visual/tiers/`, local only), the creature variants, the bosses' tier attacks, the ceremonies, the
-tier achievements and a first balance step. Decision record: D-97.
+Implemented and tested (`tests/tiers.test.ts`, 48 tests; the whole suite passes; the production build builds):
+the tiers and their numbers, the rules and saves v6 with its migration, character select and the co-op lobby, the
+co-op sync and eligibility (PROTO 20), the dev tools, both Lost & Found shelves, the looks on all four maps
+(captures: `web/artifacts/visual/tiers/`, local only), the creature variants, the bosses' tier attacks, the
+ceremonies, the tier achievements, the tiers' passives (Death's Door, the Soul Jar, Brimstone, Cinder Heart), the
+tiers' weapons (the Watchman's Lantern, Spirit Chains, Fire Breath) and their evolutions (the Last Light, the
+Reaper's Chain, Hellmouth), the score's tier colouring and a first balance step. Decision record: D-97.
 
 Changed from this design while building it:
 
@@ -22,16 +24,20 @@ Changed from this design while building it:
 - The bosses' tier attacks are one shared, telegraphed layer (Nightmare's choir, Hell's firestorm) over each boss's
   own patterns, not yet bespoke staging per boss.
 - The "link" variant ability was left out (the other eleven are in).
+- Spirit Chains has an evolution too (the game requires one of every weapon): the Reaper's Chain, with the Soul Jar.
+  The tiers' evolutions don't count toward Full House, which stays a Normal-carnival achievement.
+- The score's tier transform is a colouring of the existing music (Nightmare a semitone lower and drifting out of
+  tune, Hell two semitones lower), not new arrangements.
 
 Not done yet, in the order they'd be worth doing:
 
-1. The new content of §7: the Night Watchman and the Fire-Eater (portraits, sculpted 3D models to the character
-   art standard), the Watchman's Lantern, Spirit Chains and Fire Breath, Death's Door, the Soul Jar, Brimstone,
-   Cinder Heart and the two evolutions.
+1. The two new characters of §7: the Night Watchman (Lamplight) and the Fire-Eater (Fireproof): their quirks,
+   portraits and sculpted 3D models to the character art standard. Their weapons already exist and are sold on the
+   Lost & Found meanwhile.
 2. Balance across every map, party sizes two to six and Lost & Found levels (`scripts/tier_balance.ts` takes them
    all), then the owner's playtests.
-3. Fires and apparitions as props in the worlds (burning tents, smoke columns, spectral riders), and the score's
-   and ambience's tier transforms (§9).
+3. Fires and apparitions as props in the worlds (burning tents, smoke columns, spectral riders) and the ambience's
+   tier transform (§9).
 4. Bespoke tier staging for the four final bosses (§8).
 5. The real-GPU benchmark (`desktop/bench.js`) on Nightmare and Hell, and a cross-network co-op night on a tier.
 
