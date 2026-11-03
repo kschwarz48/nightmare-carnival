@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import type { Game } from '../../../sim/game';
 import type { GameRenderer3D } from '../../renderer3d';
 import { PROPS, type Prop } from '../../../data/map';
-import { TRAIN } from '../../../data/ghosttrain';
+import { REGIONS, REGION_HH, REGION_HW, TRAIN } from '../../../data/ghosttrain';
 import { JUNCTION } from '../../../data/gtStations';
 import { signMesh } from '../props';
 import { runOf, trainNow } from '../../../sim/ghosttrain';
@@ -14,6 +14,7 @@ import { LT, type LastTrainChain } from '../../../sim/quest/lastTrain';
 import { StaticBatch } from '../../core/batch';
 import { ModelBuilder, SURF, box, weather } from '../../core/geo';
 import { actorMaterial } from '../../core/materials';
+import { AreaBatches } from '../areas';
 import { GtFloor } from './floor';
 import { GT_KIT, GT_SKIP, GT_STRETCH } from './kit';
 import { TrainRender } from './train';
@@ -43,19 +44,26 @@ export class GhostTrainWorld {
   readonly shafts: GtLighting['shafts'];
   readonly motes: GtLighting['motes'];
   private statics: StaticBatch[] = [];
+  /** the kit filed by place (D-96, world/areas.ts): the camera only ever shows the place it is in, and places lie
+   *  1,800 units and more apart; the last area holds anything standing between places, always drawn */
+  private places = new AreaBatches([
+    ...REGIONS.map((r) => ({ x0: r.cx - REGION_HW - 200, x1: r.cx + REGION_HW + 200, y0: r.cy - REGION_HH - 200, y1: r.cy + REGION_HH + 200 })),
+    { x0: -Infinity, x1: Infinity, y0: -Infinity, y1: Infinity },
+  ]);
 
   constructor() {
     this.root.add(this.ground.mesh);
-    // ---- the stations' kit, one batch per kind and variant
+    // ---- the stations' kit, one batch per kind, variant and place
+    const place = (p: Prop) => this.places.at(p.x, p.y);
     const groups = new Map<string, Prop[]>();
     for (const p of PROPS) {
       if (GT_SKIP.has(p.kind) || TRAIN_KINDS.has(p.kind) || !GT_KIT[p.kind]) continue;
-      const key = `${p.kind}:${p.variant ?? 0}`;
+      const key = `${p.kind}:${p.variant ?? 0}:${place(p)}`;
       (groups.get(key) ?? groups.set(key, []).get(key)!).push(p);
     }
     const mat = actorMaterial({ dither: true, detail: true, emitBoost: 2.6, envIntensity: 0.6 });
     for (const [key, list] of groups) {
-      const [kind, v] = key.split(':');
+      const [kind, v, at] = key.split(':');
       const len = GT_STRETCH[kind];
       const along = (p: Prop) => ((p.hh ?? 0) > (p.hw ?? 0) ? (p.hh ?? 50) * 2 : p.w ?? (p.hw ?? len / 2) * 2);
       const runs = (p: Prop) => (len ? Math.max(1, Math.round(along(p) / len)) : 1);
@@ -76,18 +84,23 @@ export class GhostTrainWorld {
       b.freeze();
       this.root.add(b.mesh);
       this.statics.push(b);
+      this.places.add(Number(at), b);
     }
-    // the platforms' kerbs beyond the train
-    const edges = PROPS.filter((p) => p.kind === 'gt_edge');
-    const kb = new StaticBatch(kerb(), mat, edges.reduce((n, p) => n + Math.max(1, Math.round(((p.hw ?? 50) * 2) / 100)), 0), { shadow: false });
-    kb.rim = [0, 0, 0, 0];
-    for (const p of edges) {
-      const w = (p.hw ?? 50) * 2, n = Math.max(1, Math.round(w / 100)), seg = w / n;
-      for (let i = 0; i < n; i++) kb.add(p.x - w / 2 + seg * (i + 0.5), p.y, 0, 0, 1, seg / 100, 1, 1);
+    // the platforms' kerbs beyond the train, a batch per place
+    const edgesAt = new Map<number, Prop[]>();
+    for (const p of PROPS) if (p.kind === 'gt_edge') (edgesAt.get(place(p)) ?? edgesAt.set(place(p), []).get(place(p))!).push(p);
+    for (const [at, edges] of edgesAt) {
+      const kb = new StaticBatch(kerb(), mat, edges.reduce((n, p) => n + Math.max(1, Math.round(((p.hw ?? 50) * 2) / 100)), 0), { shadow: false });
+      kb.rim = [0, 0, 0, 0];
+      for (const p of edges) {
+        const w = (p.hw ?? 50) * 2, n = Math.max(1, Math.round(w / 100)), seg = w / n;
+        for (let i = 0; i < n; i++) kb.add(p.x - w / 2 + seg * (i + 0.5), p.y, 0, 0, 1, seg / 100, 1, 1);
+      }
+      kb.freeze();
+      this.root.add(kb.mesh);
+      this.statics.push(kb);
+      this.places.add(at, kb);
     }
-    kb.freeze();
-    this.root.add(kb.mesh);
-    this.statics.push(kb);
     // lettering (D-84): the booking office's board over its window, the signal box's nameboard, the fingerpost's arms
     const letter = (text: string, w: number, h: number, x: number, y: number, z: number) => {
       const m = signMesh(text, w, h, { color: '#3a1418', glow: 0.25 });
@@ -108,6 +121,7 @@ export class GhostTrainWorld {
   }
 
   update(g: Game, r: GameRenderer3D, inView: (x: number, y: number) => boolean, _dt: number): void {
+    this.places.update(r.viewRect);
     const st = trainNow(g);
     const p = g.player;
     this.train.update(st, p.x, p.y, r.time);

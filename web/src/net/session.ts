@@ -12,7 +12,7 @@ import type { FxEvent } from '../sim/fx';
 import { buildOf } from '../sim/draft';
 import { StringDict, Writer } from './codec';
 import { randomToken } from './codes';
-import type { NetLink } from './link';
+import type { LinkStats, NetLink } from './link';
 import {
   BIN_INPUT, BIN_SNAPSHOT, FORWARDED_EVENTS, INPUT_REDUNDANCY, MAX_PLAYERS, PROTO, REJECT_TEXT, RateLimiter, SNAPSHOT_HZ, SNAPSHOT_HZ_FAST,
   binType, cleanChat, decodeInputPacket, encodeInputPacket, meterFromWire, meterToWire, parseGuestMsg, parseHostMsg,
@@ -137,6 +137,44 @@ export interface NetDiag {
   buffered?: number;
   corrections?: number;
   interpDelay?: number;
+  /** (D-96) the work per snapshot over the last second, mean and worst ms: the host's encoding (every guest's), the
+   *  guest's decoding and applying (it runs as the snapshot arrives, between frames, outside the frame's split) */
+  procMs?: number;
+  procMax?: number;
+  /** messages per second over every channel, both ways */
+  msgsIn?: number;
+  msgsOut?: number;
+}
+
+/** A one-second window of per-snapshot work and link traffic, for the diagnostics (D-96). */
+class Window {
+  private n = 0;
+  private sum = 0;
+  private max = 0;
+  private start = 0;
+  private msgsIn = 0;
+  private msgsOut = 0;
+  add(ms: number): void {
+    this.n++;
+    this.sum += ms;
+    this.max = Math.max(this.max, ms);
+  }
+  /** Fold the window into `d` once a second; `links` are the session's links' running totals. */
+  roll(now: number, d: NetDiag, links: LinkStats[]): void {
+    if (now - this.start < 1000) return;
+    const k = 1000 / Math.max(1, now - this.start);
+    const inn = links.reduce((t, l) => t + l.msgsIn, 0), out = links.reduce((t, l) => t + l.msgsOut, 0);
+    if (this.start) {
+      d.procMs = this.n ? this.sum / this.n : 0;
+      d.procMax = this.max;
+      d.msgsIn = Math.max(0, inn - this.msgsIn) * k;
+      d.msgsOut = Math.max(0, out - this.msgsOut) * k;
+    }
+    this.msgsIn = inn;
+    this.msgsOut = out;
+    this.n = this.sum = this.max = 0;
+    this.start = now;
+  }
 }
 
 const blankDiag = (role: 'host' | 'guest'): NetDiag => ({ role, rtt: 0, connected: false, unreliable: false, route: '', inputQueue: 0, starved: 0, dropped: 0, snapBytes: 0, skipped: 0, bytesPerSec: 0, snapRate: 0, snapLost: 0, predErr: 0, interval: 0, invalid: 0 });
@@ -200,6 +238,7 @@ export class HostSession {
   /** when the night last advanced (inputs that arrive while it is frozen are spent, see update) */
   private lastTickAt = 0;
   readonly diag = blankDiag('host');
+  private work = new Window();
 
   // UI hooks
   onLobby: (l: LobbyState) => void = () => {};
@@ -931,6 +970,7 @@ export class HostSession {
     d.dropped = sum((s) => s.stats.dropped);
     d.invalid = this.guests.reduce((t, s) => t + s.invalid, 0);
     const links = live.map((s) => s.link!.stats());
+    this.work.roll(this.now, d, links);
     d.unreliable = links.length > 0 && links.every((l) => l.unreliable);
     d.route = [...new Set(links.map((l) => l.route || '?'))].join('/');
     d.peers = live.map((s, k) => ({ name: s.profile.name, rtt: s.rtt, kbps: s.stats.bps / 1024, route: links[k].route, queue: s.queue.length }));
@@ -958,7 +998,9 @@ export class HostSession {
       return;
     }
     const view = { x: p.x, y: p.y, hx: s.view.hx, hy: s.view.hy };
+    const e0 = performance.now();
     const buf = s.enc.encode(g, { seq: ++s.snapSeq, epoch: this.epoch, ackInput: s.lastApplied, ackSnap: s.ackSnap, dict: this.dict, dictFrom: s.dictAck, view, fx: s.fx, sfx: s.sfx, frozen: this.paused || !this.prizeReady });
+    this.work.add(performance.now() - e0);
     s.fx.length = 0;
     s.sfx.length = 0;
     s.link.sendBin(buf);
@@ -1010,6 +1052,7 @@ export class GuestSession {
   private snapsWin = 0;
   private winStart = 0;
   readonly diag = blankDiag('guest');
+  private work = new Window();
   /** the host refused this build: true if the host is newer, false if older, null if unknown */
   onVersionRefused: ((hostNewer: boolean | null) => void) | null = null;
 
@@ -1195,12 +1238,14 @@ export class GuestSession {
     // another game's snapshot, still on the wire across a restart (D-76): dropped before decoding, so its
     // string table never mixes into the new game's
     if (snapshotEpoch(buf) !== this.epoch) return;
+    const a0 = performance.now();
     try {
       r.apply(decodeSnapshot(buf, r.dict), this.now);
     } catch {
       this.diag.invalid++;
       return;
     }
+    this.work.add(performance.now() - a0);
     this.diag.snapBytes = buf.byteLength;
     this.bytesWin += buf.byteLength;
     this.snapsWin++;
@@ -1277,6 +1322,7 @@ export class GuestSession {
       this.winStart = now;
     }
     const st = this.link.stats();
+    this.work.roll(now, this.diag, [st]);
     this.diag.connected = this.state !== 'connecting';
     this.diag.unreliable = st.unreliable;
     this.diag.route = st.route;

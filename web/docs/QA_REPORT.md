@@ -115,6 +115,34 @@ understate that character.
 
 ---
 
+## Performance milestone: audit, the crowd's distance models, the Ghost Train's walls, first nights — 2026-11-02 (D-96)
+
+Full method, tables and evidence: `docs/PERFORMANCE_AUDIT_REPORT.md`.
+
+- `npm test`: 31 files, 448 tests pass (8 new: `tests/walls.test.ts`, `tests/simplify.test.ts`, the ground shapes'
+  corners in `tests/optimization.test.ts`). `tsc` is clean. `scripts/gt_smoke.ts 240`: four transfers, no faults.
+- **Headless sim** (`npm run bench:sim`, whole bot nights, the same nights before and after: identical crowds in
+  every window, identical snapshot sizes): Ghost Train party of two 1.774 → 0.349 ms a tick (p99 3.82 → 1.82),
+  12,913 → 2,171 collections; Ghost Train solo 0.889 → 0.221; Fun House 0.162 → 0.105; others 5–10%.
+- **Real GPU** (Electron 44, 3440×1440 full screen, High, vsync 165 Hz, the 13 scenarios of `desktop/bench.js`,
+  before = the D-95 build): Fun House late 42 → 61 fps (frames over 25 ms 407 → 3, GPU 23.3 → 15.8 ms), Boardwalk
+  late 40 → 61 (175 → 3, GPU 24.5 → 15.9), Ghost Train late 69 → 101, its boss 82 → 118, at 10:00 97 → 140,
+  Carnival late 82 → 101, the menu 146 → 161. The Ghost Train's late browser GC 1,605 → 121 minor collections in
+  20 s. Repeated three times each (old and final builds): Carnival late 81–82 → 108–115 fps, 1% low 37–51 → 49–66,
+  p99 18.3 → 12.3 ms; Boardwalk boss 69–70 → 92–94 fps, 1% low 44–48 → 57–68 (a single run's worse tails were
+  noise).
+- **Pixel checks:** area filing 0 pixels differ at 18 camera positions; canvas multisampling off: no difference beyond
+  run-to-run noise; the distance models compared by eye at play size and twice it (captures on the owner's PC in `artifacts/perf/lod/`, outside the repository).
+- **First nights** (fresh page): worst frame 1,698 / 4,160 / 5,228 ms → 503 / 784 / 437 ms (Fun House, Boardwalk,
+  Ghost Train), behind the loading screen ("Setting up The Ghost Train…", captured), the nights' first seconds smooth.
+- **Long session:** twelve nights in one page, no growth after each map's first visit (heap 319–322 MB).
+- **Co-op:** `scripts/bench/net.ts --map=ghost_train` (crowd 250, before = the D-95 sources): every quality figure
+  identical; a guest's work per frame at RTT 100 ± 10 ms 0.542 → 0.116 ms. A two-window night over real WebRTC
+  (`desktop/coop-bench.js`): both sides played 30 measured seconds, snapshots 30 Hz at ~1.5 KB, no errors.
+- **Not checked:** a cross-network co-op night (the partner's real link; measured on loopback with RTT 100 ± 10 ms and
+  on a local WebRTC route only); integrated graphics or other GPUs; a 4K display (2.2 device pixels a world unit:
+  the distance models stay on; they give way to the full sculpts above 2.5).
+
 ## The Ghost Train in co-op: timetable first, shared things, the crowd, the shove — 2026-11-02 (D-95)
 
 - `npm test`: 29 files, 440 tests pass. New in `tests/ghosttrain.test.ts`: the stopped clock starts the quest; the

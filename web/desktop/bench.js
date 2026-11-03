@@ -9,9 +9,19 @@
 //     [--only=name,name]     run only these scenarios
 //     [--qualities]          also run the late Carnival crowd at Medium and Low
 //     [--gc]                 trace the V8 garbage collector during each scenario (adds a little overhead)
+//     [--serve=../dist-bench] serve that folder itself (on a free local port) instead of --url: a production
+//                            build benchmarked with no dev server or other browser competing for the GPU
+//     [--repeat=N]           run each scenario N times (results labelled #1..#N)
+//     [--query=legacy=lod]   a query string for the page (the A/B switches in src/core/flags.ts)
+//     [--jsflags="--expose-gc"] V8 flags for the page (window.gc for scripts/bench/long-session.js, traces)
+//     [--console]            echo the page's console
+//     [--eval=file.js]       run an experiment in the page instead of the scenarios ([--cpuprofile=file] from boot,
+//                            [--profiles=prefix] only what it marks with console.profile, [--shot=file.png] at the end)
 //
-// The page must expose window.__nc: a dev server, or a production build made with VITE_DEVTOOLS=1.
+// The page must expose window.__nc: a dev server, or a production build made with VITE_DEVTOOLS=1
+// (`VITE_DEVTOOLS=1 npx vite build --outDir dist-bench`).
 const { app, BrowserWindow, screen } = require('electron');
+const { serveDir } = require('./serve');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -20,7 +30,10 @@ const arg = (name, dflt) => {
   return a ? a.slice(name.length + 3) : dflt;
 };
 const flag = (name) => process.argv.includes(`--${name}`);
-const URL_ = arg('url', 'http://127.0.0.1:5173/');
+let URL_ = arg('url', 'http://127.0.0.1:5173/');
+const SERVE = arg('serve', '');
+const REPEAT = Math.max(1, Number(arg('repeat', '1')) || 1);
+
 const OUT = path.resolve(arg('out', path.join(__dirname, '..', 'artifacts', 'bench', 'render.json')));
 const ONLY = arg('only', '');
 
@@ -33,6 +46,7 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+if (arg('jsflags', '')) app.commandLine.appendSwitch('js-flags', arg('jsflags', ''));
 if (flag('uncapped')) {
   app.commandLine.appendSwitch('disable-gpu-vsync');
   app.commandLine.appendSwitch('disable-frame-rate-limit');
@@ -50,6 +64,8 @@ let SCENARIOS = [
   { name: 'fun house late, crowd 400', map: 'fun_house', t: 1260, crowd: 400, seconds: 20, ...LATE },
   { name: 'boardwalk late, crowd 400', map: 'boardwalk', t: 1260, crowd: 400, seconds: 20, ...LATE },
   { name: 'boardwalk boss: Leviathan', map: 'boardwalk', t: 1380, crowd: 150, boss: 'leviathan', seconds: 20, ...LATE },
+  { name: 'ghost train early 2:00', map: 'ghost_train', t: 120, seconds: 15 },
+  { name: 'ghost train mid 10:00', map: 'ghost_train', t: 600, seconds: 15 },
   { name: 'ghost train late, crowd 400', map: 'ghost_train', t: 1300, crowd: 400, seconds: 20, ...LATE },
   { name: 'ghost train boss: Night Express', map: 'ghost_train', t: 1380, crowd: 150, boss: 'night_express', seconds: 20, ...LATE },
 ];
@@ -87,6 +103,12 @@ function gcSummary(events) {
 }
 
 app.whenReady().then(async () => {
+  if (SERVE) {
+    URL_ = (await serveDir(SERVE)).url;
+    console.log('serving', path.resolve(SERVE), 'at', URL_);
+  }
+  // --query=legacy=aa: a query string for the page (the A/B switches in src/core/flags.ts)
+  if (arg('query', '')) URL_ += `${URL_.includes('?') ? '&' : '?'}${arg('query', '')}`;
   const d = screen.getPrimaryDisplay();
   // --size=1920x1080: a window with exactly that much page (the default is full screen)
   const size = arg('size', '');
@@ -95,6 +117,13 @@ app.whenReady().then(async () => {
     x: d.bounds.x, y: d.bounds.y, width: sw || d.bounds.width, height: sh || d.bounds.height, useContentSize: !!size, fullscreen: !size, frame: !size ? true : false, show: true, backgroundColor: '#07040c',
     webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false },
   });
+  // a page that dies (out of memory, a GPU process crash) ends the run with its reason instead of hanging it
+  win.webContents.on('render-process-gone', (_e, d) => {
+    console.error(`the page's process is gone: ${d.reason} (exit code ${d.exitCode})`);
+    app.exit(3);
+  });
+  // --console: echo the page's console (an experiment's progress lines)
+  if (flag('console')) win.webContents.on('console-message', (e) => console.log(`[page${e.level === 'warning' || e.level === 'error' ? ` ${e.level}` : ''}] ${e.message}`));
   const dbg = win.webContents.debugger;
   const traceGc = flag('gc');
   /** @type {any[]} */
@@ -127,6 +156,21 @@ app.whenReady().then(async () => {
     if (await js('!!(window.__nc && window.__nc.app && window.__nc.app.renderer)')) break;
     await new Promise((r) => setTimeout(r, 200));
   }
+  // --profiles=prefix: only the stretches an experiment marks with console.profile('name') / console.profileEnd('name'),
+  // each saved as <prefix>-name.cpuprofile; enabled once the page is up (the profiler started before the load hangs
+  // it), and nothing is sampled outside the marks, so fast-forwards run at full speed
+  const marks = arg('profiles', '');
+  if (marks) {
+    if (!traceGc && !prof) dbg.attach('1.3');
+    await dbg.sendCommand('Profiler.enable');
+    await dbg.sendCommand('Profiler.setSamplingInterval', { interval: 200 });
+    dbg.on('message', (_e, method, params) => {
+      if (method !== 'Profiler.consoleProfileFinished') return;
+      const file = path.resolve(`${marks}-${String(params.title || 'profile').replace(/[^a-z0-9]+/gi, '-')}.cpuprofile`);
+      fs.writeFileSync(file, JSON.stringify(params.profile));
+      console.log('console profile saved', file);
+    });
+  }
   const boot = await js('window.__nc.bootInfo()');
   boot.wallMsToDevtools = Date.now() - t0;
   console.log('boot', JSON.stringify(boot));
@@ -153,7 +197,8 @@ app.whenReady().then(async () => {
     return;
   }
   const results = [];
-  for (const sc of SCENARIOS) {
+  const runs = REPEAT > 1 ? SCENARIOS.flatMap((sc) => Array.from({ length: REPEAT }, (_, i) => ({ ...sc, name: `${sc.name} #${i + 1}` }))) : SCENARIOS;
+  for (const sc of runs) {
     if (traceGc) {
       traceBuf = [];
       await dbg.sendCommand('Tracing.start', { categories: 'disabled-by-default-v8.gc,v8', transferMode: 'ReportEvents' });
@@ -175,7 +220,7 @@ app.whenReady().then(async () => {
   }
   const versions = { electron: process.versions.electron, chrome: process.versions.chrome };
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
-  fs.writeFileSync(OUT, JSON.stringify({ at: new Date().toISOString(), url: URL_, uncapped: flag('uncapped'), window: size || 'fullscreen', display: { size: d.size, scale: d.scaleFactor, hz: d.displayFrequency }, versions, boot, results }, null, 1));
+  fs.writeFileSync(OUT, JSON.stringify({ at: new Date().toISOString(), url: SERVE ? `serve ${SERVE}` : URL_, uncapped: flag('uncapped'), window: size || 'fullscreen', display: { size: d.size, scale: d.scaleFactor, hz: d.displayFrequency }, versions, boot, results }, null, 1));
   console.log('saved', OUT);
   app.quit();
 });

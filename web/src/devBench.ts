@@ -187,6 +187,47 @@ export async function runBenchScenario(app: App, advance: (sec: number) => unkno
   }
 }
 
+/**
+ * Frame pacing and the frame's CPU split over the next `seconds` of real frames, in whatever the page is showing
+ * (performance milestone, D-96: the co-op benchmark measures a host's window and a guest's at once with it; see
+ * desktop/coop-bench.js). Also the crowd and, in co-op, the link's diagnostics at the end.
+ */
+export async function measureFrames(seconds: number, app: App) {
+  perf.reset();
+  perf.on = true;
+  const t0 = performance.now();
+  const frames: Record<string, number[]> = {};
+  let read = 0;
+  while (performance.now() - t0 < seconds * 1000) {
+    await sleep(250);
+    const upTo = perf.total - 10;
+    if (upTo > read) {
+      collect(read, upTo, frames);
+      read = upTo;
+    }
+  }
+  const elapsed = performance.now() - t0;
+  perf.on = false;
+  await sleep(120);
+  collect(read, perf.total, frames);
+  const iv = frames.interval?.filter((x) => x > 0) ?? [];
+  const s = summarize(iv);
+  const sec = (n: string) => r2(summarize(frames[`sec_${n}`] ?? [])?.mean);
+  const cpu = summarize(frames.cpu ?? []);
+  const gpu = perf.gpuTimer === 'yes' ? summarize(frames.gpu ?? []) : null;
+  const net = (app as unknown as { net?: { role: string; host: { diag: unknown }; guest: { diag: unknown } } }).net;
+  return {
+    seconds: r2(elapsed / 1000), frames: iv.length, fps: r2(iv.length / (elapsed / 1000)),
+    frameMs: s && { mean: r2(s.mean), p95: r2(s.p95), p99: r2(s.p99), max: r2(s.max) },
+    spikesOver25: iv.filter((x) => x > 25).length, spikesOver50: iv.filter((x) => x > 50).length,
+    cpuMs: cpu && { mean: r2(cpu.mean), p99: r2(cpu.p99) },
+    sectionsMs: Object.fromEntries(SEC_NAMES.map((n) => [n, sec(n)])),
+    gpuMs: gpu && { mean: r2(gpu.mean), p99: r2(gpu.p99) },
+    enemies: app.game?.active.length ?? 0,
+    net: net ? (net.role === 'host' ? net.host.diag : net.guest.diag) : null,
+  };
+}
+
 /** Mean GPU and CPU milliseconds over the next `frames` frames (timer queries; for A/B experiments). */
 export async function gpuProbe(frames = 90): Promise<{ gpu: number | null; cpu: number | null; render: number | null; fps: number | null; drawCalls: number; trianglesM: number }> {
   perf.reset();

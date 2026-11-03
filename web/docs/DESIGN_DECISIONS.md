@@ -1894,3 +1894,39 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   touches, on the host and in a guest's prediction alike. It used to push everyone within four times the bash's
   radius, all round (440 for a 110 bash). The shove is also 20% weaker (520 to 420).
 
+### D-96 · Performance milestone: the crowd's distance models, the Ghost Train's walls, empty batches, first nights
+
+- **The ask:** a comprehensive, evidence-led performance audit and optimization of every map, solo and co-op, on the
+  owner's PC (i9-9900K, RTX 2070, 3440×1440 at 165 Hz), with baselines first, diagnostics, before/after results on
+  the same workloads and a report (`docs/PERFORMANCE_AUDIT_REPORT.md`).
+- **Baselines** (a production build with the dev tools, Electron 44 full screen, GPU timer queries; headless sim
+  nights in Node; CPU profiles mapped through source maps): the late nights were GPU-bound (Fun House 23 ms,
+  Boardwalk 24.5 ms of GPU a frame: 40–42 fps), the crowd's models 7–17 ms of it (11–31 M triangles a frame); the
+  Ghost Train's simulation cost 5–10 times any other map's, half of it its creatures' wall push-out, with ~80 minor
+  collections a second in the browser; every creature kind met that night cost three.js's setup in every pass, alive
+  or not; each map's first night froze 1.7–5.2 s compiling its world's shaders; the frame's own costliest line was
+  the ground circles' trigonometry.
+- **What changed:** packed, bucketed wall sets for players, creatures and a guest's prediction (`sim/walls.ts`; the
+  moving walls' arrangements built once each); the crowd's distance models (`render3d/core/simplify.ts`: a worker
+  simplifies each crowd model on its first draw to about a third of its triangles, original vertices only, small parts
+  and part edges kept; drawn at play size, the full sculpt when zoomed in); empty batches culled; a map's first night
+  held behind the loading screen while its world is built and its shaders compile in the background; ground shapes
+  from corner tables; area filing of the Ghost Train's and the Boardwalk's kit (`render3d/world/areas.ts`: halves
+  their draw calls, a small gain since the kit shares one material); the HUD writes only what changed and keeps the
+  co-op name tags; no multisampling on the canvas (it only ever receives one full-screen quad). Diagnostics: the F2
+  overlay shows the crowd's models and the heap's churn, and in co-op each snapshot's encoding or decoding time and
+  messages a second; the benchmarks gained Ghost Train and party scenarios, in-process profiling, a static server,
+  marked profiles, a two-window co-op run over real WebRTC, a long-session check, a first-night check, GPU splits
+  and pixel comparisons (`scripts/bench`, `desktop`); `?legacy=lod,areas,aa` turns this pass's rendering changes off.
+- **Results** (3440×1440, High, before → after): Fun House late 42 → 61 fps (frames over 25 ms 407 → 3), Boardwalk late
+  40 → 61 (175 → 3), Ghost Train late 69 → 101, its boss 82 → 118, Carnival late 81–82 → 108–115 (three runs each);
+  the Ghost Train's sim 1.77 → 0.35 ms a tick for a host of two, a guest's work there 0.54 → 0.12 ms a frame at RTT
+  100; first nights' worst frame 1.7–5.2 s → 0.4–0.8 s (behind the loading screen); twelve nights in a row: no growth.
+- **Kept the game the same:** the benchmark's bot nights came out the same (identical crowd counts in every window
+  and identical snapshot sizes; the network benchmark's every quality figure identical; the walls' rules are the old
+  ones, tested against them); area filing and canvas multisampling were pixel-compared (no difference); the distance
+  models were compared at play size and twice it. No save, protocol or rule changed (PROTO stays 19; the sim
+  fingerprint changes, as with any sim change).
+- **Tried and not kept:** priming the Game's fields as fractions (a V8 hidden-class change mid-night sends Node's
+  bullet loop into a deopt loop): no measurable gain once the walls were fixed, so removed. A coarser copy for the
+  silhouettes and the shadow: under a millisecond to gain.

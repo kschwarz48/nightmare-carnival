@@ -14,6 +14,26 @@ const FRAG = /* glsl */ `
 varying vec4 vCol;
 void main() { gl_FragColor = vCol; }`;
 
+/**
+ * The corners of a full circle cut into n, as cos/sin pairs, computed once per n (D-96: every circle on the ground,
+ * one under each ticket, bullet and shadowless creature, called Math.cos and Math.sin for every corner every frame,
+ * the costliest line of the frame's own code). Each table uses the same expression as the loop it serves, so the
+ * corners are the very same numbers.
+ */
+const circleCorners = new Map<number, Float64Array>();
+const ringCorners = new Map<number, Float64Array>();
+/** (called only for a table not made yet: the angle function is a closure, and the shapes draw hundreds a frame) */
+function corners(cache: Map<number, Float64Array>, n: number, angle: (i: number) => number): Float64Array {
+  const c = new Float64Array((n + 1) * 2);
+  for (let i = 0; i <= n; i++) {
+    const t = angle(i);
+    c[i * 2] = Math.cos(t);
+    c[i * 2 + 1] = Math.sin(t);
+  }
+  cache.set(n, c);
+  return c;
+}
+
 export class ShapeBatch {
   mesh: THREE.Mesh;
   private pos: Float32Array;
@@ -91,10 +111,10 @@ export class ShapeBatch {
   /** Filled circle; `edgeA` lets the rim fade (soft glow) or brighten. */
   circle(x: number, y: number, rad: number, r: number, g: number, b: number, a: number, edgeA = a, seg = 0): void {
     const n = seg || Math.max(12, Math.min(64, Math.round(rad / 6)));
+    const c = circleCorners.get(n) ?? corners(circleCorners, n, (i) => (i / n) * Math.PI * 2);
     let px = x + rad, py = y;
     for (let i = 1; i <= n; i++) {
-      const t = (i / n) * Math.PI * 2;
-      const nx = x + Math.cos(t) * rad, ny = y + Math.sin(t) * rad;
+      const nx = x + c[i * 2] * rad, ny = y + c[i * 2 + 1] * rad;
       this.tri(x, y, px, py, nx, ny, r, g, b, a, edgeA, edgeA);
       px = nx;
       py = ny;
@@ -105,9 +125,22 @@ export class ShapeBatch {
   ring(x: number, y: number, r0: number, r1: number, r: number, g: number, b: number, a: number, aOuter = a, a0 = 0, a1 = Math.PI * 2, seg = 0): void {
     const span = a1 - a0;
     const n = seg || Math.max(12, Math.min(96, Math.round((r1 * Math.abs(span)) / 10)));
+    // (a whole ring from 0, the usual case, reads its corners from a table; arcs work them out)
+    const full = a0 === 0 && span === Math.PI * 2 ? ringCorners.get(n) ?? corners(ringCorners, n, (i) => 0 + (Math.PI * 2 * i) / n) : null;
     for (let i = 0; i < n; i++) {
-      const t0 = a0 + (span * i) / n, t1 = a0 + (span * (i + 1)) / n;
-      const c0 = Math.cos(t0), s0 = Math.sin(t0), c1 = Math.cos(t1), s1 = Math.sin(t1);
+      let c0: number, s0: number, c1: number, s1: number;
+      if (full) {
+        c0 = full[i * 2];
+        s0 = full[i * 2 + 1];
+        c1 = full[i * 2 + 2];
+        s1 = full[i * 2 + 3];
+      } else {
+        const t0 = a0 + (span * i) / n, t1 = a0 + (span * (i + 1)) / n;
+        c0 = Math.cos(t0);
+        s0 = Math.sin(t0);
+        c1 = Math.cos(t1);
+        s1 = Math.sin(t1);
+      }
       const ix0 = x + c0 * r0, iy0 = y + s0 * r0, ox0 = x + c0 * r1, oy0 = y + s0 * r1;
       const ix1 = x + c1 * r0, iy1 = y + s1 * r0, ox1 = x + c1 * r1, oy1 = y + s1 * r1;
       this.tri(ix0, iy0, ox0, oy0, ox1, oy1, r, g, b, a, aOuter, aOuter);

@@ -163,12 +163,23 @@ export function placeTrain(g: Game, phase: 'dwell' | 'travel', at: number, to = 
 /** Which place a player (or anything) is in: a station 0..4, the moving train 5, or -1. */
 export const placeOf = (x: number, y: number) => regionAt(x, y);
 
+/** Each arrangement of shut doors, built once (D-96: the same array while no door moves, so the packed wall set
+ *  behind it is built once per arrangement rather than every tick; sim/walls.ts). */
+const doorSets = new Map<number, Prop[]>();
+
 /** The doors: every station's copy is shut unless the train stands there with its doors open. */
 export function refreshTrainDoors(g: Game): void {
   const st = trainNow(g);
-  const walls: Prop[] = [];
-  for (let r = 0; r < 5; r++) if (!(st.phase === 'dwell' && st.at === r && st.doors)) walls.push(...DOORS[r]);
-  if (!g.quests?.get<{ compartmentsOpen?: boolean } & import('./quest').QuestChain>('last_train')?.compartmentsOpen) walls.push(...COMPARTMENT_DOORS);
+  let key = 0;
+  for (let r = 0; r < 5; r++) if (!(st.phase === 'dwell' && st.at === r && st.doors)) key |= 1 << r;
+  if (!g.quests?.get<{ compartmentsOpen?: boolean } & import('./quest').QuestChain>('last_train')?.compartmentsOpen) key |= 1 << 5;
+  let walls = doorSets.get(key);
+  if (!walls) {
+    walls = [];
+    for (let r = 0; r < 5; r++) if (key & (1 << r)) walls.push(...DOORS[r]);
+    if (key & (1 << 5)) walls.push(...COMPARTMENT_DOORS);
+    doorSets.set(key, walls);
+  }
   setDynamicWalls(walls);
 }
 

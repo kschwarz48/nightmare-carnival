@@ -3,12 +3,18 @@
 // per window. Deterministic: the same seeds give the same nights, so before/after runs compare like
 // with like (the wall-clock numbers still vary a few percent run to run).
 //
-//   npx vite-node scripts/bench/sim.ts [out.json] [--quick]
+//   npx vite-node scripts/bench/sim.ts [out.json] [--quick] [--only=name,...] [--profile=dir]
+//
+// `--profile=dir` writes a CPU profile and a sampling allocation profile of each scenario's night (the
+// ticks and the bot, not the start-up) for scripts/bench/profile-top.mjs and heap-top.mjs. The allocation
+// profile keeps the objects collected since, so it shows the churn behind the collections, not only what
+// is still alive at the end. (Timings taken while profiling run slower: compare runs without it.)
 //
 // Measures only `g.tick()` (the bot pilot and drafts are outside the timer). A party night also times
 // the host's snapshot encoding for its guests at 20 Hz, the network's main CPU cost.
 import { PerformanceObserver, performance } from 'node:perf_hooks';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { Session } from 'node:inspector/promises';
 import { makeGame, smartDraft, smartPilot, autoDraft, autopilot } from '../../tests/helpers';
 import type { Game } from '../../src/sim/game';
 import type { MapId } from '../../src/data/maps';
@@ -35,7 +41,21 @@ const SCENARIOS: Scenario[] = [
   { name: 'fun house solo', map: 'fun_house', seed: 777, players: 1, until: quick ? 700 : 1500 },
   { name: 'boardwalk solo', map: 'boardwalk', seed: 777, players: 1, until: quick ? 700 : 1500 },
   { name: 'carnival party of 4 (host)', map: 'carnival_core', seed: 777, players: 4, until: quick ? 700 : 1500 },
+  // (the performance milestone: the fourth map, and the owner's usual party of two)
+  { name: 'ghost train solo', map: 'ghost_train', seed: 777, players: 1, until: quick ? 700 : 1500 },
+  { name: 'boardwalk party of 2 (host)', map: 'boardwalk', seed: 777, players: 2, until: quick ? 700 : 1500 },
+  { name: 'ghost train party of 2 (host)', map: 'ghost_train', seed: 777, players: 2, until: quick ? 700 : 1500 },
 ];
+const only = process.argv.find((a) => a.startsWith('--only='))?.slice(7);
+const profileDir = process.argv.find((a) => a.startsWith('--profile='))?.slice(10);
+const inspector = profileDir ? new Session() : null;
+if (inspector && profileDir) {
+  mkdirSync(profileDir, { recursive: true });
+  inspector.connect();
+  await inspector.post('Profiler.enable');
+  await inspector.post('Profiler.setSamplingInterval', { interval: 250 });
+}
+if (only) SCENARIOS.splice(0, SCENARIOS.length, ...SCENARIOS.filter((s) => only.split(',').some((o) => s.name.includes(o))));
 
 const WINDOWS: [string, (t: number, boss: boolean) => boolean][] = [
   ['early 1:00-3:00', (t) => t >= 60 && t < 180],
@@ -63,6 +83,10 @@ async function run(sc: Scenario) {
   const encMs: number[] = [], encBytes: number[] = [];
   const guests = sc.players > 1 ? Array.from({ length: sc.players - 1 }, () => ({ enc: new SnapshotEncoder(), dict: new StringDict(), seq: 0, ack: 0 })) : [];
   gcs.length = 0;
+  if (inspector) {
+    await inspector.post('Profiler.start');
+    await inspector.post('HeapProfiler.startSampling', { samplingInterval: 16384, includeObjectsCollectedByMajorGC: true, includeObjectsCollectedByMinorGC: true });
+  }
   let n = 0;
   while (n < N && g.phase !== 'ended' && g.time < sc.until) {
     if (sc.players > 1) {
@@ -112,6 +136,13 @@ async function run(sc: Scenario) {
     if (n % 600 === 0) await flush();
   }
   await flush();
+  if (inspector && profileDir) {
+    const file = `${profileDir}/${sc.name.replace(/[^a-z0-9]+/gi, '-')}`;
+    const { profile: cpu } = await inspector.post('Profiler.stop');
+    writeFileSync(`${file}.cpuprofile`, JSON.stringify(cpu));
+    const { profile: heap } = await inspector.post('HeapProfiler.stopSampling');
+    writeFileSync(`${file}.heapprofile`, JSON.stringify(heap));
+  }
   const gcAt = gcs.map((x) => x);
   const windows = WINDOWS.map(([label, pick]) => {
     const idx: number[] = [];
@@ -166,3 +197,4 @@ for (const sc of SCENARIOS) {
 }
 if (outPath) writeFileSync(outPath, JSON.stringify({ node: process.version, at: new Date().toISOString(), results }, null, 1));
 obs.disconnect();
+inspector?.disconnect();

@@ -7,10 +7,10 @@
 // door shutting on one lets it walk out again). Flyers and phantoms (`EnemyDef.phases`) ignore all of
 // it, as do bosses and anything burrowed. Host-only: guests mirror the crowd's positions.
 
-import { DYNAMIC_WALLS, PLAYER_BOUNDS, PROPS, type Prop } from '../data/map';
-import { pushOut } from './movement';
+import { DYNAMIC_WALLS, PLAYER_BOUNDS, PROPS } from '../data/map';
 import type { Enemy } from './entities';
 import type { Game } from './game';
+import { WallSet, dynamicWalls, isSolid } from './walls';
 
 /** grid cell size (px) */
 const CELL = 32;
@@ -18,15 +18,10 @@ const CELL = 32;
 const MARGIN = 10;
 /** seconds between flow-field rebuilds */
 const REBUILD = 0.25;
-/** wall buckets for the push-out, and how far past its edges a wall is filed (the widest creature) */
-const BUCKET = 160;
-const REACH = 48;
 const FAR = 0xffff;
 /** line-of-sight cache slots per cell: one per possible target player */
 const SLOTS = 6;
 const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
-
-const solid = (pr: Prop) => !!pr.r || !!(pr.hw && pr.hh);
 
 export class Nav {
   readonly minX: number;
@@ -41,11 +36,8 @@ export class Nav {
   private readonly los: Int8Array;
   private readonly px: number[] = [];
   private readonly py: number[] = [];
-  private readonly bx0: number;
-  private readonly by0: number;
-  private readonly bcols: number;
-  private readonly brows: number;
-  private readonly buckets: Prop[][];
+  /** the walls that never move, packed and filed by area for the push-out (sim/walls.ts) */
+  private readonly walls: WallSet;
   private t = REBUILD;
   /** the direction `flow` found */
   fx = 0;
@@ -63,27 +55,8 @@ export class Nav {
     this.dist = new Uint16Array(n).fill(FAR);
     this.queue = new Int32Array(n);
     this.los = new Int8Array(n * SLOTS).fill(-1);
-    for (const pr of PROPS) if (solid(pr)) this.stamp(this.fixed, pr.x, pr.y, pr.r ?? 0, pr.hw ?? 0, pr.hh ?? 0);
-    // the walls that never move, filed by bucket for the push-out
-    this.bx0 = b.minX - REACH;
-    this.by0 = b.minY - REACH;
-    this.bcols = Math.ceil((b.maxX - b.minX + REACH * 2) / BUCKET) + 1;
-    this.brows = Math.ceil((b.maxY - b.minY + REACH * 2) / BUCKET) + 1;
-    this.buckets = Array.from({ length: this.bcols * this.brows }, () => []);
-    for (const pr of PROPS) {
-      if (!solid(pr)) continue;
-      const ex = (pr.r ?? pr.hw!) + REACH, ey = (pr.r ?? pr.hh!) + REACH;
-      const c0 = this.bucketCol(pr.x - ex), c1 = this.bucketCol(pr.x + ex);
-      const r0 = this.bucketRow(pr.y - ey), r1 = this.bucketRow(pr.y + ey);
-      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) this.buckets[r * this.bcols + c].push(pr);
-    }
-  }
-
-  private bucketCol(x: number): number {
-    return Math.max(0, Math.min(this.bcols - 1, Math.floor((x - this.bx0) / BUCKET)));
-  }
-  private bucketRow(y: number): number {
-    return Math.max(0, Math.min(this.brows - 1, Math.floor((y - this.by0) / BUCKET)));
+    for (const pr of PROPS) if (isSolid(pr)) this.stamp(this.fixed, pr.x, pr.y, pr.r ?? 0, pr.hw ?? 0, pr.hh ?? 0);
+    this.walls = new WallSet(PROPS);
   }
 
   /** The grid cell at a point, or -1 outside the playable bounds. */
@@ -197,22 +170,19 @@ export class Nav {
 
   /** Does the short straight walk from (x0, y0) to (x1, y1) stay out of every wall? */
   private walkable(x0: number, y0: number, x1: number, y1: number): boolean {
-    const props = this.buckets[this.bucketRow((y0 + y1) / 2) * this.bcols + this.bucketCol((x0 + x1) / 2)];
-    const inside = (pr: Prop, x: number, y: number) => (pr.r ? (x - pr.x) ** 2 + (y - pr.y) ** 2 < pr.r * pr.r : Math.abs(x - pr.x) < pr.hw! && Math.abs(y - pr.y) < pr.hh!);
+    // (the walls filed at the walk's midpoint: it is shorter than a wall's filing reach)
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, dyn = dynamicWalls();
     const steps = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 6));
     for (let i = 1; i <= steps; i++) {
       const x = x0 + ((x1 - x0) * i) / steps, y = y0 + ((y1 - y0) * i) / steps;
-      for (const pr of props) if (inside(pr, x, y)) return false;
-      for (const pr of DYNAMIC_WALLS) if (solid(pr) && inside(pr, x, y)) return false;
+      if (this.walls.hits(x, y, 0, mx, my) || dyn.hits(x, y, 0, mx, my)) return false;
     }
     return true;
   }
 
   /** Does a body of radius `r` at (x, y) overlap a wall? */
   private overlaps(g: Game, x: number, y: number, r: number): boolean {
-    const hit = (pr: Prop) => (pr.r ? (x - pr.x) ** 2 + (y - pr.y) ** 2 < (pr.r + r) ** 2 : Math.abs(x - pr.x) < pr.hw! + r && Math.abs(y - pr.y) < pr.hh! + r);
-    for (const pr of this.buckets[this.bucketRow(y) * this.bcols + this.bucketCol(x)]) if (hit(pr)) return true;
-    for (const pr of DYNAMIC_WALLS) if (solid(pr) && hit(pr)) return true;
+    if (this.walls.hits(x, y, r) || dynamicWalls().hits(x, y, r)) return true;
     for (const b of g.bosses) if (b.solid && (x - b.x) ** 2 + (y - b.y) ** 2 < (b.solidR + r) ** 2) return true;
     return false;
   }
@@ -255,10 +225,11 @@ export class Nav {
   /** After the crowd separates: push every walled-in creature back out of the walls and inside the bounds. */
   collide(g: Game): void {
     const b = PLAYER_BOUNDS;
+    const walls = this.walls, dyn = dynamicWalls();
     for (const e of g.active) {
       if (!e.alive || !e.walled || e.def.phases || e.isBoss || e.hidden) continue;
-      for (const pr of this.buckets[this.bucketRow(e.y) * this.bcols + this.bucketCol(e.x)]) pushOut(e, pr);
-      for (const pr of DYNAMIC_WALLS) pushOut(e, pr);
+      walls.pushOut(e);
+      dyn.pushOut(e);
       for (const bo of g.bosses) {
         if (!bo.solid) continue;
         const rr = bo.solidR + e.r, dx = e.x - bo.x, dy = e.y - bo.y, d2 = dx * dx + dy * dy;

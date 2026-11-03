@@ -181,3 +181,48 @@ and before/after tables in `docs/ENGINEERING_OPTIMIZATION_REPORT.md`.
 - **Benchmarks**: `npm run bench:sim` (headless sim), `npm run bench:models` (sculpt costs), and
   `cd desktop && npx electron bench.js --url=<dev or VITE_DEVTOOLS=1 preview>` (real-time scenarios on the
   GPU; `--size=1920x1080`, `--qualities`, `--uncapped`, `--gc`, `--eval=file.js --cpuprofile=out`).
+
+## Performance milestone (D-96)
+
+Measured on the same RTX 2070 / i9-9900K in Electron 44 at 3440×1440, High; method and tables in
+`docs/PERFORMANCE_AUDIT_REPORT.md`.
+
+- **The crowd's distance models** (`core/simplify.ts`, `models/lod.ts`, `models/lodWorker.ts`, `ActorBatch.setLod`).
+  A sculpted creature is 5,000–35,000 triangles and the crowd draws each one four times (the picture, its ink
+  hull, the moon's shadow, the silhouette behind scenery); at play size that is two or more triangles to a pixel,
+  and the crowd was 7–17 ms of a 13–24 ms late-night GPU frame. Each crowd batch now asks a worker, the first
+  time it is drawn, for a plainer copy: quadric-error simplification by half-edge collapse to about 30% of the
+  triangles, no fold moving the surface more than 1.2 model units (finer than the sculpts' own 1.5–3-unit mesh
+  cells). Every surviving vertex is an original one (its normal, colours, bones and pattern untouched, nothing
+  interpolated); the edges of open parts, small separate parts (eyes, noses, buttons, teeth: under 6 units) and any
+  fold across a change of pattern, surface, ink, main bone or colour are left alone; no fold may flip or crush a
+  triangle. The copy shares the batch's instances, materials and shadow, with its own ink and silhouette twins.
+  `lodMode` 'auto' draws it while the view is at play size (no finer than 2.5 device pixels to a world unit: 1.1 at
+  1080p, 1.8 at 3440×1440, 2.2 at 4K) and the full sculpt when zoomed closer (the inspector, close captures).
+  Until a copy arrives, without workers, or for a model already plain, the full model draws.
+- **Area filing** (`world/areas.ts`). A world's kit is one instanced batch per kind of prop, never frustum-culled,
+  so maps larger than the view drew every lamp, bench and booth on the map every frame. The Ghost Train files its
+  kit by place (six places 1,800+ units apart; the camera is held inside one) and the Boardwalk by 2,000-unit
+  strips (each stretched piece by where it stands); only the areas the view reaches draw. Pixel-compared at 18
+  camera positions (strip edges, every place): 0 pixels differ; draw calls ~390 → 220–330 (Boardwalk), ~285 →
+  54–110 (Ghost Train).
+- **Ground shapes from corner tables** (`render/shapes.ts`). Every circle and ring on the ground (one under each
+  ticket, enemy bullet and shadowless creature) called `Math.cos`/`Math.sin` for every corner every frame, the
+  costliest line of the frame's own code; the corners now come from a table per corner count, computed with the
+  loops' own expressions, so the vertices are the same numbers (tested).
+- **Empty batches are skipped** (`core/batch.ts`): three.js skips an empty instanced mesh's draw call but still sets
+  up its program, uniforms and buffers in every pass, so every creature kind seen tonight cost that each frame
+  (and a full model while its distance copy drew). A batch's meshes are frustum-culled by a sphere that is all of
+  space while they hold instances (the clutter keeps the real bounds it computes) and a point far below the world
+  while empty; each mesh has its own spheres. `visible` stays the callers'.
+- **A map's first night waits behind the loading screen** (`renderer3d.prepareWorld`, `app.awaitWorld`): only the
+  menu's world is compiled at boot, and a map's first night used to build its world and compile its 6–12 new
+  programs on its first frame (frozen 1.7–5.2 s). Now the night holds behind the loading screen ("Setting up The
+  Boardwalk…") while the world is built and compiled in the background (`KHR_parallel_shader_compile`, against the
+  post chain's target), about 1.5–2.3 s, then starts smoothly. Without the extension, as before.
+- **No multisampling on the canvas**: the scene draws into the post chain's target and the canvas only receives
+  the grade's full-screen quad, so its 4× buffer was memory and a resolve per frame for nothing (frames compared:
+  no difference beyond run-to-run noise).
+- **A/B switches**: `?legacy=lod,areas,aa` (with the D-73 ones) turn these off in one build; the dev tools'
+  `__nc.areaFiling.on` and `renderer.lodMode` switch them live.
+

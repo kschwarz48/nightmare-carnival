@@ -6,6 +6,34 @@ import * as THREE from 'three';
 import { shareGeometry } from './geo';
 import { actorDepthMaterial, outlineMaterial } from './materials';
 
+/**
+ * A batch's meshes are culled while they hold nothing to draw (D-96): three.js skips the draw call of an empty
+ * instanced mesh but still sets up its program, uniforms and buffers in every pass (the picture, the shadow, each
+ * Fun House mirror), so every kind of creature seen so far tonight cost that each frame, alive or not, and so did a
+ * full model while its distance copy drew. While it holds instances a mesh keeps its own bounding sphere (all of
+ * space unless its owner computed real bounds, as the clutter does: never culled, as before); while empty, a point
+ * far below the world (always culled). Each mesh has its own spheres: three.js's computeBoundingSphere rewrites the
+ * one it finds. `visible` stays the callers'.
+ */
+const spheres = new WeakMap<THREE.InstancedMesh, { live: THREE.Sphere; empty: THREE.Sphere }>();
+function cullWhenEmpty(m: THREE.InstancedMesh): void {
+  const sp = { live: new THREE.Sphere(new THREE.Vector3(), Infinity), empty: new THREE.Sphere(new THREE.Vector3(0, -1e9, 0), 0) };
+  spheres.set(m, sp);
+  m.frustumCulled = true;
+  m.boundingSphere = sp.empty;
+}
+function showIf(m: THREE.InstancedMesh | null, n: number): void {
+  if (!m) return;
+  m.count = n;
+  const sp = spheres.get(m)!;
+  if (n > 0) {
+    if (m.boundingSphere === sp.empty) m.boundingSphere = sp.live;
+  } else if (m.boundingSphere !== sp.empty) {
+    if (m.boundingSphere) sp.live = m.boundingSphere;
+    m.boundingSphere = sp.empty;
+  }
+}
+
 export class ActorBatch {
   mesh: THREE.InstancedMesh;
   readonly cap: number;
@@ -25,6 +53,12 @@ export class ActorBatch {
   xray: THREE.InstancedMesh | null = null;
   /** false while its shaders compile in the background: it draws nothing rather than stalling a frame */
   ready = true;
+  /** A plainer copy of the model for play size (D-96: render3d/core/simplify.ts) with its ink and silhouette twins,
+   *  sharing this batch's instances, materials and shadow; drawn instead of the full model while `useLod`. */
+  lod: THREE.InstancedMesh | null = null;
+  lodOutline: THREE.InstancedMesh | null = null;
+  lodXray: THREE.InstancedMesh | null = null;
+  useLod = false;
 
   constructor(geo: THREE.BufferGeometry, mat: THREE.MeshStandardMaterial, cap: number, o: { shadow?: boolean; receive?: boolean; order?: number; outline?: boolean } = {}) {
     this.cap = cap;
@@ -41,7 +75,7 @@ export class ActorBatch {
     this.mesh = new THREE.InstancedMesh(g, mat, cap);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.m = this.mesh.instanceMatrix.array as Float32Array;
-    this.mesh.frustumCulled = false;
+    cullWhenEmpty(this.mesh);
     this.mesh.count = 0;
     this.mesh.castShadow = !!o.shadow;
     this.mesh.receiveShadow = o.receive ?? true;
@@ -50,7 +84,7 @@ export class ActorBatch {
     if (o.outline) {
       this.outline = new THREE.InstancedMesh(g, outlineMaterial(mat), cap);
       this.outline.instanceMatrix = this.mesh.instanceMatrix;
-      this.outline.frustumCulled = false;
+      cullWhenEmpty(this.outline);
       this.outline.count = 0;
     }
   }
@@ -110,11 +144,34 @@ export class ActorBatch {
     this.ri[j] = r; this.ri[j + 1] = g; this.ri[j + 2] = b; this.ri[j + 3] = k;
   }
 
+  /** Attach the plainer copy (the meshes to add to the scene are returned). */
+  setLod(geo: THREE.BufferGeometry): THREE.InstancedMesh[] {
+    const g = shareGeometry(geo);
+    g.setAttribute('iAnim', this.aAn);
+    g.setAttribute('iTint', this.aTi);
+    g.setAttribute('iRim', this.aRi);
+    const twin = (mat: THREE.Material | THREE.Material[], like: THREE.InstancedMesh) => {
+      const m = new THREE.InstancedMesh(g, mat, this.cap);
+      m.instanceMatrix = this.mesh.instanceMatrix;
+      cullWhenEmpty(m);
+      m.count = 0;
+      m.renderOrder = like.renderOrder;
+      m.castShadow = like.castShadow;
+      m.receiveShadow = like.receiveShadow;
+      m.customDepthMaterial = like.customDepthMaterial;
+      return m;
+    };
+    this.lod = twin(this.mesh.material, this.mesh);
+    if (this.outline) this.lodOutline = twin(this.outline.material, this.outline);
+    if (this.xray) this.lodXray = twin(this.xray.material, this.xray);
+    return [this.lod, this.lodOutline, this.lodXray].filter((m): m is THREE.InstancedMesh => !!m);
+  }
+
   /** Give this batch an occluded-silhouette twin drawn with `mat` at render order `order`. */
   addXray(mat: THREE.Material, order: number): THREE.InstancedMesh {
     const x = new THREE.InstancedMesh(this.mesh.geometry, mat, this.cap);
     x.instanceMatrix = this.mesh.instanceMatrix;
-    x.frustumCulled = false;
+    cullWhenEmpty(x);
     x.count = 0;
     x.renderOrder = order;
     this.xray = x;
@@ -123,9 +180,13 @@ export class ActorBatch {
 
   end(): void {
     const n = this.ready ? this.count : 0;
-    this.mesh.count = n;
-    if (this.outline) this.outline.count = n;
-    if (this.xray) this.xray.count = n;
+    const lod = this.useLod && !!this.lod;
+    showIf(this.mesh, lod ? 0 : n);
+    showIf(this.lod, lod ? n : 0);
+    showIf(this.outline, lod && this.lodOutline ? 0 : n);
+    showIf(this.lodOutline, lod ? n : 0);
+    showIf(this.xray, lod && this.lodXray ? 0 : n);
+    showIf(this.lodXray, lod ? n : 0);
     if (n === 0) return;
     const im = this.mesh.instanceMatrix;
     im.clearUpdateRanges();

@@ -24,6 +24,10 @@ export interface PerfCounts {
   projectiles: number;
   bullets: number;
   particles: number;
+  /** the crowd's distance models (D-96): kinds drawn with one, kinds drawing, and whether they're in use */
+  lodReady?: number;
+  lodKinds?: number;
+  lodOn?: boolean;
 }
 
 export class Perf {

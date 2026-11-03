@@ -8,13 +8,17 @@
 //   - convergence: the replica's enemy positions against the host's at the same sim time
 //   - liveness: drafts and prize wheels resolved, the night kept moving
 //
-//   npx vite-node scripts/bench/net.ts [out.json] [--quick]
+//   - CPU (D-96): the host session's work per frame (inputs in, snapshots encoded and sent) and the guest's (its
+//     snapshot decoding and applying, prediction and the replica's frame), mean / p99 ms
+//
+//   npx vite-node scripts/bench/net.ts [out.json] [--quick] [--crowd=N] [--map=ghost_train] [--only=RTT 100]
 import { writeFileSync } from 'node:fs';
 import { Game } from '../../src/sim/game';
 import { LoopbackNet, type LoopbackOpts } from '../../src/net/link';
 import { GuestSession, HostSession, runConfigFromStart, type HostProfile } from '../../src/net/session';
 import type { GuestProfile } from '../../src/net/protocol';
 import { summarize } from '../../src/core/perf';
+import type { MapId } from '../../src/data/maps';
 
 const hostProfile: HostProfile = { name: 'Kevin', meta: [], rerolls: 1, banishes: 1, canSkip: true, aimMode: 'auto' };
 const guestProfile: GuestProfile = { name: 'Brother', meta: [], rerolls: 1, banishes: 0, canSkip: false, aimMode: 'auto', chars: ['carny', 'strongman', 'fortune_teller'] };
@@ -24,6 +28,9 @@ const outPath = process.argv.slice(2).find((a) => a.endsWith('.json'));
 const SECONDS = quick ? 20 : 45;
 /** monsters kept alive on the host (--crowd=80 for a lighter night with small snapshots) */
 const CROWD = Number(process.argv.find((a) => a.startsWith('--crowd='))?.split('=')[1] ?? 250);
+/** the map the party plays (D-96: the Ghost Train, the owner's usual party night) */
+const MAP = (process.argv.find((a) => a.startsWith('--map='))?.split('=')[1] ?? 'carnival_core') as MapId;
+const ONLY = process.argv.find((a) => a.startsWith('--only='))?.slice(7);
 const FRAME = 1000 / 60;
 
 interface Cond { name: string; opts: LoopbackOpts }
@@ -60,12 +67,25 @@ function runCond(c: Cond) {
     }
   };
   let g: Game | null = null;
+  const hostMs: number[] = [], guestMs: number[] = [];
+  let measuring = false, guestStep = 0;
   const step = (frame?: () => void) => {
     now += FRAME;
+    // the guest's snapshots are decoded and applied as they arrive (in the pump), as in the browser
+    const p0 = performance.now();
     net.pump(now);
+    const p1 = performance.now();
     frame?.();
+    const h0 = performance.now();
     host.update(now, FRAME);
+    const h1 = performance.now();
     gs.update(now);
+    const g1 = performance.now();
+    if (measuring) {
+      hostMs.push(h1 - h0);
+      guestMs.push(p1 - p0 + (g1 - h1) + guestStep);
+    }
+    guestStep = 0;
   };
   const wait = (ms: number) => {
     const end = now + ms;
@@ -76,6 +96,7 @@ function runCond(c: Cond) {
   host.setCharacter('strongman');
   gs.pick('carny');
   wait(300);
+  host.setMap(MAP);
   host.setReady(true);
   gs.setReady(true);
   wait(300);
@@ -94,6 +115,7 @@ function runCond(c: Cond) {
   const seenProj = new Set<number>();
   const t0 = g.time;
   const end = now + SECONDS * 1000;
+  measuring = true;
   while (now < end) {
     step(() => {
       const hg = g!;
@@ -101,8 +123,10 @@ function runCond(c: Cond) {
       const mg = gs.game;
       if (gs.state === 'run' && mg && mg.phase === 'play' && !gs.pausedBy && rep && !rep.frozen) {
         const t = now / 1000;
+        const s0 = performance.now();
         gs.step(Math.cos(t * 0.8), Math.sin(t * 1.1), 0, 0, false);
         rep.frame(1 / 60);
+        guestStep = performance.now() - s0;
       }
       if (!host.paused && host.prizeReady && hg.phase === 'play') {
         hg.inputs[0].moveX = Math.cos(hg.realTime * 0.5) * 0.7 - hg.players[0].x / 1500;
@@ -184,18 +208,26 @@ function runCond(c: Cond) {
     hostInputQueue: { ...sm(queue), starved: hs.stats.starved, dropped: hs.stats.dropped },
     convergence: sm(conv),
     liveness: { drafts, prizes, guestState: gs.state, nightMoved: r2(g.time - t0) },
+    cpuMs: { host: sm99(hostMs), guest: sm99(guestMs) },
   };
 }
 
-const results = CONDS.map((c) => {
+function sm99(xs: number[]) {
+  const s = summarize(xs);
+  return s && { mean: Math.round(s.mean * 1000) / 1000, p99: Math.round(s.p99 * 1000) / 1000, max: Math.round(s.max * 100) / 100 };
+}
+
+const results = CONDS.filter((c) => !ONLY || ONLY.split(',').some((o) => c.name.includes(o))).map((c) => {
   const r = runCond(c);
   console.log(JSON.stringify(r));
   return r;
 });
-console.log('\n| condition | pred. gap mean / p95 / max | corrections | view lag mean / p95 ms | own projectiles start mean / p95 away | snapshot loss % | bytes / KB/s | host input queue mean / max | convergence mean | drafts / prizes |');
-console.log('|---|---|---:|---|---|---:|---|---|---:|---|');
+console.log(`\nmap ${MAP}, crowd ${CROWD}, ${SECONDS} s per condition`);
+console.log('\n| condition | pred. gap mean / p95 / max | corrections | view lag mean / p95 ms | own projectiles start mean / p95 away | snapshot loss % | bytes / KB/s | host input queue mean / max | convergence mean | drafts / prizes | host / guest net CPU ms mean (p99) |');
+console.log('|---|---|---:|---|---|---:|---|---|---:|---|---|');
 for (const r of results) {
   const g = r.prediction.gap, l = r.viewLagMs, o = r.ownProjectileOrigin, q = r.hostInputQueue;
-  console.log(`| ${r.condition} | ${g?.mean} / ${g?.p95} / ${g?.max} | ${r.prediction.corrections} | ${l?.mean} / ${l?.p95} | ${o.mean ?? '–'} / ${o.p95 ?? '–'} (${o.n}) | ${r.snapshots.lostPct} | ${r.snapshots.avgBytes} / ${r.snapshots.kbps} | ${q.mean} / ${q.max} | ${r.convergence?.mean ?? '–'} | ${r.liveness.drafts} / ${r.liveness.prizes} |`);
+  const cpu = r.cpuMs;
+  console.log(`| ${r.condition} | ${g?.mean} / ${g?.p95} / ${g?.max} | ${r.prediction.corrections} | ${l?.mean} / ${l?.p95} | ${o.mean ?? '–'} / ${o.p95 ?? '–'} (${o.n}) | ${r.snapshots.lostPct} | ${r.snapshots.avgBytes} / ${r.snapshots.kbps} | ${q.mean} / ${q.max} | ${r.convergence?.mean ?? '–'} | ${r.liveness.drafts} / ${r.liveness.prizes} | ${cpu.host?.mean} (${cpu.host?.p99}) / ${cpu.guest?.mean} (${cpu.guest?.p99}) |`);
 }
-if (outPath) writeFileSync(outPath, JSON.stringify({ at: new Date().toISOString(), seconds: SECONDS, results }, null, 1));
+if (outPath) writeFileSync(outPath, JSON.stringify({ at: new Date().toISOString(), map: MAP, crowd: CROWD, seconds: SECONDS, results }, null, 1));

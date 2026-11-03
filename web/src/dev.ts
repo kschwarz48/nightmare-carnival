@@ -15,7 +15,8 @@ import type { SummersEndChain } from './sim/quest/summersEnd';
 import { refreshSea } from './sim/boardwalk';
 import { J, TRANSIT, V, regionAt as gtRegionAt, trackY, trainOrigin } from './data/ghosttrain';
 import { placeTrain } from './sim/ghosttrain';
-import { gpuProbe, runBenchScenario, type BenchScenario } from './devBench';
+import { gpuProbe, measureFrames, runBenchScenario, type BenchScenario } from './devBench';
+import { areaFiling } from './render3d/world/areas';
 import { BUILD } from './platform/updates';
 import { Game } from './sim/game';
 import { hasCharacterModel } from './render3d/models/characters';
@@ -166,6 +167,12 @@ export function installDevTools(app: App): void {
       },
       /** Mean GPU/CPU ms over the next frames (A/B experiments). */
       gpuProbe,
+      /** Draw only the areas of a world the view reaches (D-96, render3d/world/areas.ts); off to compare. */
+      areaFiling,
+      /** Frame pacing, the CPU split and the link's diagnostics over the next `sec` of real frames (D-96). */
+      measure(sec = 20) {
+        return measureFrames(sec, app);
+      },
       /** This page's build (id, version, protocol, simulation fingerprint): the update tests compare it. */
       build: BUILD,
       /** Boot phase timings and the page's navigation timing (ms). */
@@ -257,7 +264,12 @@ export function installDevTools(app: App): void {
           if (o.light !== undefined) r.inspectLight = o.light === 'game' ? null : o.light;
           if (o.ink !== undefined) {
             r.inspectInk = o.ink;
-            if (o.ink) for (const b of (r as unknown as { batches: Map<string, { outline: { visible: boolean } | null }> }).batches.values()) if (b.outline) b.outline.visible = true;
+            if (o.ink) {
+              for (const b of (r as unknown as { batches: Map<string, { outline: { visible: boolean } | null; lodOutline: { visible: boolean } | null }> }).batches.values()) {
+                if (b.outline) b.outline.visible = true;
+                if (b.lodOutline) b.lodOutline.visible = true;
+              }
+            }
           }
           if (o.post !== undefined) r.post.setGraded(o.post);
           if (o.occ !== undefined) shared.uOccK.value = o.occ;

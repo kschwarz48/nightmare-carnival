@@ -8,12 +8,22 @@ import { setDynamicWalls, type Prop } from '../data/map';
 import type { Game } from './game';
 import type { Player } from './player';
 
+/** Each arrangement of the walls that move, built once (D-96: the same array while nothing turns, so the packed
+ *  wall set behind it is built once per arrangement rather than every tick; sim/walls.ts). */
+const arrangements = new Map<number, Prop[]>();
+
 /** Rebuild the walls that move: each pivot in its current position, and the dressing-room door unless it's open. */
 export function refreshFunhouseWalls(g: Game): void {
-  const walls: Prop[] = [];
   const shuffle = g.pivotShuffleT > 0;
-  for (let i = 0; i < PIVOTS.length; i++) walls.push(pivotState(i, g.time, shuffle) ? PIVOTS[i].b : PIVOTS[i].a);
-  if (!g.funhouseDoorOpen) walls.push(...DOOR_PANELS);
+  let key = g.funhouseDoorOpen ? 0 : 1;
+  for (let i = 0; i < PIVOTS.length; i++) if (pivotState(i, g.time, shuffle)) key += 2 ** (i + 1);
+  let walls = arrangements.get(key);
+  if (!walls) {
+    walls = [];
+    for (let i = 0; i < PIVOTS.length; i++) walls.push(key & (2 ** (i + 1)) ? PIVOTS[i].b : PIVOTS[i].a);
+    if (!g.funhouseDoorOpen) walls.push(...DOOR_PANELS);
+    arrangements.set(key, walls);
+  }
   setDynamicWalls(walls);
 }
 

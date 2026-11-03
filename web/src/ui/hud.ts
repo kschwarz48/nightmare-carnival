@@ -56,6 +56,19 @@ const EDGE_IN = 46;
 const PARTY_BOTTOM = 128;
 const onScreen = (s: { x: number; y: number }, screen: HudScreen) => s.x > 0 && s.x < screen.w && s.y > 0 && s.y < screen.h;
 
+/** Write only what changed (D-96): the HUD repaints every frame, and a text or a style set to the value it already
+ *  had still dirties the page's style and layout. */
+const written = new WeakMap<HTMLElement, Record<string, string>>();
+function write(el: HTMLElement, key: string, v: string): void {
+  let w = written.get(el);
+  if (!w) written.set(el, (w = {}));
+  if (w[key] === v) return;
+  w[key] = v;
+  if (key === 'text') el.textContent = v;
+  else if (key.startsWith('--')) el.style.setProperty(key, v);
+  else (el.style as unknown as Record<string, string>)[key] = v;
+}
+
 /** What the co-op layer of the HUD shows (set by the app every frame during an online run). */
 export interface CoopHud {
   /** this machine's player slot */
@@ -164,6 +177,8 @@ export class Hud {
   private keepOutT = 0;
   private whispers: HTMLDivElement;
   private tags: HTMLDivElement;
+  /** the name tag over each other player's head, kept from frame to frame (D-96: rebuilt every frame) */
+  private tagEls: HTMLDivElement[] = [];
   private statusEl: HTMLDivElement;
   private pingEl: HTMLDivElement;
   private diagEl: HTMLDivElement;
@@ -237,20 +252,20 @@ export class Hud {
     this.tipGame = g;
     const p = g.player;
     this.tipWho = p;
-    this.xpFill.style.width = `${Math.min(100, (g.xp / g.xpToNext) * 100)}%`;
-    this.lvl.textContent = String(g.level);
+    write(this.xpFill, 'width', `${Math.min(100, (g.xp / g.xpToNext) * 100).toFixed(2)}%`);
+    write(this.lvl, 'text', String(g.level));
     const t = Math.min(g.time, DAWN_TIME);
-    this.time.textContent = g.endless ? fmtTime(g.time) : fmtTime(t);
+    write(this.time, 'text', g.endless ? fmtTime(g.time) : fmtTime(t));
     this.time.classList.toggle('stalled', g.stalled);
-    this.sun.style.transform = `translateY(${100 - Math.min(1, t / DAWN_TIME) * 100}%)`;
-    this.act.textContent = g.endless ? 'LOCKED IN — Endless' : g.victoryLap ? 'Victory Lap — Dawn approaches' : ACT_NAMES[g.act - 1];
+    write(this.sun, 'transform', `translateY(${(100 - Math.min(1, t / DAWN_TIME) * 100).toFixed(2)}%)`);
+    write(this.act, 'text', g.endless ? 'LOCKED IN — Endless' : g.victoryLap ? 'Victory Lap — Dawn approaches' : ACT_NAMES[g.act - 1]);
     // HP
     const maxHp = p.stats.maxHp();
-    const pct = Math.max(0, Math.min(100, (p.hp / maxHp) * 100));
-    this.hpFill.style.width = `${pct}%`;
-    this.hpGhost.style.width = `${pct}%`;
+    const pct = `${Math.max(0, Math.min(100, (p.hp / maxHp) * 100)).toFixed(2)}%`;
+    write(this.hpFill, 'width', pct);
+    write(this.hpGhost, 'width', pct);
     // (health rounds up, never past the maximum shown: a full Strongman read 187 / 186)
-    this.hpTxt.textContent = `${Math.max(0, Math.min(Math.ceil(p.hp), Math.round(maxHp)))} / ${Math.round(maxHp)}`;
+    write(this.hpTxt, 'text', `${Math.max(0, Math.min(Math.ceil(p.hp), Math.round(maxHp)))} / ${Math.round(maxHp)}`);
     if (this.lastHp >= 0 && p.hp < this.lastHp - 0.01) {
       this.hpWrap.classList.remove('flash');
       void this.hpWrap.offsetWidth;
@@ -321,7 +336,7 @@ export class Hud {
     for (const d of this.dials) {
       const w = g.weapons.list[d.i];
       const f = w ? Math.max(0, Math.min(1, w.cd / g.weapons.cooldown(w))) : 0;
-      d.el.style.setProperty('--cd', `${((1 - f) * 360).toFixed(1)}deg`);
+      write(d.el, '--cd', `${((1 - f) * 360).toFixed(1)}deg`);
     }
     const kills = `☠ ${g.kills.toLocaleString('en-US')}`;
     if (this.killsEl.textContent !== kills) this.killsEl.textContent = kills;
@@ -462,11 +477,11 @@ export class Hud {
         if (nm.textContent !== name) nm.textContent = name;
       }
       const on = s.x > -100 && s.x < screen.w + 100 && s.y > 20 && s.y < screen.h + 60;
-      b.el.style.display = on ? '' : 'none';
+      write(b.el, 'display', on ? '' : 'none');
       if (!on) return;
       b.el.style.left = `${s.x}px`;
       b.el.style.top = `${s.y}px`;
-      b.fill.style.width = `${Math.max(0, Math.min(1, frac)) * 100}%`;
+      write(b.fill, 'width', `${(Math.max(0, Math.min(1, frac)) * 100).toFixed(2)}%`);
     };
     for (const b of g.bosses) {
       if (!b.awake || !b.introDone || b.dead || b.removed) continue;
@@ -531,7 +546,7 @@ export class Hud {
     const ps = screen.toScreen(p.x, p.y, 40);
     this.arrows.forEach((el, i) => {
       const c = list[i];
-      el.style.display = c ? '' : 'none';
+      write(el, 'display', c ? '' : 'none');
       if (!c) return;
       const s = screen.toScreen(c.pk.x, c.pk.y, 20);
       const a = Math.atan2(s.y - ps.y, s.x - ps.x);
@@ -540,7 +555,7 @@ export class Hud {
       el.style.left = `${ps.x + Math.cos(a) * R}px`;
       el.style.top = `${ps.y + Math.sin(a) * R}px`;
       el.style.transform = `translate(-50%, -50%) rotate(${a}rad)`;
-      el.style.opacity = String(i === 0 ? 1 : 0.7);
+      write(el, 'opacity', i === 0 ? '1' : '0.7');
     });
   }
 
@@ -556,7 +571,7 @@ export class Hud {
       const pk = list[i];
       const s = pk ? screen.toScreen(pk.x, pk.y, MARKED[pk.kind]!) : null;
       const on = !!s && s.x > -30 && s.x < screen.w + 30 && s.y > -30 && s.y < screen.h + 30;
-      el.style.display = on ? '' : 'none';
+      write(el, 'display', on ? '' : 'none');
       if (!on || !s) return;
       el.style.left = `${s.x}px`;
       el.style.top = `${s.y}px`;
@@ -573,6 +588,7 @@ export class Hud {
     this.diagEl.classList.toggle('hidden', !on || !info?.diag);
     if (!on || !info) {
       if (this.tags.childElementCount) this.tags.replaceChildren();
+      this.tagEls = [];
       this.statusEl.classList.add('hidden');
       this.statusKey = '';
       this.hideBuild();
@@ -581,13 +597,22 @@ export class Hud {
     this.updateParty(g, info);
     // name tags over the other players' heads (D-91: they sat at face height); off screen, their marker at the edge
     // (updateIndicators)
-    const kids: HTMLElement[] = [];
     for (const q of g.players) {
-      if (q.index === info.local || !onScreen(screen.toScreen(q.x, q.y), screen)) continue;
+      let el = this.tagEls[q.index];
+      if (q.index === info.local || !onScreen(screen.toScreen(q.x, q.y), screen)) {
+        if (el) write(el, 'display', 'none');
+        continue;
+      }
+      if (!el) {
+        el = this.tagEls[q.index] = h('div', { class: `coop-tag p${q.index + 1}` });
+        this.tags.append(el);
+      }
       const s = screen.toScreen(q.x, q.y, (q.downed ? 64 : screen.headH?.(q.char.id) ?? 150) + 12);
-      kids.push(h('div', { class: `coop-tag p${q.index + 1}`, style: { left: `${s.x}px`, top: `${s.y}px` } }, q.downed ? `⚰ ${q.name}` : q.name));
+      write(el, 'display', '');
+      write(el, 'left', `${s.x.toFixed(1)}px`);
+      write(el, 'top', `${s.y.toFixed(1)}px`);
+      write(el, 'text', q.downed ? `⚰ ${q.name}` : q.name);
     }
-    this.tags.replaceChildren(...kids);
     const sk = info.status ? info.status.text + (info.status.action?.label ?? '') : '';
     if (sk !== this.statusKey) {
       this.statusKey = sk;

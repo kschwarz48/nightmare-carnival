@@ -17,6 +17,7 @@ import { ActorBatch } from './core/batch';
 import { BillboardLayer, DecalBatch, camBasis } from './core/billboard';
 import { actorMaterial, ink, pool, shared, xrayMaterial } from './core/materials';
 import { CHARACTERS, ENEMY_MODELS, ITEM_MODELS, geometryFor, type ModelDef } from './models';
+import { lodArrivals, lodFor, requestLod } from './models/lod';
 import { Ground3D } from './world/ground';
 import { LightShafts, Motes } from './world/atmosphere';
 import { FunhouseWorld } from './world/funhouse/world';
@@ -45,6 +46,8 @@ const SIN_EL = Math.sin(ELEVATION);
 const COS_EL = Math.cos(ELEVATION);
 /** Visible frustum height (world units) at 16:9; narrower on ultra-wide so the spawn band stays off-screen. */
 const FRUSTUM_H = 1000;
+/** the finest view (device pixels to a world unit) that still draws the crowd's distance models (D-96) */
+const LOD_PX = 2.5;
 /**
  * Actors are drawn larger than their collision radius (as the 2D sprites were) and stretched a
  * little vertically to offset the camera's foreshortening, so silhouettes read at gameplay zoom.
@@ -145,6 +148,9 @@ export class GameRenderer3D {
   wire: DecalBatch;
   camX = 0;
   camY = 0;
+  /** The ground this frame can show (world units, with margins for tall things standing just outside it): the
+   *  rectangle every `inView` test uses, for worlds that hide whole places out of sight (D-96). */
+  readonly viewRect = { x0: 0, x1: 0, y0: 0, y1: 0 };
   time = 0;
   dawn = 0;
   /** 0..1: the Ringmaster's demon form bleeds red into the moonlight and fog. */
@@ -154,6 +160,15 @@ export class GameRenderer3D {
   private abilityBatches = new Set<ActorBatch>();
   private batches = new Map<string, ActorBatch>();
   private batchList: ActorBatch[] = [];
+  /**
+   * The crowd's distance models (D-96): 'auto' draws each creature's plainer copy (about a third of its triangles)
+   * while the view is at play size, no finer than LOD_PX device pixels to a world unit (1.1 at 1080p, 1.8 at
+   * 3440x1440, 2.2 at 4K), and the full sculpt when zoomed in closer (the inspector, close captures).
+   */
+  lodMode: 'auto' | 'on' | 'off' = LEGACY.lod ? 'off' : 'auto';
+  private lodBatches: ActorBatch[] = [];
+  private lodWaiting: { key: string; b: ActorBatch }[] = [];
+  private lodSeen = -1;
   /** each playable character's height, read off its model (charTop) */
   private charTops = new Map<string, number>();
   private yaw = new Map<number, number>();
@@ -198,7 +213,10 @@ export class GameRenderer3D {
   inspect: { x: number; y: number } | null = null;
 
   constructor(private canvas: HTMLCanvasElement, readonly assets: Assets) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'high-performance' });
+    // (no multisampling on the canvas, D-96: the scene draws into the post chain's own target, and the canvas only
+    // ever receives the grade's full-screen quad, so a 4x canvas buffer cost memory and a resolve every frame for
+    // nothing; `?legacy=aa` asks for it again)
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: LEGACY.aa, alpha: false, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x030306);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -446,7 +464,7 @@ export class GameRenderer3D {
    * static scenery (0) and the occluded silhouettes (1), before the ground (3). With `xray`, the batch
    * gets a silhouette in that colour wherever scenery hides it (D-58).
    */
-  private batch(key: string, def: ModelDef, cap: number, xray?: [number, number, number]): ActorBatch {
+  private batch(key: string, def: ModelDef, cap: number, xray?: [number, number, number], lod = false): ActorBatch {
     let b = this.batches.get(key);
     if (!b) {
       const rig = def.rig?.();
@@ -462,9 +480,30 @@ export class GameRenderer3D {
       this.scene.add(b.mesh);
       if (b.outline) this.scene.add(b.outline);
       this.compileInBackground(b);
+      if (lod) {
+        this.lodBatches.push(b);
+        this.lodWaiting.push({ key, b });
+        requestLod(key, geo);
+      }
     }
     if (b.xray) b.xray.visible = this.settings.quality !== 'low';
+    if (b.lodXray) b.lodXray.visible = this.settings.quality !== 'low';
     return b;
+  }
+
+  /** Attach the distance models that have arrived, and pick full or plain for this frame (D-96). */
+  private updateLods(): void {
+    if (this.lodSeen !== lodArrivals) {
+      this.lodSeen = lodArrivals;
+      this.lodWaiting = this.lodWaiting.filter(({ key, b }) => {
+        const geo = lodFor(key);
+        if (geo === undefined) return true;
+        if (geo) for (const m of b.setLod(geo)) this.scene.add(m);
+        return false;
+      });
+    }
+    const on = this.lodMode === 'auto' ? (this.cssH * this.pr) / this.viewH <= LOD_PX : this.lodMode === 'on';
+    for (const b of this.lodBatches) b.useLod = on;
   }
 
   /** Batches whose shaders are still compiling (see compileInBackground). */
@@ -529,10 +568,46 @@ export class GameRenderer3D {
     this.render(g, 1, 0, { menu: true });
     quad.dispose();
     this.warmedPrograms = this.renderer.info.programs?.length ?? 0;
+    this.readyWorlds.add(g.mapId);
   }
 
   /** how many shader programs the boot warm-up compiled (diagnostics) */
   warmedPrograms = 0;
+
+  /**
+   * Maps whose world is built and whose shaders are compiled (D-96): the boot warm-up's, then each map before its
+   * first night. A map's first night used to build its world and compile its 6–12 new programs on its first frame,
+   * frozen for 2–5 s (Fun House 1.9 s, Boardwalk 4.1 s, Ghost Train 4.8 s on this PC); compiled in the background
+   * first, behind the app's veil, the wait is about a second and the night starts smoothly. Without the parallel
+   * compile extension every map counts as ready (a first night compiles on the spot, as before).
+   */
+  private readyWorlds = new Set<MapId>();
+  private preparing = new Map<MapId, Promise<void>>();
+
+  worldReady(id: MapId): boolean {
+    return this.readyWorlds.has(id) || LEGACY.compile || !this.renderer.getContext().getExtension('KHR_parallel_shader_compile');
+  }
+
+  /** Build a map's world and compile its shaders in the background; the map's data must be the active one and nothing
+   *  should draw meanwhile (the app holds the night behind a veil). Resolves once its first frame needs no compiling. */
+  prepareWorld(id: MapId): Promise<void> {
+    let p = this.preparing.get(id);
+    if (!p) {
+      p = (async () => {
+        try {
+          // the veil paints first; then the world is built (on the spot: up to ~0.7 s) and compiled in the background
+          await new Promise((r) => requestAnimationFrame(() => r(null)));
+          this.setWorld(id);
+          await this.intoPostTarget(() => this.renderer.compileAsync(this.scene, this.camera)).catch(() => undefined);
+        } finally {
+          // ready either way: if anything failed, the night's first frame builds and compiles on the spot, as before
+          this.readyWorlds.add(id);
+        }
+      })();
+      this.preparing.set(id, p);
+    }
+    return p;
+  }
 
   /** Resolves once every batch created so far has its shaders (captures and benchmarks wait on it). */
   async whenCompiled(): Promise<void> {
@@ -669,6 +744,10 @@ export class GameRenderer3D {
     const vx0 = cx - this.viewW / 2 - 260, vx1 = cx + this.viewW / 2 + 260;
     const vy0 = cy - halfGroundH - 320, vy1 = cy + halfGroundH + 260;
     const inView = (x: number, y: number) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
+    this.viewRect.x0 = vx0;
+    this.viewRect.x1 = vx1;
+    this.viewRect.y0 = vy0;
+    this.viewRect.y1 = vy1;
 
     this.props.update(g, this, inView, dt);
     (this.world.motes ?? this.motes).draw(this.glow, this.f('fx_glow_0'), this.time, inView, (1 - g.darkness * 0.8) * (1 - this.dawn));
@@ -702,6 +781,7 @@ export class GameRenderer3D {
     this.drawBullets(g, alpha);
     fx.draw(this.fxNormal, this.fxAdd, this.addShapes, this.numbers);
 
+    this.updateLods();
     for (const b of this.batchList) b.end();
     for (const l of [this.fxNormal, this.fxAdd, this.glow, this.numbers]) l.end();
     for (const s of [this.teleFill, this.zoneShapes, this.addShapes, this.teleLine, this.wire]) s.end();
@@ -738,7 +818,12 @@ export class GameRenderer3D {
     this.overlayCam.projectionMatrix.copy(this.camera.projectionMatrix);
     this.overlayCam.projectionMatrixInverse.copy(this.camera.projectionMatrixInverse);
     this.post.setOverlay(this.overlay.children.some((o) => o.visible));
-    if (!this.inspectInk) for (const b of this.batches.values()) if (b.outline) b.outline.visible = false;
+    if (!this.inspectInk) {
+      for (const b of this.batches.values()) {
+        if (b.outline) b.outline.visible = false;
+        if (b.lodOutline) b.lodOutline.visible = false;
+      }
+    }
     this.post.renderFrame();
     if (timing) {
       this.gpuTimer?.end();
@@ -752,6 +837,9 @@ export class GameRenderer3D {
       for (const b of g.bullets) if (b.alive) bu++;
       c.projectiles = pr;
       c.bullets = bu;
+      c.lodKinds = this.lodBatches.length;
+      c.lodReady = this.lodBatches.reduce((n, b) => n + (b.lod ? 1 : 0), 0);
+      c.lodOn = this.lodBatches[0]?.useLod ?? false;
     }
   }
 
@@ -1208,7 +1296,7 @@ export class GameRenderer3D {
       if (id === 'jack_in_the_box' && e.state === 2) key = 'jack_open';
       const def = ENEMY_MODELS[key];
       if (!def) continue;
-      const b = this.batch(key, def, id === 'swarm_balloon' || id === 'living_balloon' || id === 'possessed_stuffie' ? 700 : 400, XRAY_ENEMY);
+      const b = this.batch(key, def, id === 'swarm_balloon' || id === 'living_balloon' || id === 'possessed_stuffie' ? 700 : 400, XRAY_ENEMY, true);
       const rig = def.rig?.();
       const moving = Math.hypot(e.vx, e.vy) > 6;
       const flyer = e.def.behavior === 'flyby' || id === 'living_balloon';

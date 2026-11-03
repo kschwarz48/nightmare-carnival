@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import type { Game } from '../../../sim/game';
 import type { GameRenderer3D } from '../../renderer3d';
 import { SEA } from '../../../data/boardwalk';
-import { PROPS, type Prop } from '../../../data/map';
+import { PROPS } from '../../../data/map';
 import { StaticBatch } from '../../core/batch';
 import { actorMaterial } from '../../core/materials';
 import { BoardwalkFloor } from './floor';
@@ -20,6 +20,7 @@ import { glassGeometry } from './furnishings';
 import { Rides } from './rides';
 import { BoardwalkLighting } from './lighting';
 import { BoardwalkQuest } from './quest';
+import { AreaBatches } from '../areas';
 
 /** Props stretched along their length (`w`) rather than placed at a fixed size. */
 const STRETCH: Record<string, number> = { bw_rail: 100 };
@@ -36,6 +37,9 @@ export class BoardwalkWorld {
   readonly shafts: BoardwalkLighting['shafts'];
   readonly motes: BoardwalkLighting['motes'];
   private statics: StaticBatch[] = [];
+  /** the prop kit filed in strips 2,000 units wide along the front, each piece by where it stands (D-96,
+   *  world/areas.ts): the view spans at most two; the margin covers the widest prop (600 from its middle) */
+  private strips = new AreaBatches([-4000, -2000, 0, 2000].map((x) => ({ x0: x, x1: x + 2000, y0: -Infinity, y1: Infinity })).concat([{ x0: -Infinity, x1: Infinity, y0: -Infinity, y1: Infinity }]), 700);
 
   constructor() {
     this.root.add(this.ground.mesh);
@@ -54,30 +58,30 @@ export class BoardwalkWorld {
     this.interiors = new Interiors(this.root);
     this.interiors.attachSigns(this.root);
     this.rides = new Rides(this.root);
-    // ---- the prop kit, one batch per kind and variant
-    const groups = new Map<string, Prop[]>();
+    // ---- the prop kit, one batch per kind, variant and strip; stretched kinds repeat their run along the length (so
+    // posts stay posts), each run nudged to fit and filed by where it stands
+    const groups = new Map<string, { x: number; y: number; yaw: number; sx: number }[]>();
     for (const p of PROPS) {
       if (BW_SKIP.has(p.kind) || !BW_PROPS[p.kind]) continue;
-      const key = `${p.kind}:${p.variant ?? 0}`;
-      (groups.get(key) ?? groups.set(key, []).get(key)!).push(p);
+      const len = STRETCH[p.kind];
+      const put = (x: number, sx: number) => {
+        const key = `${p.kind}:${p.variant ?? 0}:${this.strips.at(x, p.y)}`;
+        (groups.get(key) ?? groups.set(key, []).get(key)!).push({ x, y: p.y, yaw: p.yaw ?? 0, sx });
+      };
+      if (len) {
+        const w = p.w ?? (p.hw ?? len / 2) * 2, n = Math.max(1, Math.round(w / len)), seg = w / n;
+        for (let i = 0; i < n; i++) put(p.x - w / 2 + seg * (i + 0.5), seg / len);
+      } else put(p.x, 1);
     }
     for (const [key, list] of groups) {
-      const [kind, v] = key.split(':');
-      const len = STRETCH[kind];
-      // stretched kinds repeat their run along the length (so posts stay posts), each run nudged to fit
-      const runs = (p: Prop) => (len ? Math.max(1, Math.round((p.w ?? (p.hw ?? len / 2) * 2) / len)) : 1);
-      const count = list.reduce((n, p) => n + runs(p), 0);
-      const b = new StaticBatch(BW_PROPS[kind](Number(v)), actorMaterial({ dither: true, detail: true, emitBoost: 2.6, envIntensity: 0.6 }), count, { shadow: kind !== 'bw_rail' });
+      const [kind, v, at] = key.split(':');
+      const b = new StaticBatch(BW_PROPS[kind](Number(v)), actorMaterial({ dither: true, detail: true, emitBoost: 2.6, envIntensity: 0.6 }), list.length, { shadow: kind !== 'bw_rail' });
       b.rim = [0, 0, 0, 0];
-      for (const p of list) {
-        if (len) {
-          const w = p.w ?? (p.hw ?? len / 2) * 2, n = runs(p), seg = w / n;
-          for (let i = 0; i < n; i++) b.add(p.x - w / 2 + seg * (i + 0.5), p.y, 0, p.yaw ?? 0, 1, seg / len, 1, 1);
-        } else b.add(p.x, p.y, 0, p.yaw ?? 0, 1);
-      }
+      for (const q of list) b.add(q.x, q.y, 0, q.yaw, 1, q.sx, 1, 1);
       b.freeze();
       this.root.add(b.mesh);
       this.statics.push(b);
+      this.strips.add(Number(at), b);
     }
     // the glass of every case, booth and table: one translucent mesh, so what stands behind it shows
     const glass = glassGeometry(PROPS);
@@ -96,6 +100,7 @@ export class BoardwalkWorld {
   }
 
   update(g: Game, r: GameRenderer3D, inView: (x: number, y: number) => boolean, dt: number): void {
+    this.strips.update(r.viewRect);
     const off = shoreOffset(g.time, SEA.retreat);
     this.ground.u.uShoreOff.value = off;
     this.ground.u.uSeaTime.value = g.time;

@@ -8,6 +8,7 @@ import { packModel, unpackModel } from '../src/render3d/models/sculptPack';
 import { UpdateChecker, type Manifest } from '../src/platform/updates';
 import { perf, summarize } from '../src/core/perf';
 import { makeGame, runFor } from './helpers';
+import { ShapeBatch } from '../src/render/shapes';
 
 /** The tile mask the pool built (its private grid), as the shader would read it. */
 function maskAt(pool: PoolLights, x: number, z: number): number {
@@ -150,5 +151,43 @@ describe('the perf rings', () => {
     expect(s?.median).toBe(3);
     expect(s?.max).toBe(100);
     expect(summarize([NaN])).toBeNull();
+  });
+});
+
+describe('ground shapes from corner tables (D-96)', () => {
+  it('draw the very same circles and rings as working each corner out', () => {
+    const b = new ShapeBatch(20000, false, 0);
+    const pos = (b as unknown as { pos: Float32Array }).pos;
+    const old: number[] = [];
+    // the old corners, worked out as the loops did
+    const circleOld = (x: number, y: number, rad: number) => {
+      const n = Math.max(12, Math.min(64, Math.round(rad / 6)));
+      let px = x + rad, py = y;
+      for (let i = 1; i <= n; i++) {
+        const t = (i / n) * Math.PI * 2;
+        const nx = x + Math.cos(t) * rad, ny = y + Math.sin(t) * rad;
+        old.push(x, y, 0, px, py, 0, nx, ny, 0);
+        px = nx;
+        py = ny;
+      }
+    };
+    const ringOld = (x: number, y: number, r0: number, r1: number) => {
+      const span = Math.PI * 2;
+      const n = Math.max(12, Math.min(96, Math.round((r1 * span) / 10)));
+      for (let i = 0; i < n; i++) {
+        const t0 = 0 + (span * i) / n, t1 = 0 + (span * (i + 1)) / n;
+        const c0 = Math.cos(t0), s0 = Math.sin(t0), c1 = Math.cos(t1), s1 = Math.sin(t1);
+        old.push(x + c0 * r0, y + s0 * r0, 0, x + c0 * r1, y + s0 * r1, 0, x + c1 * r1, y + s1 * r1, 0);
+        old.push(x + c0 * r0, y + s0 * r0, 0, x + c1 * r1, y + s1 * r1, 0, x + c1 * r0, y + s1 * r0, 0);
+      }
+    };
+    b.begin();
+    for (const [x, y, r] of [[10.5, -3.25, 14], [400, 220, 37.5], [-90, 12, 300]]) {
+      b.circle(x, y, r, 1, 1, 1, 1);
+      circleOld(x, y, r);
+      b.ring(x, y, r * 0.5, r, 1, 1, 1, 1);
+      ringOld(x, y, r * 0.5, r);
+    }
+    expect(Array.from(pos.subarray(0, old.length))).toEqual(Array.from(Float32Array.from(old)));
   });
 });

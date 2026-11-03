@@ -29,6 +29,8 @@ export class PerfHud {
   private text = h('pre', { class: 'ph-text' });
   private lastPaint = 0;
   private observer: PerformanceObserver | null = null;
+  /** heap readings at each repaint (the last 20 s): its growth rate, and the drops that mark a collection */
+  private heap: { t: number; mb: number }[] = [];
   visible = false;
 
   constructor() {
@@ -82,20 +84,34 @@ export class PerfHud {
     const gpu = summarize(perf.recent(perf.gpu, n));
     const c = perf.counts;
     const mem = (performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+    if (mem) {
+      this.heap.push({ t, mb: mem.usedJSHeapSize / 1048576 });
+      while (this.heap.length && t - this.heap[0].t > 20000) this.heap.shift();
+    }
+    // (allocation shows as the heap climbing between readings; a drop of a megabyte or more is a collection seen
+    // between two readings: most quick minor collections fall between them, so it undercounts those)
+    let rise = 0, drops = 0;
+    for (let i = 1; i < this.heap.length; i++) {
+      const d = this.heap[i].mb - this.heap[i - 1].mb;
+      if (d > 0) rise += d;
+      else if (d < -1) drops++;
+    }
+    const span = this.heap.length > 1 ? (this.heap[this.heap.length - 1].t - this.heap[0].t) / 1000 : 0;
     const lines = [
       `FPS ${fpsNow.toFixed(0)} (avg ${iv ? f1(1000 / iv.mean) : '–'})   frame ${iv ? f2(iv.mean) : '–'} ms  p95 ${iv ? f1(iv.p95) : '–'}  p99 ${iv ? f1(iv.p99) : '–'}  max ${iv ? f1(iv.max) : '–'}`,
       `spikes >25 ms: ${spikes} of the last ${n} frames`,
       `CPU ${cpu ? f2(cpu.mean) : '–'} ms/frame (p99 ${cpu ? f1(cpu.p99) : '–'}):  sim ${f2(sec[SEC.sim])} (${tpf.toFixed(2)} ticks)  render ${f2(sec[SEC.render])}  hud ${f2(sec[SEC.hud])}  net ${f2(sec[SEC.net])}  other ${cpu ? f2(Math.max(0, cpu.mean - sec.reduce((a, b) => a + b, 0))) : '–'}`,
       `sim/frame: ${sys.map(([k, v]) => `${k} ${f2(v)}`).join('  ')}`,
       `GPU ${perf.gpuTimer === 'yes' ? (gpu ? `${f2(gpu.mean)} ms (p99 ${f1(gpu.p99)})` : 'measuring…') : perf.gpuTimer === 'no' ? 'n/a (no timer query on this driver)' : '…'}`,
-      `draw calls ${c.drawCalls}  triangles ${(c.triangles / 1e6).toFixed(2)} M  particles ${c.particles}`,
+      `draw calls ${c.drawCalls}  triangles ${(c.triangles / 1e6).toFixed(2)} M  particles ${c.particles}  crowd models ${c.lodKinds ? `${c.lodOn ? 'distance' : 'full'} (${c.lodReady}/${c.lodKinds} kinds have a distance copy)` : '–'}`,
       `enemies ${g?.active.length ?? 0}  projectiles ${c.projectiles}  enemy bullets ${c.bullets}`,
-      `heap ${mem ? `${(mem.usedJSHeapSize / 1048576).toFixed(0)} MB` : 'n/a'}  long tasks ${perf.longTasks} (${perf.longTaskMs.toFixed(0)} ms)`,
+      `heap ${mem ? `${(mem.usedJSHeapSize / 1048576).toFixed(0)} MB, climbing ~${span > 2 ? f1(rise / span) : '–'} MB/s, ${span > 2 ? ((drops * 60) / span).toFixed(0) : '–'} drops/min` : 'n/a'}  long tasks ${perf.longTasks} (${perf.longTaskMs.toFixed(0)} ms)`,
     ];
     if (net) {
       lines.push(
         `NET ${net.role.toUpperCase()}  rtt ${net.rtt.toFixed(0)} ms${net.jitter !== undefined ? `  jitter ${net.jitter.toFixed(1)} ms` : ''}  ${net.unreliable ? 'datagram channel' : 'reliable only'}  route ${net.route || '?'}`,
         `  snapshots ${net.snapRate.toFixed(1)} Hz  last ${net.snapBytes} B  ${net.role === 'host' ? 'sent' : 'received'} ${(net.bytesPerSec / 1024).toFixed(1)} KB/s  lost ${net.snapLost}  skipped ${net.skipped}${net.buffered !== undefined ? `  buffered ${net.buffered} B` : ''}`,
+        `  ${net.role === 'host' ? 'encode' : 'decode + apply'} ${net.procMs !== undefined ? `${f2(net.procMs)} ms/snapshot (worst ${f2(net.procMax ?? 0)})` : '–'}  messages ${net.msgsIn !== undefined ? `${net.msgsIn.toFixed(0)} in / ${(net.msgsOut ?? 0).toFixed(0)} out per s` : '–'}`,
         net.role === 'host'
           ? `  inputs: queue ${net.inputQueue}  starved ${net.starved}  dropped ${net.dropped}  invalid ${net.invalid}`
           : `  prediction: error ${net.predErr.toFixed(1)}${net.corrections !== undefined ? `  corrections ${net.corrections}` : ''}  interp ${net.interval.toFixed(0)} ms${net.interpDelay !== undefined ? `  delay ${net.interpDelay.toFixed(0)} ms` : ''}  invalid ${net.invalid}`,

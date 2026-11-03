@@ -257,6 +257,23 @@ Anything in this file is public.
 - **Stalled tabs.** Arrivals are stamped at the next update, and the background clock runs whenever
   animation frames stall, so a guest who alt-tabs (or a host whose window is covered) keeps the link.
 
+### Performance milestone (D-96)
+
+- **Nothing on the wire changed** (PROTO stays 19): the snapshot sizes of the benchmark's party nights are the same
+  before and after, byte for byte on average. The sim fingerprint changes (the walls are a sim change), so both
+  machines need the same build, as always.
+- **A guest's prediction collides through the packed wall sets** (`sim/walls.ts`): it replays every unacknowledged
+  input on each snapshot, each step a push-out against the map's walls; on the Ghost Train that was every one of its
+  1,395 props per step. Host and guest use the same sets, so they still collide alike.
+- **New diagnostics** (F2 overlay, `NetDiag`): each snapshot's encoding time on the host and decoding-and-applying
+  time on a guest (mean and worst over the last second; the guest's runs as snapshots arrive, between frames, so it
+  was in no section of the frame's split before) and messages a second each way.
+- **Measured** (`scripts/bench/net.ts --map=ghost_train`, a crowd of 250, before = the D-95 sources): every network
+  quality figure identical before and after; a guest's work per frame at RTT 100 ± 10 ms 0.542 → 0.116 ms (p99 1.82
+  → 0.44), at RTT 0 0.315 → 0.141, with 1% loss 0.516 → 0.099; the Carnival's unchanged (0.17). Over real WebRTC
+  (`desktop/coop-bench.js`, two windows on one PC): snapshots 30 Hz at ~1.5 KB (41 KB/s), a guest decodes and applies
+  each in 0.28 ms. Report: `docs/PERFORMANCE_AUDIT_REPORT.md` (D).
+
 ### The Last Train Home's shared things (D-95, PROTO 19)
 
 - The hidden quest's chain changed shape: tapers, cogs and shovels of coal are carried by each player at once

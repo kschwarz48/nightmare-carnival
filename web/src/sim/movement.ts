@@ -3,8 +3,9 @@
 // the map's solid props, solid boss bodies and the play bounds. Pure: no events, no randomness.
 
 import { clamp, dist2 } from '../core/math';
-import { DYNAMIC_WALLS, GREASE_SLICKS, PLAYER_BOUNDS, PROPS, WALK_CLAMP, type Prop } from '../data/map';
+import { GREASE_SLICKS, PLAYER_BOUNDS, WALK_CLAMP, type Prop } from '../data/map';
 import type { Player } from './player';
+import { dynamicWalls, staticWalls } from './walls';
 
 export interface SolidBody { x: number; y: number; solid: boolean; solidR: number }
 
@@ -88,9 +89,10 @@ export function steer(p: Player, ix: number, iy: number): [number, number] {
 }
 
 export function collideBody(p: Player, bodies: readonly SolidBody[]): void {
-  for (const pr of PROPS) pushOut(p, pr);
-  // walls that come and go (the Fun House's pivoting panels and quest doors, D-63)
-  for (const pr of DYNAMIC_WALLS) pushOut(p, pr);
+  // the map's solid props near the player, then the walls that come and go (the Fun House's pivoting panels and
+  // quest doors, D-63; the Ghost Train's doors), packed and filed by area (D-96: it scanned every prop on the map)
+  staticWalls().pushOut(p);
+  dynamicWalls().pushOut(p);
   // A dormant/standing boss body is solid scenery (the Tent at the center, the Wheel at its base).
   for (const b of bodies) {
     if (!b.solid) continue;
@@ -109,7 +111,7 @@ export function collideBody(p: Player, bodies: readonly SolidBody[]): void {
   p.y = clamp(p.y, PLAYER_BOUNDS.minY, PLAYER_BOUNDS.maxY);
 }
 
-/** Push a body (a player, or a creature that walks the ground, D-74) out of one solid prop. */
+/** Push a body out of one solid prop (the rule sim/walls.ts applies to every wall near a body). */
 export function pushOut(p: { x: number; y: number; r: number }, pr: Prop): void {
   if (pr.r) {
     const rr = pr.r + p.r;

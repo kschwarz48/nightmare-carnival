@@ -2075,6 +2075,12 @@ export class App {
     const target = g && (playing || this.nightPaused || g.hub) ? g.player : this.demo!.player;
     const sp = this.renderer.worldToScreen(target.x, target.y, cssW, cssH, 30);
     this.input.poll(sp.x, sp.y);
+    // a map's first night waits behind a veil while its world is built and its shaders compile in the background
+    // (D-96: its first frame used to do it on the spot, frozen for 2–5 s); the night doesn't tick meanwhile
+    if (g && (this.state === 'playing' || g.hub) && !this.renderer.worldReady(g.mapId)) {
+      this.awaitWorld(g);
+      return;
+    }
     if (net?.role === 'guest' && g && (this.state === 'playing' || this.nightPaused || this.state === 'results' || g.hub)) {
       this.guestFrame(dt, t, cssW, cssH);
       return;
@@ -2162,6 +2168,22 @@ export class App {
       perf.mark(SEC.render, r0);
     }
     this.perfHud?.update(this.game ?? this.demo, net ? (net.role === 'host' ? net.host.diag : net.guest.diag) : null);
+  }
+
+  /** The veil over a map's first night while its world gets ready (D-96). */
+  private worldVeil: { el: HTMLElement } | null = null;
+  private awaitWorld(g: Game): void {
+    if (this.worldVeil) return;
+    const veil = S.loadingScreen();
+    veil.set(1, `Setting up ${MAPS[g.mapId].name}…`);
+    veil.el.style.zIndex = '20'; // over the night's HUD (its health bar stacks its own layers)
+    this.ui.append(veil.el);
+    this.worldVeil = veil;
+    useMap(g.mapId);
+    void this.renderer.prepareWorld(g.mapId).catch(() => undefined).finally(() => {
+      veil.el.remove();
+      this.worldVeil = null;
+    });
   }
 
   // =================================================================== online co-op (D-52)
