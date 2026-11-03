@@ -3,8 +3,10 @@
 // lines linger, then fade; T opens the line (Enter sends, Esc closes) whenever a co-op session is up.
 // Solo, T opens the log to read back (D-72): nothing to type, and Esc, Enter or T closes it.
 // Each night starts a fresh log (D-75). Everything is set as text, never markup.
+// A pad opens the log with RB (D-104): the quick chat beside it sends (ui/quickChat.ts).
 
 import { h } from './dom';
+import { glyphHtml, padUi } from './glyphs';
 
 export type ChatKind = 'player' | 'quest' | 'fortune' | 'system';
 export interface ChatLine {
@@ -31,7 +33,9 @@ export class ChatBox {
   private log = h('div', { class: 'chat-log' });
   private field = h('input', { class: 'chat-field', type: 'text', maxlength: '140', spellcheck: 'false', autocomplete: 'off', placeholder: SEND_HINT });
   private hintWord = h('span', {}, ' chat');
-  private hint = h('div', { class: 'chat-hint' }, h('span', { class: 'key' }, 'T'), this.hintWord);
+  private hintKey = h('span', { class: 'key' }, 'T');
+  private hintKeyFor = '';
+  private hint = h('div', { class: 'chat-hint' }, this.hintKey, this.hintWord);
   private born: number[] = [];
   private clock = 0;
   private lastSent = -9;
@@ -51,11 +55,7 @@ export class ChatBox {
       e.stopPropagation();
       if (e.key === 'Enter') {
         e.preventDefault();
-        const text = this.field.value.trim();
-        if (text && this.clock - this.lastSent > 0.4) {
-          this.lastSent = this.clock;
-          this.onSend(text);
-        }
+        this.send(this.field.value);
         this.close();
       } else if (e.key === 'Escape' || (this.field.readOnly && this.toggleCodes.includes(e.code))) {
         e.preventDefault();
@@ -68,6 +68,19 @@ export class ChatBox {
 
   get lineCount(): number {
     return this.born.length;
+  }
+
+  /** The log's scroller (a pad's right stick reads it back). */
+  get logEl(): HTMLElement {
+    return this.log;
+  }
+
+  /** Send a line (the keyboard's Enter, or a pad's quick chat): at most one every 0.4 s. */
+  send(text: string): void {
+    const t = text.trim().slice(0, 140);
+    if (!t || this.clock - this.lastSent <= 0.4) return;
+    this.lastSent = this.clock;
+    this.onSend(t);
   }
 
   /** A fresh log for a new night (D-75): the last night's lines are gone. */
@@ -115,10 +128,23 @@ export class ChatBox {
     this.onOpenChange(true);
   }
 
+  /**
+   * Open the log for a pad (D-104): every line shown and scrollable, and no line to type in (the quick chat beside it
+   * sends, or the on-screen keyboard).
+   */
+  openPad(): void {
+    if (this.isOpen || this.root.classList.contains('hidden')) return;
+    this.isOpen = true;
+    this.root.classList.add('open', 'pad');
+    this.update(0);
+    this.log.scrollTop = this.log.scrollHeight;
+    this.onOpenChange(true);
+  }
+
   close(): void {
     if (!this.isOpen) return;
     this.isOpen = false;
-    this.root.classList.remove('open');
+    this.root.classList.remove('open', 'pad');
     this.field.blur();
     this.onOpenChange(false);
   }
@@ -130,6 +156,14 @@ export class ChatBox {
     this.root.classList.toggle('can-send', this.canSend);
     const word = this.canSend ? ' chat' : ' log';
     if (this.hintWord.textContent !== word) this.hintWord.textContent = word;
+    // the key that opens it: the chat key, or a pad's RB (D-104)
+    const k = padUi.on ? `pad:${padUi.kind}` : this.toggleCodes[0] ?? 'KeyT';
+    if (k !== this.hintKeyFor) {
+      this.hintKeyFor = k;
+      this.hintKey.classList.toggle('pad', padUi.on);
+      if (padUi.on) this.hintKey.innerHTML = glyphHtml('RB');
+      else this.hintKey.textContent = k.replace('Key', '').replace('Digit', '');
+    }
     this.root.style.bottom = `${Math.round(bottom)}px`;
   }
 

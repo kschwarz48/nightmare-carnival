@@ -14,6 +14,7 @@ import type { Reach } from '../net/peer';
 import { CODE_LENGTH } from '../net/codes';
 import { mapButtons, tierButtons, type UICtx } from './screens';
 import { h } from './dom';
+import { devText } from './glyphs';
 
 const btn = (label: string | Node, onclick: () => void, cls = '', extra: Record<string, unknown> = {}) => h('button', { class: `btn ${cls}`, 'data-nav': '', onclick, ...extra }, label);
 
@@ -41,10 +42,24 @@ const REACH_TEXT: Record<Reach, [string, string]> = {
   blocked: ['warn', 'Connection check: this browser is blocking peer-to-peer connections (WebRTC). Opera / Opera GX: Settings → Privacy & security → WebRTC → "Use any suitable network interface", and turn off its VPN. Or try Chrome or Edge.'],
 };
 
+/** The connection check's line: testing, or what it found. */
+function reachLine(reach: Reach | null): HTMLElement {
+  return h('div', { class: `mp-check ${reach ? REACH_TEXT[reach][0] : 'pending'}` }, reach ? REACH_TEXT[reach][1] : 'Connection check: testing…');
+}
+
+/**
+ * The connection check finished while the menu is open: its line changes in place (D-104: the whole menu was drawn
+ * again, which closed a pad's on-screen keyboard and dropped a name half typed).
+ */
+export function showReach(menu: HTMLElement, reach: Reach): void {
+  menu.querySelector('.mp-check')?.replaceWith(reachLine(reach));
+}
+
 /** `focus`: opened from the Midway's Invite Friends / Join a Friend (D-75): that choice is the default, and the
  *  name is selected, ready to type over. */
 export function multiplayerMenu(c: UICtx, o: { name: string; status: string; busy: boolean; reach: Reach | null; host: (name: string) => void; join: (name: string) => void; back: () => void; focus?: 'host' | 'join' }): HTMLElement {
-  const input = h('input', { class: 'mp-input', type: 'text', maxlength: '16', value: o.name, placeholder: 'Your name', 'aria-label': 'Your name', 'data-nav': '', spellcheck: 'false', autocomplete: 'off' }) as HTMLInputElement;
+  // (data-osk: a pad's A opens the on-screen keyboard for it, D-104)
+  const input = h('input', { class: 'mp-input', type: 'text', maxlength: '16', value: o.name, placeholder: 'Your name', 'aria-label': 'Your name', 'data-nav': '', 'data-osk': 'text', spellcheck: 'false', autocomplete: 'off' }) as HTMLInputElement;
   const nm = () => input.value.trim() || 'Player';
   if (o.focus && !o.busy) {
     setTimeout(() => {
@@ -64,14 +79,16 @@ export function multiplayerMenu(c: UICtx, o: { name: string; status: string; bus
       btn('Back', () => { c.click(); o.back(); }, 'small red'),
     ),
     h('div', { class: `mp-status${o.status ? '' : ' hidden'}` }, o.status),
-    h('div', { class: `mp-check ${o.reach ? REACH_TEXT[o.reach][0] : 'pending'}` }, o.reach ? REACH_TEXT[o.reach][1] : 'Connection check: testing…'),
+    reachLine(o.reach),
     h('div', { class: 'muted mp-fine' }, 'Alpha: connections are peer-to-peer (WebRTC) with matchmaking by the free PeerJS service. The host’s computer runs the night — the host should have the steadier connection.'),
   ));
 }
 
 // ===================================================================== join by code
-export function joinScreen(c: UICtx, o: { status: string; tone: 'info' | 'warn'; busy: boolean; join: (code: string) => void; back: () => void }): HTMLElement {
-  const input = h('input', { class: 'mp-input code', type: 'text', maxlength: String(CODE_LENGTH + 2), placeholder: 'ABC234', 'aria-label': 'Lobby code', 'data-nav': '', spellcheck: 'false', autocomplete: 'off', autocapitalize: 'characters' }) as HTMLInputElement;
+/** `value`: the code last typed, kept when the screen re-draws (an invalid code, a failed call) */
+export function joinScreen(c: UICtx, o: { value?: string; status: string; tone: 'info' | 'warn'; busy: boolean; join: (code: string) => void; back: () => void }): HTMLElement {
+  const input = h('input', { class: 'mp-input code', type: 'text', maxlength: String(CODE_LENGTH + 2), placeholder: 'ABC234', 'aria-label': 'Lobby code', 'data-nav': '', 'data-osk': 'code', spellcheck: 'false', autocomplete: 'off', autocapitalize: 'characters' }) as HTMLInputElement;
+  input.value = o.value ?? '';
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') o.join(input.value);
     e.stopPropagation();
@@ -79,7 +96,7 @@ export function joinScreen(c: UICtx, o: { status: string; tone: 'info' | 'warn';
   setTimeout(() => input.focus(), 30);
   return h('div', { class: 'screen dim mp' }, h('div', { class: 'panel bulbs mp-panel' },
     h('h2', { class: 'title-text' }, 'Join a Game'),
-    h('div', { class: 'muted' }, 'Type the six-character code from the host’s lobby.'),
+    devText('Type the six-character code from the host’s lobby.', 'Press {A} on the box to type the six-character code from the host’s lobby.', 'div', { class: 'muted' }),
     input,
     h('div', { class: 'menu' },
       btn(o.busy ? 'Connecting…' : 'Join', () => { c.click(); o.join(input.value); }, '', { 'data-default': '', disabled: o.busy || undefined }),

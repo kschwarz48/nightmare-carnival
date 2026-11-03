@@ -4,6 +4,7 @@
 import type { ChestEntry } from '../sim/draft';
 import type { PrizeUi } from '../render3d/prizeWheel';
 import { h } from './dom';
+import { devText, refreshDevText } from './glyphs';
 
 const KIND_LABEL: Record<ChestEntry['type'], string> = {
   evolution: '✦ EVOLUTION ✦', level: 'LEVEL UP', passive: 'CHARM', new: 'NEW!', voucher: 'LOST & FOUND', heal: 'A SMALL MERCY',
@@ -17,7 +18,7 @@ export class PrizeOverlay implements PrizeUi {
   private titleEl = h('div', { class: 'prize-title' });
   private capEl = h('div', { class: 'prize-cap' });
   private sumEl = h('div', { class: 'prize-sum' });
-  private hint = h('div', { class: 'prize-hint' }, 'Confirm / Click: hurry it along  ·  Back: skip to the prizes');
+  private hint = devText('Confirm / Click: hurry it along  ·  Back: skip to the prizes', '{A} hurry it along  ·  {B} skip to the prizes', 'div', { class: 'prize-hint' });
 
   constructor(onClick: () => void) {
     this.root.append(this.titleEl, this.capEl, this.sumEl, this.hint);
@@ -29,6 +30,7 @@ export class PrizeOverlay implements PrizeUi {
     this.sumEl.replaceChildren();
     this.sumEl.classList.remove('on');
     this.hint.classList.remove('hidden');
+    refreshDevText(this.root);
     // the booth's own sign already reads PRIZE WHEEL: a plain spin gets no second title on top of it,
     // only the special ones (bonus spin, voucher) announce themselves
     this.titleEl.className = `prize-title ${style}${style === 'normal' ? ' hidden' : ''}`;
@@ -63,7 +65,7 @@ export class PrizeOverlay implements PrizeUi {
         rows.push(h('div', { class: `item gift ${gift.type}`, style: { animationDelay: `${0.08 + rows.length * 0.12}s` } }, iconOf ? h('img', { src: iconOf(gift), alt: '' }) : null, h('span', {}, this.who(gift), gift.label)));
       }
     });
-    this.sumEl.replaceChildren(...rows, h('div', { class: 'muted cont' }, 'Press any button to continue'));
+    this.sumEl.replaceChildren(...rows, devText('Press any button to continue', 'Press {A} to continue', 'div', { class: 'muted cont' }));
     this.sumEl.classList.add('on');
     this.hint.classList.add('hidden');
   }

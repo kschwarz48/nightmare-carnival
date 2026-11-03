@@ -66,10 +66,15 @@ export class FocusNav {
   current: HTMLElement | null = null;
   /** where the focus was among the items, to find its place again when a click re-draws the screen (D-84) */
   private at = -1;
+  /** more places to move to beside the root (the update card, D-104), when they're on screen */
+  extras: HTMLElement[] = [];
+  /** a locked item with a note (a disabled button with a title) can be focused, to read why (a pad's player, D-104) */
+  allowDisabled = false;
   constructor(public root: HTMLElement) {}
 
   items(): HTMLElement[] {
-    return Array.from(this.root.querySelectorAll<HTMLElement>('[data-nav]')).filter((e) => !(e as HTMLButtonElement).disabled && e.offsetParent !== null);
+    const all = [this.root, ...this.extras].flatMap((r) => Array.from(r.querySelectorAll<HTMLElement>('[data-nav]')));
+    return all.filter((e) => (!(e as HTMLButtonElement).disabled || (this.allowDisabled && !!e.title)) && e.offsetParent !== null);
   }
 
   focus(el: HTMLElement | null): void {
@@ -82,11 +87,26 @@ export class FocusNav {
     }
   }
 
+  /**
+   * Make sure something has the focus: an item that asks for it (`data-autofocus`, a dialog's safe answer), else the
+   * one held if it's still there, else the item in the same place on a re-drawn screen, else the screen's default.
+   */
   ensure(): void {
-    if (this.current && this.root.contains(this.current) && this.current.offsetParent !== null) return;
+    const want = this.root.querySelector<HTMLElement>('[data-autofocus]');
+    if (want) {
+      want.removeAttribute('data-autofocus');
+      this.focus(want);
+      return;
+    }
+    if (this.current && this.contains(this.current) && this.current.offsetParent !== null) return;
     const items = this.items();
-    const pref = items.find((e) => e.dataset.default !== undefined) ?? items[0] ?? null;
+    const same = this.current && this.at >= 0 ? items[Math.min(this.at, items.length - 1)] : undefined;
+    const pref = same ?? items.find((e) => e.dataset.default !== undefined) ?? items[0] ?? null;
     this.focus(pref);
+  }
+
+  private contains(el: HTMLElement): boolean {
+    return this.root.contains(el) || this.extras.some((r) => r.contains(el));
   }
 
   move(dir: 'up' | 'down' | 'left' | 'right'): boolean {
@@ -123,10 +143,19 @@ export class FocusNav {
     return false;
   }
 
-  activate(): void {
+  /** Click the focused item; false when it can't be used (a locked one, focused to read its note). */
+  activate(): boolean {
+    if ((this.current as HTMLButtonElement | null)?.disabled) return false;
     this.current?.click();
     // a click that re-drew its screen (a Lost & Found switch) keeps the focus on the item in the same place
-    if (this.current && !this.root.contains(this.current) && this.at >= 0) this.focus(this.items()[this.at] ?? null);
+    if (this.current && !this.contains(this.current) && this.at >= 0) this.focus(this.items()[this.at] ?? null);
+    return true;
+  }
+
+  /** The focused item's note (its tooltip), for a pad's hint bar. */
+  tip(): string {
+    const el = this.current;
+    return el && this.contains(el) ? el.title || el.dataset.tip || '' : '';
   }
 }
 

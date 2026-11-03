@@ -2,6 +2,7 @@
 // the dialogue box, and the co-op lobby code. Pure view: the app decides what to show every frame.
 
 import { h } from './dom';
+import { devText, glyphHtml, padHtml, padUi, type Glyph } from './glyphs';
 
 export interface HubLabel {
   x: number;
@@ -15,7 +16,9 @@ export interface HubLabel {
 
 export interface HubView {
   labels: HubLabel[];
+  /** `key`: a keyboard key, or `pad:A` for a pad's button (D-104) */
   prompt: { text: string; sub?: string; key: string } | null;
+  /** `page`: what the buttons do now, with `{A}`-style tokens for a pad (D-104) */
   dialogue: { name: string; at: string; portrait: string; text: string; page: string } | null;
   /** co-op: the lobby code friends join with, and who is here */
   code: string | null;
@@ -36,7 +39,7 @@ export class HubHud {
 
   constructor(onCopy: (code: string) => void) {
     const title = h('div', { class: 'hub-title' }, h('div', { class: 't' }, 'THE MIDWAY'), h('div', { class: 's' }, 'the carnival is yours'));
-    const hint = h('div', { class: 'hub-hint' }, 'E / A: talk & use  ·  Esc: menu');
+    const hint = devText('E: talk & use  ·  Esc: menu', '{A} talk & use  ·  {MENU} menu', 'div', { class: 'hub-hint' });
     this.code.onclick = () => {
       const c = this.code.dataset.code;
       if (c) onCopy(c);
@@ -73,21 +76,27 @@ export class HubHud {
   update(v: HubView): void {
     this.labels.replaceChildren(...v.labels.map((l) =>
       h('div', { class: `hub-label ${l.kind}${l.cls ? ' ' + l.cls : ''}`, style: { left: `${l.x}px`, top: `${l.y}px` } }, h('b', {}, l.text), l.sub ? h('small', {}, l.sub) : null)));
-    const pk = v.prompt ? `${v.prompt.key}|${v.prompt.text}|${v.prompt.sub ?? ''}` : '';
+    const pk = v.prompt ? `${v.prompt.key}|${v.prompt.text}|${v.prompt.sub ?? ''}|${padUi.kind}` : '';
     if (pk !== this.keys.prompt) {
       this.keys.prompt = pk;
       this.prompt.classList.toggle('hidden', !v.prompt);
-      if (v.prompt) this.prompt.replaceChildren(h('span', { class: 'key' }, v.prompt.key), h('span', {}, v.prompt.text), ...(v.prompt.sub ? [h('small', {}, v.prompt.sub)] : []));
+      if (v.prompt) {
+        const pad = v.prompt.key.startsWith('pad:');
+        const key = h('span', { class: `key${pad ? ' pad' : ''}` });
+        if (pad) key.innerHTML = glyphHtml(v.prompt.key.slice(4) as Glyph);
+        else key.textContent = v.prompt.key;
+        this.prompt.replaceChildren(key, h('span', {}, v.prompt.text), ...(v.prompt.sub ? [h('small', {}, v.prompt.sub)] : []));
+      }
     }
     const d = v.dialogue;
-    const dk = d ? `${d.name}|${d.text}|${d.page}` : '';
+    const dk = d ? `${d.name}|${d.text}|${d.page}|${padUi.kind}` : '';
     if (dk !== this.keys.dialogue) {
       this.keys.dialogue = dk;
       this.dialogue.classList.toggle('hidden', !d);
       if (d) {
         this.dialogue.replaceChildren(
           h('img', { src: d.portrait, alt: '' }),
-          h('div', { class: 'body' }, h('div', { class: 'who' }, d.name, h('small', {}, ` · at ${d.at}`)), h('div', { class: 'line' }, d.text), h('div', { class: 'more' }, d.page)),
+          h('div', { class: 'body' }, h('div', { class: 'who' }, d.name, h('small', {}, ` · at ${d.at}`)), h('div', { class: 'line' }, d.text), h('div', { class: 'more', html: padHtml(d.page) })),
         );
       }
     }
@@ -96,7 +105,7 @@ export class HubHud {
       this.keys.code = ck;
       this.code.classList.toggle('hidden', !v.code);
       this.code.dataset.code = v.code ?? '';
-      if (v.code) this.code.replaceChildren(h('small', {}, 'LOBBY CODE · click to copy'), h('b', {}, v.code), h('div', { class: 'party' }, `${v.party.length} on the Midway: ${v.party.join(', ')}`));
+      if (v.code) this.code.replaceChildren(devText('LOBBY CODE · click to copy', 'LOBBY CODE · {MENU} menu: copy it', 'small'), h('b', {}, v.code), h('div', { class: 'party' }, `${v.party.length} on the Midway: ${v.party.join(', ')}`));
     }
   }
 }

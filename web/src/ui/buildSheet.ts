@@ -1,6 +1,8 @@
 // The build sheet (D-99): press C in a night for a full look at your build — every weapon and passive with its level
 // and the quality of each level taken, where each evolution recipe stands, and every character stat as the night's
 // base (character, Lost & Found, companion) plus what this night's items add. Solo, the night holds while it's open.
+// D-104: a pad opens it with View (Create, or the touchpad, on a PlayStation pad); in co-op its arrows (LB / RB)
+// turn to a partner's build, which a mouse reads by resting on their portrait.
 
 import { QUALITIES, QUALITY } from '../data/quality';
 import { PASSIVES } from '../data/weapons';
@@ -9,6 +11,7 @@ import type { Game } from '../sim/game';
 import type { Player } from '../sim/player';
 import { PlayerStats } from '../sim/stats';
 import { h } from './dom';
+import { devText } from './glyphs';
 import { kitOf } from './recipes';
 import { evoRecipe } from './hud';
 
@@ -51,7 +54,8 @@ function pips(quals: number[], max: number): HTMLElement {
   }));
 }
 
-export function buildSheetEl(assets: Assets, g: Game, p: Player, close: () => void, holds: boolean): HTMLElement {
+/** `turn`: in co-op, step to the previous (-1) or next (+1) player's build */
+export function buildSheetEl(assets: Assets, g: Game, p: Player, close: () => void, holds: boolean, mine = true, turn?: (d: -1 | 1) => void): HTMLElement {
   const kit = kitOf(g, p);
   const ws = g.weapons;
   const weapons = p.weapons.list.map((w) => {
@@ -83,8 +87,11 @@ export function buildSheetEl(assets: Assets, g: Game, p: Player, close: () => vo
     h('div', { class: 'bs-panel panel bulbs' },
       h('div', { class: 'bs-head' },
         h('img', { class: 'bs-portrait', src: assets.portrait(p.char.id), alt: '' }),
-        h('div', {}, h('h2', { class: 'title-text' }, 'Your Build'), h('div', { class: 'muted' }, `${p.char.name} · Level ${g.level}${holds ? ' · the night holds' : ''}`)),
-        h('button', { class: 'btn small red', 'data-nav': '', onclick: close }, 'Close (C)')),
+        h('div', {}, h('h2', { class: 'title-text' }, mine ? 'Your Build' : `${p.name}’s Build`), h('div', { class: 'muted' }, `${p.char.name} · Level ${g.level}${holds ? ' · the night holds' : ''}`)),
+        turn ? h('div', { class: 'bs-turn' },
+          h('button', { class: 'btn small purple', 'data-nav': '', title: 'The previous player’s build', onclick: () => turn(-1) }, devText('◀', '{LB}')),
+          h('button', { class: 'btn small purple', 'data-nav': '', title: 'The next player’s build', onclick: () => turn(1) }, devText('▶', '{RB}'))) : null,
+        h('button', { class: 'btn small red', 'data-nav': '', 'data-default': '', onclick: close }, devText('Close (C)', 'Close {VIEW}'))),
       h('div', { class: 'bs-cols' },
         h('div', { class: 'bs-col' },
           h('div', { class: 'section-title' }, 'Weapons'), ...(weapons.length ? weapons : [h('div', { class: 'muted' }, 'None yet')]),

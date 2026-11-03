@@ -21,6 +21,7 @@ import { SE, type SummersEndChain } from '../sim/quest/summersEnd';
 import { UNREFLECTED } from '../data/funhouse';
 import { SUMMERS_END } from '../data/boardwalk';
 import { FocusNav, fmtNum, fmtTime, h, uiZoom } from './dom';
+import { glyph, padUi, type Glyph } from './glyphs';
 import { DamageMeter } from './dmgMeter';
 import { liveLt } from '../sim/meter';
 import { CHARACTER_MAP } from '../data/characters';
@@ -154,6 +155,8 @@ export class Hud {
   private warnEl: HTMLDivElement | null = null;
   private coachEl: HTMLDivElement | null = null;
   private coachT = 0;
+  /** tips waiting their turn behind the one showing (D-104: a pad's tip comes after the first night's "Move with…") */
+  private coachQueue: [string, number][] = [];
   private fpsEl: HTMLDivElement;
   private preview: HTMLDivElement;
   private trayKey = '';
@@ -389,11 +392,15 @@ export class Hud {
         this.bannerEl = null;
       }
     }
-    if (this.coachEl) {
+    // a tip waits while the HUD is away (D-104: the first night's opening look at Zoltana's booth hid its tips until
+    // they had run out, the first "Move with…" among them)
+    if (this.coachEl && this.root.style.visibility !== 'hidden') {
       this.coachT -= dt;
       if (this.coachT <= 0) {
         this.coachEl.remove();
         this.coachEl = null;
+        const next = this.coachQueue.shift();
+        if (next) this.coach(...next);
       }
     }
     this.fpsEl.classList.toggle('hidden', !this.showFps);
@@ -438,12 +445,12 @@ export class Hud {
     this.stoke.update(lt?.stokeGauge(p.x, p.y) ?? null);
     let it: { kind: string; i: number; x: number; y: number; label: string } | null = null;
     if (g.phase === 'play' && g.isUp(p)) for (const c of g.quests?.chains ?? []) it ??= c.interaction?.(p.x, p.y, p.index) ?? null;
-    const key = it ? `${it.kind}${it.i}|${it.label}|${this.padKeys}` : '';
+    const key = it ? `${it.kind}${it.i}|${it.label}|${this.padKeys ? padUi.kind : 'key'}` : '';
     if (key !== this.promptKey) {
       this.promptKey = key;
       this.promptEl.classList.toggle('hidden', !it);
       if (it) {
-        const k = h('span', { class: 'key' }, this.padKeys ? 'A' : 'E');
+        const k = h('span', { class: `key${this.padKeys ? ' pad' : ''}` }, this.padKeys ? glyph('A') : 'E');
         // the press just made changed what it says (the host answered): the key's answer carries on where it was
         const since = performance.now() - this.pressedAt;
         if (since < 300) {
@@ -648,13 +655,14 @@ export class Hud {
       write(el, 'top', `${s.y.toFixed(1)}px`);
       write(el, 'text', q.downed ? `⚰ ${q.name}` : q.name);
     }
-    const sk = info.status ? info.status.text + (info.status.action?.label ?? '') : '';
+    // a pad does the notice's action with Y (D-104): its button wears the cap
+    const sk = info.status ? `${info.status.text}${info.status.action?.label ?? ''}|${this.padKeys ? padUi.kind : ''}` : '';
     if (sk !== this.statusKey) {
       this.statusKey = sk;
       this.statusEl.classList.toggle('hidden', !info.status);
       if (info.status) {
         const a = info.status.action;
-        this.statusEl.replaceChildren(h('span', {}, info.status.text), ...(a ? [h('button', { class: 'btn small', onclick: a.fn }, a.label)] : []));
+        this.statusEl.replaceChildren(h('span', {}, info.status.text), ...(a ? [h('button', { class: 'btn small', onclick: a.fn }, this.padKeys ? glyph('Y') : null, a.label)] : []));
       }
     }
     if (info.ping !== undefined) {
@@ -905,8 +913,12 @@ export class Hud {
     while (this.toast.childElementCount > 5) this.toast.firstElementChild?.remove();
   }
 
+  /** A tip, after the one showing if there is one. */
   coach(html: string, dur = 6): void {
-    this.coachEl?.remove();
+    if (this.coachEl) {
+      this.coachQueue.push([html, dur]);
+      return;
+    }
     this.coachEl = h('div', { class: 'coach', html });
     this.coachT = dur;
     this.root.append(this.coachEl);
@@ -924,6 +936,7 @@ export class Hud {
     this.warnEl?.remove();
     this.coachEl?.remove();
     this.coachEl = null;
+    this.coachQueue.length = 0;
     this.toast.replaceChildren();
     this.root.querySelectorAll('.dawn-title').forEach((e) => e.remove());
     this.lastHp = -1;
@@ -981,17 +994,17 @@ export class DraftView {
         hint ? h('div', { class: 'evo-hint' }, hint) : null,
         h('div', { class: 'key' }, String(i + 1)));
     });
-    // big, readable actions (D-61): an icon, what it does, how many are left, and its key
-    const act = (cls: string, ico: string, label: string, sub: string, count: number | null, key: string, on: () => void) =>
+    // big, readable actions (D-61): an icon, what it does, how many are left, and its key (a pad's button, D-104)
+    const act = (cls: string, ico: string, label: string, sub: string, count: number | null, key: string, pad: Glyph, on: () => void) =>
       h('button', { class: `btn act ${cls}`, 'data-nav': '', onclick: on },
         h('span', { class: 'ico' }, ico),
         h('span', { class: 'lbl' }, h('b', {}, label), h('small', {}, sub)),
         count !== null ? h('span', { class: 'count', title: 'left tonight' }, String(count)) : null,
-        h('span', { class: 'kbd' }, key));
+        h('span', { class: 'kbd', 'data-key': key, 'data-pad': pad }));
     const actions = h('div', { class: 'draft-actions' });
-    if (p.rerolls > 0) actions.append(act('purple reroll', '↻', 'Reroll', 'deal a fresh hand', p.rerolls, 'R', () => this.onReroll()));
-    if (p.banishes > 0) actions.append(act(`red banish${this.banishMode ? ' on' : ''}`, '⊘', ...this.banishText(), p.banishes, 'B', () => this.toggleBanish()));
-    if (p.canSkip) actions.append(act('skip', '♥', 'Skip', 'take +10 HP instead', null, 'X', () => this.onSkip()));
+    if (p.rerolls > 0) actions.append(act('purple reroll', '↻', 'Reroll', 'deal a fresh hand', p.rerolls, 'R', 'X', () => this.onReroll()));
+    if (p.banishes > 0) actions.append(act(`red banish${this.banishMode ? ' on' : ''}`, '⊘', ...this.banishText(), p.banishes, 'B', 'Y', () => this.toggleBanish()));
+    if (p.canSkip) actions.append(act('skip', '♥', 'Skip', 'take +10 HP instead', null, 'X', 'LB', () => this.onSkip()));
     this.root.classList.toggle('banishing', this.banishMode);
     this.root.replaceChildren(
       h('h2', { class: 'title-text' }, 'LEVEL UP!'),
@@ -999,8 +1012,18 @@ export class DraftView {
       h('div', { class: 'cards' }, ...cards),
       actions,
     );
+    this.refreshKeys();
     this.nav.current = null;
     this.nav.ensure();
+  }
+
+  /** The actions' keys: the keyboard's, or the pad's buttons when a pad is in use (D-104; the app calls it on a switch). */
+  refreshKeys(): void {
+    this.root.querySelectorAll<HTMLElement>('.draft-actions .kbd').forEach((k) => {
+      k.classList.toggle('pad', padUi.on);
+      if (padUi.on) k.replaceChildren(glyph(k.dataset.pad as Glyph));
+      else k.textContent = k.dataset.key ?? '';
+    });
   }
 
   private banishText(): [string, string] {

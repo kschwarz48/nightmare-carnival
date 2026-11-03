@@ -1,9 +1,29 @@
-// Input: rebindable keyboard actions, mouse aim, and gamepad (left stick move, right stick aim,
-// A/B/Start/X/Y + D-pad for menus). Emits UI navigation events for controller-first menus.
+// Input: rebindable keyboard actions, mouse aim, and controllers (D-104: Xbox and PlayStation pads through
+// pad.ts). Emits UI navigation events for controller-first menus, each with where it came from.
+//
+// The pad's layout (names in the Xbox / PlayStation style):
+//   left stick / D-pad   move, and move a menu's focus     right stick   aim, and scroll a long page
+//   A / Cross            confirm, interact                 B / Circle    back
+//   X / Square           reroll                            Y / Triangle  banish (a draft); a co-op notice's action
+//   LB / L1              skip (a draft); previous tab       RB / R1       chat; next tab
+//   View / Create        the build sheet (and the PlayStation touchpad)
+//   Menu / Options       pause                             R3            the damage meter: open, folded, hidden
 
 import { DEFAULT_BINDINGS } from '../meta/save';
+import { PAD, PadReader, padLabel, type PadKind, type PadLike } from './pad';
 
-export type NavEvent = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'reroll' | 'banish' | 'skip' | 'interact' | 'chat' | 'meter' | 'build';
+export type NavEvent = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'reroll' | 'banish' | 'skip' | 'interact' | 'chat' | 'meter' | 'build' | 'prev' | 'next';
+/** Where a navigation event came from: the keyboard, a pad's buttons or D-pad, or a pad's left stick. */
+export type NavSource = 'key' | 'pad' | 'stick';
+
+/** What each pad button sends (the D-pad and the left stick send the directions). */
+const PAD_EVENTS: Partial<Record<number, NavEvent>> = {
+  [PAD.A]: 'confirm', [PAD.B]: 'back', [PAD.X]: 'reroll', [PAD.Y]: 'banish', [PAD.LB]: 'prev', [PAD.RB]: 'next',
+  [PAD.VIEW]: 'build', [PAD.TOUCHPAD]: 'build', [PAD.MENU]: 'pause', [PAD.R3]: 'meter',
+};
+
+/** The mouse must travel this far (px) to take over from a pad: a nudged desk doesn't flip the prompts. */
+const MOUSE_TAKEOVER = 4;
 
 export class Input {
   private keys = new Set<string>();
@@ -12,13 +32,24 @@ export class Input {
   mouseY = 0;
   mouseActive = false;
   private mouseMovedAt = 0;
-  gamepadIndex = -1;
+  /** the pads (D-104): which is in use, and its sticks */
+  readonly pad = new PadReader();
   usingGamepad = false;
-  private padPrev: boolean[] = [];
-  private navRepeat = new Map<string, number>();
-  private listeners: ((e: NavEvent) => void)[] = [];
+  /** the Settings' button prompts: the pad's own look, or always Xbox's or PlayStation's */
+  promptStyle: 'auto' | PadKind = 'auto';
+  /** 0..1: the Settings' vibration strength (0: none) */
+  rumbleScale = 1;
+  /** the D-pad walks as well as navigating (off while a pad menu over the night, like the quick chat, uses it) */
+  dpadMoves = true;
+  /** stand still whatever is held (a pad menu over the night is open) */
+  holdMove = false;
+  private listeners: ((e: NavEvent, src: NavSource) => void)[] = [];
+  /** a pad was picked up (a first one, or another) or went away; `inUse`: it was what the player was playing with */
+  onPad: ((e: 'connected' | 'disconnected', inUse: boolean) => void) | null = null;
   /** When true, keyboard events are being captured for rebinding. */
   captureBinding: ((code: string) => void) | null = null;
+  /** what a pad's button does to a capture waiting for a key: it gives up (a pad has no keys to bind; D-104) */
+  captureCancel: (() => void) | null = null;
   moveX = 0;
   moveY = 0;
   aimX = 1;
@@ -31,34 +62,45 @@ export class Input {
     window.addEventListener('keydown', (e) => this.onKey(e, true));
     window.addEventListener('keyup', (e) => this.onKey(e, false));
     window.addEventListener('blur', () => this.keys.clear());
-    target.addEventListener('mousemove', (e) => {
+    // the pointer anywhere (a menu's panel too) takes over from a pad once it really moves; over the night it aims
+    window.addEventListener('mousemove', (e) => {
+      const far = Math.hypot(e.clientX - this.mouseX, e.clientY - this.mouseY) > MOUSE_TAKEOVER;
       this.mouseX = e.clientX;
       this.mouseY = e.clientY;
-      this.mouseActive = true;
-      this.mouseMovedAt = performance.now();
+      if (!far && this.usingGamepad) return;
       this.usingGamepad = false;
+      if (e.target === this.target) {
+        this.mouseActive = true;
+        this.mouseMovedAt = performance.now();
+      }
     });
-    window.addEventListener('gamepadconnected', (e) => {
-      this.gamepadIndex = (e as GamepadEvent).gamepad.index;
-    });
-    window.addEventListener('gamepaddisconnected', () => {
-      this.gamepadIndex = -1;
-      this.usingGamepad = false;
-    });
+    window.addEventListener('mousedown', () => (this.usingGamepad = false));
+    // (the reader notices a pad gone on its next read; listening keeps the browser's pad events going)
+    window.addEventListener('gamepaddisconnected', () => {});
   }
 
-  onNav(fn: (e: NavEvent) => void): void {
+  /** The look of the button prompts: the pad in use's, unless the Settings choose one. */
+  get padKind(): PadKind {
+    return this.promptStyle === 'auto' ? this.pad.kind : this.promptStyle;
+  }
+
+  /** The pad in use, for the Settings: its name, or null without one. */
+  get padName(): string | null {
+    return this.pad.index >= 0 ? padLabel(this.pad.id) : null;
+  }
+
+  onNav(fn: (e: NavEvent, src: NavSource) => void): void {
     this.listeners.push(fn);
   }
-  private emit(e: NavEvent): void {
-    for (const fn of this.listeners) fn(e);
+  private emit(e: NavEvent, src: NavSource = 'key'): void {
+    for (const fn of this.listeners) fn(e, src);
   }
 
   private onKey(e: KeyboardEvent, down: boolean): void {
     if (this.captureBinding && down) {
       e.preventDefault();
       const cb = this.captureBinding;
-      this.captureBinding = null;
+      this.captureBinding = this.captureCancel = null;
       cb(e.code);
       return;
     }
@@ -68,10 +110,13 @@ export class Input {
     // the line, which keeps it from the game)
     if (down && (this.bindings.chat ?? []).includes(e.code)) {
       e.preventDefault();
+      this.usingGamepad = false;
       this.emit('chat');
       return;
     }
     if (down) {
+      // the keyboard has the prompts before its key acts (a key-up of what it opens reads the keyboard's)
+      this.usingGamepad = false;
       if (!this.keys.has(e.code)) {
         for (const [action, codes] of Object.entries(this.bindings)) {
           if (!codes.includes(e.code)) continue;
@@ -91,7 +136,6 @@ export class Input {
         if (e.code === 'Backspace') this.emit('back');
       }
       this.keys.add(e.code);
-      this.usingGamepad = false;
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
     } else this.keys.delete(e.code);
   }
@@ -121,79 +165,69 @@ export class Input {
       this.aimY = dy * this.aimScaleY;
     }
     this.aimActive = this.mouseActive && performance.now() - this.mouseMovedAt < 1500;
-    // gamepad
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    let pad: Gamepad | null = null;
-    if (this.gamepadIndex >= 0) pad = pads[this.gamepadIndex] ?? null;
-    if (!pad) for (const p of pads) if (p) { pad = p; this.gamepadIndex = p.index; break; }
-    if (pad) {
-      const dz = (v: number) => (Math.abs(v) < 0.18 ? 0 : (v - Math.sign(v) * 0.18) / 0.82);
-      const lx = dz(pad.axes[0] ?? 0), ly = dz(pad.axes[1] ?? 0);
-      const rx = dz(pad.axes[2] ?? 0), ry = dz(pad.axes[3] ?? 0);
-      if (Math.hypot(lx, ly) > 0) {
-        mx = lx;
-        my = ly;
-        this.usingGamepad = true;
+    // the pads
+    const pads = (navigator.getGamepads ? navigator.getGamepads() : []) as readonly (PadLike | null)[];
+    const r = this.pad.read(pads, performance.now());
+    if (r.lost) {
+      // the pad in use went away: the app says so, and pauses a night it was playing
+      const was = this.usingGamepad;
+      this.usingGamepad = false;
+      this.onPad?.('disconnected', was);
+    }
+    if (r.touched) this.usingGamepad = true;
+    if (r.switched) this.onPad?.('connected', this.usingGamepad);
+    const p = this.pad;
+    if (p.state) {
+      if (p.lx || p.ly) {
+        mx = p.lx;
+        my = p.ly;
       }
-      if (pad.buttons[12]?.pressed) my = -1;
-      if (pad.buttons[13]?.pressed) my = 1;
-      if (pad.buttons[14]?.pressed) mx = -1;
-      if (pad.buttons[15]?.pressed) mx = 1;
-      if (Math.hypot(rx, ry) > 0.2) {
-        this.aimX = rx;
-        this.aimY = ry;
+      if (this.dpadMoves) {
+        if (p.held('UP')) my = -1;
+        if (p.held('DOWN')) my = 1;
+        if (p.held('LEFT')) mx = -1;
+        if (p.held('RIGHT')) mx = 1;
+      }
+      if (Math.hypot(p.rx, p.ry) > 0.2) {
+        this.aimX = p.rx;
+        this.aimY = p.ry;
         this.aimActive = true;
-        this.usingGamepad = true;
       }
-      const btn = (i: number) => !!pad!.buttons[i]?.pressed;
-      const edge = (i: number, ev: NavEvent) => {
-        const b = btn(i);
-        if (b && !this.padPrev[i]) {
-          this.usingGamepad = true;
-          this.emit(ev);
+      for (const b of r.pressed) {
+        // a key capture waiting in the Settings gives up at any pad button, which does nothing else
+        if (this.captureBinding) {
+          const cancel = this.captureCancel;
+          this.captureBinding = this.captureCancel = null;
+          cancel?.();
+          continue;
         }
-        this.padPrev[i] = b;
-      };
-      edge(0, 'confirm');
-      edge(1, 'back');
-      edge(9, 'pause');
-      edge(8, 'pause');
-      edge(2, 'reroll');
-      edge(3, 'banish');
-      edge(4, 'skip');
-      // D-pad / stick navigation with key-repeat
-      const navDir = (name: NavEvent, active: boolean) => {
-        const now = performance.now();
-        const t = this.navRepeat.get(name) ?? 0;
-        if (active) {
-          if (t === 0) {
-            this.emit(name);
-            this.navRepeat.set(name, now + 380);
-          } else if (now > t) {
-            this.emit(name);
-            this.navRepeat.set(name, now + 120);
-          }
-        } else this.navRepeat.set(name, 0);
-      };
-      navDir('up', btn(12) || ly < -0.6);
-      navDir('down', btn(13) || ly > 0.6);
-      navDir('left', btn(14) || lx < -0.6);
-      navDir('right', btn(15) || lx > 0.6);
+        const ev = PAD_EVENTS[b];
+        if (ev) this.emit(ev, 'pad');
+      }
+      for (const n of r.nav) this.emit(n.dir, n.stick ? 'stick' : 'pad');
     }
     const l = Math.hypot(mx, my);
     if (l > 1) {
       mx /= l;
       my /= l;
     }
+    if (this.holdMove) mx = my = 0;
     this.moveX = mx;
     this.moveY = my;
   }
 
+  /** The right stick's up and down, for scrolling a long page (0 without a pad). */
+  get scrollY(): number {
+    return this.pad.state ? this.pad.ry : 0;
+  }
+
   rumble(strength: number, ms: number): void {
+    if (!this.usingGamepad || this.rumbleScale <= 0) return;
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    const pad = this.gamepadIndex >= 0 ? pads[this.gamepadIndex] : null;
+    const pad = this.pad.index >= 0 ? pads[this.pad.index] : null;
     const act = (pad as any)?.vibrationActuator;
-    if (act?.playEffect) act.playEffect('dual-rumble', { duration: ms, strongMagnitude: strength, weakMagnitude: strength * 0.6 }).catch(() => {});
+    const k = Math.min(1, strength * this.rumbleScale);
+    if (act?.playEffect) act.playEffect('dual-rumble', { duration: ms, strongMagnitude: k, weakMagnitude: k * 0.6 }).catch(() => {});
   }
 
   keyName(code: string): string {

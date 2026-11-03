@@ -20,6 +20,7 @@ import type { PartyRow, RunStats } from '../sim/game';
 import { MAX_PLAYERS } from '../net/protocol';
 import { PLAYER_CSS } from './hud';
 import { h, fmtNum, fmtTime } from './dom';
+import { devText, glyphHtml, type Glyph } from './glyphs';
 
 export interface UICtx {
   save: SaveManager;
@@ -34,6 +35,8 @@ export interface UICtx {
   desktopDownload?: { version: string; url: string };
   /** close the game (the Windows app only: a browser tab can't close itself; D-84) */
   quit?: () => void;
+  /** fullscreen, from the Settings (D-104): the Windows app's window, or the browser's */
+  fullscreen?: { get: () => Promise<boolean>; set: (on: boolean) => Promise<void> };
 }
 
 const btn = (label: string | Node, onclick: () => void, cls = '', extra: Record<string, any> = {}) => h('button', { class: `btn ${cls}`, 'data-nav': '', onclick, ...extra }, label);
@@ -75,7 +78,9 @@ export function titleScreen(c: UICtx): HTMLElement {
     h('div', { class: 'tagline' }, 'Survive from midnight to dawn'),
     menu,
     h('div', { class: 'wallet' }, h('span', { class: 'ticket-count' }, fmtNum(s.data.lostTickets))),
-    h('div', { class: 'corner-left' }, s.recovered ? 'Your save was restored from its backup slot.' : s.data.notice ?? 'WASD / arrows / left stick to move · weapons fire automatically · Esc to pause'),
+    s.recovered || s.data.notice
+      ? h('div', { class: 'corner-left' }, s.recovered ? 'Your save was restored from its backup slot.' : s.data.notice ?? '')
+      : devText('WASD / arrows / left stick to move · weapons fire automatically · Esc to pause', '{LS} move \u00b7 weapons fire automatically \u00b7 {MENU} pause', 'div', { class: 'corner-left' }),
     h('div', { class: 'corner' }, `Runs ${s.data.stats.runs} · Wins ${s.data.stats.wins}`, h('br'), 'Music: "Freaky Funk Circus" — Bradley Schwarz'),
     downloadBadge(c),
   );
@@ -400,7 +405,7 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
       ...shelf('hell'),
       h('div', { class: 'section-title' }, 'Performers'), h('div', { class: 'lf-grid' }, ...chars),
       h('div', { class: 'section-title' }, 'New Attractions'),
-      h('div', { class: 'muted' }, 'Click a weapon or passive you own to leave it out of your drafts, or to put it back. Daily Runs always use the full pool.'),
+      devText('Click a weapon or passive you own to leave it out of your drafts, or to put it back. Daily Runs always use the full pool.', 'Press {A} on a weapon or passive you own to leave it out of your drafts, or to put it back. Daily Runs always use the full pool.', 'div', { class: 'muted' }),
       h('div', { class: 'lf-grid' }, ...unlocks),
       h('div', { class: 'section-title' }, 'Achievements'),
       h('div', { class: 'lf-grid' }, ...ACHIEVEMENTS.filter((a) => !a.retired || s.hasAchievement(a.id)).map((a) => h('div', { class: `lf-item${s.hasAchievement(a.id) ? '' : ' locked'}` }, h('img', { src: c.assets.uiIcon('luck'), alt: '' }), h('div', { class: 'nm' }, a.name), h('div', { class: 'ds' }, a.retired ? `${a.desc} (retired)` : a.desc), h('div', { class: 'cost', style: { gridColumn: '2' } }, s.hasAchievement(a.id) ? '✓ Earned' : `+${a.reward} LT`)))),
@@ -451,13 +456,30 @@ export function pediaScreen(c: UICtx): HTMLElement {
 /** Controls whose action name doesn't read as a label on its own. */
 const BIND_LABEL: Record<string, string> = { meter: 'Damage meter' };
 
+/** What each pad button does (D-104), for the Settings' layout: the buttons, and what they do in a night and menus. */
+const PAD_LAYOUT: [Glyph[], string][] = [
+  [['LS', 'DPAD'], 'Move \u00b7 menus: move the focus'],
+  [['RS'], 'Aim (Hybrid and Manual aiming) \u00b7 menus: scroll'],
+  [['A'], 'Confirm \u00b7 use and talk'],
+  [['B'], 'Back'],
+  [['X'], 'Reroll (level-up)'],
+  [['Y'], 'Banish (level-up) \u00b7 a co-op notice\u2019s action'],
+  [['LB'], 'Skip (level-up) \u00b7 previous tab, section or player'],
+  [['RB'], 'Chat \u00b7 next tab, section or player'],
+  [['VIEW'], 'Build sheet'],
+  [['MENU'], 'Pause'],
+  [['R3'], 'Damage meter: open, folded, hidden'],
+];
+
 export function settingsScreen(c: UICtx, back: () => void): HTMLElement {
   const st = c.save.data.settings;
   const root = h('div', { class: 'screen settings dim' });
   const change = () => { c.save.save(); c.applySettings(); };
-  const slider = (label: string, key: keyof Settings, min = 0, max = 1, stepv = 0.05) => {
+  // "Reset all progress" asks here, not in a browser dialog a pad can't answer (D-104)
+  let confirming = false;
+  const slider = (label: string, key: keyof Settings, min = 0, max = 1, stepv = 0.05, after?: () => void) => {
     const inp = h('input', { type: 'range', min, max, step: stepv, value: String(st[key]) }) as HTMLInputElement;
-    inp.oninput = () => { (st as any)[key] = parseFloat(inp.value); change(); };
+    inp.oninput = () => { (st as any)[key] = parseFloat(inp.value); change(); after?.(); };
     const row = h('div', { class: 'setting', 'data-nav': '' }, h('label', {}, label), inp);
     (row as any).navAdjust = (d: number) => { inp.value = String(Math.max(min, Math.min(max, parseFloat(inp.value) + d * stepv * 2))); inp.oninput!(new Event('input')); };
     return row;
@@ -467,14 +489,24 @@ export function settingsScreen(c: UICtx, back: () => void): HTMLElement {
     const row = h('div', { class: 'setting', 'data-nav': '', onclick: () => { (st as any)[key] = !st[key]; box.classList.toggle('on', !!st[key]); c.click(); change(); } }, h('label', {}, label), box);
     return row;
   };
-  const select = (label: string, key: keyof Settings, opts: [string, string][]) => {
+  const select = (label: string, key: keyof Settings, opts: [string, string][], after?: () => void) => {
     const sel = h('select', {}, ...opts.map(([v, t]) => h('option', { value: v, selected: st[key] === v || undefined }, t))) as HTMLSelectElement;
-    sel.onchange = () => { (st as any)[key] = sel.value; change(); };
+    sel.onchange = () => { (st as any)[key] = sel.value; change(); after?.(); };
     const row = h('div', { class: 'setting', 'data-nav': '' }, h('label', {}, label), sel);
     (row as any).navAdjust = (d: number) => { const i = Math.max(0, Math.min(opts.length - 1, sel.selectedIndex + d)); sel.selectedIndex = i; sel.onchange!(new Event('change')); };
     return row;
   };
-  const bindRows = Object.keys(DEFAULT_BINDINGS).map((action) => {
+  // fullscreen (D-104: the Windows app's F11 and the browser's own were the only ways, out of a pad's reach)
+  const fullRow = (() => {
+    const fs = c.fullscreen;
+    if (!fs) return null;
+    const box = h('div', { class: 'toggle' }, h('span', { class: 'box' }));
+    const show = () => void fs.get().then((on) => box.classList.toggle('on', on));
+    show();
+    return h('div', { class: 'setting', 'data-nav': '', onclick: () => { c.click(); void fs.get().then((on) => fs.set(!on)).then(() => setTimeout(show, 250)); } }, h('label', {}, 'Fullscreen'), box);
+  })();
+  // built with each draw, so a key just bound shows (D-104: the rows were built once, and kept saying "press…")
+  const bindRows = () => Object.keys(DEFAULT_BINDINGS).map((action) => {
     const codes = st.bindings[action] ?? DEFAULT_BINDINGS[action];
     const buttons = [0, 1].map((slot) => {
       const b = h('button', {}, (codes[slot] ?? '—').replace('Key', '').replace('Arrow', '↕'));
@@ -489,31 +521,90 @@ export function settingsScreen(c: UICtx, back: () => void): HTMLElement {
           change();
           render();
         };
+        // a pad's button gives up waiting (it has no keys to bind; D-104)
+        c.input.captureCancel = () => render();
       };
       return b;
     });
-    return h('div', { class: 'setting', 'data-nav': '', onclick: () => buttons[0].click() }, h('label', {}, BIND_LABEL[action] ?? action[0].toUpperCase() + action.slice(1)), h('div', { class: 'bind' }, ...buttons));
+    // a key can only be bound from the keyboard: a pad's A here would wait for a key it can't press (D-104)
+    return h('div', { class: 'setting', 'data-nav': '', onclick: () => { if (c.input.usingGamepad) c.audio.play('deny', { vol: 0.5 }); else buttons[0].click(); } },
+      h('label', {}, BIND_LABEL[action] ?? action[0].toUpperCase() + action.slice(1)), h('div', { class: 'bind' }, ...buttons));
   });
+  // the pad in use, kept current while the Settings are open
+  const padNow = h('div', { class: 'setting pad-now' });
+  const showPad = () => {
+    const name = c.input.padName;
+    const kind = c.input.padKind === 'playstation' ? 'PlayStation' : 'Xbox';
+    const text = name ? `${name} \u00b7 ${kind} buttons` : 'None yet \u2014 press a button on your controller';
+    if (padNow.dataset.text !== text) {
+      padNow.dataset.text = text;
+      padNow.replaceChildren(h('label', {}, 'Controller'), h('span', { class: name ? 'pad-on' : 'muted' }, text));
+    }
+  };
+  const layout = h('div', { class: 'pad-layout' });
+  const drawLayout = () => {
+    const kind = c.input.padKind;
+    if (layout.dataset.kind === kind) return;
+    layout.dataset.kind = kind;
+    layout.replaceChildren(...PAD_LAYOUT.map(([bs, what]) => {
+      const keys: Glyph[] = kind === 'playstation' && bs[0] === 'VIEW' ? ['VIEW', 'TOUCHPAD'] : bs;
+      return h('div', { class: 'pl-row' }, h('span', { class: 'pl-keys', html: keys.map((b) => glyphHtml(b, kind)).join(' ') }), h('span', {}, what));
+    }));
+  };
+  const padTimer = setInterval(() => {
+    if (!root.isConnected) return clearInterval(padTimer);
+    showPad();
+    drawLayout();
+  }, 400);
   const render = () => {
+    showPad();
+    drawLayout();
+    if (confirming) {
+      root.replaceChildren(h('div', { class: 'panel bulbs confirm-panel' },
+        h('h2', { class: 'title-text' }, 'Reset all progress?'),
+        h('p', {}, 'This erases all your Lost Tickets, unlocks and records. Your settings are kept. It can\u2019t be undone.'),
+        h('div', { class: 'cs-actions' },
+          btn('Keep my progress', () => { c.click(); answer(false); }, 'small', { 'data-default': '', 'data-autofocus': '' }),
+          btn('Erase everything', () => { c.save.reset(); c.audio.play('ui_back'); answer(true); }, 'small red'))));
+      return;
+    }
     root.replaceChildren(h('div', { class: 'panel bulbs' },
       h('h2', { class: 'title-text' }, 'Settings'),
       h('h3', {}, 'Audio'),
       slider('Master volume', 'master'), slider('Music', 'music'), slider('Sound effects', 'sfx'), slider('Ambience', 'ambience'), toggle('Mute all', 'muted'),
       h('h3', {}, 'Visuals & Accessibility'),
       select('Graphics quality', 'quality', [['high', 'High'], ['medium', 'Medium'], ['low', 'Low (handheld)']]),
+      fullRow,
       slider('Screen shake', 'shake'), slider('Your attacks: opacity', 'abilityOpacity', 0, 1, 0.05), toggle('Reduced flashing', 'reducedFlash'), toggle('High-contrast telegraphs', 'highContrast'), toggle('Damage numbers', 'damageNumbers'), toggle('Damage meter', 'damageMeter'),
       slider('UI scale', 'uiScale', 0.8, 1.5, 0.05), toggle('Dyslexia-friendly font', 'dyslexiaFont'), toggle('Show FPS / perf', 'showFps'),
       h('h3', {}, 'Gameplay'),
       select('Aiming', 'aimMode', [['auto', 'Auto (classic)'], ['hybrid', 'Hybrid — aim with mouse / right stick when used'], ['manual', 'Manual — directional weapons follow your aim']]),
-      h('h3', {}, 'Controls (keyboard — click a key to rebind)'), ...bindRows,
-      h('div', { class: 'muted', style: { margin: '0.4em' } }, 'Gamepad: left stick move · right stick aim · A confirm · B back · Start pause · X reroll · Y banish · LB skip'),
+      h('h3', {}, 'Controller'),
+      padNow,
+      select('Button prompts', 'padPrompts', [['auto', 'Match the controller'], ['xbox', 'Xbox'], ['playstation', 'PlayStation']], drawLayout),
+      slider('Vibration', 'rumble', 0, 1, 0.05, () => c.input.rumble(0.7, 160)),
+      slider('Stick dead zone', 'stickDeadzone', 0.05, 0.4, 0.01),
+      layout,
+      h('h3', {}, 'Controls (keyboard — click a key to rebind)'), ...bindRows(),
       h('h3', {}, 'Data'),
       h('div', { class: 'cs-actions' },
         btn('Replay tutorial tips', () => { st.tutorialsSeen = []; change(); c.click(); }, 'small purple'),
-        btn('Reset all progress', () => { if (confirm('Erase all Lost Tickets, unlocks and records? Settings are kept.')) { c.save.reset(); c.click(); } }, 'small red'),
+        btn('Reset all progress', () => { c.click(); confirming = true; render(); }, 'small red reset-btn'),
         btn('Back', () => { c.click(); back(); }, 'small', { 'data-default': '' }),
       ),
     ));
+  };
+  /** The reset's question answered: back to the list, the focus on the button that asked. */
+  const answer = (_erased: boolean) => {
+    confirming = false;
+    render();
+    root.querySelector('.reset-btn')?.setAttribute('data-autofocus', '');
+  };
+  // a pad's (or the keyboard's) Back answers the question instead of leaving the Settings
+  (root as any).navBack = () => {
+    if (!confirming) return false;
+    answer(false);
+    return true;
   };
   render();
   return root;

@@ -14,8 +14,9 @@ export class UpdatePrompt {
   private title = h('div', { class: 'up-title' });
   private text = h('div', { class: 'up-text' });
   private status = h('div', { class: 'up-status' });
-  private go = h('button', { class: 'btn small' }, 'Restart & Update') as HTMLButtonElement;
-  private later = h('button', { class: 'btn small purple' }, 'Later') as HTMLButtonElement;
+  // (data-nav: a menu's D-pad reaches them, D-104)
+  private go = h('button', { class: 'btn small', 'data-nav': '' }, 'Restart & Update') as HTMLButtonElement;
+  private later = h('button', { class: 'btn small purple', 'data-nav': '' }, 'Later') as HTMLButtonElement;
   offer: UpdateOffer | null = null;
 
   constructor(onRestart: (o: UpdateOffer) => void, onLater: (o: UpdateOffer) => void) {

@@ -4,6 +4,7 @@
 // skips it once its first moment has passed.
 
 import { h } from './dom';
+import { devText } from './glyphs';
 import { TIERS, type TierId } from '../data/tiers';
 
 const NEWS: Record<Exclude<TierId, 'normal'>, string[]> = {
@@ -39,7 +40,7 @@ export function ceremonyEl(tier: Exclude<TierId, 'normal'>, done: () => void): {
       h('div', { class: 'cer-kicker' }, t.title.toUpperCase()),
       h('h1', { class: 'cer-title title-text' }, `${t.name.toUpperCase()} UNLOCKED`),
       h('ul', { class: 'cer-news' }, ...NEWS[tier].map((line) => h('li', {}, line))),
-      h('div', { class: 'cer-hint' }, 'Press any key to continue'),
+      devText('Press any key to continue', 'Press {A} to continue', 'div', { class: 'cer-hint' }),
     ),
   );
   // the scene's crossing-over plays first; the card and its hint follow

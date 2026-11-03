@@ -5,7 +5,7 @@
 
 import { MAPS, type MapId, MAP_LOCK, useMap } from './data/maps';
 import { AudioEngine } from './audio/audio';
-import { Input, type NavEvent } from './input/input';
+import { Input, type NavEvent, type NavSource } from './input/input';
 import { SaveManager } from './meta/save';
 import { Assets } from './render/assets';
 import { GameRenderer3D } from './render3d/renderer3d';
@@ -22,6 +22,10 @@ import { buildSheetEl } from './ui/buildSheet';
 import { DraftView, Hud, PLAYER_CSS, type HudScreen } from './ui/hud';
 import { kitOf } from './ui/recipes';
 import { ChatBox } from './ui/chat';
+import { devText, glyphName, padHtml, padUi, refreshDevText, setPadUi } from './ui/glyphs';
+import { PadBar, type PadBarSpec } from './ui/padBar';
+import { Osk, type OskOptions } from './ui/osk';
+import { QuickChat } from './ui/quickChat';
 import { perf, SEC } from './core/perf';
 
 /** The in-page developer tools (window.__nc): dev builds, or a production build made with VITE_DEVTOOLS=1
@@ -56,7 +60,7 @@ import { dailyInfo } from './ui/screens';
 import * as L from './ui/lobby';
 import { GuestSession, HostSession, runConfigFromStart } from './net/session';
 import type { GuestProfile, StartCfg } from './net/protocol';
-import { isValidCode, normalizeCode } from './net/codes';
+import { CODE_LENGTH, isValidCode, normalizeCode } from './net/codes';
 import { describeNetConfig, loadNetConfig } from './net/config';
 import { HubHud, type HubLabel } from './ui/hubHud';
 import { HUB_EXITS, HUB_GATE_MAP, HUB_NPCS, HUB_SPAWN, HUB_SPOTS } from './data/hub';
@@ -190,6 +194,19 @@ export class App {
   /** the build sheet on screen (D-99), and when it next refreshes (co-op: the night goes on under it) */
   private sheet: HTMLElement | null = null;
   private sheetT = 0;
+  /** whose build the sheet shows (co-op: a pad's LB / RB turn it to a partner's, D-104); -1: your own */
+  private sheetIndex = -1;
+  /** controllers (D-104): the hint bar along a menu's foot, the on-screen keyboard, the pad's chat, and a note over
+   *  everything (a controller picked up or gone) */
+  private padBar = new PadBar();
+  private osk: Osk | null = null;
+  private quick = new QuickChat();
+  private padNote = h('div', { class: 'pad-note hidden' });
+  private padNoteT = 0;
+  /** the lobby code last typed, kept when the join screen re-draws (an invalid code, a failed call) */
+  private joinCode = '';
+  /** where the local player stood on screen last frame, for mouse aim */
+  private aimFrom = { x: 0, y: 0 };
   /** the first night's opening look at Zoltana's booth (D-98): its clock, its overlay, whether the whisper has played */
   private cut: { t: number; el: HTMLElement; note: HTMLElement; whisper: boolean } | null = null;
   /** the world tier's unlock ceremony on screen (D-97), if any */
@@ -213,7 +230,12 @@ export class App {
 
   constructor() {
     this.input = new Input(this.canvas);
-    this.input.onNav((e) => this.onNav(e));
+    this.input.onNav((e, src) => this.onNav(e, src));
+    this.input.onPad = (e, inUse) => this.onPadChange(e, inUse);
+    // sound a browser held back (a pad's press needn't count as a gesture there) starts at the first click or key
+    const wake = () => void this.audio.unlock();
+    window.addEventListener('pointerdown', wake, true);
+    window.addEventListener('keydown', wake, true);
     window.addEventListener('keydown', (e) => {
       if (e.key === 'F3' && this.net) {
         this.showNetDiag = !this.showNetDiag;
@@ -266,7 +288,12 @@ export class App {
       this.save.save();
     };
     // the chat box (D-65): above the HUD, under the menus; whispers of the hidden quests are written in it
-    this.ui.append(this.chat.root);
+    this.ui.append(this.chat.root, this.quick.root, this.padBar.root, this.padNote);
+    this.quick.onPick = (text) => {
+      this.chat.send(text);
+      this.closeQuickChat();
+    };
+    this.quick.onType = () => this.typeChat();
     this.hud.onWhisper = (text, sub) => this.chat.add({ kind: 'quest', text, sub });
     this.chat.onSend = (text) => {
       if (this.net?.role === 'host') this.net.host.say(text);
@@ -308,6 +335,14 @@ export class App {
       startRun: (o) => this.startRun(o),
       applySettings: () => this.applySettings(),
       quit: desktop ? () => this.exitGame() : undefined,
+      fullscreen: {
+        get: async () => (desktop ? !!(await desktop.isFullscreen()) : !!document.fullscreenElement),
+        set: async (on) => {
+          if (desktop) await desktop.setFullscreen(on);
+          else if (on) await document.documentElement.requestFullscreen?.().catch(() => {});
+          else if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+        },
+      },
     };
     this.applySettings();
     window.addEventListener('resize', () => {
@@ -357,6 +392,9 @@ export class App {
     this.audio.volumes = { master: s.master, music: s.music, sfx: s.sfx, ambience: s.ambience, muted: s.muted };
     this.audio.applyVolumes();
     this.input.bindings = JSON.parse(JSON.stringify(s.bindings));
+    this.input.promptStyle = s.padPrompts;
+    this.input.rumbleScale = s.rumble;
+    this.input.pad.deadzone = s.stickDeadzone;
     document.documentElement.style.setProperty('--ui-scale', String(s.uiScale));
     document.body.classList.toggle('dyslexia', s.dyslexiaFont);
     if (this.renderer) {
@@ -373,6 +411,9 @@ export class App {
 
   // =================================================================== screens
   go(state: State, arg?: any): void {
+    const from = this.state;
+    // the on-screen keyboard belongs to the screen it was opened on
+    this.osk?.close();
     if (state === 'settings') {
       const from = arg;
       this.settingsBack = from === 'pause' ? () => this.go('paused') : () => this.go('title');
@@ -471,7 +512,7 @@ export class App {
         });
         break;
       case 'mp_join':
-        el = L.joinScreen(this.ctx, { status: this.mpStatus, tone: this.mpTone, busy: this.mpBusy, join: (code) => void this.joinGame(code), back: () => this.leaveNet(false, 'mp') });
+        el = L.joinScreen(this.ctx, { value: this.joinCode, status: this.mpStatus, tone: this.mpTone, busy: this.mpBusy, join: (code) => void this.joinGame(code), back: () => this.leaveNet(false, 'mp') });
         break;
       case 'lobby':
         el = this.lobbyEl();
@@ -488,7 +529,12 @@ export class App {
       this.screenEl = el;
       if (this.ceremony) el.style.visibility = 'hidden';
       this.nav = new FocusNav(el);
+      // the update card's buttons are in reach of the D-pad too (D-104)
+      if (this.updatePrompt) this.nav.extras = [this.updatePrompt.root];
       if (this.input.usingGamepad || state !== 'press') this.nav.ensure();
+      // a pad coming to the join screen gets the on-screen keyboard for the code straight away (D-104)
+      const code = el.querySelector<HTMLInputElement>('input[data-osk="code"]');
+      if (state === 'mp_join' && from !== 'mp_join' && this.input.usingGamepad && code && !this.mpBusy) this.openOskFor(code);
     } else this.nav = null;
     this.maybeCeremony();
   }
@@ -637,6 +683,15 @@ export class App {
     this.lineBoard.update(null);
     this.hud.banner(title, sub, 'gold', 3);
     this.tutorial('move', 'Move with <b>WASD</b>, the <b>arrow keys</b> or the <b>left stick</b>. Your weapons fire on their own.');
+    if (this.input.usingGamepad) this.padTutorial();
+  }
+
+  /** The pad's buttons for a night, once a save (D-104; after the first night's "Move with…", which shows first). */
+  private padTutorial(): void {
+    const st = this.save.data.settings;
+    if (st.tutorialsSeen.includes('pad') || this.game?.cfg.daily) return;
+    const S = '  \u00b7  ';
+    this.tutorial('pad', padHtml(`{VIEW} your build${S}{MENU} pause${S}{R3} damage meter${this.net ? `${S}{RB} chat` : ''}`));
   }
 
   /**
@@ -1680,7 +1735,7 @@ export class App {
    */
   private startZoltanaCut(): void {
     const note = h('div', { class: 'cut-note' }, '(something whispers from the box\u2026)');
-    const el = h('div', { class: 'cutscene', onclick: () => this.endZoltanaCut() }, note, h('div', { class: 'cut-skip' }, 'any key to skip'));
+    const el = h('div', { class: 'cutscene', onclick: () => this.endZoltanaCut() }, note, devText('any key to skip', 'any button to skip', 'div', { class: 'cut-skip' }));
     this.ui.append(el);
     requestAnimationFrame(() => el.classList.add('bars'));
     this.hud.root.style.visibility = 'hidden';
@@ -1729,19 +1784,38 @@ export class App {
 
   private openBuildSheet(): void {
     const g = this.game!;
-    const me = g.players[this.localIndex] ?? g.player;
-    const el = buildSheetEl(this.assets, g, me, () => this.closeBuildSheet(), !this.net);
-    if (this.sheet) this.sheet.replaceWith(el);
-    else this.ui.append(el);
+    const idx = this.sheetIndex >= 0 && g.players[this.sheetIndex] ? this.sheetIndex : this.localIndex;
+    const who = g.players[idx] ?? g.player;
+    const turn = g.players.length > 1 ? (d: -1 | 1) => this.turnBuildSheet(d) : undefined;
+    const el = buildSheetEl(this.assets, g, who, () => this.closeBuildSheet(), !this.net, idx === this.localIndex, turn);
+    // a refresh (co-op, every second) keeps the focus where it was
+    if (this.sheet && this.nav) {
+      this.sheet.replaceWith(el);
+      this.nav.root = el;
+    } else {
+      this.ui.append(el);
+      this.nav = new FocusNav(el);
+    }
     this.sheet = el;
     this.sheetT = 1;
-    this.nav = new FocusNav(el);
+  }
+
+  /** The build sheet's arrows (D-104: a pad's LB / RB): the previous or next player's build in co-op. */
+  private turnBuildSheet(d: -1 | 1): void {
+    const g = this.game;
+    if (!g || !this.sheet || g.players.length < 2) return;
+    const n = g.players.length;
+    const cur = this.sheetIndex >= 0 ? this.sheetIndex : this.localIndex;
+    this.sheetIndex = (cur + d + n) % n;
+    this.audio.play('ui_hover', { vol: 0.35 });
+    this.openBuildSheet();
   }
 
   private closeBuildSheet(): void {
     if (!this.sheet) return;
     this.sheet.remove();
     this.sheet = null;
+    this.sheetIndex = -1;
     this.nav = null;
   }
 
@@ -2113,34 +2187,64 @@ export class App {
     const show = (run && (c.canSend || c.lineCount > 0)) || ((hub || lobby) && c.canSend);
     c.place(show, run ? this.hud.chatBottom() : 18);
     c.update(dt);
+    // the pad's chat goes with the box (D-104), and closes with it
+    if (this.quick.isOpen) {
+      if (!c.isOpen && !this.osk) this.closeQuickChat();
+      else this.quick.root.style.bottom = c.root.style.bottom;
+    }
   }
 
-  private onNav(e: NavEvent): void {
-    // the build sheet (D-99): C, Back or Pause close it; nothing else reaches the night beneath
+  private onNav(e: NavEvent, src: NavSource = 'key'): void {
+    // the on-screen keyboard (D-104) takes everything while it's up
+    if (this.osk) {
+      this.osk.handle(e);
+      return;
+    }
+    // the pad's chat (D-104): its quick lines, or the log alone; B, RB, Menu or the chat key close it
+    if (this.quick.isOpen) {
+      if (e === 'back' || e === 'next' || e === 'pause' || e === 'chat') this.closeQuickChat();
+      else if (e === 'up' || e === 'down' || e === 'left' || e === 'right') this.quick.nav.move(e);
+      else if (e === 'confirm') this.quick.nav.activate();
+      return;
+    }
+    // the keyboard's chat line is open and a pad's B is pressed: it closes
+    if (this.chat.isOpen && src !== 'key' && e === 'back') {
+      this.chat.close();
+      return;
+    }
+    // the build sheet (D-99): C, Back or Pause close it (a pad's View too); LB / RB turn to a partner's build (D-104)
     if (this.sheet) {
       if (e === 'build' || e === 'back' || e === 'pause') this.closeBuildSheet();
+      else if (e === 'prev' || e === 'next') this.turnBuildSheet(e === 'prev' ? -1 : 1);
       else if (e === 'up' || e === 'down' || e === 'left' || e === 'right') this.nav?.move(e);
       else if (e === 'confirm') this.nav?.activate();
       return;
     }
     if (e === 'build') return this.toggleBuildSheet();
+    const anyButton = e === 'confirm' || e === 'back' || e === 'pause' || e === 'interact' || (src === 'pad' && (e === 'reroll' || e === 'banish' || e === 'prev' || e === 'next'));
     // the first night's opening look at Zoltana's booth (D-98): any button skips it
     if (this.cut) {
-      if (e === 'confirm' || e === 'back' || e === 'pause' || e === 'interact') this.endZoltanaCut();
+      if (anyButton) this.endZoltanaCut();
       return;
     }
     // an unlock ceremony on screen (D-97): any button moves on (once it may), nothing reaches the menu beneath
     if (this.ceremony) {
-      if (e === 'confirm' || e === 'back' || e === 'pause' || e === 'interact') this.ceremony.skip();
+      if (anyButton) this.ceremony.skip();
       return;
     }
     if (e === 'chat') {
       this.chat.open();
       return;
     }
+    // a pad's RB opens the chat where there is one (D-104; a menu with tabs or sections turns them instead)
+    if (e === 'next' && src === 'pad' && this.chatShown() && !this.screenTurns()) {
+      this.openQuickChat();
+      return;
+    }
     if (e === 'meter') {
       // the damage meter, shown or hidden (D-85); in a night only
       if (this.state !== 'playing' || !this.game || this.game.hub) return;
+      if (src === 'pad') return this.cycleMeter();
       const st = this.save.data.settings;
       st.damageMeter = !st.damageMeter;
       this.save.save();
@@ -2169,7 +2273,7 @@ export class App {
     }
     if (this.state === 'playing' && this.game) {
       if (this.prize.active) {
-        if (e === 'confirm') this.prize.skip(false);
+        if (e === 'confirm' || (src === 'pad' && (e === 'reroll' || e === 'banish'))) this.prize.skip(false);
         else if (e === 'back' || e === 'pause') this.prize.skip(true);
         return;
       }
@@ -2177,13 +2281,19 @@ export class App {
         const g = this.game;
         if (e === 'reroll') this.rerollDraft();
         else if (e === 'banish') this.draft.toggleBanish();
-        else if (e === 'skip') this.skipDraft();
+        else if (e === 'skip' || (e === 'prev' && src === 'pad')) this.skipDraft();
         else if (e === 'confirm') this.draft.nav.activate();
         else if (e === 'up' || e === 'down' || e === 'left' || e === 'right') {
           this.draft.nav.move(e);
           this.audio.play('ui_hover', { vol: 0.3 });
         }
         if (this.net?.role !== 'guest' && !g.draftPending(this.localIndex)) this.draft.hide();
+        return;
+      }
+      // a co-op notice's action (carry on without a partner who dropped): a pad's Y, its button wears the cap (D-104)
+      const act = this.hud.coopInfo?.status?.action;
+      if (e === 'banish' && src === 'pad' && act) {
+        act.fn();
         return;
       }
       if ((e === 'interact' || e === 'confirm') && this.game.phase === 'play') this.interactPress();
@@ -2200,6 +2310,10 @@ export class App {
     // the lobby screens are left with their own buttons (Back would silently drop the session)
     if ((this.state === 'lobby' || this.state === 'mp_join' || this.state === 'netmsg') && (e === 'back' || e === 'pause')) return;
     if (!this.nav) return;
+    if (e === 'prev' || e === 'next') {
+      if (this.turnScreen(e === 'prev' ? -1 : 1)) this.audio.play('ui_hover', { vol: 0.35 });
+      return;
+    }
     if (e === 'up' || e === 'down' || e === 'left' || e === 'right') {
       const cur = this.nav.current as any;
       if ((e === 'left' || e === 'right') && cur?.navAdjust) {
@@ -2207,13 +2321,222 @@ export class App {
         return;
       }
       if (this.nav.move(e)) this.audio.play('ui_hover', { vol: 0.3 });
-    } else if (e === 'confirm') this.nav.activate();
-    else if (e === 'back' || e === 'pause') {
+    } else if (e === 'confirm') {
+      const cur = this.nav.current;
+      // a text box: the keyboard types into it; a pad's A brings up the on-screen keyboard (D-104)
+      if (cur instanceof HTMLInputElement && cur.dataset.osk) {
+        if (src === 'key') {
+          cur.focus();
+          cur.select();
+        } else this.openOskFor(cur);
+      } else if (!this.nav.activate()) this.audio.play('deny', { vol: 0.5 });
+    } else if (e === 'back' || e === 'pause') {
+      // a screen's own question (the Settings' reset) takes Back first
+      if ((this.screenEl as { navBack?: () => boolean } | null)?.navBack?.()) return;
       this.audio.play('ui_back', { vol: 0.5 });
       if (this.state === 'settings') this.settingsBack();
       else if (this.state === 'results') this.toMenu();
       else if (this.state !== 'title') this.go('title');
     }
+  }
+
+  // =================================================================== controllers (D-104)
+  /**
+   * Every frame: the prompts follow what the player is using, a menu keeps a focus for the pad, the right stick
+   * scrolls a long page (or the chat log being read), and the hint bar says what the buttons do here.
+   */
+  private padFrame(dt: number): void {
+    const inp = this.input;
+    if (setPadUi(inp.usingGamepad, inp.padKind)) {
+      document.body.classList.toggle('pad', padUi.on);
+      refreshDevText(this.ui);
+      if (this.draft?.visible) this.draft.refreshKeys();
+    }
+    if (this.padNoteT > 0 && (this.padNoteT -= dt) <= 0) this.padNote.classList.add('hidden');
+    const nav = this.osk?.nav ?? (this.quick.isOpen ? this.quick.nav : null) ?? (this.draft?.visible ? this.draft.nav : null) ?? this.nav;
+    if (nav) nav.allowDisabled = padUi.on;
+    if (!padUi.on) {
+      this.padBar.update(null);
+      return;
+    }
+    // a menu re-drawn under the pad (a purchase, a setting) keeps a focus in the same place
+    if (!this.ceremony && !this.cut) nav?.ensure();
+    const sy = inp.scrollY;
+    if (sy) {
+      const el = this.scrollTarget(nav);
+      if (el) el.scrollTop += sy * dt * 1100;
+    }
+    this.padBar.update(this.padHints(nav));
+  }
+
+  /** What a pad's right stick scrolls: the chat log being read, else the scrolling box round the focus, else the
+   *  screen's own. */
+  private scrollTarget(nav: FocusNav | null): HTMLElement | null {
+    if (this.chat.isOpen) return this.chat.logEl;
+    const scrolls = (el: HTMLElement) => el.scrollHeight > el.clientHeight + 4 && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
+    for (let el: HTMLElement | null = nav?.current ?? null; el && el !== this.ui; el = el.parentElement) if (scrolls(el)) return el;
+    const root = nav?.root;
+    if (!root) return null;
+    if (scrolls(root)) return root;
+    return [...root.querySelectorAll<HTMLElement>('.panel, .bs-panel')].find(scrolls) ?? null;
+  }
+
+  /** What the pad's buttons do now, for the hint bar (null: nothing to say, or the screen says it itself). */
+  private padHints(nav: FocusNav | null): PadBarSpec | null {
+    if (this.osk || this.cut || this.ceremony) return null;
+    const S = '  \u00b7  ';
+    if (this.quick.isOpen) return { hints: this.chat.canSend ? `{A} send${S}{RS} read back${S}{B} close` : `{RS} read back${S}{B} close` };
+    if (this.sheet) return { hints: `${(this.game?.players.length ?? 1) > 1 ? `{LB}{RB} players${S}` : ''}{RS} scroll${S}{B} close`, tip: nav?.tip() || undefined };
+    if (!this.screenEl || !nav || this.state === 'press' || this.state === 'playing') return null;
+    const cur = nav.current;
+    const parts = [cur instanceof HTMLInputElement && cur.dataset.osk ? '{A} type' : (cur as { navAdjust?: unknown } | null)?.navAdjust ? '{DPAD} adjust' : '{A} select'];
+    if (!(this.state === 'lobby' || this.state === 'mp_join' || this.state === 'netmsg')) parts.push('{B} back');
+    if (this.screenTurns()) parts.push(this.screenEl.querySelector('.tabs') ? '{LB}{RB} wing' : '{LB}{RB} section');
+    else if (this.chatShown()) parts.push('{RB} chat');
+    if (this.scrollTarget(nav)) parts.push('{RS} scroll');
+    return { hints: parts.join(S), tip: nav.tip() || undefined };
+  }
+
+  /** The chat box is on screen (a co-op session's, or a solo night's log once it has lines). */
+  private chatShown(): boolean {
+    return !this.chat.root.classList.contains('hidden');
+  }
+
+  /** The menu on screen has tabs or sections for a pad's LB / RB to turn. */
+  private screenTurns(): boolean {
+    return !!this.screenEl?.querySelector('.tabs .tab, .section-title, .settings h3');
+  }
+
+  /**
+   * A pad's LB / RB on a menu (D-104): its tabs (the Carnival-pedia's wings), or its sections (the Lost & Found's
+   * shelves, the Settings' groups): the focus jumps to the next one's first item.
+   */
+  private turnScreen(d: -1 | 1): boolean {
+    const root = this.screenEl, nav = this.nav;
+    if (!root || !nav) return false;
+    const tabs = [...root.querySelectorAll<HTMLElement>('.tabs .tab')];
+    if (tabs.length) {
+      const at = Math.max(0, tabs.findIndex((t) => t.classList.contains('sel')));
+      tabs[(at + d + tabs.length) % tabs.length].click();
+      nav.focus(root.querySelector<HTMLElement>('.tabs .tab.sel'));
+      return true;
+    }
+    const heads = [...root.querySelectorAll<HTMLElement>('.section-title, .settings h3')];
+    if (!heads.length) return false;
+    const items = nav.items();
+    const cur = nav.current && items.includes(nav.current) ? nav.current : null;
+    const before = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    let at = -1;
+    heads.forEach((hd, i) => {
+      if (cur && before(hd, cur)) at = i;
+    });
+    const to = at + d;
+    if (to >= heads.length) return false;
+    if (to < 0) {
+      nav.focus(items[0] ?? null);
+      return true;
+    }
+    const first = items.find((it) => before(heads[to], it) && (to + 1 >= heads.length || before(it, heads[to + 1])));
+    if (first) nav.focus(first);
+    heads[to].scrollIntoView({ block: 'start' });
+    return true;
+  }
+
+  /** A controller picked up (a first one, or another) or gone (D-104): a note; a night it was playing pauses. */
+  private onPadChange(e: 'connected' | 'disconnected', inUse: boolean): void {
+    if (e === 'connected') {
+      const kind = this.input.padKind === 'playstation' ? 'PlayStation' : 'Xbox';
+      this.padToast(`${this.input.padName ?? 'Controller'} ready \u00b7 ${kind} buttons`);
+      if (this.state === 'playing' && this.game && !this.game.hub) this.padTutorial();
+      return;
+    }
+    this.padToast('Controller disconnected');
+    const g = this.game;
+    if (inUse && this.state === 'playing' && g && !g.hub && g.phase === 'play' && !this.prize.active && !this.cut) {
+      this.closeBuildSheet();
+      if (this.quick.isOpen) this.closeQuickChat();
+      this.audio.play('ui_click');
+      this.go('paused');
+    }
+  }
+
+  private padToast(text: string): void {
+    this.padNote.textContent = text;
+    this.padNote.classList.remove('hidden');
+    this.padNoteT = 3.2;
+  }
+
+  /** A pad's R3 (D-104): the damage meter open, then folded, then hidden, then open again. */
+  private cycleMeter(): void {
+    const st = this.save.data.settings;
+    if (!st.damageMeter) {
+      st.damageMeter = true;
+      st.meterOpen = true;
+    } else if (st.meterOpen) st.meterOpen = false;
+    else st.damageMeter = false;
+    this.save.save();
+    this.hud.meter.on = st.damageMeter;
+    this.hud.meter.fold(st.meterOpen);
+    this.audio.play('ui_click', { vol: 0.4 });
+    this.hud.toastMsg(!st.damageMeter ? `Damage meter hidden \u2014 ${glyphName('R3')} brings it back` : st.meterOpen ? 'Damage meter open' : 'Damage meter folded');
+  }
+
+  /** The pad's chat (D-104): the quick lines in co-op, the log alone solo. Solo the night waits; in co-op you stand. */
+  private openQuickChat(): void {
+    this.chat.openPad();
+    if (!this.chat.isOpen) return;
+    this.quick.open(this.chat.canSend, parseFloat(this.chat.root.style.bottom) || 118);
+    this.input.holdMove = true;
+    this.input.dpadMoves = false;
+  }
+
+  private closeQuickChat(): void {
+    this.quick.close();
+    this.chat.close();
+    this.input.holdMove = false;
+    this.input.dpadMoves = true;
+  }
+
+  /** The quick chat's "Type a message…": the on-screen keyboard, and the line goes when it's done. */
+  private typeChat(): void {
+    this.quick.close();
+    this.openOsk({ title: 'Say something', value: '', max: 140, kind: 'text', doneLabel: 'Send', done: (v) => { this.chat.send(v); this.closeQuickChat(); }, close: () => this.closeQuickChat() });
+  }
+
+  /** A pad's A on a text box (D-104): the on-screen keyboard types into it; Done on a lobby code joins. */
+  private openOskFor(inp: HTMLInputElement): void {
+    const code = inp.dataset.osk === 'code';
+    this.openOsk({
+      title: inp.getAttribute('aria-label') ?? 'Type',
+      value: code ? normalizeCode(inp.value) : inp.value,
+      max: code ? CODE_LENGTH : inp.maxLength > 0 ? inp.maxLength : 32,
+      kind: code ? 'code' : 'text',
+      doneLabel: code ? 'Join' : 'Done',
+      change: (v) => (inp.value = v),
+      // the box's own Enter: a lobby code's joins
+      done: (v) => {
+        inp.value = v;
+        inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      },
+    });
+  }
+
+  private openOsk(o: OskOptions): void {
+    this.osk?.close();
+    const osk = new Osk({
+      ...o,
+      done: (v) => {
+        this.osk = null;
+        o.done(v);
+      },
+      close: (v) => {
+        this.osk = null;
+        o.close?.(v);
+      },
+    });
+    this.osk = osk;
+    this.ui.append(osk.el);
+    osk.start();
   }
 
   /**
@@ -2247,6 +2570,11 @@ export class App {
     this.last = t;
     if (dt > 0.25) dt = 0.25;
     this.fps += (1 / Math.max(0.001, dt) - this.fps) * 0.05;
+    // the input first (D-104): what a pad presses acts before the frame reads the game, as a key's press does between
+    // frames (a pad's A that left the Midway used to pull the night from under the rest of this frame). Mouse aim
+    // measures from where the player stood on screen last frame.
+    this.input.poll(this.aimFrom.x, this.aimFrom.y);
+    this.padFrame(dt);
     const g = this.game;
     const net = this.net;
     const n0 = perf.now();
@@ -2271,8 +2599,7 @@ export class App {
     // player screen position for mouse aim
     const cssW = window.innerWidth, cssH = window.innerHeight;
     const target = g && (playing || this.nightPaused || g.hub) ? g.player : this.demo!.player;
-    const sp = this.renderer.worldToScreen(target.x, target.y, cssW, cssH, 30);
-    this.input.poll(sp.x, sp.y);
+    this.aimFrom = this.renderer.worldToScreen(target.x, target.y, cssW, cssH, 30);
     // a map's first night waits behind a veil while its world is built and its shaders compile in the background
     // (D-96: its first frame used to do it on the spot, frozen for 2–5 s); the night doesn't tick meanwhile
     if (g && (this.state === 'playing' || g.hub) && !this.renderer.worldReady(g.mapId)) {
@@ -2634,9 +2961,12 @@ export class App {
     if (this.hubTalk) {
       const n = g.hubNpcs[this.hubTalk.npc];
       const d = HUB_NPCS.find((x) => x.char === n.char.id)!;
-      dialogue = { name: n.char.name, at: d.at, portrait: this.assets.portrait(n.char.id), text: d.lines[this.hubTalk.line], page: this.hubTalk.line + 1 < d.lines.length ? 'E / A: more  ·  Esc: goodbye' : 'E / A: goodbye' };
+      const more = this.hubTalk.line + 1 < d.lines.length, pad = this.input.usingGamepad;
+      const page = pad ? (more ? '{A} more  \u00b7  {B} goodbye' : '{A} goodbye') : more ? 'E: more  \u00b7  Esc: goodbye' : 'E: goodbye';
+      dialogue = { name: n.char.name, at: d.at, portrait: this.assets.portrait(n.char.id), text: d.lines[this.hubTalk.line], page };
     }
-    const key = this.input.usingGamepad ? 'A' : 'E';
+    // a pad's own button (D-104)
+    const key = this.input.usingGamepad ? 'pad:A' : 'E';
     let prompt: { text: string; sub?: string; key: string } | null = null;
     const t = this.hubTarget as { kind: 'npc' | 'booth' | 'bigtop' | 'exit'; i: number } | null;
     if (!dialogue && t) {
@@ -2650,7 +2980,7 @@ export class App {
       } else if (HUB_EXITS[t.i].id === 'train' && this.save.mapAvailable('ghost_train')) {
         // (D-84: it said "coming soon" behind a ✕ though E already boarded it)
         prompt = this.net?.role === 'guest' ? { key: '…', text: 'The Ghost Train', sub: 'the host leads the way onto the platform' } : { key, text: 'Board the Ghost Train', sub: 'a night on the Midnight Line' };
-      } else prompt = { key: '✕', text: HUB_EXITS[t.i].label, sub: HUB_EXITS[t.i].id === 'funhouse' ? 'chained shut — survive the first night to open it' : HUB_EXITS[t.i].id === 'boardwalk' ? 'chained shut — survive the Fun House to open it' : 'chained shut — survive the Boardwalk to open it' };
+      } else prompt = { key: '\u{1F512}', text: HUB_EXITS[t.i].label, sub: HUB_EXITS[t.i].id === 'funhouse' ? 'chained shut — survive the first night to open it' : HUB_EXITS[t.i].id === 'boardwalk' ? 'chained shut — survive the Fun House to open it' : 'chained shut — survive the Boardwalk to open it' };
     }
     const hs = this.net?.role === 'host' ? this.net.host : null;
     this.hubHud.root.classList.toggle('under', this.state !== 'hub');
@@ -2743,6 +3073,16 @@ export class App {
       items.push({ label: 'Join a Friend', fn: () => this.go('mp', { focus: 'join' }) });
       if (this.save.dailyAvailable()) items.push({ label: 'Daily Run', fn: () => this.go('daily') });
     } else if (role === 'host') {
+      // the code on the Midway's corner, for a pad (a mouse clicks it there; D-104)
+      const code = (this.net as Extract<NetCtx, { role: 'host' }>).host.lobby.code;
+      items.push({
+        label: 'Copy Lobby Code',
+        fn: () =>
+          void navigator.clipboard?.writeText(code).then(
+            () => this.padToast(`Lobby code ${code} copied`),
+            () => this.padToast(`Lobby code: ${code}`),
+          ),
+      });
       items.push({
         label: 'Close the Lobby',
         fn: () => {
@@ -2757,6 +3097,9 @@ export class App {
     }
     items.push({ label: 'Swap Character', fn: () => this.go('charswap') }, { label: 'Companions', fn: () => this.go('pets') });
     items.push({ label: 'Carnival-pedia', fn: () => this.go('pedia') }, { label: 'Settings', fn: () => this.go('settings') });
+    // the Windows app's download, which the grounds show in a corner a pad can't press (D-104; browsers only)
+    const dl = this.ctx.desktopDownload;
+    if (dl) items.push({ label: 'Download for Windows', cls: 'small purple', fn: () => void window.open(dl.url, '_blank', 'noopener') });
     items.push({
       label: 'Title Screen',
       cls: 'small red',
@@ -2883,6 +3226,7 @@ export class App {
   }
 
   private async joinGame(raw: string): Promise<void> {
+    this.joinCode = raw;
     const code = normalizeCode(raw);
     if (!isValidCode(code)) {
       this.mpStatus = 'Lobby codes are six letters and numbers (there is no O, 0, I, L or 1).';
@@ -3086,7 +3430,7 @@ export class App {
     void loadNetConfig().then((cfg) => probeReach(cfg)).then((r) => {
       this.netReach = r;
       this.reachChecking = false;
-      if (this.state === 'mp') this.go('mp');
+      if (this.state === 'mp' && this.screenEl) L.showReach(this.screenEl, r);
     });
   }
 

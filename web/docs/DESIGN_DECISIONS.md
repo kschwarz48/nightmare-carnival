@@ -2187,3 +2187,115 @@ perk on a stat.
 0. PROTO stays 22: the new zone kinds, effect types and projectile kind travel by name. The weapons' behaviour changes
 the sim fingerprint, so mismatched builds are refused at join as before.
 
+### D-104 · Controllers: Xbox and PlayStation pads can do everything
+
+**Before:** a pad could walk, aim, confirm and pause, and drive the menus.
+
+**It couldn't:**
+
+- type a name, a lobby code or a chat line;
+- open the build sheet or touch the damage meter;
+- chat;
+- reach the update card, or the "Carry on without them" button in co-op;
+- read a partner's build, or why a map or tier is locked (both were tooltips);
+- answer the Settings' "Reset all progress" (a browser dialog);
+- toggle fullscreen;
+- download the Windows app from the Midway.
+
+Every prompt also said "A" or "E": the level-up's Skip showed "X", which on an Xbox pad rerolls. A PlayStation pad saw
+Xbox letters, and the Midway's locked gate showed a ✕, which on a PlayStation pad is the button that confirms.
+
+**Reading the pads** (`src/input/pad.ts`, pure and unit-tested):
+
+- **Layout.** Chrome, Edge and the Windows app give Xbox and PlayStation pads the standard layout. Firefox can give a
+  DualSense raw (Square first, the right stick's Y on axis 5, the D-pad as a hat). It is put into the standard order.
+- **Which pad.** The pad in use is the last one touched: a second pad, or a wheel's pedal held down, doesn't steal it.
+- **Dead zone.** The sticks get a round dead zone, set in the Settings. A square one snapped a gentle diagonal onto
+  an axis.
+- **Menus.** Stick moves follow the stronger axis only, so a diagonal doesn't move the focus twice.
+
+**The layout** (Xbox / PlayStation names):
+
+| Button | In a night | In menus |
+|---|---|---|
+| Left stick, D-pad | move | move the focus |
+| Right stick | aim (Hybrid, Manual) | scroll a long page |
+| A / Cross | use, talk | select |
+| B / Circle | | back |
+| X / Square | reroll (level-up) | |
+| Y / Triangle | banish (level-up); a co-op notice's action | |
+| LB / L1 | skip (level-up) | previous tab or section; the build sheet's previous player |
+| RB / R1 | chat | next tab or section; next player |
+| View / Create, the touchpad | the build sheet | |
+| Menu / Options | pause | |
+| R3 | the damage meter: open, folded, hidden | |
+
+View used to pause, as Menu does. It opens the build sheet now, as a map or inventory button does on consoles.
+
+**Prompts.** Every key the game shows is drawn in the pad's own look when a pad is in use: Xbox's coloured letters,
+PlayStation's shapes, "RB" or "R1" (`src/ui/glyphs.ts`). Lines that read differently for a keyboard and a pad follow the
+player's switches. The Settings can fix the look to Xbox or PlayStation. The mouse must travel 4 px to take over from a
+pad, so a nudged desk doesn't flip the prompts. The pointer hides while a pad is in use.
+
+**New pieces:**
+
+- **On-screen keyboard** (`src/ui/osk.ts`). A pad's A on a text box brings it up. A lobby code's board has only the
+  code's own characters. The join screen opens with it, and Done joins once the six characters are in. X deletes, Y
+  types a space, LB is Shift, Menu is done, and B closes it keeping what was typed.
+- **Quick chat** (`src/ui/quickChat.ts`). In co-op, RB opens ten quick lines ("Help!", "Revive me!", "Over here!"…)
+  and "Type a message…", beside the chat log, which the right stick reads back. Solo, RB opens the log alone, as T does.
+  While it's open you stand still in co-op, as typing does; solo the night waits.
+- **Hint bar** (`src/ui/padBar.ts`). Along a menu's foot, what the buttons do there. Above it is the focused item's
+  note, which a mouse reads as a tooltip: a locked map, tier or companion can take the focus now, to read why it's
+  locked.
+
+**Reach:**
+
+- **Menus.** LB and RB turn the Carnival-pedia's wings and jump between the Lost & Found's shelves and the Settings'
+  groups. The right stick scrolls.
+- **Build sheet.** In co-op, LB and RB turn it to each partner's build (it has ◀ ▶ buttons for the mouse too).
+- **Update card.** Its buttons are in the D-pad's reach from any menu.
+- **Midway menu.** Gains "Copy Lobby Code" for the host, and "Download for Windows" in a browser.
+- **Settings.** Fullscreen is a toggle in the Visuals section.
+
+**Settings** (Controller section):
+
+- **Controller in use:** its name and whose buttons it shows.
+- **Button prompts:** match the controller, Xbox or PlayStation.
+- **Vibration:** 0 to 1, with a test buzz as it moves. Rumble only plays while the pad is in use.
+- **Stick dead zone.**
+- **Layout:** the whole layout, drawn in the chosen look.
+
+"Reset all progress" asks in the game's own panel, its safe answer focused, and B answers "keep". A key can only be
+bound from the keyboard: a pad's A on a key row is refused, and any pad button gives up a capture already waiting.
+
+**When a controller connects or goes away:**
+
+- A note says "DualSense Wireless Controller ready · PlayStation buttons", or "Controller disconnected".
+- A night the pad was playing pauses.
+- A first night with a pad shows its buttons once, as a tip after the first "Move with…".
+
+**Fixed along the way:**
+
+- **A pad's press acted in the middle of a frame.** Key presses act between frames. A pad's A on "Join a Game" from
+  the Midway pulled the Midway from under the rest of that frame and threw. The input is now read at the frame's start,
+  and mouse aim measures from where the player stood last frame.
+- **The finished connection check redrew the whole Online menu.** That dropped a name half typed (the keyboard's too)
+  and would close the on-screen keyboard. Its line now changes in place, and the join screen keeps the code typed when
+  it redraws for an invalid code.
+- **The Settings' key rows were built once.** A key just bound kept saying "press…" until the Settings were opened
+  again.
+- **The first night's tips timed out behind the opening look at Zoltana's booth.** The HUD is hidden there, so a new
+  player's "Move with…" never showed. Tips wait while the HUD is away, and queue behind each other.
+- **The Carnival-pedia's entry details scrolled out of view** when an entry deep in a wing was picked. They stay pinned
+  at the top of the panel.
+
+**Audio.** A browser may not count a pad's press as the gesture that lets sound start (Chrome counts a full press,
+Firefox doesn't), so sound held back starts at the first click or key.
+
+**Compatibility.** Three settings were added, filled with defaults on older saves and clamped. Nothing reaches the
+sim, the protocol or the fingerprint, so builds before this one can still play together. Tested in `tests/pad.test.ts`
+with Chrome's and Firefox's ids and layouts. The menus, the night, the quick chat, the on-screen keyboard and the
+settings were driven in the browser with a scripted pad standing in for the Gamepad API. No physical Xbox or PlayStation
+pad was used, and rumble wasn't checked.
+

@@ -67,6 +67,11 @@ export interface Settings {
   /** the damage meter in a night (D-85): shown at all (the meter key toggles it), and unfolded (its header) */
   damageMeter: boolean;
   meterOpen: boolean;
+  /** controllers (D-104): whose button prompts to show (the pad's own, or always Xbox's or PlayStation's), how
+   *  hard it vibrates (0..1, 0: never), and the sticks' dead zone */
+  padPrompts: 'auto' | 'xbox' | 'playstation';
+  rumble: number;
+  stickDeadzone: number;
 }
 
 export interface RunRecord {
@@ -145,7 +150,7 @@ export function defaultSettings(): Settings {
     master: 0.8, music: 0.7, sfx: 0.8, ambience: 0.6, muted: false, reducedFlash: false, shake: 1, highContrast: false,
     uiScale: 1, damageNumbers: true, aimMode: 'auto', quality: 'high', showFps: false,
     bindings: JSON.parse(JSON.stringify(DEFAULT_BINDINGS)), tutorialsSeen: [], dyslexiaFont: false,
-    abilityOpacity: 1, damageMeter: true, meterOpen: true,
+    abilityOpacity: 1, damageMeter: true, meterOpen: true, padPrompts: 'auto', rumble: 0.8, stickDeadzone: 0.18,
   };
 }
 
@@ -282,6 +287,10 @@ export function migrate(raw: any): SaveData {
   const out: SaveData = { ...base, ...d, settings: { ...base.settings, ...(d.settings ?? {}) }, stats: { ...base.stats, ...(d.stats ?? {}) }, last: { ...base.last, ...(d.last ?? {}) }, quests: { ...(d.quests ?? {}) }, tiers: cleanTiers(d.tiers) };
   if (!isTierId(out.last.tier) || !out.tiers.unlocked.includes(out.last.tier)) out.last.tier = 'normal';
   out.settings.bindings = { ...DEFAULT_BINDINGS, ...(out.settings.bindings ?? {}) };
+  const st = out.settings, num = (v: unknown, lo: number, hi: number, def: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def);
+  if (st.padPrompts !== 'xbox' && st.padPrompts !== 'playstation') st.padPrompts = 'auto';
+  st.rumble = num(st.rumble, 0, 1, 0.8);
+  st.stickDeadzone = num(st.stickDeadzone, 0.05, 0.4, 0.18);
   out.version = SAVE_VERSION;
   if (typeof out.lostTickets !== 'number' || !isFinite(out.lostTickets) || out.lostTickets < 0) out.lostTickets = 0;
   return out;
