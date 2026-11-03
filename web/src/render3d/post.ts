@@ -26,6 +26,12 @@ const GRADE = {
     uDawn: { value: 0 },
     uHighContrast: { value: 0 },
     uFocusUv: { value: new THREE.Vector2(0.5, 0.5) },
+    // the world tier's grade (D-97, render3d/tierLook.ts)
+    uTierSat: { value: 1 },
+    uTierShadow: { value: new THREE.Vector3(0, 0, 0) },
+    uTierHigh: { value: new THREE.Vector3(0, 0, 0) },
+    uTierTint: { value: new THREE.Vector3(1, 1, 1) },
+    uTierLow: { value: new THREE.Vector3(0.006, 0.009, 0.022) },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -35,6 +41,8 @@ const GRADE = {
     uniform float uTime, uAspect, uSat, uGrain, uVig, uLowHp, uHurt, uDark, uFlash, uDawn, uHighContrast;
     uniform vec3 uFlashCol;
     uniform vec2 uFocusUv;
+    uniform float uTierSat;
+    uniform vec3 uTierShadow, uTierHigh, uTierTint, uTierLow;
     varying vec2 vUv;
     float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
@@ -42,11 +50,13 @@ const GRADE = {
       float lum = dot(c, vec3(0.299, 0.587, 0.114));
       // selective saturation: dull the world, keep strong emissives (already bright) punchy
       float keep = smoothstep(0.55, 1.0, lum);
-      c = mix(vec3(lum), c, mix(uSat, 1.0, keep * 0.6 + uHighContrast * 0.4));
-      // split tone: cold shadows, sodium/amber highlights
+      c = mix(vec3(lum), c, mix(uSat * uTierSat, 1.0, keep * 0.6 + uHighContrast * 0.4));
+      // split tone: cold shadows, sodium/amber highlights (and the world tier's own on top)
       c += vec3(-0.008, 0.004, 0.03) * (1.0 - smoothstep(0.0, 0.35, lum));
       c += vec3(0.045, 0.018, -0.025) * smoothstep(0.35, 1.0, lum);
-      c = max(c, vec3(0.006, 0.009, 0.022)); // night lows stay inky blue
+      c += uTierShadow * (1.0 - smoothstep(0.0, 0.35, lum)) + uTierHigh * smoothstep(0.35, 1.0, lum);
+      c *= uTierTint;
+      c = max(c, uTierLow); // night lows stay inky (blue; a tier's own)
       // gentle S-curve
       c = mix(c, c * c * (3.0 - 2.0 * c), 0.25 + uHighContrast * 0.2);
       vec2 p = vUv - 0.5;
@@ -187,6 +197,16 @@ export class Post3D {
     u.uVig.value = p.vignette;
     u.uHighContrast.value = p.highContrast ? 1 : 0;
     (u.uFocusUv.value as THREE.Vector2).set(p.focusU, p.focusV);
+  }
+
+  /** The world tier's grade (D-97). */
+  setLook(sat: number, shadow: number[], high: number[], tint: number[], low: number[]): void {
+    const u = this.grade.uniforms;
+    u.uTierSat.value = sat;
+    (u.uTierShadow.value as THREE.Vector3).set(shadow[0], shadow[1], shadow[2]);
+    (u.uTierHigh.value as THREE.Vector3).set(high[0], high[1], high[2]);
+    (u.uTierTint.value as THREE.Vector3).set(tint[0], tint[1], tint[2]);
+    (u.uTierLow.value as THREE.Vector3).set(low[0], low[1], low[2]);
   }
 
   renderFrame(): void {

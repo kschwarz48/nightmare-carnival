@@ -34,6 +34,9 @@ import { PropSet } from './world/props';
 import { Clutter } from './world/clutter';
 import { BossRigs } from './bosses';
 import { Post3D } from './post';
+import { NORMAL_LOOK, lookColor, tierLook, tintHex, type TierLook } from './tierLook';
+import { TierMotes } from './world/tierFx';
+import type { TierId } from '../data/tiers';
 import type { LastSongChain } from '../sim/quest';
 
 import { ELEVATION } from './core/view';
@@ -155,6 +158,18 @@ export class GameRenderer3D {
   dawn = 0;
   /** 0..1: the Ringmaster's demon form bleeds red into the moonlight and fog. */
   moonTint = 0;
+  /**
+   * The world tier's look (D-97, render3d/tierLook.ts): the night's tier (or `tierPreview`, the unlock ceremony's),
+   * eased in over `lookFade` seconds when it changes (0: at once, as a night starts).
+   */
+  tierPreview: TierId | null = null;
+  lookFade = 0;
+  private look: TierLook = NORMAL_LOOK;
+  private lookKey = '';
+  private lookK = 1;
+  private lookClock = 0;
+  private tierMotes = new TierMotes();
+  private lookTmp: [number, number, number] = [0, 0, 0];
   settings: RenderSettings = { highContrast: false, reducedFlash: false, shake: 1, damageNumbers: true, quality: 'high', abilityOpacity: 1 };
   /** batches that draw the players' own attacks (faded by the ability-opacity setting) */
   private abilityBatches = new Set<ActorBatch>();
@@ -716,7 +731,7 @@ export class GameRenderer3D {
     this.ground.update(this.time, this.dawn);
     shared.uMistTime.value = this.time;
     shared.uMistWind.value.set(Math.cos(g.director.wind), Math.sin(g.director.wind));
-    shared.uMistDensity.value = (this.settings.quality === 'low' ? 0.28 : 0.36) * (1 + g.darkness * 0.5) * (1 - this.dawn * 0.6) * (this.world.indoor ? INDOOR.mistK : 1);
+    shared.uMistDensity.value = (this.settings.quality === 'low' ? 0.28 : 0.36) * (1 + g.darkness * 0.5) * (1 - this.dawn * 0.6) * (this.world.indoor ? INDOOR.mistK : 1) * lerp(1, this.look.mistK, this.lookK);
     const lsq = g.quests?.get<LastSongChain>('last_song');
     const lampAt = (x: number, y: number) => LAST_SONG.lamps.findIndex((l) => l.x === x && l.y === y);
     this.shafts.update(
@@ -751,6 +766,8 @@ export class GameRenderer3D {
 
     this.props.update(g, this, inView, dt);
     (this.world.motes ?? this.motes).draw(this.glow, this.f('fx_glow_0'), this.time, inView, (1 - g.darkness * 0.8) * (1 - this.dawn));
+    // the world tier's own (D-97): wisps or embers
+    if (this.look.motes) this.tierMotes.draw(this.glow, this.f('fx_glow_0'), this.time, this.camX, this.camY, this.look.motes, this.lookK * (1 - g.darkness * 0.6) * (1 - this.dawn));
     this.drawZones(g, inView);
     this.drawHazards(g);
     this.drawStageRings(g, alpha, p, px, py);
@@ -868,10 +885,23 @@ export class GameRenderer3D {
     const dawn = this.dawn;
     // moonlight: cold, from the west-north-west, a little brighter through gaps in the cloud
     const cloud = 0.85 + 0.15 * Math.sin(this.time * 0.07) * Math.sin(this.time * 0.031 + 1);
-    this.moon.intensity = lerp(lerp(1.3 * cloud, 0.12, dark), 2.4, dawn) * (this.world.indoor ? 0.3 : 1); // indoors: a little light through high windows
+    // the world tier's look (D-97): eased in when the tier changes; it gives way to the dawn like the night does
+    const tier = this.tierPreview ?? g.tier ?? 'normal';
+    const key = `${tier}:${g.mapId}`;
+    if (key !== this.lookKey) {
+      this.lookKey = key;
+      this.look = tierLook(tier, g.mapId);
+      this.lookK = this.lookFade > 0 ? 0 : 1;
+    }
+    if (this.lookK < 1) this.lookK = Math.min(1, this.lookK + Math.max(0, this.time - this.lookClock) / Math.max(0.05, this.lookFade));
+    this.lookClock = this.time;
+    const L = this.look, lk = this.lookK * (1 - dawn);
+    const lm = (v: number) => lerp(1, v, lk);
+    this.moon.intensity = lerp(lerp(1.3 * cloud, 0.12, dark), 2.4, dawn) * (this.world.indoor ? 0.3 : 1) * lm(L.moonK); // indoors: a little light through high windows
     const mt = this.moonTint;
-    this.moon.color.setRGB(lerp(lerp(0.62, 0.9, mt), 1.0, dawn), lerp(lerp(0.7, 0.25, mt), 0.78, dawn), lerp(lerp(0.86, 0.18, mt), 0.6, dawn));
-    (this.scene.fog as THREE.FogExp2).color.setRGB(lerp(0.027, 0.07, mt), lerp(0.03, 0.012, mt), lerp(0.05, 0.01, mt));
+    this.moon.color.setRGB(lerp(lerp(0.62, 0.9, mt), 1.0, dawn) * lm(L.moon[0]), lerp(lerp(0.7, 0.25, mt), 0.78, dawn) * lm(L.moon[1]), lerp(lerp(0.86, 0.18, mt), 0.6, dawn) * lm(L.moon[2]));
+    const fogK = L.mix * lk;
+    (this.scene.fog as THREE.FogExp2).color.setRGB(lerp(lerp(0.027, 0.07, mt), L.fog[0], fogK), lerp(lerp(0.03, 0.012, mt), L.fog[1], fogK), lerp(lerp(0.05, 0.01, mt), L.fog[2], fogK));
     // snap the shadow frustum to texels so shadows don't shimmer while the camera glides
     const texel = 3000 / this.moon.shadow.mapSize.x;
     const tx = Math.round(cx / texel) * texel, ty = Math.round(cy / texel) * texel;
@@ -879,17 +909,30 @@ export class GameRenderer3D {
     this.moon.position.set(tx - 1900, 1500, ty - 1100);
     this.moon.target.position.set(tx, 0, ty);
     this.moon.target.updateMatrixWorld();
-    this.hemi.intensity = lerp(lerp(0.42, 0.08, dark), 1.2, dawn) * (this.world.indoor ? INDOOR.hemiK : 1);
+    this.hemi.intensity = lerp(lerp(0.42, 0.08, dark), 1.2, dawn) * (this.world.indoor ? INDOOR.hemiK : 1) * lm(L.hemiK);
     // indoors (D-67): a plum ceiling instead of the night sky, shadows that stay the house's colours, and a
     // low haze that lies evenly through the rooms (outdoors the mist thickens toward the woods and the sea)
     const ind = this.world.indoor;
     const A = this.world.ambient ?? (ind ? INDOOR : OUTDOOR);
-    this.hemi.color.setHex(A.sky);
-    this.hemi.groundColor.setHex(A.ground);
-    shared.uShadowFill.value.set(A.fill[0], A.fill[1], A.fill[2]);
-    shared.uMistCol.value.set(A.mist[0], A.mist[1], A.mist[2]);
+    const tl = this.lookTmp;
+    this.hemi.color.setHex(lk > 0 ? tintHex(A.sky, [lm(L.sky[0]), lm(L.sky[1]), lm(L.sky[2])]) : A.sky);
+    this.hemi.groundColor.setHex(lk > 0 ? tintHex(A.ground, [lm(L.ground[0]), lm(L.ground[1]), lm(L.ground[2])]) : A.ground);
+    lookColor(A.fill as [number, number, number], [1, 1, 1], L.fill, fogK, tl);
+    shared.uShadowFill.value.set(tl[0], tl[1], tl[2]);
+    lookColor(A.mist as [number, number, number], [1, 1, 1], L.mist, fogK, tl);
+    shared.uMistCol.value.set(tl[0], tl[1], tl[2]);
     shared.uMistEdge.value.set(A.edge[0], A.edge[1]);
-    if (ind) (this.scene.fog as THREE.FogExp2).color.setRGB(0.05, 0.025, 0.045);
+    if (ind) (this.scene.fog as THREE.FogExp2).color.setRGB(lerp(0.05, L.fog[0], fogK), lerp(0.025, L.fog[1], fogK), lerp(0.045, L.fog[2], fogK));
+    // every practical light, sign and bulb in the tier's colour family; the grade's own split
+    pool.tint.r = L.light.col[0];
+    pool.tint.g = L.light.col[1];
+    pool.tint.b = L.light.col[2];
+    pool.tint.k = L.light.k * lk;
+    pool.tint.boost = lm(L.light.boost);
+    pool.tint.flicker = L.flicker * lk;
+    pool.tint.time = this.time;
+    shared.uTierEmis.value.set(L.emis.col[0], L.emis.col[1], L.emis.col[2], L.emis.k * lk);
+    this.post.setLook(lm(L.sat), L.shadow.map((v) => v * lk), L.high.map((v) => v * lk), L.tint.map(lm), L.low.map((v, i) => lerp(NORMAL_LOOK.low[i], v, lk)));
     // the lantern: a warm cone from above and slightly behind the player — long radial shadows
     const lanternOn = menu ? 0.5 : 1;
     this.lantern.position.set(px - 40, 640, py + 210);

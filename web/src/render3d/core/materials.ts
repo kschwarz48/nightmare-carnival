@@ -28,6 +28,8 @@ export const shared = {
   uMistEdge: { value: new THREE.Vector2(2200, 1960) },
   /** how much of each figure's baked crevice occlusion (`aOcc`) darkens it: 1 as baked, 0 none (D-86; the inspector toggles it) */
   uOccK: { value: 1 },
+  /** the world tier's emissive colour family (D-97): signs, bulbs and windows go toward their luminance times rgb by w */
+  uTierEmis: { value: new THREE.Vector4(1, 1, 1, 0) },
 };
 
 /**
@@ -217,6 +219,7 @@ transformed = ncAnimate(transformed, ncR, ncB, ncAn);
 `;
 
 const F_HEAD = /* glsl */ `
+uniform vec4 uTierEmis;
 #ifdef NC_OCC
 uniform float uOccK;
 varying float vOcc;
@@ -436,7 +439,7 @@ function ncCompile(this: THREE.Material, shader: THREE.WebGLProgramParametersWit
     // which flattened faces and costumes into one muddy surface.
     .replace('#include <roughnessmap_fragment>', '#ifdef NC_MATTE\nfloat roughnessFactor = clamp(roughness * vSurf.x, 0.36, 1.0);\n#else\nfloat roughnessFactor = min(1.0, roughness * vSurf.x + ncRA);\n#endif')
     .replace('#include <metalnessmap_fragment>', '#ifdef NC_MATTE\nfloat metalnessFactor = metalness * vSurf.y * 0.7;\n#else\nfloat metalnessFactor = metalness * vSurf.y * (1.0 - ncMA);\n#endif')
-    .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vEmit * uEmitBoost * vTint.w;')
+    .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * vEmit * uEmitBoost * vTint.w;\ntotalEmissiveRadiance = mix(totalEmissiveRadiance, vec3(dot(totalEmissiveRadiance, vec3(0.3, 0.59, 0.11))) * uTierEmis.rgb, uTierEmis.w);')
     .replace(
       '#include <lights_fragment_end>',
       `#include <lights_fragment_end>

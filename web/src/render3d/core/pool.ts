@@ -94,6 +94,9 @@ export class PoolLights {
   private reach = 2000;
   /** Global multiplier (Lights Out, dawn). */
   scale = 1;
+  /** the world tier's colour family for every practical light (D-97, render3d/tierLook.ts): each light's colour goes
+   *  toward its luminance times (r, g, b) by k, brightened by boost, flickering like fire or breathing by flicker */
+  tint = { r: 1, g: 1, b: 1, k: 0, boost: 1, flicker: 0, time: 0 };
   /** A/B switch for the benchmarks: evaluate every light everywhere, as before the tiled culling. */
   cullOff = LEGACY.tiles;
 
@@ -149,9 +152,21 @@ export class PoolLights {
       const c = list[k];
       // fade the weakest selected lights so swapping in/out of the pool never pops
       const fade = n === POOL_MAX && k >= POOL_MAX - 4 ? (POOL_MAX - k) / 5 : 1;
-      const i = c.i * this.scale * fade;
+      let i = c.i * this.scale * fade;
+      let cr = c.cr, cg = c.cg, cb = c.cb;
+      const t = this.tint;
+      if (t.k > 0) {
+        const l = cr * 0.3 + cg * 0.59 + cb * 0.11;
+        cr = (cr + (l * t.r - cr) * t.k) * t.boost;
+        cg = (cg + (l * t.g - cg) * t.k) * t.boost;
+        cb = (cb + (l * t.b - cb) * t.k) * t.boost;
+        if (t.flicker > 0 && c.hard === 0) {
+          const ph = (c.x * 0.013 + c.y * 0.007) % 6.283;
+          i *= 1 - t.flicker * (0.5 + 0.5 * Math.sin(t.time * 6.3 + ph) * Math.sin(t.time * 2.1 + ph * 1.7));
+        }
+      }
       this.a[k].set(c.x, c.h, c.y, c.r);
-      this.b[k].set(c.cr * i, c.cg * i, c.cb * i, c.hard);
+      this.b[k].set(cr * i, cg * i, cb * i, c.hard);
     }
     this.uniforms.uPoolN.value = n;
     this.cull(n);
