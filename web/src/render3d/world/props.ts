@@ -109,6 +109,9 @@ export class PropSet {
   private ghost: [ActorBatch, ActorBatch] | null = null;
   private ghostProps: Prop[] = [];
   private zoltana: StaticBatch | null = null;
+  /** where the booth stands (and faces), to shake it in place (D-98) */
+  private zoltanaAt: { x: number; y: number; yaw: number } | null = null;
+  private zoltanaShaking = false;
   private pad: StaticBatch | null = null;
   private carouselTop: ActorBatch;
   private horses: ActorBatch;
@@ -158,7 +161,10 @@ export class PropSet {
       b.freeze();
       scene.add(b.mesh);
       if (key === 'lamp') { this.lamps = b; this.lampProps = gr.props; }
-      else if (key === 'fortune_machine') this.zoltana = b;
+      else if (key === 'fortune_machine') {
+        this.zoltana = b;
+        this.zoltanaAt = { x: gr.props[0].x, y: gr.props[0].y, yaw: gr.spec.yaw ? gr.spec.yaw(gr.props[0]) : 0 };
+      }
       else if (key === 'striker_pad') this.pad = b;
       else if (gr.spec.anim) this.animated.push({ batch: b, props: gr.props });
       this.statics.push(b);
@@ -305,7 +311,16 @@ export class PropSet {
     if (this.zoltana) {
       const m = LAST_SONG.machine;
       const near = Math.hypot(g.player.x - m.x, g.player.y - m.y) < m.r * 2.5;
-      this.zoltana.tint(0, 1, 1, 1, (near ? 1 : 0.35) * (0.8 + 0.2 * Math.sin(t * 2.3)));
+      // the opening cutscene (D-98): the booth rattles in place and her eyes flare
+      const sh = r.zoltanaShake, z = this.zoltanaAt;
+      if (z && (sh > 0 || this.zoltanaShaking)) {
+        this.zoltana.begin();
+        this.zoltana.add(z.x + Math.sin(t * 61) * 3.2 * sh, z.y + Math.cos(t * 47) * 1.4 * sh, 0, z.yaw + Math.sin(t * 37) * 0.035 * sh, 1);
+        this.zoltana.freeze();
+        this.zoltanaShaking = sh > 0;
+      }
+      const eyes = sh > 0 ? 1.4 + 0.6 * Math.sin(t * 23) : (near ? 1 : 0.35) * (0.8 + 0.2 * Math.sin(t * 2.3));
+      this.zoltana.tint(0, 1, 1, 1, eyes);
       this.zoltana.refresh();
     }
     if (this.pad) {

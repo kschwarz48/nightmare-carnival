@@ -4,6 +4,9 @@
 // (dmgMeter.ts) and, in co-op, the party frames (D-91: over the health bar).
 
 import { ACT_NAMES, DAWN_TIME } from '../data/waves';
+import { StokeGauge } from './stokeGauge';
+import { LAST_TRAIN } from '../data/lastTrain';
+import type { LastTrainChain } from '../sim/quest/lastTrain';
 import { BOSS_MAP } from '../data/bosses';
 import { PASSIVES, WEAPONS } from '../data/weapons';
 import { EVENTS } from '../data/events';
@@ -203,6 +206,8 @@ export class Hud {
   private markers: HTMLDivElement[] = [];
   /** the interact prompt over something the local player can use (D-67) */
   private promptEl: HTMLDivElement;
+  /** the Last Train Home's boiler gauge (D-98) */
+  private stoke = new StokeGauge(LAST_TRAIN.gaugeWindow);
   private promptKey = '';
   /** the prompt names the pad's button instead of the key (set by the app from the input in use) */
   padKeys = false;
@@ -238,7 +243,7 @@ export class Hud {
     this.barLayer = h('div', { class: 'passthrough' });
     this.arrowLayer = h('div', { class: 'passthrough' });
     this.promptEl = h('div', { class: 'quest-prompt hidden' });
-    this.root.append(this.barLayer, this.arrowLayer, this.splats, this.promptEl);
+    this.root.append(this.barLayer, this.arrowLayer, this.splats, this.promptEl, this.stoke.el);
     this.root.append(xp, this.lvl, this.preview, clock, this.act, this.hpWrap, this.tray, this.statsR, this.boss, this.toast, this.fpsEl, this.indicators, this.party, this.meter.root, this.tags, this.statusEl, this.pingEl, this.diagEl);
   }
 
@@ -407,9 +412,17 @@ export class Hud {
     this.updatePrompt(g, screen);
   }
 
+  /** A stoke landed or choked (D-98: the gauge answers). */
+  stokePulse(good: boolean): void {
+    this.stoke.pulse(good);
+  }
+
   /** "E  Turn the mirror": floats over whatever the local player could use right now (D-67). */
   private updatePrompt(g: Game, screen: HudScreen): void {
     const p = g.player;
+    // the boiler gauge, while the local player is at the firebox on the moving train with stokes wanted (D-98)
+    const lt = g.mapId === 'ghost_train' && g.phase === 'play' && g.isUp(p) ? g.quests?.get<LastTrainChain>('last_train') : undefined;
+    this.stoke.update(lt?.stokeGauge(p.x, p.y) ?? null);
     let it: { kind: string; i: number; x: number; y: number; label: string } | null = null;
     if (g.phase === 'play' && g.isUp(p)) for (const c of g.quests?.chains ?? []) it ??= c.interaction?.(p.x, p.y, p.index) ?? null;
     const key = it ? `${it.kind}${it.i}|${it.label}|${this.padKeys}` : '';

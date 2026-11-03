@@ -777,3 +777,37 @@ body:has(#nl-badge-frame) .title .corner { bottom: calc(1.2em + 64px); }
 .ceremony .cer-hint { margin-top: 1.2em; font-family: var(--head); opacity: 0; transition: opacity 0.6s ease; }
 .ceremony.ready .cer-hint { opacity: 0.8; animation: cer-pulse 1.6s ease-in-out infinite; }
 @keyframes cer-pulse { 50% { opacity: 0.35; } }
+
+/* the Last Train Home's boiler gauge (D-98, ui/stokeGauge.ts): a steam-age pressure dial, not the carnival's */
+.stoke-gauge { position: absolute; right: 26px; top: 50%; transform: translateY(-50%); width: 210px; pointer-events: none; text-align: center; transition: opacity 0.3s ease; z-index: 6; }
+.stoke-gauge.hidden { opacity: 0; visibility: hidden; }
+.stoke-gauge::before { content: ''; position: absolute; left: 50%; top: 52%; width: 250px; height: 250px; transform: translate(-50%, -50%); background: radial-gradient(circle, rgba(255, 120, 30, 0.28), rgba(255, 80, 10, 0) 62%); opacity: 0.6; transition: opacity 0.2s ease; z-index: -1; }
+.stoke-gauge.hot::before { opacity: 1; }
+.stoke-gauge .sg-title { font-family: 'Georgia', 'Times New Roman', serif; font-variant: small-caps; letter-spacing: 0.18em; font-size: 0.95em; color: #f0dcb0; text-shadow: 0 2px 0 #1a0e04, 0 0 8px rgba(0, 0, 0, 0.8); margin-bottom: 4px; }
+.stoke-gauge .sg-dial { width: 210px; height: 210px; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.7)); }
+.stoke-gauge .sg-svg { width: 100%; height: 100%; display: block; }
+.stoke-gauge .sg-num { font-family: 'Georgia', 'Times New Roman', serif; font-size: 9.5px; font-weight: bold; fill: #241608; }
+.stoke-gauge .sg-label { font-family: 'Georgia', 'Times New Roman', serif; font-size: 10px; letter-spacing: 2.5px; fill: #3a2610; }
+.stoke-gauge .sg-unit { font-family: 'Georgia', 'Times New Roman', serif; font-size: 8px; letter-spacing: 1.5px; fill: #3a2610; }
+.stoke-gauge .sg-maker { font-family: 'Georgia', 'Times New Roman', serif; font-size: 5.5px; letter-spacing: 1px; fill: #5a3e1e; }
+.stoke-gauge .sg-red { stroke: #8e1c10; transition: stroke 0.12s ease; }
+.stoke-gauge.hot .sg-red { stroke: #e2361a; }
+.stoke-gauge .sg-door { display: flex; justify-content: center; gap: 12px; margin: 6px auto 4px; padding: 6px 12px; width: max-content; background: linear-gradient(180deg, #3a3430, #1c1814); border: 2px solid #0e0a08; border-radius: 6px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 3px 6px rgba(0, 0, 0, 0.6); }
+.stoke-gauge .sg-pip { width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #4a2a1a, #1a0c06); border: 1.5px solid #0a0604; transition: background 0.25s ease, box-shadow 0.25s ease; }
+.stoke-gauge .sg-pip.lit { background: radial-gradient(circle at 40% 35%, #fff2b0, #ff9a2a 45%, #c8360a); box-shadow: 0 0 10px rgba(255, 140, 40, 0.85); }
+.stoke-gauge .sg-hint { font-family: 'Georgia', 'Times New Roman', serif; font-style: italic; font-size: 0.82em; color: #e8d2a8; text-shadow: 0 1px 0 #1a0e04, 0 0 6px rgba(0, 0, 0, 0.9); }
+.stoke-gauge.roar .sg-dial { animation: sg-roar 0.5s ease-out; }
+.stoke-gauge.choke .sg-dial { animation: sg-choke 0.45s ease-out; }
+@keyframes sg-roar { 0% { filter: drop-shadow(0 0 22px rgba(255, 150, 40, 1)); transform: scale(1.04); } 100% { filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.7)); transform: none; } }
+@keyframes sg-choke { 0%, 100% { transform: none; } 20% { transform: translateX(-5px) rotate(-1.5deg); } 40% { transform: translateX(4px) rotate(1deg); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+
+/* the first night's opening look at Zoltana's booth (D-98): letterbox bars, a whisper in italics, nothing more */
+.cutscene { position: absolute; inset: 0; z-index: 30; pointer-events: auto; }
+.cutscene::before, .cutscene::after { content: ''; position: absolute; left: 0; right: 0; height: 0; background: #000; transition: height 0.55s ease; }
+.cutscene::before { top: 0; }
+.cutscene::after { bottom: 0; }
+.cutscene.bars::before, .cutscene.bars::after { height: 9vh; }
+.cutscene .cut-note { position: absolute; left: 50%; top: 61%; transform: translateX(-50%); white-space: nowrap; font-family: 'Georgia', 'Times New Roman', serif; font-style: italic; font-size: clamp(1em, 2.1vw, 1.45em); letter-spacing: 0.05em; color: #e6dcc8; text-shadow: 0 0 10px #000, 0 2px 0 #000; opacity: 0; transition: opacity 0.7s ease; }
+.cutscene .cut-note.shown { opacity: 0.94; }
+.cutscene .cut-skip { position: absolute; right: 18px; bottom: calc(9vh + 10px); font-size: 0.8em; color: #c8b89a; opacity: 0; transition: opacity 0.5s ease 0.8s; }
+.cutscene.bars .cut-skip { opacity: 0.65; }

@@ -1990,3 +1990,36 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
 - **Not done yet** (see the design doc's status): the performers' formal art checks; fires and apparitions as
   props; bespoke per-boss staging; balance across maps and party sizes; the real-GPU benchmark on the tiers; a
   cross-network co-op night.
+
+### D-98 · The owner's playtest batch: no quest gates, each map's prize pair, E everywhere, the night's music
+
+- **No hidden quest gates progress.** Surviving a night is enough: the Midway opens on the first dawn (it waited for
+  the Last Song), and the Ghost Train goes at the whistle whatever its hidden quest has reached (D-95 kept the train
+  at the first station until the timetable's four pages were found).
+- **Each map's prize pair.** Its final boss, beaten at a standard dawn, gives its weapon; its hidden quest gives the
+  passive that evolves it: the Ringmaster the Steam Calliope and the Last Song the new Calliope's Score; the Proprietor
+  the Funhouse Mirror and the Unreflected Mira's Hand Mirror; the Leviathan the Undertow and Summer's End Running
+  Shoes (Ada's Conch kept); the Night Express the new Night Express Whistle (a rolling ring of scalding steam;
+  evolution Last Call) and the Last Train Home the new Conductor's Watch. The Mirror and the Undertow leave the Lost
+  & Found; save v7 refunds what was paid for them and grants what a save has already beaten and solved.
+- **E on the first map.** Zoltana, the ghost lamps and the High Striker answer interact like every other map's
+  fixtures (prompts and presses; the striker is struck, standing on its pad, as the light peaks).
+- **The opening.** A solo night on the Carnival Core opens on Zoltana's booth: letterbox bars, the camera leaning in,
+  the booth rattling and her eyes flaring while something whispers, a line in italics — "(something whispers from the
+  box…)" — then back to the player. The night holds meanwhile; any key or click skips it.
+- **The stoke gauge** of the Last Train Home is a HUD dial while you stand at the firebox on the moving train: brass
+  bezel and bolts, an aged face sooted at the rim, the red stoke sector, a spade needle, the firebox's three pips.
+- **Low health** reads redder from 35%: a wider, deeper vignette and a red cast; at 5% and below a heartbeat, the
+  picture flushing with each beat.
+- **Music: only Bradley's two songs.** "Freaky Funk Circus" for the boss fights and the menus, "CircularCus" for every
+  map's night and the Midway (the synthesized waltzes stand in only if it can't load). On Nightmare the songs play a
+  whole step lower (so ~11% slower) with a slow ghostly warble, on Hell three semitones lower (~16% slower): the same
+  files, played differently.
+- **The cursor** is the themed arrow in a night too (D-93's shooting-gallery sight is gone).
+- **The Midway's world tier**: its menu chooses the world (Normal / Nightmare / Hell, among those open), and the
+  Midway takes on that tier's look and music at once; the choice carries to character select and the co-op lobby;
+  a guest's Midway follows the host's.
+- **Checked:** the magnet (the pickup radius at each Magnet Glove level, a golden ticket's vacuum, co-op routing):
+  one bug, fixed — in co-op only the nearest player's radius counted. Popcorn in the first map's corners: holding
+  into each corner from 2:00 to 10:00 kills about as many as in the open (2,300–2,800 against 2,580) and still
+  takes 1,850–3,370 damage (3,060 in the open): no corner exploit found.

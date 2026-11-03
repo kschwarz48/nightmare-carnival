@@ -19,6 +19,8 @@ const GRADE = {
     uGrain: { value: 0.06 },
     uVig: { value: 0.5 },
     uLowHp: { value: 0 },
+    /** 0..1, a heartbeat's flush at very low health (D-98) */
+    uBeat: { value: 0 },
     uHurt: { value: 0 },
     uDark: { value: 0 },
     uFlash: { value: 0 },
@@ -38,7 +40,7 @@ const GRADE = {
     void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
-    uniform float uTime, uAspect, uSat, uGrain, uVig, uLowHp, uHurt, uDark, uFlash, uDawn, uHighContrast;
+    uniform float uTime, uAspect, uSat, uGrain, uVig, uLowHp, uHurt, uDark, uFlash, uDawn, uHighContrast, uBeat;
     uniform vec3 uFlashCol;
     uniform vec2 uFocusUv;
     uniform float uTierSat;
@@ -77,9 +79,12 @@ const GRADE = {
         c *= 1.0 - b * uDark * 0.95;
       }
       if (uLowHp > 0.0) {
-        float pulse = 0.55 + 0.45 * sin(uTime * 6.0);
-        float a = smoothstep(0.35, 0.95, r) * uLowHp * pulse * 0.7;
-        c = mix(c, vec3(0.55, 0.0, 0.03), a);
+        // low health (D-98: redder): a wider, deeper red vignette that breathes, a red cast over the whole picture, and
+        // a flush with each heartbeat at the very end
+        float pulse = 0.6 + 0.4 * sin(uTime * 6.0);
+        float a = smoothstep(0.2, 0.9, r) * uLowHp * (pulse * 0.78 + uBeat * 0.55);
+        c = mix(c, vec3(0.6, 0.0, 0.03), min(0.92, a));
+        c = mix(c, c * vec3(1.2, 0.76, 0.76), uLowHp * (0.32 + uBeat * 0.25));
       }
       if (uHurt > 0.0) c = mix(c, vec3(0.9, 0.08, 0.06), (0.1 + smoothstep(0.2, 0.9, r) * 0.38) * uHurt);
       if (uDawn > 0.0) {
@@ -101,6 +106,8 @@ export interface PostParams {
   flashCol: [number, number, number];
   dawn: number;
   vignette: number;
+  /** a heartbeat's flush, 0..1 */
+  beat?: number;
   focusU: number;
   focusV: number;
   highContrast: boolean;
@@ -195,6 +202,7 @@ export class Post3D {
     (u.uFlashCol.value as THREE.Vector3).set(p.flashCol[0], p.flashCol[1], p.flashCol[2]);
     u.uDawn.value = p.dawn;
     u.uVig.value = p.vignette;
+    u.uBeat.value = p.beat ?? 0;
     u.uHighContrast.value = p.highContrast ? 1 : 0;
     (u.uFocusUv.value as THREE.Vector2).set(p.focusU, p.focusV);
   }

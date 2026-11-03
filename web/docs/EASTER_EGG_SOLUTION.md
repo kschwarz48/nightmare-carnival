@@ -12,11 +12,11 @@ world reactions in `src/render3d/world/props.ts` / `src/render3d/bosses.ts`. Map
 
 | # | Stage | Goal | Mechanic |
 |---|---|---|---|
-| 0 | DORMANT | Wake Zoltana | positional (visit) |
+| 0 | DORMANT | Wake Zoltana | interact (E) |
 | 1 | SOULS | Light the four ghost lamps | positional combat (kills near lamps) |
-| 2 | MELODY | Touch the lit lamps in the song's order | observation + audio |
-| 3 | CALLING | Return to Zoltana | positional (visit) |
-| 4 | STRIKER | Ring the High Striker three times | timing window |
+| 2 | MELODY | Touch (interact) the lit lamps in the song's order | observation + audio |
+| 3 | CALLING | Return to Zoltana | interact (E) |
+| 4 | STRIKER | Ring the High Striker three times | timing window (interact) |
 | 5 | CARRYING | Beat the Ringmaster while the Ghost Ticket follows you | boss-linked condition |
 | 6 | FINALE | Defeat the secret Calliope | boss fight |
 | 7 | COMPLETE | True dawn, achievement, permanent unlock | — |
@@ -25,7 +25,8 @@ world reactions in `src/render3d/world/props.ts` / `src/render3d/bosses.ts`. Map
 
 ### 0 → 1 · Wake Zoltana
 Zoltana is the fortune-telling automaton beside Madame Zelda's caravan in the south-west, at
-**(-1440, 1050)** (sim coordinates; y grows south). Walk within **120** units of her. She lights up,
+**(-1440, 1050)** (sim coordinates; y grows south). Within **120** units of her, press **interact** (E, or A on a
+pad; since D-98 the first map answers E like the others, it was walk-up): "Look into the fortune booth". She lights up,
 an awaken cue plays and she prints: *"Four lamps went dark the night the music died. Feed them the
 restless, and they will remember the song."* The four **ghost lamps** (lamp posts with green-tinted
 glass and a small skull keystone) wake.
@@ -54,7 +55,7 @@ to learn it:
 * **Look:** the carousel canopy carries plaques. Starting from the **brass skull**, the next four
   plaques show the lamp emblems in the night's order (moon/key/eye/crown); stars fill the rest.
 
-Walk into each lit lamp (within **85** units) in that order. Each touch sings the lamp's note. A
+Touch each lit lamp (interact within **85** units) in that order. Each touch sings the lamp's note. A
 right note turns the lamp **red** (and it sends up a glowing wisp of its emblem, the same one painted
 on the carousel), and it can't be triggered again; a whisper says *"The note rings
 true — one of four"* (two, three). A wrong (still green) lamp plays a sour chord, whispers *"The melody
@@ -62,16 +63,15 @@ falters — begin again"* and resets the song: every lamp goes back to green. Af
 lamp the stage advances and Zoltana calls; the lamps stay red and silent for the rest of the night.
 
 ### 3 → 4 · Return to Zoltana
-Visit her again: *"The song is sung, but the bell is mute. Strike when the light kisses the crown —
+Ask her again (interact): *"The song is sung, but the bell is mute. Strike when the light kisses the crown —
 thrice, as it was in thirty-one."*
 
 ### 4 → 5 · Ring the High Striker
 The High Striker tower is north of the midway at (520, -1560); its pad is at **(520, -1488)**,
 radius **52**. The puck light rides up and down the rail continuously (a **2.4 s** triangle wave).
-Step onto the pad while the light is in the top **17%** of its travel (near the bell) — the bell
-rings. Step off at least **95** units to re-arm, then step on again. **Three rings** complete the
-stage. A miss just clunks (no penalty). Outside this stage the striker is a toy (it rings, nothing
-answers).
+Stand on the pad and press **interact** while the light is in the top **17%** of its travel (near the bell)
+— the bell rings. **Three rings** complete the stage (a press answers at most every 0.35 s). A miss just
+clunks (no penalty). Outside this stage the striker is a toy (it rings, nothing answers).
 
 ### 5 → 6 · Carry the Ghost Ticket into the last show
 A **Ghost Ticket** now floats after the player for the rest of the night. Keep playing until the
@@ -80,8 +80,10 @@ refused: after **4 s** the secret **Calliope** rises where the Big Top stood, at
 
 ### 6 → 7 · Defeat the Calliope
 A full boss fight (phases, pipe volleys). Defeating it: true dawn (`trueEnding`), the achievement
-`last_song`, and the permanent unlock of the secret evolution weapon **Steam Calliope**
-(`w_calliope`, `SECRET_UNLOCKS` in `data/meta.ts`). The results screen shows "THE LAST SONG".
+`last_song`, and the permanent unlock of **the Calliope's Score** (`p_last_song`, `SECRET_UNLOCKS` in
+`data/meta.ts`), the passive that evolves the Steam Calliope into the Grand Requiem. Since D-98 the Calliope
+itself is the Ringmaster's prize (any standard dawn), and the Midway opens on that first dawn too: the hidden
+quest gates nothing. The results screen shows "THE LAST SONG".
 
 ## Failure and edge cases
 

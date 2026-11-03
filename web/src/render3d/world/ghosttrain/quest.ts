@@ -16,7 +16,7 @@ import { C, E, PHANTOM_AT, REGIONS, S, TRANSIT, V, trainOrigin } from '../../../
 import { END, JUNCTION, LT_KEY_SPOTS, LT_STILL, LT_TRAIN, LT_VESPER, LT_WORKS, PHANTOM_DOOR, STATION_CLOCK, STILLWATER, VESPER } from '../../../data/gtStations';
 import { LAST_TRAIN } from '../../../data/lastTrain';
 import type { LastTrainChain } from '../../../sim/quest/lastTrain';
-import { CLOCK_STEPS, LADLE_LEN, LT, alongPath, gaugeAt } from '../../../sim/quest/lastTrain';
+import { CLOCK_STEPS, LADLE_LEN, LT, alongPath } from '../../../sim/quest/lastTrain';
 import { trainNow } from '../../../sim/ghosttrain';
 import { ActorBatch } from '../../core/batch';
 import { ModelBuilder, SURF, box, cone, cyl, ellipsoid, lathe, sphere, torus } from '../../core/geo';
@@ -459,21 +459,7 @@ export class GtQuest {
         const fi = this.folk[k].add(ox + s.x, oy + s.y, -14, Math.PI, 1);
         this.folk[k].tint(fi, 1, 1, 1, at);
       }
-      // the boiler's gauge on the tender floor beside the firebox (Theo's stokes): the needle's swing, the green
-      if (i === TRANSIT && stage === LT.Deliveries && !(ch.tasks & 2) && ch.coal >= LAST_TRAIN.coalLoads) {
-        const gx = ox + LT_TRAIN.firebox.x - 50, gy = oy + 60;
-        const needle = gaugeAt(g.time);
-        r.zoneShapes.circle(gx, gy, 34, 0.08, 0.07, 0.06, 0.85, 0.85);
-        const top = 1 - LAST_TRAIN.gaugeWindow;
-        for (let a = 0; a < 16; a++) {
-          const f = a / 15, ang = Math.PI + f * Math.PI;
-          const inGreen = f >= top;
-          r.addShapes.circle(gx + Math.cos(ang) * 28, gy + Math.sin(ang) * 28, 2.6, inGreen ? 0.3 : 0.8, inGreen ? 1 : 0.6, inGreen ? 0.4 : 0.4, 0.8, 0);
-        }
-        const na = Math.PI + needle * Math.PI;
-        r.addShapes.line(gx, gy, gx + Math.cos(na) * 30, gy + Math.sin(na) * 30, 2.2, 1, 0.3, 0.2, 1, 0);
-        for (let s = 0; s < ch.stokes; s++) r.addShapes.circle(gx - 20 + s * 20, gy + 16, 4, 1, 0.6, 0.2, 0.9, 0);
-      }
+      // (the boiler's gauge for Theo's stokes is a HUD dial since D-98: ui/stokeGauge.ts)
     }
     // ---- the brass key, lying where it was dropped (a glint now and then catches the eye)
     if (stage === LT.Key && ch.keyBy === 255) {

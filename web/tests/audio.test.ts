@@ -57,6 +57,8 @@ function lineEngine() {
 describe("Bradley's song on boss fights (D-70)", () => {
   it('starts from the top, plays out after the boss falls, then the night comes back', () => {
     const { a, sources, playing, score } = engine();
+    // (the map's waltz plays only when Bradley's night song can't load, D-98)
+    Object.assign(a, { lineState: 'failed' });
     a.setCue('bw_act3');
     expect(score).toHaveBeenCalledTimes(1);
     a.setCue('silence');
@@ -168,5 +170,33 @@ describe("the Ghost Train's night: Bradley's second song (D-81)", () => {
     await flush();
     expect(bad.sources).toHaveLength(0);
     expect(bad.score).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("only Bradley's songs (D-98)", () => {
+  it("every map's night and the Midway play his night song; bosses keep the boss song", () => {
+    for (const cue of ['act1', 'fh_act2', 'bw_act3', 'gt_act4', 'endless', 'midway']) {
+      const { a, sources, score, line } = lineEngine();
+      a.setCue(cue);
+      expect(score, cue).not.toHaveBeenCalled();
+      expect(sources.at(-1)?.buffer, cue).toBe(line);
+    }
+    const { a, sources, intro } = lineEngine();
+    a.setCue('boss_ringmaster');
+    expect(sources.at(-1)?.buffer).toBe(intro);
+  });
+
+  it('takes the songs down in key and tempo on the higher tiers', () => {
+    const { a, sources } = lineEngine();
+    const withDetune = sources as unknown as { detune?: { value: number } }[];
+    const ctx = (a as unknown as { ctx: { createBufferSource: () => unknown } }).ctx;
+    const make = ctx.createBufferSource;
+    ctx.createBufferSource = () => Object.assign(make() as object, { detune: { value: 0, setTargetAtTime: () => {} } });
+    a.setTier('nightmare');
+    a.setCue('act1');
+    expect(withDetune.at(-1)?.detune?.value).toBe(-200);
+    a.setTier('hell');
+    a.setCue('boss_ringmaster');
+    expect(withDetune.at(-1)?.detune?.value).toBe(-300);
   });
 });

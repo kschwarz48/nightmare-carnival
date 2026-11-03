@@ -206,6 +206,18 @@ export class LastTrainChain extends QuestChain {
   }
 
   /** A fixture in the train's frame, in the copy of the carriages the player at (x, y) is in (null if not in one). */
+  /**
+   * The boiler gauge for a player standing at (x, y) (D-98: a HUD dial, it was painted on the tender floor): while the
+   * train runs with the tender full and Theo's stokes are still wanted, to whoever is aboard near the firebox.
+   */
+  stokeGauge(x: number, y: number): { needle: number; stokes: number; window: number } | null {
+    if (this.stage !== LT.Deliveries || this.tasks & 2 || this.coal < LAST_TRAIN.coalLoads) return null;
+    if (regionAt(x, y) !== TRANSIT || trainNow(this.g).phase !== 'travel') return null;
+    const fb = this.inTrain(x, y, LT_TRAIN.firebox);
+    if (!fb || (fb.x - x) ** 2 + (fb.y - y) ** 2 > 300 * 300) return null;
+    return { needle: gaugeAt(this.g.time), stokes: this.stokes, window: LAST_TRAIN.gaugeWindow };
+  }
+
   private inTrain(x: number, y: number, at: { x: number; y: number }): { x: number; y: number } | null {
     const r = regionAt(x, y);
     if (r < 0) return null;

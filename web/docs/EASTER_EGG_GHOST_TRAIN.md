@@ -44,7 +44,7 @@ the reel and the signal, and none of them fails anything if missed.
 | 0 | Ticket | Hollow Junction, booking office window, or its stopped platform clock | **Ask at the booking office** (a ticket for THE LAST TRAIN HOME, "not valid until the line keeps time") **or look at the stopped clock** (D-95): either starts it. Every clock has stopped |
 | 1 | Key | about the Junction (one of five places, seeded) | the station clocks' **brass winding key**: under a waiting bench, at the dry fountain's rim, beside the hearse, on a luggage pile, under the water tower. A glint catches the eye now and then. The stopped clock says the key is gone |
 | 2 | Junction | the Junction's platform clock | **wind it while the train stands in** (the key's carrier). Aboard, in the sleeper (the second car from the back), the four **compartment doors** slide open, and the card says to gather the pages inside |
-| 3 | Pages | the sleeper's four compartments (any copy of the train) | a torn timetable page drifts in each (one of two places each, seeded). With all four: THE LAST TRAIN HOME calls where each station's clock keeps time; get every clock going. **Until then the guard won't whistle the train out of a station** (D-95): the cord says what's still wanted |
+| 3 | Pages | the sleeper's four compartments (any copy of the train) | a torn timetable page drifts in each (one of two places each, seeded). With all four: THE LAST TRAIN HOME calls where each station's clock keeps time; get every clock going. (D-95 had the guard refuse the whistle until then; since D-98 the train goes at the whistle whatever the quest has reached) |
 | 4 | Stations | Saint Vesper's, the Cinder Works, Stillwater (any order) | each station's clock has its own trouble (below). Look at the clock and it says what it needs; once mended, the key's carrier winds it. The whistle takes you on |
 | 5 | Prepare | back at the Junction | take the **signal battery** from the lamp room under the signal box, fit it to the train's **lamp box** at the front of the tender (the train's signal lamp burns red), and pull the signal box's **levers in the order of the timetable's footnote** (read the TIMETABLE board on the concourse; 3 of 5; a wrong one springs them all back). Either order |
 | 6 | Signal | aboard, on any journey | a signal stands at danger part-way along (seeded per journey, 30–70 % of the leg). The call-out comes 2.5 s ahead; **switch the lamp box to green** (green for 3 s) as the engine passes it: the points swing over and **this journey goes to the End of the Line**. Missed, the train runs on to its usual stop and the signal stands again on the next journey |
@@ -92,8 +92,9 @@ The Junction's clock (stage 2) is the fourth; with all four running, "The line k
   post box** on the south edge of the platform.
 - **Theo:** while the train stands at the **Cinder Works**, take a shovel of coal from the chute on the
   platform beside the tender, carry it into the tender and shovel it into the firebox. Three times. Then on
-  **any** journey, stoke the firebox three times **while the boiler gauge's needle is at the top** (the gauge
-  is drawn on the tender floor; period 2.4 s, the green band is the top 16 %). A stoke outside the green
+  **any** journey, stoke the firebox three times **while the boiler gauge's needle is in the red** (D-98: a
+  steam-age pressure dial on the HUD while you stand at the firebox, it was drawn on the tender floor; period
+  2.4 s, the red sector is the top 16 %). A stoke outside the red
   resets the count.
 - **Mira:** while the train stands at **Stillwater**, turn the church clock's hands (each press moves the hour
   hand on one) to **tonight's hour**, given on the passengers' card (seeded, 1–11; the hand starts at 12).

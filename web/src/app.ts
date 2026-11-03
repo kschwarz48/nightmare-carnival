@@ -140,8 +140,6 @@ export class App {
   game: Game | null = null;
   demo: Game | null = null;
   private screenEl: HTMLElement | null = null;
-  /** the cursor shows the sight (body.aiming) */
-  private aimCursor = false;
   private nav: FocusNav | null = null;
   private acc = 0;
   private last = performance.now();
@@ -186,6 +184,10 @@ export class App {
   private hubParty = '';
   /** this night unlocked the Midway (announced on the results) */
   private hubJustUnlocked = false;
+  /** seconds to the next heartbeat at very low health (D-98) */
+  private beatT = 0;
+  /** the first night's opening look at Zoltana's booth (D-98): its clock, its overlay, whether the whisper has played */
+  private cut: { t: number; el: HTMLElement; note: HTMLElement; whisper: boolean } | null = null;
   /** the world tier's unlock ceremony on screen (D-97), if any */
   private ceremony: { el: HTMLElement; skip: () => void } | null = null;
   /** where the Lost & Found's Back returns to when it was opened from the co-op lobby (D-74), or 'party':
@@ -290,9 +292,8 @@ export class App {
       this.save.data.midwayTester = true;
       this.save.save();
     }
-    // the Ghost Train's song comes down once audio unlocks if this save can play the map (D-81); otherwise when a
-    // night there first asks for it
-    if (this.save.mapAvailable('ghost_train')) this.audio.loadLineSong();
+    // Bradley's night song comes down once audio unlocks (D-98: every map's night and the Midway play it)
+    this.audio.loadLineSong();
     this.draft = new DraftView(this.assets, (i) => this.pickDraft(i), () => this.rerollDraft(), (i) => this.banishDraft(i), () => this.skipDraft());
     this.prizeUi = new PrizeOverlay(() => this.prize.skip(false));
     this.prize = new PrizeWheel(this.renderer.overlay, this.assets, this.prizeUi, this.audio);
@@ -508,6 +509,7 @@ export class App {
       this.save.save();
       r.tierPreview = null;
       r.lookFade = 0;
+      if (this.game?.hub) this.applyHubTier(1.2);
       if (this.screenEl) this.screenEl.style.visibility = '';
       this.hubHud.root.style.visibility = '';
       this.ceremony = null;
@@ -583,6 +585,8 @@ export class App {
     const intro = MAPS[map].intro;
     const sub = tier === 'normal' ? intro.sub : `${TIERS[tier].title} · ${intro.sub}`;
     this.beginRun(new Game(cfg), o.character, o.daily ? 'DAILY RUN' : intro.title, o.daily ? dailyInfo().modName : sub);
+    // a solo night on the Carnival Core opens on Zoltana's booth, whispering (D-98)
+    if (!this.net && map === 'carnival_core' && !o.daily) this.startZoltanaCut();
   }
 
   /** Common run setup for solo, the co-op host's night and the co-op guest's mirror. */
@@ -592,8 +596,10 @@ export class App {
     if (!keepChat) this.chat.clear();
     this.game?.bus.clear();
     this.game = g;
-    // the night's tier colours its music (D-97)
+    // the night's tier colours its music (D-97) and its look (the Midway's preview gives way to the night's own, D-98)
     this.audio.setTier(g.tier);
+    this.renderer.tierPreview = null;
+    this.renderer.lookFade = 0;
     g.setCtx(g.players[this.localIndex] ?? g.players[0]);
     this.wireGame(g);
     this.renderer.fx.clear();
@@ -1356,11 +1362,13 @@ export class App {
         break;
       case 'lt_stoke':
         say(LT_TEXT.stoke(q.a ?? 1), 3);
+        this.hud.stokePulse(true);
         a.play('gt_furnace', { vol: 0.8 });
         fx('spark', 'fire', 10);
         break;
       case 'lt_stoke_bad':
         say(LT_TEXT.stokeBad, 3);
+        this.hud.stokePulse(false);
         a.play('steam_hiss', { vol: 0.6 });
         break;
       case 'lt_hour_wait':
@@ -1659,6 +1667,51 @@ export class App {
     void KEEPSAKES;
   }
 
+  /**
+   * The first night's opening (D-98): the camera drifts to Zoltana's booth, which rattles while something whispers from
+   * it, then back to the player; nothing says what it means. The night holds meanwhile; any key or click skips it.
+   */
+  private startZoltanaCut(): void {
+    const note = h('div', { class: 'cut-note' }, '(something whispers from the box\u2026)');
+    const el = h('div', { class: 'cutscene', onclick: () => this.endZoltanaCut() }, note, h('div', { class: 'cut-skip' }, 'any key to skip'));
+    this.ui.append(el);
+    requestAnimationFrame(() => el.classList.add('bars'));
+    this.hud.root.style.visibility = 'hidden';
+    this.cut = { t: 0, el, note, whisper: false };
+  }
+
+  private updateZoltanaCut(dt: number): void {
+    const c = this.cut;
+    if (!c) return;
+    c.t += dt;
+    const T = c.t, m = LAST_SONG.machine;
+    const ease = (x: number) => x * x * (3 - 2 * x);
+    const w = T < 1.1 ? ease(T / 1.1) : T < 3.3 ? 1 : T < 4.2 ? 1 - ease((T - 3.3) / 0.9) : 0;
+    this.renderer.camFocus = { x: m.x, y: m.y + 30, w };
+    // and it leans in on the booth
+    this.renderer.setViewZoom(1 + 0.5 * w);
+    // it rattles in bursts, as if something inside were knocking
+    this.renderer.zoltanaShake = T > 1.2 && T < 3.1 && Math.sin(T * 7.5) > -0.2 ? 1 : 0;
+    if (T > 1.15 && !c.whisper) {
+      c.whisper = true;
+      this.audio.play('whisper', { vol: 0.95 });
+    }
+    c.note.classList.toggle('shown', T > 1.4 && T < 3.4);
+    if (T >= 3.9) c.el.classList.remove('bars');
+    if (T >= 4.3) this.endZoltanaCut();
+  }
+
+  private endZoltanaCut(): void {
+    const c = this.cut;
+    if (!c) return;
+    c.el.remove();
+    this.cut = null;
+    this.renderer.camFocus = null;
+    this.renderer.zoltanaShake = 0;
+    this.renderer.setViewZoom(1);
+    this.hud.root.style.visibility = '';
+  }
+
   private resume(): void {
     this.screenEl?.remove();
     this.screenEl = null;
@@ -1820,7 +1873,9 @@ export class App {
 
   /** Tear down the in-run views (HUD, overlays, the game) without leaving any session. */
   private endRunView(): void {
+    this.endZoltanaCut();
     this.audio.setTier('normal');
+    this.renderer.tierPreview = null;
     this.hubHud?.root.remove();
     this.hubTalk = null;
     this.chestQueue = [];
@@ -2027,6 +2082,11 @@ export class App {
   }
 
   private onNav(e: NavEvent): void {
+    // the first night's opening look at Zoltana's booth (D-98): any button skips it
+    if (this.cut) {
+      if (e === 'confirm' || e === 'back' || e === 'pause' || e === 'interact') this.endZoltanaCut();
+      return;
+    }
     // an unlock ceremony on screen (D-97): any button moves on (once it may), nothing reaches the menu beneath
     if (this.ceremony) {
       if (e === 'confirm' || e === 'back' || e === 'pause' || e === 'interact') this.ceremony.skip();
@@ -2153,12 +2213,19 @@ export class App {
     perf.mark(SEC.net, n0);
     this.updateChat(dt);
     const playing = this.state === 'playing' && g;
-    // over the night the cursor is the shooting-gallery sight, since the mouse aims; elsewhere the arrow (D-93)
-    const aiming = !!playing && !g.hub && !this.screenEl && !this.draft.visible && !this.prize.active;
-    if (aiming !== this.aimCursor) {
-      this.aimCursor = aiming;
-      document.body.classList.toggle('aiming', aiming);
-    }
+    // very low health (D-98): at 5% and below a heartbeat, the picture flushing red with each beat
+    const meNow = playing && !g.hub ? g.players[this.localIndex] ?? g.player : null;
+    const hpFrac = meNow && !meNow.dead && !meNow.downed ? meNow.hp / meNow.stats.maxHp() : 1;
+    if (hpFrac <= 0.05 && g?.phase === 'play') {
+      this.beatT -= dt;
+      if (this.beatT <= 0) {
+        this.beatT = 0.8;
+        this.audio.play('heartbeat', { vol: 0.95 });
+        this.renderer.heartbeat = 1;
+      }
+    } else this.beatT = 0;
+    this.renderer.heartbeat = Math.max(0, this.renderer.heartbeat - dt * 2.4);
+    // (D-98: the themed arrow everywhere, the night too; D-93 showed the shooting-gallery sight over the night)
     // player screen position for mouse aim
     const cssW = window.innerWidth, cssH = window.innerHeight;
     const target = g && (playing || this.nightPaused || g.hub) ? g.player : this.demo!.player;
@@ -2199,7 +2266,8 @@ export class App {
       this.fortune.update(dt);
       // co-op host: the night also holds for a pause, a prize wheel or a dropped partner on either side;
       // solo, it waits while the chat log is open for reading back (D-72)
-      const held = (!!hs && (hs.paused || !hs.prizeReady)) || (!net && this.chat.isOpen);
+      this.updateZoltanaCut(dt);
+      const held = (!!hs && (hs.paused || !hs.prizeReady)) || (!net && (this.chat.isOpen || !!this.cut));
       if (!this.overlayPause && g!.phase !== 'draft' && !held) {
         const s0 = perf.now();
         this.acc += dt * this.simSpeed;
@@ -2307,7 +2375,7 @@ export class App {
     const ch = this.hubCharacter();
     const pet = this.save.petChoice();
     const g = new Game({ character: ch, curse: false, seed: (Math.random() * 2 ** 31) | 0, players: [{ character: ch, name: L.loadName() || 'You', pet }], pet, hub: { npcs: this.hubCast(), at: was ? [{ x: was.x, y: was.y }] : undefined } });
-    this.audio.setTier('normal'); // the Midway is always the Normal carnival (D-97)
+    // (the Midway shows the world tier chosen there, D-98: beginHub)
     this.beginHub(g, 0);
   }
 
@@ -2375,7 +2443,6 @@ export class App {
 
   /** Guest: the host is on the Midway; build the mirror the session will feed. */
   private startGuestHub(cfg: StartCfg): Game {
-    this.audio.setTier('normal');
     void this.audio.unlock();
     this.mpStatus = '';
     this.mpBusy = false;
@@ -2394,6 +2461,7 @@ export class App {
     this.game?.bus.clear();
     this.game = g;
     this.localIndex = local;
+    this.applyHubTier();
     g.setCtx(g.players[local] ?? g.players[0]);
     this.hubTalk = null;
     this.hubTarget = null;
@@ -2635,6 +2703,11 @@ export class App {
         },
       });
     } else items.push({ label: 'Leave the Midway', fn: () => this.toMenu() });
+    // the world tier (D-98): chosen here too, and the Midway takes on its look and its music at once
+    if (role !== 'guest' && this.save.data.tiers.unlocked.length > 1) {
+      const t = this.hubTier();
+      items.splice(1, 0, { label: `World: ${TIERS[t].name} \u2014 ${TIERS[t].title}`, fn: () => this.cycleHubTier() });
+    }
     items.push({ label: 'Swap Character', fn: () => this.go('charswap') }, { label: 'Companions', fn: () => this.go('pets') });
     items.push({ label: 'Carnival-pedia', fn: () => this.go('pedia') }, { label: 'Settings', fn: () => this.go('settings') });
     items.push({
@@ -2651,6 +2724,37 @@ export class App {
     const g = this.game;
     const text = role === 'host' ? `Lobby code ${this.net!.role === 'host' ? (this.net as Extract<NetCtx, { role: 'host' }>).host.lobby.code : ''} · ${g?.players.length ?? 1} on the Midway` : role === 'guest' ? 'You are on a friend\'s Midway.' : 'Walk the grounds: the ticket booth sells the Lost & Found, and the Big Top begins the night.';
     return L.menuPanel(this.ctx, 'The Midway', text, items);
+  }
+
+  /** The world tier the Midway shows (D-98): a guest's is the host's lobby's; otherwise the last one chosen. */
+  private hubTier(): TierId {
+    if (this.net?.role === 'guest') return this.net.guest.lobby?.tier ?? 'normal';
+    if (this.net?.role === 'host') return this.net.host.lobby.tier;
+    return this.save.lastTier();
+  }
+
+  /** The next open world tier, from the Midway's menu: remembered, the lobby's (co-op host), and shown at once. */
+  private cycleHubTier(): void {
+    const open = this.save.data.tiers.unlocked;
+    const t = open[(open.indexOf(this.hubTier()) + 1) % open.length] ?? 'normal';
+    this.save.data.last.tier = t;
+    this.save.save();
+    if (this.net?.role === 'host') {
+      const hs = this.net.host;
+      hs.setTier(t, hs.lobby.curse);
+      if (!this.save.mapAvailableOn(t, hs.lobby.map)) hs.setMap('carnival_core');
+    }
+    this.applyHubTier(1.6);
+    this.go('midway');
+  }
+
+  /** The Midway in its world tier's look and music (D-98): eased in over `fade` seconds (0: at once). */
+  private applyHubTier(fade = 0): void {
+    const t = this.hubTier();
+    const r = this.renderer;
+    r.lookFade = fade;
+    r.tierPreview = t === 'normal' ? null : t;
+    this.audio.setTier(t);
   }
 
   private startBgClock(): void {
@@ -2846,6 +2950,8 @@ export class App {
 
   /** Lobby changed: rebuild the screen if anything but the latency readout changed. */
   private refreshLobby(): void {
+    // a guest's Midway follows the host's world tier (D-98)
+    if (this.game?.hub && this.net?.role === 'guest' && (this.renderer.tierPreview ?? 'normal') !== this.hubTier()) this.applyHubTier(1.6);
     // co-op host on the Midway: someone joined or left, so rebuild the hub around the new party (D-60)
     if (this.net?.role === 'host' && this.net.host.inHub && this.game?.hub) {
       if (this.hubPartyKey() !== this.hubParty) this.restartHub(true);

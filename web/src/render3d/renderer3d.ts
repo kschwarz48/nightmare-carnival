@@ -167,6 +167,12 @@ export class GameRenderer3D {
   lookFade = 0;
   /** seconds of the ceremony's flickering lights still to go */
   flickerT = 0;
+  /** 0..1: a heartbeat's red flush at very low health (the app beats it, D-98) */
+  heartbeat = 0;
+  /** a cutscene's look somewhere else (D-98: Zoltana's booth as the first night opens): the camera goes w of the way */
+  camFocus: { x: number; y: number; w: number } | null = null;
+  /** 0..1: Zoltana's booth shaking (the opening cutscene, D-98) */
+  zoltanaShake = 0;
   private look: TierLook = NORMAL_LOOK;
   private lookKey = '';
   private lookK = 1;
@@ -396,6 +402,21 @@ export class GameRenderer3D {
     this.post.setSize(w, h, pixelRatio);
     // ink lines stay ~1.3 CSS px wide whatever the zoom
     ink.uInkThick.value = (1.6 * this.viewH) / h;
+  }
+
+  /** A smooth zoom for a cutscene (D-98): the camera's frustum only, no buffers resized (1 is play). */
+  setViewZoom(z: number): void {
+    if (Math.abs(z - this.zoom) < 1e-4 || !this.cssH) return;
+    this.zoom = z;
+    const aspect = this.cssW / this.cssH;
+    this.viewH = Math.min(FRUSTUM_H, 1880 / aspect) / z;
+    this.viewW = this.viewH * aspect;
+    this.camera.left = -this.viewW / 2;
+    this.camera.right = this.viewW / 2;
+    this.camera.top = this.viewH / 2;
+    this.camera.bottom = -this.viewH / 2;
+    this.camera.updateProjectionMatrix();
+    ink.uInkThick.value = (1.6 * this.viewH) / this.cssH;
   }
 
   private applyQuality(): void {
@@ -699,8 +720,14 @@ export class GameRenderer3D {
     this.lastLocalX = px;
     this.lastLocalY = py;
     const k = 1 - Math.exp(-dt * (opts.menu ? 1.5 : 7));
-    this.camX += (px + lookX - this.camX) * k;
-    this.camY += (py + lookY - this.camY) * k;
+    let tx = px + lookX, ty = py + lookY;
+    const cf = this.camFocus;
+    if (cf && cf.w > 0) {
+      tx += (cf.x - tx) * cf.w;
+      ty += (cf.y - ty) * cf.w;
+    }
+    this.camX += (tx - this.camX) * k;
+    this.camY += (ty - this.camY) * k;
     if (this.inspect) {
       this.camX = this.inspect.x;
       this.camY = this.inspect.y;
@@ -817,7 +844,9 @@ export class GameRenderer3D {
     const clear = 1 - this.overlayFocus; // an overlay is graded as a lit show, not as the night
     this.post.update({
       time: this.time,
-      lowHp: opts.menu ? 0 : clamp(1 - lowHp / 0.3, 0, 1) * clear,
+      // (D-98: from 35% health, redder)
+      lowHp: opts.menu ? 0 : clamp(1 - lowHp / 0.35, 0, 1) * clear,
+      beat: opts.menu ? 0 : this.heartbeat * clear * (this.settings.reducedFlash ? 0.4 : 1),
       hurt: opts.menu ? 0 : Math.max(0, p.hurtFlash / 0.3) * (this.settings.reducedFlash ? 0.3 : 1) * clear,
       darkness: g.darkness * clear,
       flash: fx.screenFlash * (this.settings.reducedFlash ? 0.35 : 1),

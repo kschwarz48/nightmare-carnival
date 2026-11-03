@@ -90,18 +90,18 @@ const SONG_GAIN = 0.78;
 /** Bradley's loop runs a touch faster as the Ringmaster sheds his skins. */
 const BOSS_RATE: Record<string, number> = { boss_ringmaster_2: 1.03, boss_ringmaster_3: 1.06 };
 /**
- * Bradley's second song, the Ghost Train's night (D-81): between the bosses there it plays from its first note
- * in place of the railway waltz, and at its end, after a breath, from the top again (it has an intro and fades
- * out, so it repeats whole). Boss fights keep "Freaky Funk Circus". Fetched only once a night needs it or the
- * map is open to the player; the waltz stands in if it can't load.
+ * Bradley's second song (D-81: the Ghost Train's night; D-98: every map's night and the Midway — only Bradley's two
+ * songs play now): between the bosses it plays from its first note, and at its end, after a breath, from the top
+ * again (it has an intro and fades out, so it repeats whole). Boss fights keep "Freaky Funk Circus". Fetched once
+ * audio unlocks; a map's own waltz stands in only if it can't load.
  */
 const LINE_SONG = 'circular_cus.mp3';
 /** mastered at -12.8 LUFS, about 1 dB under the boss song as it plays (-9.7 LUFS at SONG_GAIN): left as mixed */
 const LINE_SONG_GAIN = 1;
 /** the pause between one play-through's last note and the next one's first (s) */
 const LINE_BREATH = 1;
-/** the cues it plays on: every Act of the Ghost Train's night, and the endless night after its dawn */
-const LINE_CUE = /^gt_(act[1-4]|endless)$/;
+/** the cues it plays on: every Act of every map's night, the endless nights after their dawns, and the Midway (D-98) */
+const LINE_CUE = /^((fh|bw|gt)_)?(act[1-4]|endless)$|^midway$/;
 
 /** A track's last sound (s), past the encoder's tail of silence. */
 function lastSound(buf: AudioBuffer): number {
@@ -454,6 +454,8 @@ export class AudioEngine {
     const at = Math.max(t, when);
     const src = ctx.createBufferSource();
     src.buffer = buf;
+    if (src.detune) src.detune.value = this.tierDetune;
+    this.warble(src);
     const g = ctx.createGain();
     g.gain.value = 0;
     g.gain.setTargetAtTime(LINE_SONG_GAIN, at, 0.05);
@@ -483,6 +485,7 @@ export class AudioEngine {
     src.buffer = buf;
     src.playbackRate.value = rate;
     if (src.detune) src.detune.value = this.tierDetune;
+    this.warble(src);
     const g = ctx.createGain();
     g.gain.value = 0;
     g.gain.setTargetAtTime(SONG_GAIN, t, 0.05);
@@ -543,6 +546,7 @@ export class AudioEngine {
     }
     src.playbackRate.value = rate;
     if (src.detune) src.detune.value = this.tierDetune;
+    this.warble(src);
     const g = ctx.createGain();
     g.gain.value = 0;
     g.gain.setTargetAtTime(SONG_GAIN, t, 0.4);
@@ -616,16 +620,52 @@ export class AudioEngine {
     }
   }
 
-  // ---------------------------------------------------------------- the world tiers' score (D-97)
-  /** the night's tier colours the music: Nightmare a semitone lower and drifting out of tune, Hell two lower */
+  // ---------------------------------------------------------------- the world tiers' score (D-97, D-98)
+  /**
+   * The tier takes Bradley's songs down in key, and with it in tempo, the same files played slower (D-98): Nightmare a
+   * whole step lower (~11% slower) with a slow ghostly warble, Hell three semitones lower (~16% slower and heavier).
+   * The synthesized notes (the waltzes, when a song can't load) follow.
+   */
   private tierPitch = 1;
   private tierWobble = 0;
   private tierDetune = 0;
+  private tierWarble = 0;
   setTier(tier: 'normal' | 'nightmare' | 'hell'): void {
-    this.tierDetune = tier === 'hell' ? -200 : tier === 'nightmare' ? -100 : 0;
+    this.tierDetune = tier === 'hell' ? -300 : tier === 'nightmare' ? -200 : 0;
     this.tierPitch = Math.pow(2, this.tierDetune / 1200);
     this.tierWobble = tier === 'nightmare' ? 22 : tier === 'hell' ? 8 : 0;
-    if (this.ctx && this.trackSrc?.detune) this.trackSrc.detune.setTargetAtTime(this.tierDetune, this.ctx.currentTime, 0.6);
+    this.tierWarble = tier === 'nightmare' ? 14 : 0;
+    if (this.ctx && this.trackSrc?.detune) {
+      this.trackSrc.detune.setTargetAtTime(this.tierDetune, this.ctx.currentTime, 0.6);
+      this.warble(this.trackSrc);
+    }
+  }
+
+  /** Nightmare's warble: a slow LFO on a song's detune (a few cents either way), stopped with the source. */
+  private warbles = new WeakMap<AudioBufferSourceNode, { lfo: OscillatorNode; gain: GainNode }>();
+  private warble(src: AudioBufferSourceNode): void {
+    const ctx = this.ctx;
+    if (!ctx || !src.detune || typeof ctx.createOscillator !== 'function') return;
+    const had = this.warbles.get(src);
+    if (had) {
+      had.gain.gain.setTargetAtTime(this.tierWarble, ctx.currentTime, 0.5);
+      return;
+    }
+    if (!this.tierWarble) return;
+    const lfo = ctx.createOscillator();
+    const gain = ctx.createGain();
+    lfo.frequency.value = 0.23;
+    gain.gain.value = this.tierWarble;
+    lfo.connect(gain).connect(src.detune);
+    lfo.start();
+    this.warbles.set(src, { lfo, gain });
+    src.addEventListener('ended', () => {
+      try {
+        lfo.stop();
+      } catch {
+        /* already stopped */
+      }
+    });
   }
 
   private note(freq: number, t: number, dur: number, type: OscillatorType, vol: number, lp = 3000, vib = 0): void {

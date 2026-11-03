@@ -362,6 +362,16 @@ export const RECIPES: Record<string, () => Float32Array> = {
     ...[0, 1, 6].map((st, i) => V('saw', 65 * Math.pow(2, st / 12), 62 * Math.pow(2, st / 12), 3, { vol: 0.09, lp: 700, attack: 0.35, decay: 0.8, delay: 0.3 + i * 0.05 })),
     V('noise', 1, 1, 2.6, { vol: 0.16, lp: 2600, hp: 300, attack: 0.6, decay: 1.1, delay: 0.5 }),
   ], 0.4),
+  // something whispering from Zoltana's booth (D-98, the first night's opening): breathy syllables over a faint hum
+  whisper: () => render([
+    ...[0, 0.17, 0.4, 0.55, 0.84, 1.02, 1.28, 1.45].map((d, i) => V('noise', 1, 1, 0.2 + (i % 3) * 0.06, { vol: 0.15 + (i % 2) * 0.05, hp: 1500 + (i % 3) * 450, lp: 4400 + (i % 2) * 1500, attack: 0.05, decay: 4.5, delay: d })),
+    V('sine', 196, 174, 1.8, { vol: 0.025, attack: 0.5, decay: 1.1, vib: 0.01, vibRate: 3.1 }),
+  ], 0.3),
+  // a heartbeat at very low health (D-98): lub-dub, low and dull
+  heartbeat: () => render([
+    V('sine', 62, 42, 0.16, { vol: 0.8, decay: 14 }), V('noise', 1, 1, 0.06, { vol: 0.25, lp: 260, decay: 40 }),
+    V('sine', 56, 38, 0.15, { vol: 0.6, decay: 15, delay: 0.24 }), V('noise', 1, 1, 0.05, { vol: 0.18, lp: 240, decay: 40, delay: 0.24 }),
+  ]),
   gt_chime: () => render([...[1, 2.76, 5.4].map((m, i) => V('sine', 880 * m, 880 * m, 1.4 - i * 0.3, { vol: 0.15 / (1 + i), decay: 2.5 + i * 2 }))]),
   gt_furnace: () => render([V('noise', 1, 1, 1.1, { vol: 0.5, lp: 600, hp: 60, attack: 0.08, decay: 2.2 }), V('saw', 55, 45, 1.0, { vol: 0.2, lp: 260, attack: 0.1, decay: 2 }), V('noise', 1, 1, 0.6, { vol: 0.12, hp: 3000, decay: 4, delay: 0.1 })]),
   gt_shovel: () => render([V('noise', 1, 1, 0.25, { vol: 0.35, hp: 1500, lp: 5000, decay: 9 }), ...Array.from({ length: 6 }, (_, i) => V('square', 700 + (i % 3) * 180, 500, 0.03, { vol: 0.08, decay: 70, delay: 0.18 + i * 0.04, lp: 2500 }))]),
