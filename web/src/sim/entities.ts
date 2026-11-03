@@ -98,6 +98,16 @@ export class Enemy implements Target {
   cracked = false;
   /** tickets a Prize Collector has swallowed off the ground (paid back when it falls) */
   loot = 0;
+  /** its tier variant (D-97, sim/variants.ts): the abilities (bits), their clock, the act under way, the states guests
+   *  see (VF), plating hits left, ectoplasm's cooldown, whether wrath has flared */
+  vAb = 0;
+  vT = 0;
+  vT2 = 0;
+  vState = 0;
+  vFlags = 0;
+  vHits = 0;
+  vDecoyT = 0;
+  vRaged = false;
   noSep = false;
   /** stands on open ground and is blocked by walls from now on (D-74; newcomers walk through until then) */
   walled = false;

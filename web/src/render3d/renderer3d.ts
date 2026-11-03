@@ -36,6 +36,7 @@ import { BossRigs } from './bosses';
 import { Post3D } from './post';
 import { NORMAL_LOOK, lookColor, tierLook, tintHex, type TierLook } from './tierLook';
 import { TierMotes } from './world/tierFx';
+import { VF } from '../sim/variants';
 import type { TierId } from '../data/tiers';
 import type { LastSongChain } from '../sim/quest';
 
@@ -1404,11 +1405,21 @@ export class GameRenderer3D {
         const c = BALLOON_TINTS[e.idx % BALLOON_TINTS.length];
         b.tint(i, c[0], c[1], c[2]);
       }
+      // the world tier's creatures (D-97): Nightmare's spectral (a cold rim; pale and glowing while phasing), Hell's
+      // infernal (an ember rim that flares with wrath); plating darkens them until it cracks
+      const vf = e.vFlags;
+      if (g.tier === 'nightmare') b.rimLight(i, 0.45, 0.95, 1.1, vf & VF.phased ? 2.6 : 0.85);
+      else if (g.tier === 'hell') b.rimLight(i, 1.0, 0.4, 0.1, (vf & VF.wrath ? 2.2 : 0.75) + 0.25 * Math.sin(this.time * 5 + e.idx));
+      if (vf & VF.phased) b.tint(i, 0.55, 0.92, 1.3, 2.4);
+      else if (vf & VF.wrath) b.tint(i, 1.4, 0.62, 0.42, 1.5);
+      else if (vf & VF.plated) b.tint(i, 0.72, 0.6, 0.55, 1.6);
       if (e.elite) {
         const pulse = 0.75 + 0.25 * Math.sin(this.time * 6);
         b.rimLight(i, 1.0, 0.78, 0.25, 1.4 * pulse);
         this.fxAdd.draw(star, x, y, h + 60 * s + 30, 1.1, 1.1, this.time * 2, 1, 0.85, 0.3, 0.9);
       }
+      // a variant ability's tell (D-97): a bright rim in the tier's colour while it gathers itself
+      if (vf & VF.tell) b.rimLight(i, g.tier === 'hell' ? 1 : 0.7, g.tier === 'hell' ? 0.55 : 1, g.tier === 'hell' ? 0.2 : 1.25, 2.4 + 0.6 * Math.sin(this.time * 18));
       // the attacker's own tell: a red rim that warms through the wind-up and steps up for the strike (D-69)
       if (telegraph > 0.05) b.rimLight(i, 1, 0.3, 0.12, telegraph > 0.82 ? 2.6 : 0.6 + telegraph * 1.3);
       if (e.shield > 0) this.addShapes.ring(x, y, e.r + 10, e.r + 14, 0.5, 0.8, 1, 0.6, 0.3);

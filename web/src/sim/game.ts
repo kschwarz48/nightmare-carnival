@@ -13,6 +13,7 @@ import { DAILY_SCALING, TIERS, isTierId, type TierDef, type TierId } from '../da
 import { ENEMIES, ELITE_AFFIXES, type EnemyDef } from '../data/enemies';
 import { GREASE_SLICKS, MAP_HALF, PLAYER_BOUNDS, PLAYER_SPAWN, PROPS, TILT_A_WHIRL, type Prop } from '../data/map';
 import { ACT_GATES, DAWN_TIME } from '../data/waves';
+import { initVariant, phased, tickVariant, variantDeath, variantHit } from './variants';
 import { collectSoul, eliteChestMult, mealHeal, openingActDue, telegraphedDamage, tickTierPerks, trySecondChance } from './tierPerks';
 import { computePayout } from '../data/meta';
 import type { BossBase } from './bosses/boss';
@@ -894,6 +895,7 @@ export class Game {
       if (e.affixes.includes('shielded')) e.shield = 4;
       if (e.affixes.includes('hasted')) e.speed = def.speed * sc.speed * curseSpd * this.diff.speedMult * 1.15;
     }
+    initVariant(this, e);
     e.inActive = true;
     this.active.push(e);
     if (!this.enemiesSeen.has(def.id)) {
@@ -926,6 +928,7 @@ export class Game {
       return;
     }
     this.kills++;
+    variantDeath(this, e);
     collectSoul(this, this.players[this.credit === -1 ? this.player.index : this.credit], e);
     if (d.behavior === 'ambusher' || d.behavior === 'brute' || d.behavior === 'line_charger' || d.behavior === 'rail_strafer' || TELEGRAPHERS.has(d.behavior) || d.behavior.startsWith('gt_')) this.clearHazardsOf(e.uid);
     if (d.behavior.startsWith('gt_')) gtDeath(this, e);
@@ -980,7 +983,7 @@ export class Game {
    * defender applies modifiers). Returns damage dealt.
    */
   damageEnemy(e: Enemy, amount: number, crit: boolean, kb: number, srcX: number, srcY: number, weapon: string): number {
-    if (!e.alive || e.hidden || e.invuln) return 0;
+    if (!e.alive || e.hidden || e.invuln || phased(e)) return 0;
     if (e.shield > 0) {
       e.shield--;
       e.flash = 1;
@@ -1000,6 +1003,7 @@ export class Game {
         if (e.shellLeft <= 0) crackShell(this, e);
       } else dmg *= sh.cracked;
     }
+    if (e.vAb) dmg = variantHit(this, e, dmg);
     e.hp -= dmg;
     e.flash = 1;
     this.book(dmg, weapon, false, e.hp <= 0);
@@ -1086,6 +1090,7 @@ export class Game {
 
   private updateStatuses(e: Enemy, dt: number): void {
     if (!e.alive) return;
+    if (e.vAb) tickVariant(this, e, dt);
     e.spawnT += dt;
     if (e.flash > 0) e.flash = Math.max(0, e.flash - dt * 7);
     if (e.slowT > 0) {
@@ -1198,7 +1203,7 @@ export class Game {
     let hit: Enemy | null = null;
     this.grid.query(p.x, p.y, p.r + 40, (id) => {
       const e = this.enemies[id];
-      if (!e.alive || e.hidden || e.noContact || e.illusion) return;
+      if (!e.alive || e.hidden || e.noContact || e.illusion || phased(e)) return;
       if (e.def.behavior === 'rail_strafer') return; // snake contact handled per segment in its AI
       const rr = e.r * 0.85 + p.r;
       if (dist2(e.x, e.y, p.x, p.y) < rr * rr) {

@@ -469,3 +469,96 @@ describe('the Nightmare and Hell shelves', () => {
     expect(e.player.hp).toBeGreaterThan(hp0 + 1.5);
   });
 });
+
+// ===================================================================================== creature variants
+describe('creature variants', () => {
+  it('gives about half of each map\'s kinds an ability per tier, none on Normal', async () => {
+    const { VARIANTS, variantBits, ABILITY_BITS } = await import('../src/data/variants');
+    const { ENEMIES } = await import('../src/data/enemies');
+    for (const t of ['nightmare', 'hell'] as const) {
+      for (const id of Object.keys(VARIANTS[t])) expect(ENEMIES[id], id).toBeTruthy();
+      expect(Object.keys(VARIANTS[t]).length).toBeGreaterThanOrEqual(25);
+    }
+    expect(variantBits('normal', 'evil_clown')).toBe(0);
+    expect(variantBits('nightmare', 'evil_clown')).toBe(ABILITY_BITS.phase);
+    expect(variantBits('hell', 'carnival_brute')).toBe(ABILITY_BITS.quake | ABILITY_BITS.harden);
+    // no Nightmare ability on Hell, and the other way round
+    for (const a of Object.values(VARIANTS.hell).flat()) expect(['blast', 'trail', 'ember', 'enrage', 'quake', 'harden']).toContain(a);
+    for (const a of Object.values(VARIANTS.nightmare).flat()) expect(['phase', 'decoy', 'blink', 'wail', 'haunt']).toContain(a);
+  });
+
+  it('phasing: a shimmer, then two seconds untouchable and harmless, then solid again', async () => {
+    const { phased } = await import('../src/sim/variants');
+    const g = makeGame({ tier: 'nightmare', godMode: true });
+    const e = g.spawnEnemy('evil_clown', 300, 300)!;
+    expect(e.vAb).toBeGreaterThan(0);
+    e.vT = 0.01;
+    let n = 0;
+    while (!phased(e) && n++ < 120) g.tick();
+    expect(phased(e)).toBe(true);
+    expect(g.damageEnemy(e, 50, false, 0, 0, 0, '')).toBe(0);
+    for (let i = 0; i < 150; i++) g.tick();
+    expect(phased(e)).toBe(false);
+    expect(g.damageEnemy(e, 1, false, 0, 0, 0, '')).toBeGreaterThan(0);
+  });
+
+  it('plating halves the first hits; wrath flares below 40%; a volatile one explodes', () => {
+    const g = makeGame({ tier: 'hell', godMode: true });
+    const b = g.spawnEnemy('carnival_brute', 400, 400)!;
+    b.hp = b.maxHp = 1000;
+    expect(g.damageEnemy(b, 10, false, 0, 0, 0, '')).toBeCloseTo(5, 5);
+    for (let i = 0; i < 3; i++) g.damageEnemy(b, 10, false, 0, 0, 0, '');
+    expect(b.vHits).toBe(0);
+    expect(g.damageEnemy(b, 10, false, 0, 0, 0, '')).toBeCloseTo(10, 5);
+    const c = g.spawnEnemy('evil_clown', 500, 500)!;
+    const sp = c.speed, dmg = c.dmg;
+    c.hp = c.maxHp * 0.3;
+    g.tick();
+    expect(c.speed).toBeCloseTo(sp * 1.4, 5);
+    expect(c.dmg).toBeCloseTo(dmg * 1.4, 5);
+    const v = g.spawnEnemy('living_balloon', 600, 600)!;
+    const before = g.hazards.filter((h) => h.alive).length;
+    g.killEnemy(v);
+    expect(g.hazards.filter((h) => h.alive && h.style === 'blast').length).toBe(1);
+    expect(g.hazards.filter((h) => h.alive).length).toBe(before + 1);
+  });
+
+  it('ectoplasm sheds two harmless one-hit illusions', () => {
+    const g = makeGame({ tier: 'nightmare', godMode: true });
+    const e = g.spawnEnemy('possessed_stuffie', 300, 300)!;
+    e.hp = e.maxHp = 500;
+    g.damageEnemy(e, 5, false, 0, 0, 0, '');
+    const ill = g.active.filter((x) => x.alive && x.illusion && x.illusionOf === e.uid);
+    expect(ill.length).toBe(2);
+    for (const x of ill) {
+      expect(x.noContact).toBe(true);
+      expect(x.tickets).toBe(0);
+      expect(x.vAb).toBe(0);
+    }
+  });
+
+  it("guests see a variant's states", () => {
+    const { host, guest, run } = party(['normal:carnival_core', 'nightmare:carnival_core']);
+    host.setTier('nightmare', false);
+    host.setCharacter('carny');
+    guest.pick('strongman');
+    run(200);
+    host.setReady(true);
+    guest.setReady(true);
+    run(200);
+    const cfg = host.start({ seed: 9, unlocked: [], questMemory: {} })!;
+    const g = new Game({ ...runConfigFromStart(cfg), godMode: true });
+    host.attachGame(g);
+    run(300);
+    const e = g.spawnEnemy('evil_clown', g.players[1].x + 120, g.players[1].y)!;
+    e.vFlags = 1 | 4;
+    e.vAb = 0; // hold the states still for the check
+    for (let i = 0; i < 30; i++) {
+      host.beforeTick(g);
+      g.tick();
+      run(1000 / 60);
+    }
+    const m = guest.game!.active.find((x) => x.alive && x.def.id === 'evil_clown' && Math.abs(x.x - e.x) < 40);
+    expect(m?.vFlags).toBe(5);
+  });
+});

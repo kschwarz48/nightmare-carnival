@@ -333,6 +333,7 @@ export class Replica {
         e.hidden = !!(S.flags & EF.hidden);
         e.illusion = !!(S.flags & EF.illusion);
         e.invuln = !!(S.flags & EF.invuln);
+        e.vFlags = (S.flags >> 4) & 15;
       }
       if (M) {
         setPos(e, M.x, M.y, fresh);

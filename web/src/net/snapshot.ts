@@ -99,6 +99,7 @@ export const GF = { stalled: 1, victoryLap: 2, endless: 4, finaleActive: 8, true
 /** Player flags. */
 export const PF = { moving: 1, dead: 2, downed: 4, shieldReady: 8, reviveAssist: 16, marked: 32 };
 /** Enemy flags: identity (static part) and status (state part). */
+/** enemy flags; the high four bits are its tier variant's states (D-97, sim/variants.ts VF: phased, wrath, plated, tell) */
 export const EF = { elite: 1, hidden: 2, invuln: 4, illusion: 8 };
 export const ET = { frozen: 1, sticky: 2, burn: 4, shield: 8, cracked: 16 };
 
@@ -146,7 +147,7 @@ const POOLS = {
         w.u16(d.id(e.def.id));
         w.u8(Math.min(255, e.scale * 64));
         w.u8(Math.min(255, e.r));
-        w.u8((e.elite ? EF.elite : 0) | (e.hidden ? EF.hidden : 0) | (e.invuln ? EF.invuln : 0) | (e.illusion ? EF.illusion : 0));
+        w.u8((e.elite ? EF.elite : 0) | (e.hidden ? EF.hidden : 0) | (e.invuln ? EF.invuln : 0) | (e.illusion ? EF.illusion : 0) | ((e.vFlags & 15) << 4));
       },
       (w, e) => {
         w.pos(e.x);
