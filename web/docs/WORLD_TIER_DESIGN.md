@@ -7,7 +7,7 @@ difference is noted.
 
 ## Status (2026-11-02, branch `world-tiers`, not deployed)
 
-Implemented and tested (`tests/tiers.test.ts`, 48 tests; the whole suite passes; the production build builds):
+Implemented and tested (`tests/tiers.test.ts`, 45 tests; the whole suite passes; the production build builds):
 the tiers and their numbers, the rules and saves v6 with its migration, character select and the co-op lobby, the
 co-op sync and eligibility (PROTO 20), the dev tools, both Lost & Found shelves, the looks on all four maps
 (captures: `web/artifacts/visual/tiers/`, local only), the creature variants, the bosses' tier attacks, the
