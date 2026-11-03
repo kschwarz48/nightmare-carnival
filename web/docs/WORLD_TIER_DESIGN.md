@@ -13,7 +13,12 @@ co-op sync and eligibility (PROTO 20), the dev tools, both Lost & Found shelves,
 (captures: `web/artifacts/visual/tiers/`, local only), the creature variants, the bosses' tier attacks, the
 ceremonies, the tier achievements, the tiers' passives (Death's Door, the Soul Jar, Brimstone, Cinder Heart), the
 tiers' weapons (the Watchman's Lantern, Spirit Chains, Fire Breath) and their evolutions (the Last Light, the
-Reaper's Chain, Hellmouth), the score's tier colouring and a first balance step. Decision record: D-97.
+Reaper's Chain, Hellmouth), the two performers (the Night Watchman, the Fire-Eater: quirks, portraits, sculpted
+models), the score's tier colouring and a first balance step. Decision record: D-97.
+
+Measured: the headless sim costs the same per tick on every tier for comparable crowds (ten-minute bot nights:
+Carnival Core 0.117 / 0.096 / 0.115 ms a tick on Normal / Nightmare / Hell, Ghost Train 0.200 / 0.186 / 0.209); the
+looks add no draw calls (the tier particles are ~120 billboards in an existing layer).
 
 Changed from this design while building it:
 
@@ -31,9 +36,9 @@ Changed from this design while building it:
 
 Not done yet, in the order they'd be worth doing:
 
-1. The two new characters of §7: the Night Watchman (Lamplight) and the Fire-Eater (Fireproof): their quirks,
-   portraits and sculpted 3D models to the character art standard. Their weapons already exist and are sold on the
-   Lost & Found meanwhile.
+1. The two performers' formal art checks (the inspector's turnarounds and shader-health pass of
+   `docs/CHARACTER_ART_QUALITY_STANDARD.md`; they were only seen in the inspector lineup at studio light and at the
+   game's camera), and their hurt and dash clips' look.
 2. Balance across every map, party sizes two to six and Lost & Found levels (`scripts/tier_balance.ts` takes them
    all), then the owner's playtests.
 3. Fires and apparitions as props in the worlds (burning tents, smoke columns, spectral riders) and the ambience's
