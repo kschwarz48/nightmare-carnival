@@ -133,6 +133,21 @@ h1, h2, h3 { font-family: var(--head); font-weight: normal; margin: 0; letter-sp
 .diff-btn.sel { background: linear-gradient(180deg, #ff7a6a, var(--red)); }
 .diff-btn.focus { outline: 3px dashed var(--cream); outline-offset: 3px; }
 .diff-btn:disabled { opacity: 0.45; cursor: var(--cur-no); }
+/* the world tiers (D-97): each tier's button and lines in its colours; a map won on the chosen tier is ticked */
+.tier-btn.tier-normal.sel { background: linear-gradient(180deg, #ffd56a, #c8902a); color: var(--ink); }
+.tier-btn.tier-nightmare { background: #24324e; }
+.tier-btn.tier-nightmare.sel { background: linear-gradient(180deg, #b8e4ff, #4a7ab8); color: var(--ink); box-shadow: 0 4px 0 var(--ink), 0 0 14px rgba(143, 211, 255, 0.55); }
+.tier-btn.tier-hell { background: #4a1a12; }
+.tier-btn.tier-hell.sel { background: linear-gradient(180deg, #ffb06a, #c8361a); box-shadow: 0 4px 0 var(--ink), 0 0 14px rgba(255, 106, 58, 0.6); }
+.tier-desc b { color: var(--gold); }
+.tier-desc.tier-nightmare b { color: #8fd3ff; }
+.tier-desc.tier-hell b { color: #ff8a5a; }
+.map-row .diff-btn.won:not(.sel) { border-color: #6a8a4a; }
+.tier-note { margin-top: 0.3em; }
+.tier-note.warn { color: #ffcf8a; }
+.section-title.tier-shelf.tier-nightmare { color: #8fd3ff; text-shadow: 2px 2px 0 var(--ink), 0 0 10px rgba(143, 211, 255, 0.5); }
+.section-title.tier-shelf.tier-hell { color: #ff8a5a; text-shadow: 2px 2px 0 var(--ink), 0 0 10px rgba(255, 106, 58, 0.5); }
+.mp-visit { justify-self: start; font-family: var(--head); font-size: 0.75em; padding: 0.05em 0.5em; border-radius: 8px; border: 2px solid var(--ink); background: #6a4a1a; color: #ffe0a0; }
 .toggle { display: flex; align-items: center; gap: 0.6em; cursor: var(--cur-hand); font-family: var(--head); }
 .toggle .box { width: 1.4em; height: 1.4em; border: 3px solid var(--ink); border-radius: 6px; background: #3a2a4a; display: grid; place-items: center; }
 .toggle.on .box { background: var(--red); }

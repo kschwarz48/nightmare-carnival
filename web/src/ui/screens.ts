@@ -329,14 +329,28 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
     render();
   };
   const render = () => {
-    const perks = PERKS.map((p) => {
+    const perkItem = (p: (typeof PERKS)[number]) => {
       const lvl = s.perkLevel(p.id), maxed = s.perkMaxed(p.id), cost = s.perkCost(p.id);
-      const can = !maxed && s.data.lostTickets >= cost;
-      return h('div', { class: `lf-item${maxed ? ' owned' : can ? '' : ' cant'}`, 'data-nav': '', onclick: () => { if (s.buyPerk(p.id)) { c.audio.play('buy', { vol: 0.6 }); render(); } else c.audio.play('deny', { vol: 0.5 }); } },
-        h('img', { src: c.assets.uiIcon(p.id), alt: '' }), h('div', { class: 'nm' }, p.name), h('div', { class: 'ds' }, p.desc),
+      const open = s.perkShelfOpen(p.id);
+      const can = open && !maxed && s.data.lostTickets >= cost;
+      // a switchable perk (Devil's Bargain) is clicked on or off once owned, like an owned weapon (D-97)
+      if (p.switchable && maxed) {
+        const on = s.perkOn(p.id);
+        return h('div', { class: `lf-item owned${on ? ' on' : ' off'}`, 'data-nav': '', onclick: () => { s.setInPool(p.id, !on); c.audio.play('ui_back', { vol: 0.5 }); render(); } },
+          h('img', { src: c.assets.uiIcon(p.id), alt: '' }), h('div', { class: 'nm' }, p.name), h('div', { class: 'ds' }, p.desc),
+          h('div', { class: 'pool', style: { gridColumn: '2' } }, on ? '\u2713 On' : '\u2715 Off'));
+      }
+      return h('div', { class: `lf-item${maxed ? ' owned' : !open ? ' locked' : can ? '' : ' cant'}`, 'data-nav': '', onclick: () => { if (s.buyPerk(p.id)) { c.audio.play('buy', { vol: 0.6 }); render(); } else c.audio.play('deny', { vol: 0.5 }); } },
+        h('img', { src: c.assets.uiIcon(p.id), alt: '' }), h('div', { class: 'nm' }, p.name), h('div', { class: 'ds' }, open ? p.desc : `Opens with ${TIERS[p.tier!].name}: ${TIERS[p.tier!].unlockText}`),
         h('div', { class: 'pips' }, ...Array.from({ length: p.cap }, (_, i) => h('i', { class: i < lvl ? 'on' : '' }))),
         h('div', { class: 'cost', style: { gridColumn: '2' } }, maxed ? 'MAXED' : `${fmtNum(cost)} LT`));
-    });
+    };
+    const perks = PERKS.filter((p) => !p.tier).map(perkItem);
+    // the tiers' shelves (D-97): sold once their tier is open, shown locked before with what opens them
+    const shelf = (t: TierId) => [
+      h('div', { class: `section-title tier-shelf tier-${t}` }, `${TIERS[t].name} Shelf \u00b7 ${TIERS[t].title}`),
+      h('div', { class: 'lf-grid' }, ...PERKS.filter((p) => p.tier === t).map(perkItem)),
+    ];
     const chars = CHARACTERS.filter((ch) => ch.unlock).map((ch) => {
       const owned = s.characterAvailable(ch.id), met = s.characterRequirementMet(ch.id);
       const can = !owned && met && s.data.lostTickets >= ch.unlock!.cost;
@@ -378,6 +392,8 @@ export function lostFoundScreen(c: UICtx): HTMLElement {
       notice ? h('div', { class: 'lf-notice' }, notice) : null,
       ...earned.map((t) => h('div', { class: 'achievement' }, `★ ${t}`)),
       h('div', { class: 'section-title' }, 'Permanent Perks'), h('div', { class: 'lf-grid' }, ...perks),
+      ...shelf('nightmare'),
+      ...shelf('hell'),
       h('div', { class: 'section-title' }, 'Performers'), h('div', { class: 'lf-grid' }, ...chars),
       h('div', { class: 'section-title' }, 'New Attractions'),
       h('div', { class: 'muted' }, 'Click a weapon or passive you own to leave it out of your drafts, or to put it back. Daily Runs always use the full pool.'),

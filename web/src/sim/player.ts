@@ -50,6 +50,13 @@ export class Player {
   slowF = 1;
   /** a Ticket Taker's stub (D-68): while it lasts, the crowd comes for this player faster */
   markedT = 0;
+  /** the Nightmare and Hell shelves tonight (D-97, sim/tierPerks.ts): Soul Collector's souls and their clock, whether
+   *  Second Chance has been spent, Second Wind's clock, and the changing bonuses already in the stats */
+  souls = 0;
+  soulT = 0;
+  secondChanceUsed = false;
+  windT = 0;
+  tierBonus = { might: 0, hp: 0, armor: 0 };
   /** this player's own share of the night, for the co-op leaderboard (D-71) */
   runDmg = 0;
   runBossDmg = 0;

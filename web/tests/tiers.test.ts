@@ -355,3 +355,117 @@ describe('world tiers in co-op', () => {
     expect(p?.open).toEqual(['normal:carnival_core', 'nightmare:ghost_train']);
   });
 });
+
+// ===================================================================================== the tiers' shelves
+describe('the Nightmare and Hell shelves', () => {
+  const withMeta = (meta: { axis: string; value: number }[], o: Record<string, unknown> = {}) => makeGame({ meta, godMode: false, ...o });
+
+  it('sells a shelf only once its tier is open, and switches the Bargain on and off', async () => {
+    const s = new SaveManager(mem());
+    s.data.lostTickets = 1e6;
+    expect(s.buyPerk('second_chance')).toBe(false);
+    s.unlockTier('nightmare');
+    expect(s.buyPerk('second_chance')).toBe(true);
+    expect(s.buyPerk('devils_bargain')).toBe(false);
+    s.unlockTier('hell');
+    expect(s.buyPerk('devils_bargain')).toBe(true);
+    expect(s.metaStats()).toContainEqual({ axis: 'bargain', value: 1 });
+    s.setInPool('devils_bargain', false);
+    expect(s.metaStats().some((m) => m.axis === 'bargain')).toBe(false);
+    // a guest's shelf levels arrive within the shelf's caps
+    const { cleanProfile } = await import('../src/net/protocol');
+    const p = cleanProfile({ ...guestOf(), meta: [{ axis: 'soulCollector', value: 9 }, { axis: 'secondChance', value: 1 }] });
+    expect(p?.meta).toEqual([{ axis: 'soulCollector', value: 3 }, { axis: 'secondChance', value: 1 }]);
+  });
+
+  it("Devil's Bargain trades a quarter of the health for 30% might", () => {
+    const base = withMeta([]).player.stats;
+    const g = withMeta([{ axis: 'bargain', value: 1 }]);
+    expect(g.player.stats.maxHp()).toBeCloseTo(base.maxHp() * 0.75, 3);
+    expect(g.player.stats.might).toBeCloseTo(base.might + 0.3, 5);
+  });
+
+  it('Second Chance saves one fatal blow a night', () => {
+    const g = withMeta([{ axis: 'secondChance', value: 1 }]);
+    g.phase = 'play';
+    const p = g.player;
+    p.hp = 5;
+    p.iframes = 0;
+    expect(g.hurtPlayer(50, p.x + 10, p.y)).toBe(true);
+    expect(p.hp).toBeCloseTo(p.stats.maxHp() * 0.3, 3);
+    expect(p.iframes).toBeGreaterThan(2);
+    expect(g.phase).toBe('play');
+    p.hp = 5;
+    p.iframes = 0;
+    g.hurtPlayer(50, p.x + 10, p.y);
+    expect(g.phase).toBe('ended');
+  });
+
+  it('Soul Collector: elites give souls of might that fade', () => {
+    const g = withMeta([{ axis: 'soulCollector', value: 2 }]);
+    const m0 = g.player.stats.might;
+    for (let i = 0; i < 4; i++) {
+      const e = g.spawnEnemy('evil_clown', 400, 400 + i * 30)!;
+      e.elite = true;
+      g.killEnemy(e);
+    }
+    expect(g.player.souls).toBe(3);
+    g.tick();
+    expect(g.player.stats.might).toBeCloseTo(m0 + 3 * 0.06, 5);
+    g.player.soulT = 0.001;
+    g.tick();
+    g.tick();
+    expect(g.player.souls).toBe(0);
+    expect(g.player.stats.might).toBeCloseTo(m0, 5);
+  });
+
+  it('Prize Hunter raises the elites\' chest odds by the party\'s best level', async () => {
+    const { eliteChestMult } = await import('../src/sim/tierPerks');
+    expect(eliteChestMult(withMeta([]))).toBe(1);
+    expect(eliteChestMult(withMeta([{ axis: 'prizeHunter', value: 2 }]))).toBe(2);
+    const duo = makeGame({ players: [{ character: 'carny' }, { character: 'strongman', meta: [{ axis: 'prizeHunter', value: 1 }] }] });
+    expect(eliteChestMult(duo)).toBe(1.5);
+  });
+
+  it('Opening Act opens a draft for its owner alone at the start of the night', () => {
+    const duo = makeGame({ players: [{ character: 'carny' }, { character: 'strongman', meta: [{ axis: 'openingAct', value: 1 }] }] });
+    let n = 0;
+    while (duo.phase === 'play' && n++ < 200) duo.tick();
+    expect(duo.phase).toBe('draft');
+    expect(duo.draftPending(0)).toBe(false);
+    expect(duo.draftPending(1)).toBe(true);
+    expect(duo.level).toBe(1);
+    duo.chooseDraft(0, 1);
+    expect(duo.phase).toBe('play');
+    for (let i = 0; i < 200; i++) duo.tick();
+    expect(duo.openingActDone).toBe(true);
+  });
+
+  it('Second Wind, Final Act, Unfinished Business, Infernal Resilience and Ember Heart', async () => {
+    const { mealHeal, telegraphedDamage } = await import('../src/sim/tierPerks');
+    const { DAWN_TIME } = await import('../src/data/waves');
+    const w = withMeta([{ axis: 'secondWind', value: 3 }]);
+    expect(mealHeal(w.player, 10)).toBeCloseTo(16, 5);
+    expect(w.player.windT).toBeGreaterThan(0);
+    const f = withMeta([{ axis: 'finalAct', value: 2 }]);
+    const fm = f.player.stats.might;
+    f.time = DAWN_TIME - 200;
+    f.tick();
+    expect(f.player.stats.might).toBeCloseTo(fm + 0.24, 5);
+    const u = withMeta([{ axis: 'unfinished', value: 3 }]);
+    const um = u.player.stats.might, uMult = u.player.stats.maxHpMult;
+    u.bossKills = 2;
+    u.tick();
+    expect(u.player.stats.might).toBeCloseTo(um + 0.1, 5);
+    expect(u.player.stats.maxHp()).toBeCloseTo(u.player.stats.baseHp * (uMult + 0.08), 5);
+    const r = withMeta([{ axis: 'infernal', value: 3 }]);
+    expect(telegraphedDamage(r.player, 20)).toBeCloseTo(15, 5);
+    const e = withMeta([{ axis: 'emberHeart', value: 2 }]);
+    const a0 = e.player.stats.armor;
+    e.player.hp = e.player.stats.maxHp() * 0.2;
+    const hp0 = e.player.hp;
+    for (let i = 0; i < 60; i++) e.tick();
+    expect(e.player.stats.armor).toBe(a0 + 4);
+    expect(e.player.hp).toBeGreaterThan(hp0 + 1.5);
+  });
+});

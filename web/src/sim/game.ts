@@ -13,6 +13,7 @@ import { DAILY_SCALING, TIERS, isTierId, type TierDef, type TierId } from '../da
 import { ENEMIES, ELITE_AFFIXES, type EnemyDef } from '../data/enemies';
 import { GREASE_SLICKS, MAP_HALF, PLAYER_BOUNDS, PLAYER_SPAWN, PROPS, TILT_A_WHIRL, type Prop } from '../data/map';
 import { ACT_GATES, DAWN_TIME } from '../data/waves';
+import { collectSoul, eliteChestMult, mealHeal, openingActDue, telegraphedDamage, tickTierPerks, trySecondChance } from './tierPerks';
 import { computePayout } from '../data/meta';
 import type { BossBase } from './bosses/boss';
 import { Director } from './director';
@@ -260,6 +261,9 @@ export class Game {
   /** the cast standing at their games in the hub */
   hubNpcs: Player[] = [];
   pendingLevels = 0;
+  /** Opening Act (D-97): its night-start draft has been offered; the open draft is it (only its owners draw) */
+  openingActDone = false;
+  private openingOnly = false;
   /** Per-player draft hands while a level-up is open; null once that player has chosen. */
   drafts: (DraftOption[] | null)[] = [];
   /** Player 0's hand (solo API). */
@@ -500,6 +504,7 @@ export class Game {
     if (activeMapId() !== this.mapId) useMap(this.mapId); // another game may have switched maps (tests, the attract demo)
     if (this.hub) return this.tickHub();
     if (this.phase === 'ended' || this.phase === 'draft') return;
+    if (this.phase === 'play' && openingActDue(this)) return this.openOpeningAct();
     let dt = TICK;
     if (this.hitstop > 0) {
       this.hitstop -= TICK;
@@ -670,6 +675,7 @@ export class Game {
 
     if (p.iframes > 0) p.iframes -= dt;
     if (p.hurtFlash > 0) p.hurtFlash -= dt;
+    tickTierPerks(this, p, dt);
     // Regen
     if (p.stats.regen > 0 && p.hp < p.stats.maxHp()) {
       p.regenAcc += p.stats.regen * dt;
@@ -699,8 +705,10 @@ export class Game {
   }
 
   /** Damage the player (contact, bullets, hazards). Returns true if damage landed. */
-  hurtPlayer(amount: number, srcX: number, srcY: number, opts: { slow?: number; slowT?: number; burn?: boolean; ignoreIframes?: boolean } = {}): boolean {
+  hurtPlayer(amount: number, srcX: number, srcY: number, opts: { slow?: number; slowT?: number; burn?: boolean; ignoreIframes?: boolean; tele?: boolean } = {}): boolean {
     const p = this.player;
+    // a telegraphed strike (marked ground, an explosion): Infernal Resilience takes some off (D-97)
+    if (opts.tele) amount = telegraphedDamage(p, amount);
     if (p.dead || p.downed || this.phase !== 'play') return false;
     if (p.iframes > 0 && !opts.ignoreIframes) return false;
     if (p.dashT > 0) return false; // bumper surge i-frames
@@ -767,6 +775,7 @@ export class Game {
 
   private playerDown(): void {
     const p = this.player;
+    if (trySecondChance(this, p)) return;
     if (p.stats.revives > 0) {
       p.stats.revives--;
       p.hp = p.stats.maxHp() * 0.5;
@@ -917,6 +926,7 @@ export class Game {
       return;
     }
     this.kills++;
+    collectSoul(this, this.players[this.credit === -1 ? this.player.index : this.credit], e);
     if (d.behavior === 'ambusher' || d.behavior === 'brute' || d.behavior === 'line_charger' || d.behavior === 'rail_strafer' || TELEGRAPHERS.has(d.behavior) || d.behavior.startsWith('gt_')) this.clearHazardsOf(e.uid);
     if (d.behavior.startsWith('gt_')) gtDeath(this, e);
     this.dropTickets(e.x, e.y, e.tickets);
@@ -926,7 +936,7 @@ export class Game {
       const ch = this.spawnPickup('chest', e.x, e.y, 0);
       ch.rolls = this.rng.int(CHESTS.bruteRolls[0], CHESTS.bruteRolls[1]);
       ch.src = 'brute';
-    } else if (e.elite && this.rng.chance(CHESTS.eliteChance / this.partyScale.density)) {
+    } else if (e.elite && this.rng.chance((CHESTS.eliteChance * eliteChestMult(this)) / this.partyScale.density)) {
       // a party's denser crowd brings more elites; the chest odds shrink to match
       const ch = this.spawnPickup('chest', e.x, e.y, 0);
       ch.rolls = 1;
@@ -1582,7 +1592,7 @@ export class Game {
         if (h.tick <= 0 && h.hitMask & bit) continue;
         if (this.hazardTouches(h, p.x, p.y, p.r * 0.75)) {
           this.setCtx(p);
-          if (this.hurtPlayer(h.dmg, h.x, h.y, h.slow ? { slow: h.slow, slowT: 0.6 } : {})) {
+          if (this.hurtPlayer(h.dmg, h.x, h.y, h.slow ? { slow: h.slow, slowT: 0.6, tele: true } : { tele: true })) {
             h.hitMask |= bit;
             h.hitPlayer = true;
             landed = true;
@@ -1876,7 +1886,7 @@ export class Game {
         break;
       case 'food':
       case 'funnel': {
-        const heal = pk.kind === 'food' ? Math.max(HEALING.foodHealMin, p.stats.maxHp() * HEALING.foodHealFrac) : Math.max(12, p.stats.maxHp() * HEALING.funnelHealFrac);
+        const heal = mealHeal(p, pk.kind === 'food' ? Math.max(HEALING.foodHealMin, p.stats.maxHp() * HEALING.foodHealFrac) : Math.max(12, p.stats.maxHp() * HEALING.funnelHealFrac));
         this.healPlayer(heal);
         this.bus.emit('pickup', { kind: pk.kind, value: heal, player: p.index });
         break;
@@ -1977,8 +1987,9 @@ export class Game {
   openDraft(): void {
     if (this.pendingLevels <= 0) return;
     const ctx = this.player;
+    const only = this.openingOnly;
     this.drafts = this.players.map((pl) => {
-      if (pl.dead) return null;
+      if (pl.dead || (only && pl.stats.openingAct <= 0)) return null;
       this.setCtx(pl);
       const hand = generateDraft(this);
       return hand;
@@ -1990,6 +2001,14 @@ export class Game {
       return;
     }
     this.drafts.forEach((hand, i) => hand && this.bus.emit('draft', { options: hand, player: i, build: buildOf(this.players[i]) }));
+  }
+
+  /** Opening Act (D-97): a draft at the night's start for the players who own it (the others wait, as for any draft). */
+  private openOpeningAct(): void {
+    this.openingActDone = true;
+    this.pendingLevels++;
+    this.openingOnly = true;
+    this.openDraft();
   }
 
   /** Has this player still to choose in the open level-up? */
@@ -2056,6 +2075,7 @@ export class Game {
 
   private closeDraft(): void {
     this.pendingLevels--;
+    this.openingOnly = false;
     this.phase = 'play';
     for (const pl of this.players) pl.iframes = Math.max(pl.iframes, 0.5);
     if (this.pendingLevels > 0) this.openDraft();
@@ -2116,7 +2136,7 @@ export class Game {
         const ex = TW.x + Math.cos(a) * TW.armLen;
         const ey = TW.y + Math.sin(a) * TW.armLen;
         if (segDist2(p.x, p.y, TW.x, TW.y, ex, ey) < (16 + p.r) ** 2) {
-          if (this.hurtPlayer(8 * this.diff.dmgMult, ex, ey)) {
+          if (this.hurtPlayer(8 * this.diff.dmgMult, ex, ey, { tele: true })) {
             p.pullX += Math.cos(a + Math.PI / 2) * 900;
             p.pullY += Math.sin(a + Math.PI / 2) * 900;
           }

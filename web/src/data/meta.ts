@@ -1,6 +1,7 @@
 // Lost & Found perks and unlocks, achievements, payout (doc 01 §8–9, D-21, D-22).
 
 import type { StatAxis } from './weapons';
+import type { TierId } from './tiers';
 
 export interface PerkDef {
   id: string;
@@ -11,6 +12,10 @@ export interface PerkDef {
   base: number;
   growth: number;
   cap: number;
+  /** a tier's shelf (D-97): sold once that tier is open */
+  tier?: TierId;
+  /** owned once and switched on or off in the Lost & Found (Devil's Bargain) */
+  switchable?: boolean;
 }
 
 // D-78: about seven times the old prices across the store (perks ~22,100 LT to max, attractions 8,500,
@@ -29,6 +34,18 @@ export const PERKS: PerkDef[] = [
   { id: 'revive', name: 'Spare Balloon', desc: '+1 Revive per run', axis: 'revive', mag: 1, base: 1500, growth: 2.0, cap: 1 },
   { id: 'reroll', name: 'Re-Spin Token', desc: '+1 draft Reroll per run', axis: 'reroll', mag: 1, base: 250, growth: 1.9, cap: 3 },
   { id: 'banish', name: 'Banish Stamp', desc: '+1 draft Banish per run', axis: 'banish', mag: 1, base: 300, growth: 1.9, cap: 3 },
+  // the Nightmare shelf (D-97, sim/tierPerks.ts): ~41,000 Lost Tickets; mechanics more than numbers
+  { id: 'second_chance', tier: 'nightmare', name: 'Second Chance', desc: 'Once a night, a blow that would down you leaves you on 30% health, untouchable for a moment, the crowd blown back', axis: 'secondChance', mag: 1, base: 5000, growth: 1, cap: 1 },
+  { id: 'soul_collector', tier: 'nightmare', name: 'Soul Collector', desc: 'Each elite or miniboss you kill gives a soul for 30 s: +4/6/8% Might each, up to 3', axis: 'soulCollector', mag: 1, base: 2500, growth: 1.7, cap: 3 },
+  { id: 'prize_hunter', tier: 'nightmare', name: 'Prize Hunter', desc: 'Elites are 50/100% more likely to carry a prize chest (for the whole party)', axis: 'prizeHunter', mag: 1, base: 3000, growth: 1.8, cap: 2 },
+  { id: 'opening_act', tier: 'nightmare', name: 'Opening Act', desc: 'Every night opens with a draft already waiting for you', axis: 'openingAct', mag: 1, base: 3500, growth: 1, cap: 1 },
+  { id: 'second_wind', tier: 'nightmare', name: 'Second Wind', desc: 'Food heals 20/40/60% more and lends +20% Might for 4 s', axis: 'secondWind', mag: 1, base: 2000, growth: 1.6, cap: 3 },
+  // the Hell shelf: ~92,000
+  { id: 'devils_bargain', tier: 'hell', switchable: true, name: "Devil's Bargain", desc: '−25% Max HP, +30% Might. Click it once owned to switch it off or on', axis: 'bargain', mag: 1, base: 8000, growth: 1, cap: 1 },
+  { id: 'final_act', tier: 'hell', name: 'Final Act', desc: "+12/24% Might in the night's last five minutes before dawn", axis: 'finalAct', mag: 1, base: 6000, growth: 1.8, cap: 2 },
+  { id: 'unfinished_business', tier: 'hell', name: 'Unfinished Business', desc: 'Each boss beaten tonight: +3/4/5% Might and +2/3/4% Max HP for the rest of the night', axis: 'unfinished', mag: 1, base: 5000, growth: 1.7, cap: 3 },
+  { id: 'infernal_resilience', tier: 'hell', name: 'Infernal Resilience', desc: '10/17/25% less damage from telegraphed strikes: marked ground, explosions, boss attacks', axis: 'infernal', mag: 1, base: 4500, growth: 1.7, cap: 3 },
+  { id: 'ember_heart', tier: 'hell', name: 'Ember Heart', desc: 'Below 35% health: +1/2 HP a second and +2/4 Armor', axis: 'emberHeart', mag: 1, base: 5000, growth: 1.8, cap: 2 },
 ];
 
 export interface UnlockDef {

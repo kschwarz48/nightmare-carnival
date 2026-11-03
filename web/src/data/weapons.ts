@@ -398,7 +398,13 @@ export const WEAPONS: Record<string, WeaponDef> = {
 
 export type StatAxis =
   | 'might' | 'cooldown' | 'area' | 'duration' | 'projSpeed' | 'amount' | 'critChance' | 'critDamage'
-  | 'armor' | 'luck' | 'greed' | 'xp' | 'regen' | 'maxHp' | 'moveSpeed' | 'pickup' | 'revive';
+  | 'armor' | 'luck' | 'greed' | 'xp' | 'regen' | 'maxHp' | 'moveSpeed' | 'pickup' | 'revive'
+  | TierPerkAxis;
+
+/** The Nightmare and Hell shelves' perks (D-97, sim/tierPerks.ts): a level each, Devil's Bargain on or off. */
+export type TierPerkAxis =
+  | 'secondChance' | 'soulCollector' | 'prizeHunter' | 'openingAct' | 'secondWind'
+  | 'bargain' | 'finalAct' | 'unfinished' | 'infernal' | 'emberHeart';
 
 export interface PassiveDef {
   id: string;

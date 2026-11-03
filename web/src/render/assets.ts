@@ -11,6 +11,7 @@ import * as B from './art/bosses';
 import * as I from './art/items';
 import { PROP_ART, drawProp, tiltArm } from './art/props';
 import { passiveIcon, uiIcon, weaponIcon } from './art/icons';
+import { tierIcon } from './art/tierIcons';
 import { petPortrait } from './art/pets';
 import { CHARACTERS } from '../data/characters';
 import { WEAPONS } from '../data/weapons';
@@ -114,7 +115,8 @@ export class Assets {
     return this.cached(`pet_${id}`, () => paintToDataURL(96, 96, (ctx, w, h) => petPortrait(ctx, w, h, id), 1.5));
   }
   uiIcon(id: string): string {
-    return this.cached(`ui_${id}`, () => paintToDataURL(64, 64, (ctx, w, h) => uiIcon(ctx, w, h, id), 1.5));
+    // the tiers' shelves have their own (D-97)
+    return this.cached(`ui_${id}`, () => paintToDataURL(64, 64, (ctx, w, h) => void (tierIcon(ctx, w, h, id) || uiIcon(ctx, w, h, id)), 1.5));
   }
   enemyImage(id: string): string {
     return this.cached(`en_${id}`, () => {

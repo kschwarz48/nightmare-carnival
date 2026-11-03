@@ -26,6 +26,16 @@ export class PlayerStats {
   moveSpeedMult = 1;
   pickupMult = 1;
   knockbackShove = 0;
+  /** the Nightmare and Hell shelves' levels (D-97, sim/tierPerks.ts) */
+  secondChance = 0;
+  soulCollector = 0;
+  prizeHunter = 0;
+  openingAct = 0;
+  secondWind = 0;
+  finalAct = 0;
+  unfinished = 0;
+  infernal = 0;
+  emberHeart = 0;
 
   maxHp(): number {
     return this.baseHp * this.maxHpMult;
@@ -56,6 +66,17 @@ export class PlayerStats {
       case 'moveSpeed': this.moveSpeedMult += v; break;
       case 'pickup': this.pickupMult += v; break;
       case 'revive': this.revives += Math.round(v); break;
+      case 'secondChance': this.secondChance += Math.round(v); break;
+      case 'soulCollector': this.soulCollector += Math.round(v); break;
+      case 'prizeHunter': this.prizeHunter += Math.round(v); break;
+      case 'openingAct': this.openingAct += Math.round(v); break;
+      case 'secondWind': this.secondWind += Math.round(v); break;
+      case 'finalAct': this.finalAct += Math.round(v); break;
+      case 'unfinished': this.unfinished += Math.round(v); break;
+      case 'infernal': this.infernal += Math.round(v); break;
+      case 'emberHeart': this.emberHeart += Math.round(v); break;
+      // Devil's Bargain: a quarter of your health for 30% might (sim/tierPerks.ts TIER_PERK.bargain)
+      case 'bargain': this.maxHpMult -= 0.25 * v; this.might += 0.3 * v; break;
     }
   }
 

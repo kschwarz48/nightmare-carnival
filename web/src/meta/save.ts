@@ -352,8 +352,17 @@ export class SaveManager {
     const p = PERKS.find((x) => x.id === id);
     return !!p && this.perkLevel(id) >= p.cap;
   }
+  /** Is this perk's shelf open (a tier's shelf opens with its tier, D-97)? */
+  perkShelfOpen(id: string): boolean {
+    const p = PERKS.find((x) => x.id === id);
+    return !!p && (!p.tier || this.tierUnlocked(p.tier));
+  }
+  /** A switchable perk (Devil's Bargain) that is owned: is it on? */
+  perkOn(id: string): boolean {
+    return this.perkLevel(id) > 0 && !(this.data.disabled ?? []).includes(id);
+  }
   buyPerk(id: string): boolean {
-    if (this.perkMaxed(id)) return false;
+    if (this.perkMaxed(id) || !this.perkShelfOpen(id)) return false;
     const c = this.perkCost(id);
     if (this.data.lostTickets < c) return false;
     this.pay(c);
@@ -382,6 +391,7 @@ export class SaveManager {
     const out: { axis: string; value: number }[] = [];
     for (const p of PERKS) {
       const lvl = this.perkLevel(p.id);
+      if (p.switchable && !this.perkOn(p.id)) continue;
       if (lvl > 0 && p.axis !== 'reroll' && p.axis !== 'banish') out.push({ axis: p.axis, value: p.mag * lvl });
     }
     return out;
