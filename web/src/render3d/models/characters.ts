@@ -887,8 +887,172 @@ function ringleader(): SculptModel {
   return { geo, rig };
 }
 
+// ---------------------------------------------------------------- the world tiers' performers (D-97)
+/**
+ * The Night Watchman: the carnival's last night guard on the HERO frame — a navy greatcoat to the knees (its tails on
+ * their own bone) with brass buttons and a belt, a peaked cap with a brass badge, a grey walrus moustache, a ring of
+ * keys at the hip, dark trousers and boots; his lantern held out in the left hand, its glass lit from within.
+ */
+function watchman(): SculptModel {
+  const P = HERO;
+  const bones = humanBones(P, [{ name: 'tails', parent: 'hips', head: [0, P.hip + 2, 0] }]);
+  const b = B(bones);
+  const skin = new Sculpt(0.48, 3, 0.45), hair = new Sculpt(0.6, 3, 0.45), coat = new Sculpt(0.7, 3, 0.45), legs = new Sculpt(0.74, 3, 0.45), boots = new Sculpt(0.6, 3, 0.45);
+  const SKIN = 0xc8a084, COAT = 0x26304a, COAT2 = 0x1a2134, TROU = 0x1c1c24, BOOT = 0x2a1a12, GREY = 0xb4b0a8, BRASS = 0xc8a458;
+  const r = P.headR, hy = P.headY;
+
+  // ---- skin: the head and neck; gloved hands (dark leather)
+  styleHead(skin, P, b('head'), shadowedJaw(SKIN, P, 0.3), { jaw: 1.04, nose: 1.0, brow: 1.05 });
+  skin.add({ t: 'cap', a: [0, P.neck - 3.6, -0.5], b: [0, P.neck + 3, 0.3], ra: r * 0.42, rb: r * 0.37 }, { col: SKIN, bone: b('neck'), k: 1.2, surf: FAM.skin, ink: false });
+  for (const [s, n] of SIDES) styleHand(skin, wristAt(P, s), s, P.arm[2], 0x3a2a20, b(`hand${n}`));
+  styleFace(skin, P, b('head'), { iris: 0x4a5a6a, browTilt: -0.06, smile: 0, size: 0.18, brow: GREY });
+  // the walrus moustache, over the mouth
+  for (const s of [1, -1]) skin.add({ t: 'ell', c: [s * r * 0.3, hy - r * 0.42, r * 0.86], r: [r * 0.36, r * 0.16, r * 0.14], rot: [0, 0, -s * 0.25] }, { col: GREY, bone: b('head'), k: 0.3, surf: FAM.hair });
+
+  // ---- hair: grey at the temples, under the cap; the peaked cap, its band, visor and badge
+  styleHair(hair, P, b('head'), GREY, { volume: 0.92, fringe: [] });
+  hair.detail(cyl(r * 1.02, r * 1.1, r * 0.62, 32).translate(0, hy + r * 0.82, -r * 0.05), { col: COAT2, bone: b('head'), surf: FAM.wool });
+  hair.detail(cyl(r * 1.12, r * 1.12, r * 0.2, 32, true).translate(0, hy + r * 0.6, -r * 0.05), { col: 0x111520, bone: b('head'), surf: FAM.leather });
+  hair.detail(ellipsoid(r * 0.9, r * 0.08, r * 0.55, 20, 6).translate(0, hy + r * 0.55, r * 0.75), { col: 0x0e1018, bone: b('head'), surf: FAM.leather });
+  hair.detail(sphere(r * 0.16, 10, 8).translate(0, hy + r * 0.86, r * 1.02), { col: BRASS, bone: b('head'), surf: FAM.brass, ink: false });
+
+  // ---- the greatcoat: the body a shell over the frame, sleeves to the wrist, the tails to the knee
+  for (const t of torsoShapes(P, 0.6)) coat.add(t.s, { col: COAT, bone: b(t.bone), k: t.k, surf: FAM.wool });
+  for (const [s, n] of SIDES) {
+    const f = armForms(P, s, 0.55);
+    coat.add(f.delt, { col: COAT, bone: b(`arm${n}`), k: 1.2, surf: FAM.wool });
+    coat.add(f.upper, { col: COAT, bone: b(`arm${n}`), k: 1, surf: FAM.wool });
+    coat.add(f.fore, { col: COAT, bone: b(`fore${n}`), k: 0.8, surf: FAM.wool });
+    const wr = wristAt(P, s);
+    coat.add({ t: 'tor', c: [wr[0], wr[1] + 1.6, wr[2]], R: P.arm[2] + 0.75, r: 0.7 }, { col: COAT2, bone: b(`fore${n}`), k: 0.25, surf: FAM.wool });
+  }
+  const hemY = P.knee - 1.5;
+  coat.add({ t: 'cap', a: [0, P.waist + 1, 0.2], b: [0, hemY + 1, 0.4], ra: P.waistW + 0.9, rb: P.hipW + 2.6 }, { col: COAT, bone: b('tails'), k: 1.2, surf: FAM.wool });
+  coat.add({ t: 'box', c: [0, hemY - 10, 0], h: [30, 10, 30], r: 0.1 }, { sub: true, k: 0.2 });
+  // the collar turned up against the night, the belt and its buckle, two rows of brass buttons
+  coat.add({ t: 'tor', c: [0, P.neck - 1.6, 0], R: r * 0.55, r: 1.1 }, { col: COAT2, bone: b('chest'), k: 0.3, surf: FAM.wool });
+  coat.add({ t: 'tor', c: [0, P.waist - 0.5, 0.2], R: P.waistW + 0.75, r: 0.55 }, { col: 0x221610, bone: b('spine'), k: 0.2, surf: FAM.leather });
+  for (let i = 0; i < 4; i++) for (const s of [1, -1]) {
+    const by = P.chest + 4 - i * 4.2, bx = s * 1.9;
+    coat.detail(sphere(0.48, 8, 6), { col: BRASS, bone: b(i < 2 ? 'chest' : 'spine'), pos: [bx, by, frontZ(coat, bx, by) + 0.1], surf: FAM.brass, ink: false });
+  }
+  coat.detail(rbox(1.6, 1.3, 0.3, 0.1, 1), { col: BRASS, bone: b('spine'), pos: [0, P.waist - 0.5, frontZ(coat, 0, P.waist - 0.5) + 0.25], surf: FAM.brass, ink: false });
+  // the ring of keys at the right hip
+  const kx = -(P.hipW + 0.8), ky = P.waist - 2.5;
+  coat.detail(torus(1.2, 0.16, 6, 16), { col: BRASS, bone: b('spine'), pos: [kx, ky, 1.2], rot: [0, Math.PI / 2, 0], surf: FAM.brass, ink: false });
+  for (let i = 0; i < 3; i++) coat.detail(rbox(0.35, 2.2, 0.15, 0.05, 1), { col: 0xb8963e, bone: b('spine'), pos: [kx - 0.2, ky - 1.8, 0.6 + i * 0.6], rot: [0, 0, 0.2 - i * 0.2], surf: FAM.brass, ink: false });
+
+  // ---- trousers and boots
+  legs.add({ t: 'ell', c: [0, P.hip + 1.5, 0], r: [P.hipW + 0.2, 6.2, (P.hipW + 0.2) * P.depth * 1.1] }, { col: TROU, bone: b('hips'), k: 1.5, surf: FAM.cloth, ink: false });
+  for (const [s, n] of SIDES) {
+    const { hp, kn, an } = legAt(P, s);
+    legs.add({ t: 'cap', a: hp, b: kn, ra: P.leg[0] + 0.7, rb: P.leg[1] + 0.6 }, { col: TROU, bone: b(`thigh${n}`), k: 2, surf: FAM.cloth });
+    legs.add({ t: 'cap', a: kn, b: an, ra: P.leg[1] + 0.6, rb: P.leg[2] + 0.8 }, { col: TROU, bone: b(`shin${n}`), k: 1, surf: FAM.cloth });
+    boots.add({ t: 'cap', a: [an[0], an[1] + 4.2, an[2]], b: [an[0], P.ankle, an[2] + 0.2], ra: P.leg[2] + 1.1, rb: P.leg[2] + 1.2 }, { col: BOOT, bone: b(`shin${n}`), k: 0.5, surf: FAM.leather });
+    styleShoe(boots, [an[0], P.ankle, 0], 8.4, BOOT, b(`foot${n}`));
+  }
+
+  // ---- the lantern in the left hand: a brass cage, warm glass, a hood and a bail
+  const lx = P.shoulderX + P.armOut * 1.6, ly = P.wristY - 6.5, lz = 2.2;
+  coat.detail(cyl(1.9, 2.1, 0.5, 14).translate(lx, ly - 2.6, lz), { col: BRASS, bone: b('handL'), surf: FAM.brass });
+  coat.detail(cyl(1.6, 1.6, 4.4, 14).translate(lx, ly, lz), { col: 0xffd890, bone: b('handL'), emit: 1.2, surf: SURF.glass, ink: false });
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    coat.detail(cyl(0.16, 0.16, 4.6, 5).translate(lx + Math.cos(a) * 1.75, ly, lz + Math.sin(a) * 1.75), { col: BRASS, bone: b('handL'), surf: FAM.brass, ink: false });
+  }
+  coat.detail(cone(2.2, 2.0, 14).translate(lx, ly + 3.2, lz), { col: 0x2a2a2a, bone: b('handL'), surf: FAM.iron });
+  coat.detail(torus(1.4, 0.16, 6, 16).translate(lx, ly + 5, lz), { col: BRASS, bone: b('handL'), surf: FAM.brass, ink: false });
+
+  const hold: Pose = { armL: { rx: -0.55, rz: 0.2 }, foreL: { rx: -0.65 } };
+  const rig = new Rig(bones, clips(
+    { ...REAL_WALK, stride: 0.46, bob: 1.1, arm: 0.28 },
+    // idle: the lantern held out, a slow look along his round; the tails stir
+    (t) => mix(hold, { head: { ry: 0.5 * sin(t, 0.5), rx: 0.04 }, armL: { rx: -0.55 + 0.05 * sin(t) }, tails: { rx: 0.03 * sin(t, 2) } }),
+    // cast: the lantern swung up and out, sweeping its beam
+    (t) => {
+      const k = Math.sin(Math.min(1, t * 1.25) * Math.PI);
+      return mix(hold, { armL: { rx: -1.4 * k, rz: 0.5 * k }, foreL: { rx: 0.3 * k }, chest: { ry: 0.35 * k }, head: { ry: 0.25 * k } });
+    },
+    (t) => mix(hold, { tails: { rx: 0.1 * sin(t, 2), rz: 0.05 * sin(t) } }),
+  ));
+  const geo = layered([{ sc: skin, o: LAYER.skin }, { sc: hair, o: LAYER.hair }, { sc: coat, o: LAYER.cloth }, { sc: legs, o: LAYER.cloth }, { sc: boots, o: LAYER.hard }]);
+  return { geo, rig };
+}
+
+/**
+ * The Fire-Eater: a lean sideshow performer on the HERO frame — bare arms and shoulders, a red-and-gold striped
+ * singlet (drawn per pixel), an orange sash knotted at the hip, wide black trousers, soft slippers; slicked black
+ * hair and a curled moustache; a torch held high in the right hand, its flame lit from within.
+ */
+function fireEater(): SculptModel {
+  const P = HERO;
+  const bones = humanBones(P, [{ name: 'sash', parent: 'hips', head: [P.hipW, P.hip + 2, 1] }]);
+  const b = B(bones);
+  const skin = new Sculpt(0.48, 3, 0.45), hair = new Sculpt(0.6, 3, 0.45), top = new Sculpt(0.66, 3, 0.45), legs = new Sculpt(0.74, 3, 0.45), feet = new Sculpt(0.6, 3, 0.45);
+  const SKIN = 0xbe8a62, RED = 0x9a2418, GOLD = 0xe8b04a, BLACK = 0x18141a, SASH = 0xf0802a;
+  const r = P.headR, hy = P.headY;
+
+  // ---- skin: head, neck, bare shoulders and arms, hands
+  styleHead(skin, P, b('head'), shadowedJaw(SKIN, P, 0.32), { jaw: 0.98, nose: 1.0 });
+  skin.add({ t: 'cap', a: [0, P.neck - 3.6, -0.5], b: [0, P.neck + 3, 0.3], ra: r * 0.42, rb: r * 0.37 }, { col: SKIN, bone: b('neck'), k: 1.2, surf: FAM.skin, ink: false });
+  for (const [s, n] of SIDES) {
+    const f = armForms(P, s, 0.1);
+    skin.add(f.delt, { col: SKIN, bone: b(`arm${n}`), k: 1.2, surf: FAM.skin });
+    skin.add(f.upper, { col: SKIN, bone: b(`arm${n}`), k: 1, surf: FAM.skin });
+    skin.add(f.fore, { col: SKIN, bone: b(`fore${n}`), k: 0.8, surf: FAM.skin });
+    styleHand(skin, wristAt(P, s), s, P.arm[2], SKIN, b(`hand${n}`));
+  }
+  styleFace(skin, P, b('head'), { iris: 0x2a1a10, browTilt: -0.12, smirk: 0.6, smile: 0.12, size: 0.19 });
+
+  // ---- hair: slicked back and black, a curled moustache
+  styleHair(hair, P, b('head'), BLACK, { volume: 0.96, back: 1, fringe: [] });
+  for (const s of [1, -1]) {
+    hair.add({ t: 'cap', a: [0, hy - r * 0.38, r * 0.92], b: [s * r * 0.55, hy - r * 0.42, r * 0.8], ra: r * 0.1, rb: r * 0.07 }, { col: BLACK, bone: b('head'), k: 0.25, surf: FAM.hair });
+    hair.add({ t: 'sph', c: [s * r * 0.62, hy - r * 0.3, r * 0.76], r: r * 0.08 }, { col: BLACK, bone: b('head'), k: 0.2, surf: FAM.hair });
+  }
+
+  // ---- the striped singlet (no sleeves), the sash knotted at the hip with its tails
+  const stripes = { kind: 'stripes', col: GOLD, a: 9, b: 0.45, c: 0.2 } as const;
+  for (const t of torsoShapes(P, 0.35)) top.add(t.s, { col: RED, bone: b(t.bone), k: t.k, surf: FAM.cloth, pat: stripes });
+  for (const [s] of SIDES) top.add({ t: 'sph', c: [s * (P.shoulderX + 0.6), P.shoulderY - 1.2, 0.1], r: 3.4 }, { sub: true, k: 0.4 });
+  top.add({ t: 'tor', c: [0, P.waist - 1.2, 0.2], R: P.waistW + 0.9, r: 1.1 }, { col: SASH, bone: b('spine'), k: 0.3, surf: FAM.cloth });
+  top.add({ t: 'cap', a: [P.hipW - 0.4, P.waist - 1.6, 1.6], b: [P.hipW + 1.4, P.hip - 6, 2.4], ra: 0.9, rb: 0.6 }, { col: SASH, bone: b('sash'), k: 0.3, surf: FAM.cloth });
+
+  // ---- wide black trousers gathered at the ankle, soft slippers
+  legs.add({ t: 'ell', c: [0, P.hip + 1.5, 0], r: [P.hipW + 0.6, 6.4, (P.hipW + 0.6) * P.depth * 1.15] }, { col: BLACK, bone: b('hips'), k: 1.5, surf: FAM.cloth });
+  for (const [s, n] of SIDES) {
+    const { hp, kn, an } = legAt(P, s);
+    legs.add({ t: 'cap', a: hp, b: kn, ra: P.leg[0] + 1.3, rb: P.leg[1] + 1.4 }, { col: BLACK, bone: b(`thigh${n}`), k: 2, surf: FAM.cloth });
+    legs.add({ t: 'cap', a: kn, b: an, ra: P.leg[1] + 1.4, rb: P.leg[2] + 0.6 }, { col: BLACK, bone: b(`shin${n}`), k: 1, surf: FAM.cloth });
+    styleShoe(feet, [an[0], P.ankle, 0], 7.4, 0x6a2a18, b(`foot${n}`), { toeUp: 0.08, width: 0.9 });
+  }
+
+  // ---- the torch in the right hand: a wrapped handle and its flame, modelled on past the fist (down the hanging arm,
+  // so the raised arm holds it up)
+  const tx = -(P.shoulderX + P.armOut * 1.6), ty = P.wristY - 2, tz = 1.2;
+  top.detail(cyl(0.45, 0.6, 9, 8).translate(tx, ty - 3.5, tz), { col: 0x5a3a22, bone: b('handR'), surf: FAM.wood });
+  top.detail(cyl(0.75, 0.75, 1.8, 10).translate(tx, ty - 8.2, tz), { col: 0x3a2a1a, bone: b('handR'), surf: FAM.cloth, ink: false });
+  top.detail(cone(1.3, 4.2, 10).rotateX(Math.PI).translate(tx, ty - 11.1, tz), { col: 0xffa63a, bone: b('handR'), emit: 1.6, surf: SURF.glass, ink: false });
+  top.detail(cone(0.7, 2.6, 8).rotateX(Math.PI).translate(tx, ty - 11.6, tz), { col: 0xfff0b0, bone: b('handR'), emit: 2.0, surf: SURF.glass, ink: false });
+
+  const hold: Pose = { armR: { rx: -2.6, rz: -0.25 }, foreR: { rx: -0.1 } };
+  const rig = new Rig(bones, clips(
+    { ...REAL_WALK, stride: 0.55, bob: 1.4, sway: 0.06 },
+    // idle: the torch aloft, a showman's roll of the shoulders, a glance at the flame
+    (t) => mix(hold, { chest: { rz: 0.04 * sin(t) }, head: { ry: -0.3 * pulse(t, 0.6, 0.2), rx: -0.08 * pulse(t, 0.6, 0.2) }, sash: { rz: 0.06 * sin(t, 2) } }),
+    // cast: a lean in, a breath of fire
+    (t) => {
+      const k = Math.sin(Math.min(1, t * 1.3) * Math.PI);
+      return mix(hold, { chest: { rx: 0.35 * k }, head: { rx: 0.25 * k }, armR: { rx: -2.6 + 0.8 * k } });
+    },
+    (t) => mix(hold, { sash: { rx: 0.12 * sin(t, 2), rz: 0.08 * sin(t) } }),
+  ));
+  const geo = layered([{ sc: skin, o: LAYER.skin }, { sc: hair, o: LAYER.hair }, { sc: top, o: LAYER.cloth }, { sc: legs, o: LAYER.cloth }, { sc: feet, o: LAYER.hard }]);
+  return { geo, rig };
+}
+
 const cache = new Map<string, SculptModel>();
-const BUILDERS: Record<string, () => SculptModel> = { carny, strongman, fortune_teller: fortuneTeller, ride_operator: commodore, lost_child: lostChild, ringleader, mira };
+const BUILDERS: Record<string, () => SculptModel> = { carny, strongman, fortune_teller: fortuneTeller, ride_operator: commodore, lost_child: lostChild, ringleader, mira, watchman, fire_eater: fireEater };
 
 export function characterModel(id: string): SculptModel {
   let m = cache.get(id);

@@ -588,7 +588,8 @@ export class SaveManager {
    */
   claimDerived(): typeof ACHIEVEMENTS {
     const out: typeof ACHIEVEMENTS = [];
-    const allChars = CHARACTERS.every((c) => this.characterAvailable(c.id));
+    // (the world tiers' performers aren't part of it, D-97)
+    const allChars = CHARACTERS.filter((c) => !c.tier).every((c) => this.characterAvailable(c.id));
     if (allChars && !this.hasAchievement('all_characters')) out.push(...this.grantAchievements(['all_characters']));
     // evolutions that need something never sold (a hidden quest's reward, D-78: the Hand Mirror for the Hall
     // of Mirrors, Running Shoes for the Last Lap) don't count toward Full House

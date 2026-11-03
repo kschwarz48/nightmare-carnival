@@ -9,6 +9,7 @@ import type { Game } from './game';
 import { lineOf } from './meter';
 import { KB_SCALE, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 import { bracing } from './enemyAI';
+import { lamplight } from './variants';
 
 /** Solo slot counts (VS: six of each); co-op shrinks them per player (`Game.slots`, D-51). */
 export const MAX_WEAPONS = 6;
@@ -879,6 +880,8 @@ export class Weapons {
       const ht = w.orbHits[i];
       this.g.forEachTargetInCircle(p.x, p.y, L, (t) => {
         if (!inSector(t.x, t.y, p.x, p.y, a, 0.2, L, t.r)) return;
+        // the Night Watchman's Lamplight (D-97): what his lantern shows takes more damage and can't phase
+        if (p.char.quirk === 'lamplight' && !t.isBoss) lamplight(t as Enemy);
         if (ht.recent(t.uid, this.g.realTime, 0.3)) return;
         ht.mark(t.uid, this.g.realTime);
         this.hit(w, t, this.damage(w), p.x, p.y, 0.3);

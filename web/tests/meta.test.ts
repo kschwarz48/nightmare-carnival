@@ -127,14 +127,15 @@ describe('save system', () => {
     const perkTotal = total(PERKS.filter((p) => !p.tier));
     const unlockTotal = UNLOCKS.filter((u) => !u.tier).reduce((t, u) => t + u.cost, 0);
     expect(UNLOCKS.filter((u) => u.tier).reduce((t, u) => t + u.cost, 0)).toBe(24500);
-    const castTotal = CHARACTERS.reduce((t, c) => t + (c.unlock?.cost ?? 0), 0);
+    const castTotal = CHARACTERS.filter((c) => !c.tier).reduce((t, c) => t + (c.unlock?.cost ?? 0), 0);
+    expect(CHARACTERS.filter((c) => c.tier).reduce((t, c) => t + (c.unlock?.cost ?? 0), 0)).toBe(16000);
     expect(perkTotal).toBe(22097);
     // the tiers' shelves (D-97)
     expect(total(PERKS.filter((p) => p.tier === 'nightmare'))).toBe(41195);
     expect(total(PERKS.filter((p) => p.tier === 'hell'))).toBe(91905);
     expect(unlockTotal).toBe(8500);
     expect(castTotal).toBe(16100);
-    expect(CHARACTERS.length).toBe(7);
+    expect(CHARACTERS.length).toBe(9); // the seven and the world tiers' two (D-97)
   });
 
   it('refunds everything bought at the old prices, keeps what was earned, and grants what the new rules give (D-78)', () => {

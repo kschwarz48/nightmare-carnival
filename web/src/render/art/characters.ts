@@ -103,8 +103,132 @@ export function drawCharacter(ctx: Ctx, id: string, phase: number, mode: CharMod
     case 'mira': mira(ctx, p); break;
     case 'lost_child': lostChild(ctx, p); break;
     case 'ringleader': ringleader(ctx, p); break;
+    case 'watchman': watchman(ctx, p); break;
+    case 'fire_eater': fireEater(ctx, p); break;
     default: carny(ctx, p);
   }
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- the world tiers' performers (D-97)
+/** The Night Watchman: a long navy greatcoat, brass buttons, a peaked cap, a grey moustache, his lantern held up. */
+function watchman(ctx: Ctx, p: Pose): void {
+  legs(ctx, p, 64, '#1e2230', '#2a1a12');
+  arm(ctx, 34, 44, p.arm * -1, -1, '#2e3a52', '#d8b496');
+  // the greatcoat, to the knee, buttoned up
+  ctx.beginPath();
+  ctx.moveTo(28, 41);
+  ctx.quadraticCurveTo(24, 62, 27, 76);
+  ctx.lineTo(54, 76);
+  ctx.quadraticCurveTo(57, 62, 52, 41);
+  ctx.closePath();
+  fillInk(ctx, shade(ctx, 36, 50, 30, '#46567a', '#1e2638'), 3);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(41, 44);
+  ctx.lineTo(41, 76);
+  ctx.stroke();
+  for (const by of [48, 55, 62, 69]) {
+    circle(ctx, 43.5, by, 1.5);
+    fillInk(ctx, PAL.gold, 1);
+  }
+  // the belt and his ring of keys
+  ctx.fillStyle = '#2a1a12';
+  ctx.fillRect(27, 60, 27, 3);
+  ink(ctx, 1.4);
+  ctx.beginPath();
+  ctx.arc(31, 66, 3, 0, Math.PI * 2);
+  ctx.strokeStyle = PAL.gold;
+  ctx.stroke();
+  head(ctx, 41, 27, 12.5, '#d8b496', p, { mouth: 'grim', nose: '#c8907a' });
+  // a grey walrus moustache
+  ctx.beginPath();
+  ctx.moveTo(35, 32);
+  ctx.quadraticCurveTo(41, 29, 47, 32);
+  ctx.quadraticCurveTo(48, 36, 44, 35);
+  ctx.quadraticCurveTo(41, 33, 38, 35);
+  ctx.quadraticCurveTo(34, 36, 35, 32);
+  fillInk(ctx, '#b8b4ac', 1.4);
+  // the peaked cap with its brass badge
+  roundRect(ctx, 30, 9, 22, 8, 3);
+  fillInk(ctx, '#2a3448', 2.4);
+  ellipse(ctx, 44, 17.5, 11, 2.6);
+  fillInk(ctx, '#141820', 2);
+  circle(ctx, 41, 12.5, 2);
+  fillInk(ctx, PAL.gold, 1.2);
+  // the front arm holds the lantern up, its light warm
+  const g = arm(ctx, 47, 45, p.arm * 0.4 - 0.5, 1, '#2e3a52', '#d8b496');
+  ctx.save();
+  const glow = ctx.createRadialGradient(g.x + 4, g.y + 4, 1, g.x + 4, g.y + 4, 18);
+  glow.addColorStop(0, 'rgba(255,220,140,0.75)');
+  glow.addColorStop(1, 'rgba(255,200,120,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(g.x - 14, g.y - 14, 36, 36);
+  ctx.restore();
+  roundRect(ctx, g.x, g.y - 1, 8, 10, 2);
+  fillInk(ctx, '#ffe6a0', 1.6);
+  ctx.beginPath();
+  ctx.moveTo(g.x - 1, g.y - 1);
+  ctx.lineTo(g.x + 4, g.y - 5);
+  ctx.lineTo(g.x + 9, g.y - 1);
+  ctx.closePath();
+  fillInk(ctx, '#2a2a2a', 1.4);
+}
+
+/** The Fire-Eater: bare arms, a red-and-gold striped singlet, an orange sash, slicked hair, a torch aloft. */
+function fireEater(ctx: Ctx, p: Pose): void {
+  legs(ctx, p, 62, '#1a1416', '#3a1d14');
+  arm(ctx, 34, 44, p.arm * -1, -1, '#c99068', '#c99068');
+  ctx.beginPath();
+  ctx.moveTo(30, 42);
+  ctx.quadraticCurveTo(27, 60, 31, 66);
+  ctx.lineTo(50, 66);
+  ctx.quadraticCurveTo(54, 60, 50, 42);
+  ctx.closePath();
+  stripes(ctx, 24, 40, 34, 28, '#a8241a', '#f0b84a', 5, 0);
+  ink(ctx, 3);
+  ctx.stroke();
+  // the sash, knotted at the hip
+  ctx.fillStyle = '#ff8a2a';
+  ctx.fillRect(29, 61, 23, 4);
+  ink(ctx, 1.4);
+  ctx.strokeRect(29, 61, 23, 4);
+  head(ctx, 41, 27, 12.5, '#c99068', p, { mouth: 'grin', nose: '#a8705a' });
+  // slicked black hair and a curled moustache
+  ctx.beginPath();
+  ctx.moveTo(29, 24);
+  ctx.quadraticCurveTo(34, 12, 46, 13);
+  ctx.quadraticCurveTo(54, 15, 53, 24);
+  ctx.quadraticCurveTo(44, 17, 29, 24);
+  fillInk(ctx, '#1a1214', 1.6);
+  ink(ctx, 1.6);
+  ctx.beginPath();
+  ctx.moveTo(41, 32);
+  ctx.bezierCurveTo(37, 30, 34, 33, 35, 35);
+  ctx.moveTo(41, 32);
+  ctx.bezierCurveTo(45, 30, 48, 33, 47, 35);
+  ctx.strokeStyle = '#1a1214';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // the torch, held high and burning
+  const g = arm(ctx, 47, 45, p.arm * 0.3 - 0.7, 1, '#c99068', '#c99068');
+  ctx.save();
+  ctx.translate(g.x + 2, g.y);
+  ctx.rotate(-0.3);
+  roundRect(ctx, -1.5, -12, 3.2, 14, 1.2);
+  fillInk(ctx, '#6a4426', 1.4);
+  const fl = ctx.createRadialGradient(0, -16, 1, 0, -16, 10);
+  fl.addColorStop(0, '#fff4c0');
+  fl.addColorStop(0.5, '#ffa030');
+  fl.addColorStop(1, 'rgba(255,60,10,0)');
+  ctx.fillStyle = fl;
+  ctx.beginPath();
+  ctx.moveTo(0, -27);
+  ctx.quadraticCurveTo(6, -18, 4, -12);
+  ctx.quadraticCurveTo(0, -9, -4, -12);
+  ctx.quadraticCurveTo(-6, -18, 0, -27);
+  ctx.fill();
   ctx.restore();
 }
 

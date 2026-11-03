@@ -898,6 +898,7 @@ export class Game {
       if (e.affixes.includes('hasted')) e.speed = def.speed * sc.speed * curseSpd * this.diff.speedMult * 1.15;
     }
     initVariant(this, e);
+    e.litT = 0;
     e.inActive = true;
     this.active.push(e);
     if (!this.enemiesSeen.has(def.id)) {
@@ -1009,6 +1010,9 @@ export class Game {
       } else dmg *= sh.cracked;
     }
     if (e.vAb) dmg = variantHit(this, e, dmg);
+    // the tiers' performers (D-97): the Night Watchman's lantern light, the Fire-Eater's own fire
+    if (e.litT > 0) dmg *= 1.15;
+    if (e.burnT > 0 && this.players[e.burnBy]?.char.quirk === 'fireproof') dmg *= 1.2;
     // Brimstone (D-97): the hitter's hits may set it alight
     const hitter = this.players[this.credit === -1 ? this.player.index : this.credit];
     if (hitter && hitter.stats.brimstone > 0 && weapon !== 'brimstone') brimstoneHit(this, hitter, e);
@@ -1098,6 +1102,7 @@ export class Game {
 
   private updateStatuses(e: Enemy, dt: number): void {
     if (!e.alive) return;
+    if (e.litT > 0) e.litT -= dt;
     if (e.vAb) tickVariant(this, e, dt);
     e.spawnT += dt;
     if (e.flash > 0) e.flash = Math.max(0, e.flash - dt * 7);
@@ -1601,6 +1606,8 @@ export class Game {
       let landed = false;
       for (const p of this.players) {
         if (!this.isUp(p)) continue;
+        // the Fire-Eater walks through burning ground (D-97)
+        if (p.char.quirk === 'fireproof' && (h.style === 'fire_trail' || h.style === 'hellfire')) continue;
         const bit = 1 << p.index;
         if (h.tick <= 0 && h.hitMask & bit) continue;
         if (this.hazardTouches(h, p.x, p.y, p.r * 0.75)) {

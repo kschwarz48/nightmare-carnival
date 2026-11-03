@@ -1,8 +1,9 @@
 // The seven-character roster (doc 01 §6, D-13, D-78). Each has a distinct opener, stat identity and quirk.
 
 import type { StatAxis } from './weapons';
+import type { TierId } from './tiers';
 
-export type QuirkId = 'xp_bonus' | 'shove' | 'fortune' | 'spark_trail' | 'balloon_shield' | 'ringleader' | 'mirror_aura';
+export type QuirkId = 'xp_bonus' | 'shove' | 'fortune' | 'spark_trail' | 'balloon_shield' | 'ringleader' | 'mirror_aura' | 'lamplight' | 'fireproof';
 
 export interface CharacterDef {
   id: string;
@@ -21,6 +22,8 @@ export interface CharacterDef {
   unlock: null | { req: string; reqText: string; cost: number };
   palette: { main: string; accent: string; skin: string };
   lore: string;
+  /** a world tier's performer (D-97): sold once its map is won on that tier; not part of the Whole Troupe */
+  tier?: TierId;
 }
 
 export const CHARACTERS: CharacterDef[] = [
@@ -94,6 +97,25 @@ export const CHARACTERS: CharacterDef[] = [
     unlock: { req: 'beat_proprietor', reqText: 'Defeat the Proprietor', cost: 4500 },
     palette: { main: '#7fb8c8', accent: '#cfc0ff', skin: '#ecdcd0' },
     lore: 'Professor Grinwell kept her dancing in the glass from 1931 on, for an audience that never came. She knows every trick a mirror can play, and a few it should not.',
+  },
+  // the world tiers' performers (D-97)
+  {
+    id: 'watchman', name: 'The Night Watchman', title: 'Control · damage over time', tier: 'nightmare',
+    desc: "The carnival's last night guard, who never clocked off: lantern up, keys at his belt, forty years of rounds.",
+    quirkName: 'Lamplight', quirkDesc: "Creatures in his lantern's light take 15% more damage from everything, and phasing spectres are forced solid there.", quirk: 'lamplight',
+    hp: 110, speed: 205, pickup: 75, startWeapon: 'lantern',
+    mods: { duration: 0.1 }, unlock: { req: 'nm_carnival_core', reqText: 'Win the Carnival Core on Nightmare', cost: 6000 },
+    palette: { main: '#2e3a52', accent: '#e8c86a', skin: '#d8b496' },
+    lore: 'He locked the gates the night it woke and has walked his rounds ever since. The dead know his lantern.',
+  },
+  {
+    id: 'fire_eater', name: 'The Fire-Eater', title: 'Area · burning', tier: 'hell',
+    desc: 'A sideshow fire-breather who swallowed a coal from the Infernal Carnival on a dare, and kept it.',
+    quirkName: 'Fireproof', quirkDesc: 'Burning ground never hurts him, and creatures he sets alight take 20% more damage.', quirk: 'fireproof',
+    hp: 100, speed: 215, pickup: 75, startWeapon: 'breath',
+    mods: { area: 0.1 }, unlock: { req: 'hell_carnival_core', reqText: 'Win the Carnival Core on Hell', cost: 10000 },
+    palette: { main: '#8a1e12', accent: '#ffb24a', skin: '#c99068' },
+    lore: 'Salvatore drank paraffin for a living until the night the fire drank back.',
   },
 ];
 

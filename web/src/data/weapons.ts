@@ -243,7 +243,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   }),
   // the world tiers' weapons (D-97): sold at the Lost & Found once the Fun House is won on their tier
   lantern: W({
-    id: 'lantern', name: "Watchman's Lantern", kind: 'lantern', unlock: 'w_lantern',
+    id: 'lantern', name: "Watchman's Lantern", kind: 'lantern', unlock: 'w_lantern', signature: 'watchman',
     desc: 'A beam of lantern light sweeps back and forth before you, burning whatever it touches for as long as it stays in it.',
     levelText: ['', '', '+2 damage', '+12% length', '+2 damage', '+12% length, a second beam', '+3 damage', '+12% length', '+3 damage'],
     damage: 7, cooldown: 0, area: 1, amount: 1, speed: 2.1, pierce: 0, duration: 999, knockback: 0.15,
@@ -261,7 +261,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     lore: 'Forged for something that kept walking out of its grave. It still remembers the way.',
   }),
   breath: W({
-    id: 'breath', name: 'Fire Breath', kind: 'breath', unlock: 'w_breath',
+    id: 'breath', name: 'Fire Breath', kind: 'breath', unlock: 'w_breath', signature: 'fire_eater',
     desc: 'A roaring cone of flame where you face, setting everything in it alight.',
     levelText: ['', '', '+1 damage, +10% reach', '−0.2s cooldown, +0.2s duration', '+1 damage, +10% reach', '−0.2s cooldown, +0.2s duration', '+2 damage, +10% reach', '−0.2s cooldown, +0.3s duration', '+2 damage, +10% reach'],
     damage: 4, cooldown: 2.4, area: 1, amount: 1, speed: 1, pierce: 0, duration: 1.2, knockback: 0.1,

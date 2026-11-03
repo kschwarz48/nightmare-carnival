@@ -108,6 +108,8 @@ export class Enemy implements Target {
   vHits = 0;
   vDecoyT = 0;
   vRaged = false;
+  /** seconds left in the Night Watchman's lantern light (D-97: it takes 15% more damage, and can't phase) */
+  litT = 0;
   noSep = false;
   /** stands on open ground and is blocked by walls from now on (D-74; newcomers walk through until then) */
   walled = false;

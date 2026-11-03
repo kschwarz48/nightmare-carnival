@@ -224,3 +224,13 @@ export function tickBossTier(g: Game, b: { x: number; y: number; awake: boolean;
     g.bus.emit('sfx', { id: 'whoosh', x: b.x, y: b.y, vol: 0.6 });
   }
 }
+
+/** The Night Watchman's Lamplight (D-97): `e` stands in his lantern's light a moment longer, and comes out of phase. */
+export function lamplight(e: Enemy): void {
+  e.litT = 0.35;
+  if (e.vFlags & VF.phased) {
+    e.vFlags &= ~VF.phased;
+    e.vState = 0;
+    e.vT = 3;
+  }
+}
