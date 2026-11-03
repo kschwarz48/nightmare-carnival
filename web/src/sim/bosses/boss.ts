@@ -36,6 +36,8 @@ export abstract class BossBase {
   maxHp: number;
   phase = 0;
   awake = false;
+  /** the world tier's attack clock (D-97, sim/variants.ts tickBossTier): the first comes a while after waking */
+  tierT = 8;
   introDone = false;
   dead = false;
   removed = false;

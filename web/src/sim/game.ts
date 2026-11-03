@@ -13,7 +13,7 @@ import { DAILY_SCALING, TIERS, isTierId, type TierDef, type TierId } from '../da
 import { ENEMIES, ELITE_AFFIXES, type EnemyDef } from '../data/enemies';
 import { GREASE_SLICKS, MAP_HALF, PLAYER_BOUNDS, PLAYER_SPAWN, PROPS, TILT_A_WHIRL, type Prop } from '../data/map';
 import { ACT_GATES, DAWN_TIME } from '../data/waves';
-import { initVariant, phased, tickVariant, variantDeath, variantHit } from './variants';
+import { initVariant, phased, tickBossTier, tickVariant, variantDeath, variantHit } from './variants';
 import { collectSoul, eliteChestMult, mealHeal, openingActDue, telegraphedDamage, tickTierPerks, trySecondChance } from './tierPerks';
 import { computePayout } from '../data/meta';
 import type { BossBase } from './bosses/boss';
@@ -584,6 +584,7 @@ export class Game {
       if (this.mapId === 'ghost_train' && !b.dead && !anyoneIn(this, gtRegionAt(b.x, b.y))) continue;
       if (multi) this.setCtx(this.bossTargetFor(b));
       b.update(dt);
+      tickBossTier(this, b, dt);
     }
     this.setCtx(p0);
     if (this.bosses.length) this.bosses = this.bosses.filter((b) => !b.removed);

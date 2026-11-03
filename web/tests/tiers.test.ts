@@ -562,3 +562,26 @@ describe('creature variants', () => {
     expect(m?.vFlags).toBe(5);
   });
 });
+
+describe("the bosses' tier attacks", () => {
+  it('telegraph a choir on Nightmare and a firestorm on Hell, harder for the final boss, none on Normal', async () => {
+    const { tickBossTier } = await import('../src/sim/variants');
+    const count = (t: 'normal' | 'nightmare' | 'hell', final: boolean) => {
+      const g = makeGame({ tier: t, godMode: true });
+      const b = { x: g.player.x + 300, y: g.player.y, awake: true, dead: false, tierT: 0, def: { id: final ? g.map.finalBoss : 'carnival_tent' } };
+      tickBossTier(g, b, 1 / 60);
+      const hz = g.hazards.filter((h) => h.alive);
+      for (const h of hz) expect(h.tele).toBeGreaterThan(0.4);
+      return { n: hz.length, styles: new Set(hz.map((h) => h.style)), next: b.tierT };
+    };
+    expect(count('normal', true).n).toBe(0);
+    const nm = count('nightmare', false), nmF = count('nightmare', true);
+    expect(nm.styles).toEqual(new Set(['wail_ring', 'haunt_burst']));
+    expect(nmF.n).toBeGreaterThan(nm.n);
+    const h = count('hell', false), hF = count('hell', true);
+    expect(h.styles.has('fireball')).toBe(true);
+    expect(hF.styles.has('quake_ring')).toBe(true);
+    expect(hF.n).toBeGreaterThan(h.n);
+    expect(hF.next).toBeLessThan(9);
+  });
+});

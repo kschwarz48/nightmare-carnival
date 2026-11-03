@@ -178,3 +178,49 @@ export function variantDeath(g: Game, e: Enemy): void {
   if (e.vAb & B.haunt && hazardRoom(g)) g.spawnHazard('circle', 'haunt_burst', e.x, e.y, { r: N.haunt.r, tele: N.haunt.tele, active: 0.15, dmg: N.haunt.dmg * g.diff.dmgMult, owner: -1 });
   if (e.vAb & B.blast && hazardRoom(g)) g.spawnHazard('circle', 'blast', e.x, e.y, { r: N.blast.r, tele: N.blast.tele, active: 0.15, dmg: N.blast.dmg * g.diff.dmgMult, owner: -1 });
 }
+
+// ------------------------------------------------------------------ the bosses' tier attacks
+/**
+ * The bosses on Nightmare and Hell (D-97, docs/WORLD_TIER_DESIGN.md §8): over their own patterns, a tier attack on
+ * its own clock, telegraphed like everything else: Nightmare's spectral choir (a wail ring from the boss and
+ * haunting bursts where the players stand), Hell's firestorm (fireballs at and around the players, a tremor ring).
+ * The maps' final bosses use it more often and harder; Hell escalates both.
+ */
+export const BOSS_TIER = {
+  nightmare: { every: [11, 14] as [number, number], finalEvery: [8, 10] as [number, number], bursts: 1, finalBursts: 2 },
+  hell: { every: [9, 12] as [number, number], finalEvery: [6, 8] as [number, number], balls: 2, finalBalls: 4 },
+};
+
+export function tickBossTier(g: Game, b: { x: number; y: number; awake: boolean; dead: boolean; tierT: number; def: { id: string } }, dt: number): void {
+  if (g.tier === 'normal' || !b.awake || b.dead) return;
+  b.tierT -= dt;
+  if (b.tierT > 0) return;
+  const final = b.def.id === g.map.finalBoss;
+  if (g.tier === 'nightmare') {
+    const T = BOSS_TIER.nightmare;
+    b.tierT = range(g, final ? T.finalEvery : T.every);
+    if (!hazardRoom(g)) return;
+    g.spawnHazard('ring', 'wail_ring', b.x, b.y, { r: 40, r2: 10, grow: 320, tele: 0.5, active: 700 / 320, dmg: 5 * g.diff.dmgMult, slow: N.wail.slow, owner: -1 });
+    for (const p of g.players) {
+      if (p.dead || p.downed) continue;
+      for (let k = 0; k < (final ? T.finalBursts : T.bursts); k++) {
+        const a = g.rng.angle(), d = k === 0 ? 0 : g.rng.range(80, 160);
+        g.spawnHazard('circle', 'haunt_burst', p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, { r: N.haunt.r + 12, tele: 1.2, active: 0.15, dmg: N.haunt.dmg * 1.5 * g.diff.dmgMult, owner: -1 });
+      }
+    }
+    g.bus.emit('sfx', { id: 'toll', x: b.x, y: b.y, vol: 0.6 });
+  } else {
+    const T = BOSS_TIER.hell;
+    b.tierT = range(g, final ? T.finalEvery : T.every);
+    if (!hazardRoom(g)) return;
+    for (const p of g.players) {
+      if (p.dead || p.downed) continue;
+      for (let k = 0; k < (final ? T.finalBalls : T.balls); k++) {
+        const a = g.rng.angle(), d = k === 0 ? 0 : g.rng.range(90, 200);
+        g.spawnHazard('circle', 'fireball', p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, { r: N.ember.r + 8, tele: 1.1 + k * 0.15, active: 0.15, dmg: N.ember.dmg * 1.4 * g.diff.dmgMult, owner: -1 });
+      }
+    }
+    if (final) g.spawnHazard('ring', 'quake_ring', b.x, b.y, { r: 50, r2: 8, grow: 280, tele: 0.7, active: 900 / 280, dmg: N.quake.dmg * 1.3 * g.diff.dmgMult, owner: -1 });
+    g.bus.emit('sfx', { id: 'whoosh', x: b.x, y: b.y, vol: 0.6 });
+  }
+}
