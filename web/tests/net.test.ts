@@ -405,7 +405,8 @@ describe('protocol validation', () => {
     const p = cleanProfile({ name: '  <b>Mal</b>lory\u0007 the Very Long Named  ', meta: [{ axis: 'might', value: 50 }, { axis: 'might', value: 1 }, { axis: 'hax', value: 3 }, { axis: 'reroll', value: 9 }], rerolls: 50, banishes: -2, canSkip: 'sure', aimMode: 'cheat', chars: ['carny', 'nope'] })!;
     expect(p.name.length).toBeLessThanOrEqual(16);
     expect(p.name).not.toMatch(/[<>]/);
-    expect(p.meta).toEqual([{ axis: 'might', value: 0.25 }]);
+    // (D-103: every perk on Might at its cap: Normal's 25%, and the Nightmare and Hell shelves' 20% each)
+    expect(p.meta).toEqual([{ axis: 'might', value: 0.65 }]);
     expect(p.rerolls).toBe(3);
     expect(p.banishes).toBe(0);
     expect(p.canSkip).toBe(false);

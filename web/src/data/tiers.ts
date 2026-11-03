@@ -44,15 +44,15 @@ export const TIERS: Record<TierId, TierDef> = {
   },
   nightmare: {
     id: 'nightmare', index: 1, name: 'Nightmare', title: 'The Haunted Carnival', color: '#8fd3ff',
-    desc: 'The carnival has crossed over. Spectral creatures phase, blink and wail; the Lost & Found has new stock. +50% Lost Tickets.',
+    desc: 'The carnival has crossed over. Spectral creatures phase, blink and wail; the Lost & Found has new stock. +75% Lost Tickets.',
     unlockText: 'Finish the Ghost Train on Normal',
-    hpMult: 1.45, dmgMult: 1.2, cap: 230, spawnMult: 0.92, speedMult: 1.04, greed: 0.5, minibossInterval: 125, eliteAffixes: 1, eliteChanceMult: 1.3, xpMult: 1.12,
+    hpMult: 1.45, dmgMult: 1.2, cap: 230, spawnMult: 0.92, speedMult: 1.04, greed: 0.75, minibossInterval: 125, eliteAffixes: 1, eliteChanceMult: 1.3, xpMult: 1.12,
   },
   hell: {
     id: 'hell', index: 2, name: 'Hell', title: 'The Infernal Carnival', color: '#ff6a3a',
-    desc: 'The carnival burns. Infernal creatures explode, ignite the ground and harden; the final shelf of the Lost & Found opens. +100% Lost Tickets.',
+    desc: 'The carnival burns. Infernal creatures explode, ignite the ground and harden; the final shelf of the Lost & Found opens. +150% Lost Tickets.',
     unlockText: 'Finish the Ghost Train on Nightmare',
-    hpMult: 2.2, dmgMult: 1.5, cap: 280, spawnMult: 0.85, speedMult: 1.08, greed: 1, minibossInterval: 110, eliteAffixes: 2, eliteChanceMult: 1.6, xpMult: 1.25,
+    hpMult: 2.2, dmgMult: 1.5, cap: 280, spawnMult: 0.85, speedMult: 1.08, greed: 1.5, minibossInterval: 110, eliteAffixes: 2, eliteChanceMult: 1.6, xpMult: 1.25,
   },
 };
 

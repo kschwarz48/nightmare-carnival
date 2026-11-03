@@ -163,6 +163,15 @@ function kernel(): THREE.BufferGeometry {
   return m.build({ ao: 0 });
 }
 
+/** The Snow-Cone Machine's cone (D-103): a striped paper cone with a heaped scoop of blue shaved ice. */
+function snowcone(): THREE.BufferGeometry {
+  const m = new ModelBuilder();
+  m.add(cone(4.2, 10, 8), { col: PAL.cream, pos: [0, -3, 0], rot: [Math.PI, 0, 0], surf: SURF.cloth });
+  m.add(sphere(5.2, 8, 6), { col: 0x8cd2ff, pos: [0, 3.2, 0], surf: SURF.cloth, emit: 0.45 });
+  m.add(sphere(2.4, 6, 4), { col: 0xf2f9ff, pos: [1.6, 6.4, 0.8], surf: SURF.cloth, emit: 0.5 });
+  return m.build({ ao: 0 });
+}
+
 function shrapnel(): THREE.BufferGeometry {
   const m = new ModelBuilder();
   m.add(extrude([[-3, -2], [4, -1], [2, 3], [-2, 2]], 1.4, 0, 1), { col: PAL.amber, emit: 1.2, surf: SURF.iron });
@@ -487,6 +496,7 @@ export const ITEM_MODELS: Record<string, ModelDef> = {
   rocket: { build: rocket, rim: NO_RIM },
   shell: { build: rocket, rim: NO_RIM },
   kernel: { build: kernel, rim: NO_RIM },
+  snowcone: { build: snowcone, rim: NO_RIM },
   cannonball: { build: cannonball, rim: NO_RIM },
   // the Undertow (D-78): its coupled cars, the Last Lap's runaway cars, and the lead car its rider stands in
   derby_car: { build: () => coasterCar(false, true), rim: [0.5, 1, 0.85, 0.6] },

@@ -191,8 +191,10 @@ export function cleanChat(v: unknown): string | null {
   return s || null;
 }
 
-/** The largest value each meta axis can legitimately reach (every perk bought to its cap). */
-const META_MAX: Record<string, number> = Object.fromEntries(PERKS.map((p) => [p.axis, p.mag * p.cap]));
+/** The largest value each meta axis can legitimately reach: every perk on it bought to its cap (D-103: the tier shelves'
+ *  ranks of Might, cooldowns, Max HP, Area and Armor share their axes with Normal's). */
+const META_MAX: Record<string, number> = {};
+for (const p of PERKS) META_MAX[p.axis] = (META_MAX[p.axis] ?? 0) + p.mag * p.cap;
 /** Unlock ids that add a weapon or a charm to the draft pool: the only ones a player's own set may carry. */
 const POOL_UNLOCKS = new Set([...Object.values(WEAPONS), ...Object.values(PASSIVES)].map((d) => d.unlock).filter((u): u is string => !!u));
 const cleanUnlocks = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.filter((u): u is string => isStr(u, 40) && POOL_UNLOCKS.has(u)))].slice(0, 64) : []);

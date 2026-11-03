@@ -18,7 +18,8 @@ import { Replica } from '../src/net/replica';
 describe("the attacks' opacity reaches 0 (D-83)", () => {
   it("tags a player's attacks in the sim, and nothing else", () => {
     const g = makeGame({ godMode: true, seed: 31 });
-    for (const id of ['mallet', 'bell', 'cannon', 'fireworks']) g.weapons.add(id);
+    // (D-103: the Mallet whacks and the Bell splits the ground now; the Cotton-Candy Gun still sweeps a cone)
+    for (const id of ['mallet', 'bell', 'cannon', 'fireworks', 'cotton']) g.weapons.add(id);
     g.time = 150;
     const seen: FxEvent[] = [];
     for (let i = 0; i < 40 * 60; i++) {
@@ -28,7 +29,7 @@ describe("the attacks' opacity reaches 0 (D-83)", () => {
       seen.push(...g.fx.drain());
     }
     const own = new Set(seen.filter((e) => e.own).map((e) => e.type));
-    for (const t of ['slash', 'ring', 'explosion'] as const) expect(own.has(t), t).toBe(true);
+    for (const t of ['slash', 'ring', 'explosion', 'crack'] as const) expect(own.has(t), t).toBe(true);
     expect(seen.filter((e) => e.type === 'slash').every((e) => e.own)).toBe(true);
     for (const t of ['death', 'dmgnum', 'shake'] as const) {
       expect(seen.some((e) => e.type === t), t).toBe(true);

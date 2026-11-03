@@ -127,6 +127,9 @@ export class Enemy implements Target {
   chill = 0;
   chillT = 0;
   frozenT = 0;
+  /** dazed by a whack (D-103): it stands still until this runs out, and can't be dazed again until a moment after */
+  dazeT = 0;
+  dazeUntil = -99;
   burnT = 0;
   burnDps = 0;
   burnAcc = 0;
@@ -174,7 +177,7 @@ export function stick(e: Enemy, t: number, dps: number, src: string, by: number)
 
 export type ProjKind =
   | 'card' | 'gold_card' | 'tarot' | 'death_card' | 'dart' | 'shrapnel' | 'ring' | 'rocket' | 'shell' | 'kernel'
-  | 'cannonball' | 'derby_car' | 'bumper_ghost' | 'mirror_shot' | 'note';
+  | 'cannonball' | 'derby_car' | 'bumper_ghost' | 'mirror_shot' | 'note' | 'snowcone';
 
 export class PlayerProjectile {
   alive = false;
@@ -333,7 +336,7 @@ export class Pickup {
   vy = 0;
 }
 
-export type ZoneKind = 'web' | 'burn' | 'spark' | 'sticky_patch' | 'grease' | 'ice';
+export type ZoneKind = 'web' | 'burn' | 'spark' | 'sticky_patch' | 'grease' | 'ice' | 'slush' | 'storm';
 
 /** Persistent player-side damage areas (webs, burning ground, spark trail). */
 export class Zone {
@@ -353,6 +356,9 @@ export class Zone {
   harmful = false; // true → hurts the player (enemy sticky patches)
   /** the player whose weapon laid it (its damage is theirs; D-71) */
   owner = 0;
+  /** the weapon whose damage it is (D-103; empty: by its kind), and the chills each tick gives */
+  src = '';
+  chill = 0;
 }
 
 export type SummonKind = 'plush' | 'rabbit' | 'dove' | 'lion' | 'elephant' | 'acrobat' | 'clone' | 'derby_ghost';

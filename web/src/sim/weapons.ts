@@ -2,10 +2,10 @@
 // boomerangs, orbits, summons, melee arcs, cones, beams, lobbed explosions, dashes and clones.
 // Weapon numbers come from src/data/weapons.ts; behaviour lives here, dispatched by `kind`.
 
-import { clamp, dist2, inSector, TAU } from '../core/math';
+import { clamp, dist2, inSector, segDist2, TAU } from '../core/math';
 import { WEAPONS, weaponLevelSum, type WeaponDef } from '../data/weapons';
 import { NEW_WEAPON_DMG, QUALITIES, QUALITY, type Quality } from '../data/quality';
-import { HitTracker, ignite, stick, type Enemy, type PlayerProjectile, type Summon, type Target } from './entities';
+import { HitTracker, ignite, stick, type Enemy, type PlayerProjectile, type Summon, type Target, type Zone } from './entities';
 import type { Game } from './game';
 import { lineOf } from './meter';
 import { KB_SCALE, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
@@ -29,12 +29,60 @@ const DEATH_CRIT = 0.8;
 const UNBURNT = 1.6;
 const UNCHILLED = 2;
 /** ...and the Blizzard's storm, which never stops, three times as hard */
-const STORM_BITE = 3;
+const STORM_BITE = 1.8;
+// D-103: the weapons' new shapes
+/** the Whack-a-Mole Mallet: how far it reaches for creatures, each whack's splash, and the daze (and the rest after it,
+ *  so a stream of whacks can't pin a creature down) */
+const WHACK_REACH = 230;
+const WHACK_R = 64;
+const DAZE_T = 0.45;
+const DAZE_REST = 1.1;
+/** the Snow-Cone Machine: how far it lobs, the cone's flight, the slush's size, its bite (of the splash's damage) every
+ *  tick, and how long what it freezes stays frozen */
+const SLUSH_REACH = 430;
+const SLUSH_FLIGHT = 0.42;
+const SLUSH_R = 64;
+const SLUSH_BITE = 0.3;
+const SLUSH_TICK = 0.4;
+const FREEZE_T = 1.2;
+/** the Blizzard Machine's storms: size, most at once, speed, how far from you they roam and hunt, how long one lasts
+ *  once its weapon is gone */
+const STORM_R = 100;
+const STORM_MAX = 6;
+const STORM_SPEED = 175;
+const STORM_LEASH = 520;
+const STORM_REACH = 480;
+const STORM_HOLD = 1;
+/** the Hot-Dog Grill: a patch of grease every this many of its radii walked, and how often each burns */
+const GREASE_STEP = 1.1;
+const GREASE_TICK = 0.5;
+/** the Strongman Bell's fissures: length, half-width, and the bursts each opens in */
+const FISSURE_L = 330;
+const FISSURE_W = 30;
+const FISSURE_SEG = 4;
+/** the Crystal Orbs: how far the orbit swells out, the grind (per hit, most steps, and how soon the next must land) */
+const ORB_SWELL = 0.8;
+const GRIND_STEP = 0.25;
+const GRIND_MAX = 4;
+const GRIND_WINDOW = 1.2;
+/** Spirit Chains: each link deals this share of the last (it was 0.85) */
+const CHAIN_FALLOFF = 0.92;
+/** the Night Express Whistle's rings on a boss (which they can't shove) */
+const WHISTLE_SCALD = 2.5;
+/** Cosmic Convergence's gravity pulse reaches this far past the ring */
+const COSMIC_PULL = 420;
 /**
  * Mira's Glass Halo (D-78): an aura round each of her mirror clones (px, times her Area) that cuts every
  * enemy inside it once a second, for `dmg` + `perLevel` per mirror level past the first (times Might;
  * the Hall of Mirrors' clones `evo` times that). It is her only damage until she drafts a weapon.
  */
+/** Leave `e` dazed for `t` seconds (D-103: the Mallet) unless it was dazed just now; what can't be shoved isn't dazed. */
+function daze(g: Game, e: Enemy, t: number): void {
+  if (!e.alive || e.def.knockbackTaken <= 0 || g.realTime < e.dazeUntil + DAZE_REST) return;
+  e.dazeT = t * (e.elite ? 0.5 : 1);
+  e.dazeUntil = g.realTime + e.dazeT;
+}
+
 export const MIRA_HALO = { r: 85, dmg: 12, perLevel: 2, evo: 1.25, every: 1 };
 export const miraHaloRadius = (p: { stats: { area: number } }): number => MIRA_HALO.r * p.stats.area;
 
@@ -83,6 +131,14 @@ export class WeaponInst {
   orbHits: HitTracker[] = [];
   dashHits = new HitTracker();
   tickAcc = 0;
+  /** (D-103) the Blizzard's storms, the Grill's last patch of grease, the Orbs' grinding on each creature */
+  storms: { z: Zone; gen: number; tx: number; ty: number; retarget: number }[] = [];
+  lx = NaN;
+  ly = NaN;
+  sx = NaN;
+  sy = NaN;
+  cloneTrail = new Map<Summon, { x: number; y: number }>();
+  grind = new Map<number, { n: number; at: number }>();
   constructor(def: WeaponDef) {
     this.def = def;
   }
@@ -370,44 +426,51 @@ export class Weapons {
   }
 
   // ---- Whack-a-Mole Mallet / Whack Frenzy: melee arcs around the player
+  // ---- Whack-a-Mole Mallet (D-103): the mallet comes down on the nearest creatures in turn, one after another, each
+  //      whack crushing what's under it and leaving it dazed a moment (it was a sweep in an arc, much like the Snow-Cone
+  //      Machine's and the Grill's cones). Whack Frenzy: whacks without end on whatever is near, and every fourth round
+  //      a ground-pound that dazes the crowd all about you.
   private mallet(w: WeaponInst, dt: number): void {
     if (!this.ready(w, dt)) return;
-    const R = 68 * this.area(w);
-    if (w.def.id === 'whack_frenzy') {
-      w.n++;
-      const pound = w.n % 4 === 0;
-      this.cast(w, (ox, oy, mult) => {
-        this.g.forEachTargetInCircle(ox, oy, R, (t) => this.hit(w, t, this.damage(w) * mult, ox, oy));
-        this.g.fx.own('slash', ox, oy, w.n * 1.7, Math.PI, R, 'frenzy');
-        if (pound) {
-          this.g.forEachTargetInCircle(ox, oy, R * 1.5, (t) => this.hit(w, t, this.damage(w) * 1.5 * mult, ox, oy, 1.5));
-          this.g.fx.own('ring', ox, oy, R * 1.5, 0, 0, 'pound');
-          this.g.fx.push('shake', ox, oy, 0.3);
-        }
-      });
-      this.sfx(pound ? 'stomp' : 'whack', pound ? 0.6 : 0.3, 1.1);
-      return;
-    }
+    const frenzy = w.def.id === 'whack_frenzy';
     const n = this.amount(w);
+    const reach = WHACK_REACH * (frenzy ? 1.3 : 1) * Math.sqrt(this.area(w));
+    const R = WHACK_R * this.area(w);
+    if (frenzy) w.n++;
+    const pound = frenzy && w.n % 4 === 0;
     this.cast(w, (ox, oy, mult) => {
-      const aim = this.aimDir(w, ox, oy, 'nearest', 260);
-      const a = Math.atan2(aim.y, aim.x);
-      const swing = (ang: number) => {
-        this.g.forEachTargetInCircle(ox, oy, R, (t) => {
-          if (inSector(t.x, t.y, ox, oy, ang, 1.15, R, t.r)) this.hit(w, t, this.damage(w) * mult, ox, oy);
-        });
-        this.g.fx.own('slash', ox, oy, ang, 1.15, R, 'mallet');
-      };
-      swing(a);
-      if (n >= 2) this.schedule(0.14, () => swing(a + Math.PI));
-      if (n >= 3) this.schedule(0.3, () => {
-        const p = this.g.player;
-        const cx = mult === 1 ? p.x : ox, cy = mult === 1 ? p.y : oy;
-        this.g.forEachTargetInCircle(cx, cy, R * 0.9, (t) => this.hit(w, t, this.damage(w) * 0.8 * mult, cx, cy, 1.4));
-        this.g.fx.own('ring', cx, cy, R * 0.9, 0, 0, 'pound');
+      this.nearest(ox, oy, reach, n).forEach((t, i) => this.schedule(i * (frenzy ? 0.05 : 0.1), () => this.whack(w, t, R, mult)));
+      if (!pound) return;
+      const RR = R * 2.8;
+      this.g.forEachTargetInCircle(ox, oy, RR, (t) => {
+        this.hit(w, t, this.damage(w) * 1.5 * mult, ox, oy, 1.5);
+        if (!t.isBoss) daze(this.g, t as Enemy, DAZE_T * 1.5);
       });
+      this.g.fx.own('ring', ox, oy, RR, 0, 0, 'pound');
+      this.g.fx.push('shake', ox, oy, 0.3);
     });
-    this.sfx('whack', 0.45);
+    this.sfx(pound ? 'stomp' : 'whack', pound ? 0.6 : 0.42, frenzy ? 1.1 : 1);
+  }
+
+  /** One whack where `t` stands: what's under the mallet is crushed, and dazed a moment. */
+  private whack(w: WeaponInst, t: Target, R: number, mult: number): void {
+    const x = t.x, y = t.y;
+    this.g.forEachTargetInCircle(x, y, R, (tt) => {
+      this.hit(w, tt, this.damage(w) * mult, x, y, 0.6);
+      if (!tt.isBoss) daze(this.g, tt as Enemy, DAZE_T);
+    });
+    this.g.fx.own('ring', x, y, R, 0, 0, 'whack');
+    this.g.fx.own('spark', x, y, 6, 0, 0, 'dust');
+  }
+
+  /** Up to `n` targets within `r` of (x, y), the nearest first. */
+  private nearest(x: number, y: number, r: number, n: number): Target[] {
+    const found: { t: Target; d: number }[] = [];
+    this.g.forEachTargetInCircle(x, y, r, (t) => {
+      found.push({ t, d: dist2(t.x, t.y, x, y) });
+    });
+    found.sort((a, b) => a.d - b.d);
+    return found.slice(0, n).map((f) => f.t);
   }
 
   // ---- Tarot Toss / The Death Card: homing cards
@@ -608,7 +671,7 @@ export class Weapons {
     p.dmg = this.damage(w) * mult * (mult < 1 ? this.cloneBoost() : 1);
     p.area = this.area(w);
     p.kb = w.def.knockback;
-    p.arc = kind === 'shell' ? 160 : kind === 'rocket' ? 90 : 60;
+    p.arc = kind === 'shell' ? 160 : kind === 'rocket' ? 90 : kind === 'snowcone' ? 75 : 60;
     p.pierce = 0;
     p.r = 0; // no in-flight collision
     return p;
@@ -768,88 +831,193 @@ export class Weapons {
   }
 
   // ---- Snow-Cone Machine / Blizzard Machine
+  // ---- Snow-Cone Machine (D-103): snow cones lobbed into the crowd splat into slush that chills what wades through it
+  //      (five chills freeze it solid); it was a frost cone, much like the Grill's and the Mallet's sweeps. Blizzard
+  //      Machine: snowstorms roam the field after the crowd, raining ice on all they cover.
   private snowcone(w: WeaponInst, dt: number): void {
+    if (w.def.id === 'blizzard') return this.blizzard(w, dt);
     if (!this.ready(w, dt)) return;
-    if (w.def.id === 'blizzard') {
-      const p = this.g.player;
-      const R = 170 * this.area(w);
-      this.g.forEachTargetInCircle(p.x, p.y, R, (t) => {
-        this.hit(w, t, this.damage(w) * (t.isBoss ? STORM_BITE : 1), p.x, p.y);
-        if (!t.isBoss) this.g.applyChill(t as Enemy, 2, this.duration(w));
-      });
-      this.g.fx.own('ring', p.x, p.y, R, 0, 0, 'blizzard');
-      this.sfx('frost', 0.3);
-      return;
-    }
-    const R = 160 * this.area(w);
     const n = this.amount(w);
     this.cast(w, (ox, oy, mult) => {
-      const aim = this.aimDir(w, ox, oy, 'nearest', R * 1.4);
-      const a0 = Math.atan2(aim.y, aim.x);
-      const cones = n >= 3 ? [0, -0.75, 0.75] : [0];
-      for (const off of cones) {
-        const a = a0 + off;
-        this.g.forEachTargetInCircle(ox, oy, R, (t) => {
-          if (!inSector(t.x, t.y, ox, oy, a, 0.5, R, t.r)) return;
-          this.hit(w, t, this.damage(w) * mult * (t.isBoss ? UNCHILLED : 1), ox, oy);
-          if (!t.isBoss) this.g.applyChill(t as Enemy, 1, this.duration(w));
-        });
-        this.g.fx.own('slash', ox, oy, a, 0.5, R, 'frost');
+      const picked = this.nearest(ox, oy, SLUSH_REACH, n);
+      for (let i = 0; i < n; i++) {
+        const t = picked[i] ?? (picked.length ? this.g.randomTarget(ox, oy, SLUSH_REACH) : null);
+        let tx: number, ty: number;
+        if (t) {
+          // where it will be when the cone lands
+          const lead = t.isBoss ? 0 : SLUSH_FLIGHT * 0.6;
+          tx = t.x + ((t as Enemy).vx ?? 0) * lead;
+          ty = t.y + ((t as Enemy).vy ?? 0) * lead;
+        } else {
+          const a = this.g.rng.angle(), d = this.g.rng.range(110, 260);
+          tx = ox + Math.cos(a) * d;
+          ty = oy + Math.sin(a) * d;
+        }
+        this.lob(w, 'snowcone', ox, oy, tx, ty, SLUSH_FLIGHT, mult);
       }
     });
-    this.sfx('frost', 0.3);
+    this.sfx('whoosh', 0.2, 1.4);
   }
 
-  // ---- Hot-Dog Grill / Inferno Grill
-  private grill(w: WeaponInst, dt: number): void {
-    if (!this.ready(w, dt)) return;
-    const p0 = this.g.player;
-    if (w.def.id === 'inferno_grill') {
-      const maxR = 190 * this.area(w);
-      for (let k = 1; k <= 4; k++) {
-        this.schedule(k * 0.07, () => {
-          const p = this.g.player;
-          const r1 = (maxR * k) / 4, r0 = (maxR * (k - 1)) / 4;
-          this.g.forEachTargetInCircle(p.x, p.y, r1, (t) => {
-            const d = Math.sqrt(dist2(t.x, t.y, p.x, p.y));
-            if (d + t.r < r0) return;
-            this.hit(w, t, this.damage(w) * (t.isBoss ? UNBURNT : 1), p.x, p.y);
-            if (!t.isBoss) ignite(t as Enemy, this.duration(w), this.damage(w) * 0.6, this.src || w.def.id, this.g.player.index);
-          });
-        });
-      }
-      this.g.fx.own('ring', p0.x, p0.y, maxR, 0, 0, 'inferno');
-      for (let i = 0; i < 5; i++) {
-        const a = this.g.rng.angle();
-        const d = this.g.rng.range(40, maxR);
-        // (D-74: a burning patch's tick no longer stacks with its neighbours', so each one burns hotter)
-        this.g.spawnZone('burn', p0.x + Math.cos(a) * d, p0.y + Math.sin(a) * d, 46 * this.area(w), this.duration(w), this.damage(w) * 0.75, 0.5);
-      }
-      this.sfx('flame', 0.45);
-      return;
-    }
-    const R = 140 * this.area(w);
-    const n = this.amount(w);
-    this.cast(w, (ox, oy, mult) => {
-      const aim = this.aimDir(w, ox, oy, 'nearest', R * 1.4);
-      const a0 = Math.atan2(aim.y, aim.x);
-      for (let k = 0; k < Math.min(2, n); k++) {
-        const a = a0 + k * Math.PI;
-        for (let tick = 0; tick < 3; tick++) {
-          this.schedule(tick * 0.15, () => {
-            const p = this.g.player;
-            const cx = mult === 1 ? p.x : ox, cy = mult === 1 ? p.y : oy;
-            this.g.forEachTargetInCircle(cx, cy, R, (t) => {
-              if (!inSector(t.x, t.y, cx, cy, a, 0.38, R, t.r)) return;
-              this.hit(w, t, this.damage(w) * mult * (t.isBoss ? UNBURNT : 1), cx, cy);
-              if (!t.isBoss) ignite(t as Enemy, this.duration(w), this.damage(w) * 0.6 * mult, this.src || w.def.id, this.g.player.index);
-            });
-          });
-        }
-        this.g.fx.own('slash', ox, oy, a, 0.38, R, 'fire');
-      }
+  /** A snow cone lands (D-103): its splash bites and chills, and the slush it leaves keeps on (Game.updateZones). */
+  private splat(p: PlayerProjectile, w: WeaponInst): void {
+    const g = this.g;
+    const r = SLUSH_R * p.area;
+    g.forEachTargetInCircle(p.tx, p.ty, r, (t) => {
+      this.hit(w, t, p.dmg * (t.isBoss ? UNCHILLED : 1), p.tx, p.ty, 0.3);
+      if (!t.isBoss) g.applyChill(t as Enemy, 1, FREEZE_T);
     });
-    this.sfx('flame', 0.3);
+    const z = g.spawnZone('slush', p.tx, p.ty, r, this.duration(w), p.dmg * SLUSH_BITE, SLUSH_TICK);
+    if (z) {
+      z.chill = 1;
+      z.slow = 0.25;
+      z.src = p.src || w.def.id;
+    }
+    g.fx.own('explosion', p.tx, p.ty, r, 0, 0, 'frost');
+    g.bus.emit('sfx', { id: 'frost', vol: 0.2, pitch: 1.2 + g.rng.next() * 0.3 });
+  }
+
+  /** Blizzard Machine (D-103): snowstorms roam after the crowd near you, raining ice on all they cover. */
+  private blizzard(w: WeaponInst, dt: number): void {
+    const g = this.g, p = g.player;
+    w.active = true;
+    const n = Math.min(STORM_MAX, this.amount(w));
+    const R = STORM_R * this.area(w);
+    // the storms are zones this weapon owns and steers (one taken for something else is replaced)
+    w.storms = w.storms.filter((st) => st.z.alive && st.z.kind === 'storm' && st.z.gen === st.gen);
+    while (w.storms.length > n) w.storms.pop()!.z.life = 0.3;
+    while (w.storms.length < n) {
+      const a = g.rng.angle();
+      const z = g.spawnZone('storm', p.x + Math.cos(a) * 120, p.y + Math.sin(a) * 120, R, STORM_HOLD, 0, 1e9);
+      if (!z) break;
+      z.tickAcc = 1e9;
+      z.src = w.def.id;
+      w.storms.push({ z, gen: z.gen, tx: z.x, ty: z.y, retarget: 0 });
+    }
+    const spd = STORM_SPEED * this.speed(w);
+    for (const st of w.storms) {
+      const z = st.z;
+      // they stay while the weapon is held, and blow out within a second when it isn't
+      z.life = STORM_HOLD;
+      z.r = R;
+      if ((st.retarget -= dt) <= 0 || dist2(z.x, z.y, st.tx, st.ty) < 30 * 30) {
+        st.retarget = 1.1 + g.rng.next() * 0.8;
+        // after a creature near you that no other storm is already on (the nearer ones first: a long-range weapon beside
+        // it kills the far ones before a storm gets there); failing that, a lap about you
+        let best: Target | null = null;
+        for (let k = 0; k < 6 && !best; k++) {
+          const t = g.randomTarget(p.x, p.y, k < 3 ? STORM_REACH * 0.55 : STORM_REACH);
+          if (t && !w.storms.some((o) => o !== st && dist2(o.tx, o.ty, t.x, t.y) < R * R)) best = t;
+        }
+        if (best) {
+          st.tx = best.x;
+          st.ty = best.y;
+        } else {
+          const a = g.rng.angle();
+          st.tx = p.x + Math.cos(a) * 170;
+          st.ty = p.y + Math.sin(a) * 170;
+        }
+      }
+      const dx = st.tx - z.x, dy = st.ty - z.y, d = Math.hypot(dx, dy);
+      if (d > 1) {
+        const step = Math.min(d, spd * dt);
+        z.x += (dx / d) * step;
+        z.y += (dy / d) * step;
+      }
+      // never far from you
+      const lx = z.x - p.x, ly = z.y - p.y, ld = Math.hypot(lx, ly);
+      if (ld > STORM_LEASH) {
+        z.x = p.x + (lx / ld) * STORM_LEASH;
+        z.y = p.y + (ly / ld) * STORM_LEASH;
+      }
+    }
+    if (!this.ready(w, dt)) return;
+    for (const st of w.storms) {
+      const z = st.z;
+      g.forEachTargetInCircle(z.x, z.y, R, (t) => {
+        this.hit(w, t, this.damage(w) * (t.isBoss ? STORM_BITE : 1), z.x, z.y, 0.15);
+        if (!t.isBoss) g.applyChill(t as Enemy, 2, this.duration(w));
+      });
+    }
+    this.sfx('frost', 0.15, 0.9);
+  }
+
+  // ---- Hot-Dog Grill (D-103): the grill cart drips burning grease as you go, a trail of fire for whatever follows you;
+  //      standing still, it drips where you stand (it was a flame cone, much like the Snow-Cone Machine's and the
+  //      Mallet's sweeps). Inferno Grill: a wider, hotter trail, and rolling waves of flame.
+  private grill(w: WeaponInst, dt: number): void {
+    const p0 = this.g.player;
+    const evo = w.def.id === 'inferno_grill';
+    const R = (evo ? 52 : 38) * this.area(w);
+    if (Number.isNaN(w.lx)) {
+      w.lx = p0.x;
+      w.ly = p0.y;
+    }
+    const dx = p0.x - w.lx, dy = p0.y - w.ly, walked = Math.hypot(dx, dy);
+    if (walked > 400) {
+      // a teleport: the trail starts again where you are
+      w.lx = p0.x;
+      w.ly = p0.y;
+    } else if (walked >= R * GREASE_STEP) {
+      this.grease(w, p0.x - dx * 0.5, p0.y - dy * 0.5, R, evo);
+      w.lx = p0.x;
+      w.ly = p0.y;
+    }
+    this.cloneTrails(w, R, evo);
+    if (!this.ready(w, dt)) return;
+    // standing still since its last drip, it drips where you stand
+    const still = Number.isNaN(w.sx) || Math.hypot(p0.x - w.sx, p0.y - w.sy) < R * 0.5;
+    w.sx = p0.x;
+    w.sy = p0.y;
+    // and the mirror's clones drip where they stand, at their share
+    this.cast(w, (ox, oy, mult) => {
+      if (mult < 1) this.grease(w, ox, oy, R, evo, mult);
+      else if (!evo && still) this.grease(w, ox, oy, R, evo);
+    });
+    if (!evo) return;
+    // Inferno: a wave of flame rolls out in four bands
+    const maxR = 230 * this.area(w);
+    for (let k = 1; k <= 4; k++) {
+      this.schedule(k * 0.07, () => {
+        const p = this.g.player;
+        const r1 = (maxR * k) / 4, r0 = (maxR * (k - 1)) / 4;
+        this.g.forEachTargetInCircle(p.x, p.y, r1, (t) => {
+          const d = Math.sqrt(dist2(t.x, t.y, p.x, p.y));
+          if (d + t.r < r0) return;
+          this.hit(w, t, this.damage(w) * (t.isBoss ? UNBURNT : 1), p.x, p.y);
+          if (!t.isBoss) ignite(t as Enemy, this.duration(w), this.damage(w) * 0.6, this.src || w.def.id, this.g.player.index);
+        });
+      });
+    }
+    this.g.fx.own('ring', p0.x, p0.y, maxR, 0, 0, 'inferno');
+    this.sfx('flame', 0.45);
+  }
+
+  /** The mirror's clones lay trails of their own as they go, at their share (as they replay every other attack). */
+  private cloneTrails(w: WeaponInst, R: number, evo: boolean): void {
+    if (!this.clones.length) return;
+    const mw = this.list.find((x) => x.def.kind === 'mirror');
+    const live = this.clones.filter((c) => c.alive);
+    if (!mw || !live.length) return;
+    const mult = this.damage(mw) / this.g.player.stats.might / live.length;
+    const src = this.src;
+    this.src = mw.def.id;
+    for (const c of live) {
+      const last = w.cloneTrail.get(c);
+      if (!last || Math.hypot(c.x - last.x, c.y - last.y) > 400) w.cloneTrail.set(c, { x: c.x, y: c.y });
+      else if (Math.hypot(c.x - last.x, c.y - last.y) >= R * GREASE_STEP) {
+        this.grease(w, c.x, c.y, R, evo, mult);
+        last.x = c.x;
+        last.y = c.y;
+      }
+    }
+    this.src = src;
+  }
+
+  /** A patch of burning grease (a 'burn' zone): it burns what stands in it, and sets it alight. */
+  private grease(w: WeaponInst, x: number, y: number, R: number, evo: boolean, mult = 1): void {
+    const z = this.g.spawnZone('burn', x, y, R, this.duration(w), this.damage(w) * (evo ? 0.8 : 1) * mult, GREASE_TICK);
+    if (z) z.src = this.src || w.def.id;
   }
 
   // ---- Laser Light Show / Grand Illumination: rotating beams (state read by the renderer)
@@ -945,7 +1113,7 @@ export class Weapons {
       return;
     }
     this.sfx('zap', 0.4);
-    const links = 3 + this.amount(w), reach = 170 * this.area(w);
+    const links = 4 + this.amount(w), reach = 200 * this.area(w);
     const hit = new Set<number>();
     let dmg = this.damage(w), fx = p.x, fy = p.y;
     for (let k = 0; k < links && t; k++) {
@@ -955,7 +1123,7 @@ export class Weapons {
       fx = t.x;
       fy = t.y;
       const reaper = w.def.id === 'reapers_chain';
-      if (!reaper) dmg *= 0.85;
+      if (!reaper) dmg *= CHAIN_FALLOFF;
       // the Reaper's Chain binds every link it passes
       if (reaper && !t.isBoss) {
         const e = t as Enemy;
@@ -1045,7 +1213,8 @@ export class Weapons {
       if (Math.hypot(t.x - p.x, t.y - p.y) < r - 40 - t.r) return;
       if (ht.recent(t.uid, this.g.realTime, 99)) return;
       ht.mark(t.uid, this.g.realTime);
-      this.hit(w, t, this.damage(w), p.x, p.y, 1);
+      // (D-103) a boss can't be shoved, so the steam scalds it longer: the whistle all but passed bosses by
+      this.hit(w, t, this.damage(w) * (t.isBoss ? WHISTLE_SCALD : 1), p.x, p.y, 1);
       if (!t.isBoss) ignite(t as Enemy, 2, 5 * st.might, w.def.id, p.index);
     });
     if (w.activeT >= life) {
@@ -1096,7 +1265,7 @@ export class Weapons {
         w.cd = this.cooldown(w);
         const p = this.g.player;
         const ringR = this.orbRadius(w);
-        this.g.forEachEnemyInCircle(p.x, p.y, ringR + 260, (e) => {
+        this.g.forEachEnemyInCircle(p.x, p.y, ringR + COSMIC_PULL, (e) => {
           // (D-79: nothing immune to knockback, and nothing mid-charge, is pulled in either)
           if (e.def.knockbackTaken <= 0 || e.def.behavior === 'rail_strafer' || bracing(e)) return;
           const dx = p.x - e.x, dy = p.y - e.y;
@@ -1107,7 +1276,7 @@ export class Weapons {
             e.kbY = (dy / d) * 520;
           }
         });
-        this.g.fx.own('ring', p.x, p.y, ringR + 260, 1, 0, 'gravity');
+        this.g.fx.own('ring', p.x, p.y, ringR + COSMIC_PULL, 1, 0, 'gravity');
         this.sfx('gravity', 0.4);
       }
     }
@@ -1117,17 +1286,24 @@ export class Weapons {
     const p = this.g.player;
     const R = this.orbRadius(w);
     const size = (evo ? 26 : 18) * this.area(w) / (evo ? 1.7 : 1);
+    const now = this.g.realTime;
     for (let i = 0; i < n; i++) {
       const a = w.angle + (i * TAU) / n;
       const x = p.x + Math.cos(a) * R, y = p.y + Math.sin(a) * R;
       const ht = w.orbHits[i];
       this.g.forEachTargetInCircle(x, y, size, (t) => {
-        if (ht.recent(t.uid, this.g.realTime, evo ? 0.38 : 0.8)) return;
-        ht.mark(t.uid, this.g.realTime);
-        this.hit(w, t, this.damage(w), x, y, 0);
+        if (ht.recent(t.uid, now, evo ? 0.38 : 0.8)) return;
+        ht.mark(t.uid, now);
+        // (D-103) the orbs grind: each hit on a creature soon after the last bites harder, up to double, so what
+        // leans through the ring (the tough ones the cards and tarot didn't finish) is ground down
+        const gr = w.grind.get(t.uid);
+        const k = gr && now - gr.at < GRIND_WINDOW ? Math.min(GRIND_MAX, gr.n + 1) : 0;
+        w.grind.set(t.uid, { n: k, at: now });
+        this.hit(w, t, this.damage(w) * (1 + GRIND_STEP * k), x, y, 0);
         if (!t.isBoss) this.barrier(t as Enemy, p.x, p.y, w.def.knockback);
       });
     }
+    if (this.g.tickCount % 300 === 0) for (const [u, gr] of w.grind) if (now - gr.at > 3) w.grind.delete(u);
   }
 
   /**
@@ -1147,50 +1323,65 @@ export class Weapons {
   }
 
   orbRadius(w: WeaponInst): number {
-    return w.def.id === 'cosmic_convergence' ? Math.min(260, 105 * this.area(w)) : Math.min(220, 100 * this.area(w));
+    const r = w.def.id === 'cosmic_convergence' ? Math.min(260, 105 * this.area(w)) : Math.min(220, 100 * this.area(w));
+    // (D-103) the orbit swells out once a turn and back, sweeping the ground beyond the ring: the orbs reached only what
+    // came to you, and a long-range weapon beside them killed that first. From the angle, so a guest draws the same.
+    const k = Math.sin(w.angle / 2);
+    return r * (1 + ORB_SWELL * k * k);
   }
 
-  // ---- Strongman Bell / High Striker: slam → shockwave ring
+  // ---- Strongman Bell (D-103): a slam splits the ground, and a fissure races out toward the nearest creature, bursting up
+  //      under all it crosses (more at higher levels, spread about you); it was a shockwave ring, much like the Night
+  //      Express Whistle's. High Striker: the slam splits the ground all about you in a star of fissures, each ringing
+  //      the bell at its tip, now and then for a jackpot.
   private bell(w: WeaponInst, dt: number): void {
     if (!this.ready(w, dt)) return;
-    if (w.def.id === 'high_striker') {
-      const p = this.g.player;
-      const n = this.amount(w);
-      const R = 75 * this.area(w);
-      for (let i = 0; i < n; i++) {
-        this.schedule(i * 0.12, () => {
-          const t = this.g.randomTarget(p.x, p.y, 700);
-          const x = t ? t.x : p.x + this.g.rng.range(-300, 300), y = t ? t.y : p.y + this.g.rng.range(-200, 200);
-          const jackpot = this.g.rng.chance(0.15 * (0.6 + 0.4 * this.g.player.stats.luck));
-          this.g.forEachTargetInCircle(x, y, R, (tt) => {
-            if (jackpot) {
-              const d = this.damage(w) * this.g.player.stats.critDamage * 2.5;
-              this.g.damageTarget(tt, d, true, w.def.knockback * 1.5, x, y, this.src || w.def.id);
-            } else this.hit(w, tt, this.damage(w), x, y);
-          });
-          this.g.fx.own('ring', x, y, R, jackpot ? 1 : 0, 0, jackpot ? 'jackpot' : 'bell');
-          this.g.fx.own('spark', x, y, 8, 0, 0, jackpot ? 'gold' : 'dust');
-          if (jackpot) {
-            this.g.fx.own('text', x, y - 40, 0, 0, 0, 'gold', 'DING!');
-            this.sfx('ding', 0.7);
-          }
-          this.sfx('stomp', 0.35, 1.2);
-        });
-      }
-      return;
-    }
-    const n = this.amount(w);
-    const R = 140 * this.area(w);
+    const hs = w.def.id === 'high_striker';
+    const n = Math.min(12, this.amount(w));
+    const L = FISSURE_L * (hs ? 1.25 : 1) * this.area(w);
+    const W = FISSURE_W * Math.sqrt(this.area(w));
     this.cast(w, (ox, oy, mult) => {
-      const slam = (rr: number) => {
-        this.g.forEachTargetInCircle(ox, oy, rr, (t) => this.hit(w, t, this.damage(w) * mult, ox, oy));
-        this.g.fx.own('ring', ox, oy, rr, 0, 0, 'bell');
-      };
-      slam(R);
-      if (n >= 2) this.schedule(0.28, () => slam(R * 1.25));
+      const aim = this.aimDir(w, ox, oy, 'nearest', L + 80);
+      const a0 = Math.atan2(aim.y, aim.x) + (hs ? (w.n++ % 7) * 0.45 : 0);
+      for (let k = 0; k < n; k++) this.fissure(w, ox, oy, a0 + (k * TAU) / n, L, W, mult, hs);
     });
-    this.g.fx.push('shake', this.g.player.x, this.g.player.y, 0.12);
-    this.sfx('ding', 0.35, 0.8);
+    this.g.fx.push('shake', this.g.player.x, this.g.player.y, hs ? 0.22 : 0.12);
+    this.sfx('stomp', hs ? 0.55 : 0.45, hs ? 0.8 : 0.95);
+  }
+
+  /** A fissure from (ox, oy) along `a`: it opens outward in bursts, each bursting up under what it crosses. */
+  private fissure(w: WeaponInst, ox: number, oy: number, a: number, L: number, W: number, mult: number, hs: boolean): void {
+    const cx = Math.cos(a), cy = Math.sin(a);
+    const struck = new Set<number>();
+    for (let s = 0; s < FISSURE_SEG; s++) {
+      this.schedule(s * 0.045, () => {
+        const d0 = (L * s) / FISSURE_SEG, d1 = (L * (s + 1)) / FISSURE_SEG;
+        const x0 = ox + cx * d0, y0 = oy + cy * d0, x1 = ox + cx * d1, y1 = oy + cy * d1;
+        this.g.forEachTargetInCircle((x0 + x1) / 2, (y0 + y1) / 2, (d1 - d0) / 2 + W + 40, (t) => {
+          if (struck.has(t.uid) || segDist2(t.x, t.y, x0, y0, x1, y1) > (W + t.r) ** 2) return;
+          struck.add(t.uid);
+          this.hit(w, t, this.damage(w) * mult, x0 - cx * 40, y0 - cy * 40);
+        });
+        this.g.fx.own('crack', x0, y0, x1, y1, W, hs ? 'striker' : 'fissure');
+        if (s === FISSURE_SEG - 1 && hs) this.strikerBell(w, x1, y1, mult);
+      });
+    }
+  }
+
+  /** High Striker: the bell rings at a fissure's tip, a burst, now and then a jackpot crit. */
+  private strikerBell(w: WeaponInst, x: number, y: number, mult: number): void {
+    const g = this.g;
+    const R = 62 * this.area(w);
+    const jackpot = g.rng.chance(0.12 * (0.6 + 0.4 * g.player.stats.luck));
+    g.forEachTargetInCircle(x, y, R, (t) => {
+      if (jackpot) g.damageTarget(t, this.damage(w) * mult * g.player.stats.critDamage * 2.5, true, w.def.knockback * 1.5, x, y, this.src || w.def.id);
+      else this.hit(w, t, this.damage(w) * 0.6 * mult, x, y);
+    });
+    g.fx.own('ring', x, y, R, jackpot ? 1 : 0, 0, jackpot ? 'jackpot' : 'bell');
+    if (jackpot) {
+      g.fx.own('text', x, y - 40, 0, 0, 0, 'gold', 'DING!');
+      this.sfx('ding', 0.6);
+    }
   }
 
   // ---- Funhouse Mirror / Hall of Mirrors: clones that replay discrete attacks (see cast())
@@ -1271,6 +1462,7 @@ export class Weapons {
         case 'rocket':
         case 'shell':
         case 'kernel':
+        case 'snowcone':
           p.x += p.vx * dt;
           p.y += p.vy * dt;
           p.rot = Math.atan2(p.vy, p.vx);
@@ -1474,6 +1666,7 @@ export class Weapons {
 
   private detonate(p: PlayerProjectile, w: WeaponInst | undefined): void {
     if (!w) return;
+    if (p.kind === 'snowcone') return this.splat(p, w);
     const g = this.g;
     let r: number, style: string;
     if (p.kind === 'kernel') {

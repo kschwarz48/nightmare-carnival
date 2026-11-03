@@ -8,6 +8,7 @@ export type FxType =
   | 'explosion' // weapon AoE (style: firework, popcorn, cannon, frost, fire, finale)
   | 'ring' // expanding shockwave ring visual (style)
   | 'slash' // melee arc (angle, half, r)
+  | 'crack' // a fissure opening along the ground from (x, y) to (a, b), c wide (D-103: the Strongman Bell)
   | 'dmgnum' // damage number
   | 'heal'
   | 'pickup'

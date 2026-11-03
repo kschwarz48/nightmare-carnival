@@ -40,12 +40,21 @@ export const PERKS: PerkDef[] = [
   { id: 'prize_hunter', tier: 'nightmare', name: 'Prize Hunter', desc: 'Elites are 50/100% more likely to carry a prize chest (for the whole party)', axis: 'prizeHunter', mag: 1, base: 3000, growth: 1.8, cap: 2 },
   { id: 'opening_act', tier: 'nightmare', name: 'Opening Act', desc: 'Every night opens with a draft already waiting for you', axis: 'openingAct', mag: 1, base: 3500, growth: 1, cap: 1 },
   { id: 'second_wind', tier: 'nightmare', name: 'Second Wind', desc: 'Food heals 20/40/60% more and lends +20% Might for 4 s', axis: 'secondWind', mag: 1, base: 2000, growth: 1.6, cap: 3 },
+  // D-103: the Nightmare shelf had no plain strength: a player who'd maxed Normal's (+25% Might) met creatures with 45%
+  // more health. Its own ranks of the core stats close most of that gap (docs/LOST_AND_FOUND_ECONOMY.md)
+  { id: 'nm_might', tier: 'nightmare', name: 'Phantom Knuckles', desc: '+4% Might', axis: 'might', mag: 0.04, base: 1500, growth: 1.35, cap: 5 },
+  { id: 'nm_cooldown', tier: 'nightmare', name: 'Stopped Watch', desc: '−3% weapon cooldowns', axis: 'cooldown', mag: 0.03, base: 1800, growth: 1.4, cap: 4 },
+  { id: 'nm_hp', tier: 'nightmare', name: 'Grave Broth', desc: '+5% Max HP', axis: 'maxHp', mag: 0.05, base: 1200, growth: 1.4, cap: 3 },
   // the Hell shelf: ~92,000
   { id: 'devils_bargain', tier: 'hell', switchable: true, name: "Devil's Bargain", desc: '−25% Max HP, +30% Might. Click it once owned to switch it off or on', axis: 'bargain', mag: 1, base: 8000, growth: 1, cap: 1 },
   { id: 'final_act', tier: 'hell', name: 'Final Act', desc: "+12/24% Might in the night's last five minutes before dawn", axis: 'finalAct', mag: 1, base: 6000, growth: 1.8, cap: 2 },
-  { id: 'unfinished_business', tier: 'hell', name: 'Unfinished Business', desc: 'Each boss beaten tonight: +3/4/5% Might and +2/3/4% Max HP for the rest of the night', axis: 'unfinished', mag: 1, base: 5000, growth: 1.7, cap: 3 },
-  { id: 'infernal_resilience', tier: 'hell', name: 'Infernal Resilience', desc: '10/17/25% less damage from telegraphed strikes: marked ground, explosions, boss attacks', axis: 'infernal', mag: 1, base: 4500, growth: 1.7, cap: 3 },
+  { id: 'unfinished_business', tier: 'hell', name: 'Unfinished Business', desc: 'Each boss beaten tonight: +3/4/5% Might and +2/3/4% Max HP for the rest of the night', axis: 'unfinished', mag: 1, base: 5000, growth: 1.55, cap: 3 },
+  { id: 'infernal_resilience', tier: 'hell', name: 'Infernal Resilience', desc: '10/17/25% less damage from telegraphed strikes: marked ground, explosions, boss attacks', axis: 'infernal', mag: 1, base: 4500, growth: 1.55, cap: 3 },
   { id: 'ember_heart', tier: 'hell', name: 'Ember Heart', desc: 'Below 35% health: +1/2 HP a second and +2/4 Armor', axis: 'emberHeart', mag: 1, base: 5000, growth: 1.8, cap: 2 },
+  // D-103: Hell's own ranks of the core stats (its creatures have 2.2x the health and hit 1.5x as hard)
+  { id: 'hell_might', tier: 'hell', name: 'Infernal Knuckles', desc: '+4% Might', axis: 'might', mag: 0.04, base: 3000, growth: 1.35, cap: 5 },
+  { id: 'hell_area', tier: 'hell', name: 'Bellows', desc: '+5% Area', axis: 'area', mag: 0.05, base: 2500, growth: 1.4, cap: 4 },
+  { id: 'hell_armor', tier: 'hell', name: 'Hellhide', desc: '+1 Armor', axis: 'armor', mag: 1, base: 4000, growth: 1.8, cap: 2 },
 ];
 
 export interface UnlockDef {
@@ -159,15 +168,30 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'nm_cursed', name: 'Cursed Spirits', desc: 'Win any night on Nightmare with the Curse.', reward: 1500 },
   { id: 'hell_cursed', name: 'Damned', desc: 'Win any night on Hell with the Curse.', reward: 3000 },
   { id: 'tier_party', name: 'Haunted Together', desc: 'Win a night on Nightmare or Hell in a party of three or more.', reward: 600 },
+  // D-103: a map's hidden quest, solved again on a higher tier (never needed: Nightmare and Hell open their maps by
+  // winning them), pays for the trouble once on each
+  { id: 'nm_last_song', name: 'The Haunted Song', desc: 'Hear the whole song on Nightmare.', reward: 1200 },
+  { id: 'nm_unreflected', name: 'Mirror of the Dead', desc: 'Bring Mira home on Nightmare.', reward: 1200 },
+  { id: 'nm_summers_end', name: 'Ghost Ledger', desc: "Close the Commodore's account on Nightmare.", reward: 1200 },
+  { id: 'nm_last_train', name: 'The Last Train, Haunted', desc: 'See the Conductor off on Nightmare.', reward: 1500 },
+  { id: 'hell_last_song', name: 'The Song in the Fire', desc: 'Hear the whole song on Hell.', reward: 2000 },
+  { id: 'hell_unreflected', name: 'Smoke and Reflection', desc: 'Bring Mira home on Hell.', reward: 2000 },
+  { id: 'hell_summers_end', name: 'Ash on the Ledger', desc: "Close the Commodore's account on Hell.", reward: 2000 },
+  { id: 'hell_last_train', name: 'The Last Train Burns', desc: 'See the Conductor off on Hell.', reward: 2500 },
 ];
 
-/** The tier achievements a won night earns for a save it counts for (D-97). */
-export function tierAchievements(tier: TierId, map: string, curse: boolean, partySize: number): string[] {
+/** Each map's hidden quest (its achievement id), for its tier achievements (D-103). */
+const MAP_QUEST: Record<string, string> = { carnival_core: 'last_song', fun_house: 'unreflected', boardwalk: 'summers_end', ghost_train: 'last_train' };
+
+/** The tier achievements a won night earns for a save it counts for (D-97); `hits`, the night's own (its hidden quest, D-103). */
+export function tierAchievements(tier: TierId, map: string, curse: boolean, partySize: number, hits: readonly string[] = []): string[] {
   if (tier === 'normal') return [];
   const k = tier === 'nightmare' ? 'nm' : 'hell';
   const out = [`${k}_${map}`];
   if (curse) out.push(`${k}_cursed`);
   if (partySize >= 3) out.push('tier_party');
+  const q = MAP_QUEST[map];
+  if (q && hits.includes(q)) out.push(`${k}_${q}`);
   return out;
 }
 

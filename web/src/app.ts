@@ -1871,7 +1871,7 @@ export class App {
     }
     const r = s.recordTierWin(st.tier, map);
     out.changed = true;
-    out.hits = tierAchievements(st.tier, map, st.curse, st.party?.length ?? 1);
+    out.hits = tierAchievements(st.tier, map, st.curse, st.party?.length ?? 1, st.achievementsHit);
     if (st.tier === 'hell' && map === 'ghost_train' && s.tierWins('hell', 'ghost_train') === 1) {
       out.notes.unshift('THE INFERNAL CARNIVAL FALLS. Every world of the carnival is beaten: Normal, Nightmare and Hell.');
     }

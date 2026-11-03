@@ -14,13 +14,20 @@ const builds = (buildsArg ?? 'fresh,mid,full').split(',');
 const party = Number(partyArg ?? 1);
 const seeds = (seedsArg ?? '11,22,33').split(',').map(Number);
 
-/** a save's Lost & Found as meta stats: none, half of Normal's perks, or all of Normal's and both tier shelves */
-function meta(build: string): { axis: string; value: number }[] {
+/**
+ * a save's Lost & Found as meta stats: none; half of Normal's perks; all of Normal's and both tier shelves; or (D-103)
+ * `own`, everything up to the night's own tier (a player who has bought out Normal's and this tier's shelves)
+ */
+function meta(build: string, tier: TierId): { axis: string; value: number }[] {
   const out: { axis: string; value: number }[] = [];
+  const upTo = (t?: TierId) => !t || t === 'normal' || t === tier || (tier === 'hell' && t === 'nightmare');
   for (const p of PERKS) {
     if (p.axis === 'reroll' || p.axis === 'banish' || p.switchable) continue;
-    const lvl = build === 'fresh' ? 0 : build === 'mid' ? (p.tier ? 0 : Math.ceil(p.cap / 2)) : p.cap;
-    if (lvl > 0) out.push({ axis: p.axis, value: p.mag * lvl });
+    const lvl = build === 'fresh' ? 0 : build === 'mid' ? (p.tier ? 0 : Math.ceil(p.cap / 2)) : build === 'own' ? (upTo(p.tier) ? p.cap : 0) : p.cap;
+    const have = out.find((m) => m.axis === p.axis);
+    if (lvl <= 0) continue;
+    if (have) have.value += p.mag * lvl;
+    else out.push({ axis: p.axis, value: p.mag * lvl });
   }
   return out;
 }
@@ -33,7 +40,7 @@ for (const tier of tiers) {
     const cells: string[] = [];
     let hurt = 0, lt = 0;
     for (const seed of seeds) {
-      const m = meta(build);
+      const m = meta(build, tier);
       const players = Array.from({ length: party }, (_, i) => ({ character: CHARS[(i + seed) % CHARS.length], meta: m }));
       const g = makeGame({ character: players[0].character, tier, seed, map, meta: m, players: party > 1 ? players : undefined });
       let s = 0;

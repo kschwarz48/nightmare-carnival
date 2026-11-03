@@ -1144,6 +1144,7 @@ export class Game {
       if (e.chillT <= 0) e.chill = 0;
     }
     if (e.frozenT > 0) e.frozenT -= dt;
+    if (e.dazeT > 0) e.dazeT -= dt;
     if (e.burnT > 0) {
       e.burnT -= dt;
       e.burnAcc += e.burnDps * dt;
@@ -1168,7 +1169,7 @@ export class Game {
 
   /** Effective speed multiplier from statuses (used by AI). */
   slowFactor(e: Enemy): number {
-    if (e.frozenT > 0) return 0;
+    if (e.frozenT > 0 || e.dazeT > 0) return 0;
     let f = e.slowF;
     if (e.chill > 0) f *= Math.max(0.5, 1 - e.chill * 0.08);
     if (e.stickyT > 0) f *= 0.6;
@@ -1726,6 +1727,8 @@ export class Game {
     z.slow = 0;
     z.harmful = false;
     z.owner = this.player.index;
+    z.src = '';
+    z.chill = 0;
     return z;
   }
 
@@ -1745,7 +1748,7 @@ export class Game {
         this.webRamp.delete(k);
       }
     }
-    const ZK: Record<string, number> = { web: 1, burn: 2, spark: 3 };
+    const ZK: Record<string, number> = { web: 1, burn: 2, spark: 3, slush: 4 };
     for (const z of this.zones) {
       if (!z.alive) continue;
       z.life -= dt;
@@ -1757,13 +1760,13 @@ export class Game {
       z.tickAcc -= dt;
       if (z.tickAcc > 0) continue;
       z.tickAcc = z.tick;
-      const src = z.kind === 'spark' ? 'spark_trail' : z.kind === 'burn' ? 'inferno_grill' : z.kind === 'web' ? 'sticky_situation' : z.kind;
+      const src = z.src || (z.kind === 'spark' ? 'spark_trail' : z.kind === 'burn' ? 'inferno_grill' : z.kind === 'web' ? 'sticky_situation' : z.kind);
       this.credit = z.owner;
       const zk = ZK[z.kind] ?? 0;
       this.forEachTargetInCircle(z.x, z.y, z.r, (t) => {
         let mult = 1;
         if (zk) {
-          const key = t.uid * 4 + zk;
+          const key = t.uid * 8 + zk;
           const last = this.zoneHits.get(key);
           if (last !== undefined && this.realTime - last < z.tick - 0.02) return;
           this.zoneHits.set(key, this.realTime);
@@ -1780,6 +1783,7 @@ export class Game {
             e.slowT = Math.max(e.slowT, z.tick + 0.1);
           }
           if (z.kind === 'burn') ignite(e, 1.5, z.dmg, src, z.owner);
+          if (z.chill > 0) this.applyChill(e, z.chill, 1.2);
         }
         this.damageTarget(t, z.dmg * mult, false, 0, z.x, z.y, src);
       });

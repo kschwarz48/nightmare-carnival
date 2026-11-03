@@ -406,13 +406,16 @@ export class SaveManager {
     this.data.lostTickets -= c;
     this.data.spent = (this.data.spent ?? 0) + c;
   }
-  /** Meta stat bonuses for a new run. */
+  /** Meta stat bonuses for a new run, one per axis (D-103: the tier shelves' ranks add to Normal's on the same axis). */
   metaStats(): { axis: string; value: number }[] {
     const out: { axis: string; value: number }[] = [];
     for (const p of PERKS) {
       const lvl = this.perkLevel(p.id);
       if (p.switchable && !this.perkOn(p.id)) continue;
-      if (lvl > 0 && p.axis !== 'reroll' && p.axis !== 'banish') out.push({ axis: p.axis, value: p.mag * lvl });
+      if (lvl <= 0 || p.axis === 'reroll' || p.axis === 'banish') continue;
+      const have = out.find((m) => m.axis === p.axis);
+      if (have) have.value += p.mag * lvl;
+      else out.push({ axis: p.axis, value: p.mag * lvl });
     }
     return out;
   }

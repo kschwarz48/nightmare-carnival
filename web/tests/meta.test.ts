@@ -130,9 +130,9 @@ describe('save system', () => {
     const castTotal = CHARACTERS.filter((c) => !c.tier).reduce((t, c) => t + (c.unlock?.cost ?? 0), 0);
     expect(CHARACTERS.filter((c) => c.tier).reduce((t, c) => t + (c.unlock?.cost ?? 0), 0)).toBe(16000);
     expect(perkTotal).toBe(22097);
-    // the tiers' shelves (D-97)
-    expect(total(PERKS.filter((p) => p.tier === 'nightmare'))).toBe(41195);
-    expect(total(PERKS.filter((p) => p.tier === 'hell'))).toBe(91905);
+    // the tiers' shelves (D-97; D-103: each gained ranks of the core stats, and Hell's two dearest perks grow a little slower)
+    expect(total(PERKS.filter((p) => p.tier === 'nightmare'))).toBe(74146);
+    expect(total(PERKS.filter((p) => p.tier === 'hell'))).toBe(144673);
     expect(unlockTotal).toBe(5500); // D-98: the Funhouse Mirror (1,000) and the Undertow (2,000) are their bosses' prizes now
     expect(castTotal).toBe(16100);
     expect(CHARACTERS.length).toBe(9); // the seven and the world tiers' two (D-97)

@@ -62,6 +62,8 @@ const COLORS: Record<string, [number, number, number]> = {
   bell: [1, 0.85, 0.4], jackpot: [1, 0.95, 0.3], pound: [1, 0.8, 0.6], shock: [1, 0.45, 0.25], blizzard: [0.65, 0.92, 1],
   inferno: [1, 0.45, 0.1], gravity: [0.7, 0.5, 1], revive: [1, 0.6, 0.8], mallet: [1, 0.92, 0.7], frenzy: [1, 0.85, 0.5],
   cotton: [1, 0.6, 0.85], glass: [0.7, 0.95, 1],
+  // D-103: the Mallet's whacks, the Bell's fissures (the High Striker's gilt)
+  whack: [1, 0.85, 0.55], fissure: [1, 0.62, 0.3], striker: [1, 0.85, 0.35],
 };
 
 export class FxSystem {
@@ -184,6 +186,17 @@ export class FxSystem {
         this.ephem('ring', e.x, e.y, e.a, e.style === 'gravity' ? 0.6 : 0.4, col, { width: e.style === 'jackpot' ? 12 : 7 });
         if (e.style === 'jackpot' || e.style === 'revive') this.flashLight(e.x, e.y, e.a * 2, 0.5, col, 2);
         if (e.style === 'pound' || e.style === 'shock' || e.style === 'bell') this.burst('smoke', e.x, e.y, 6, e.a * 1.4, { max: 0.5, s0: 0.5, s1: 1.1, r: 0.8, g: 0.75, b: 0.7 });
+        break;
+      }
+      case 'crack': {
+        // a fissure (D-103): a glowing seam along the ground, dust thrown up along it
+        const col = COLORS[e.style] ?? [1, 0.6, 0.3];
+        this.ephem('beam', e.x, e.y, 0, 0.42, col, { x2: e.a, y2: e.b, width: e.c * 0.55 });
+        this.ephem('beam', e.x, e.y, 0, 0.22, [1, 0.95, 0.8], { x2: e.a, y2: e.b, width: e.c * 0.18 });
+        for (let i = 0; i < 3; i++) {
+          const t = this.rand();
+          this.spawn('smoke', e.x + (e.a - e.x) * t, e.y + (e.b - e.y) * t, { vz: 60 + this.rand() * 60, max: 0.55, s0: 0.6, s1: 1.3, r: 0.75, g: 0.62, b: 0.5 });
+        }
         break;
       }
       case 'slash': {

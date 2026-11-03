@@ -69,7 +69,7 @@ export function updateEnemy(g: Game, e: Enemy, dt: number): void {
     e.y += e.kbY * dt;
     return;
   }
-  if (e.frozenT > 0) return;
+  if (e.frozenT > 0 || e.dazeT > 0) return;
   // the Boardwalk (D-68): climbing up out of the sand or the surf — still, and harmless, until it's up
   if (e.emerge > 0) {
     e.emerge -= dt;

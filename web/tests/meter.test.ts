@@ -88,8 +88,9 @@ describe('the damage meter (D-85)', () => {
       const alone = fight(id, false), withMirror = fight(id, true);
       const own = alone.get(id) ?? 0, ownWith = withMirror.get(id) ?? 0, clones = withMirror.get('mirror') ?? 0;
       expect(own, id).toBeGreaterThan(0);
-      // the mirror adds its share as the mirror's damage...
-      expect(clones, id).toBeGreaterThan(own * 0.08);
+      // the mirror adds its share as the mirror's damage... (D-103: the Grill's is a trail laid where its walker goes, so
+      // its clones add their patches where they stand, which the crowd crossing to the player mostly misses)
+      expect(clones, id).toBeGreaterThan(own * (id === 'grill' ? 0.004 : 0.08));
       // ...and the weapon's own tally doesn't grow with the clones (it was ~15-30% higher with them before D-85)
       expect(ownWith, id).toBeLessThan(own * 1.08);
     }

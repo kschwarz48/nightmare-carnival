@@ -1040,6 +1040,27 @@ export class GameRenderer3D {
         case 'ice':
           A.circle(z.x, z.y, z.r, 0.5, 0.75, 1, 0.22 * fade, 0.05 * fade);
           break;
+        case 'slush':
+          // the Snow-Cone Machine's slush (D-103): a pale icy puddle with a frosted rim
+          S.circle(z.x, z.y, z.r, 0.82, 0.93, 1, 0.32 * fade, 0.14 * fade);
+          A.ring(z.x, z.y, z.r * 0.82, z.r, 0.6, 0.85, 1, 0.3 * fade, 0.3 * fade);
+          if (Math.random() < 0.08) this.fx.handle([{ type: 'spark', x: z.x + (Math.random() - 0.5) * z.r, y: z.y + (Math.random() - 0.5) * z.r, a: 1, b: 0, c: 0, style: 'ice', own: true }]);
+          break;
+        case 'storm': {
+          // the Blizzard Machine's storms (D-103): a swirl of driven snow, its bands turning, flakes whirling down in it
+          const t = this.time * 1.6 + z.x * 0.01;
+          A.circle(z.x, z.y, z.r, 0.6, 0.82, 1, 0.16 * fade, 0.02 * fade);
+          for (let k = 0; k < 3; k++) {
+            const a0 = t * (1 + k * 0.35) + k * 2.1;
+            A.ring(z.x, z.y, z.r * (0.45 + k * 0.22), z.r * (0.52 + k * 0.22), 0.85, 0.95, 1, 0.32 * fade, 0.32 * fade, a0, a0 + 2.2);
+          }
+          S.ring(z.x, z.y, z.r - 3, z.r, 0.75, 0.9, 1, 0.35 * fade, 0.35 * fade);
+          if (Math.random() < 0.55) {
+            const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * z.r;
+            this.fx.handle([{ type: 'spark', x: z.x + Math.cos(a) * d, y: z.y + Math.sin(a) * d, a: 1, b: 0, c: 0, style: 'ice', own: true }]);
+          }
+          break;
+        }
       }
     }
   }
@@ -2059,11 +2080,12 @@ export class GameRenderer3D {
         case 'ring': s = pr.r / 12; yaw = pr.rot; h = 14; break;
         case 'cannonball': s = Math.max(0.9, pr.r / 20); roll = pr.rot; h = 14; break;
         case 'derby_car': case 'bumper_ghost': s = pr.r / 22; h = 4; break;
-        case 'rocket': case 'shell': case 'kernel': {
+        case 'rocket': case 'shell': case 'kernel': case 'snowcone': {
           const t = 1 - pr.life / pr.maxLife;
           h = 14 + Math.sin(t * Math.PI) * pr.arc;
           pitch = -Math.cos(t * Math.PI) * 0.9;
           if (pr.kind === 'kernel') roll = t * 12;
+          else if (pr.kind === 'snowcone') roll = t * 7;
           else {
             this.fxAdd.draw(glowF, x - Math.sin(yaw) * 10, y - Math.cos(yaw) * 10, h, 0.35, 0.35, 0, 1, 0.6, 0.2, 0.9);
             if (op > 0) this.teleLine.ring(pr.tx, pr.ty, 6, 8, 1, 0.8, 0.4, 0.35 * t * op, 0.35 * t * op);
