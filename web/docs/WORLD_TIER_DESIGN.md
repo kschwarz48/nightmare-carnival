@@ -5,6 +5,36 @@ finishing the one before, each with its own look, enemy behaviour, Lost & Found 
 audit of the code as it stands (D-96); where the brief assumed something the code doesn't do, the code wins and the
 difference is noted.
 
+## Status (2026-11-02, branch `world-tiers`, not deployed)
+
+Implemented and tested (`tests/tiers.test.ts`, 38 tests; the whole suite passes): the tiers and their numbers, the
+rules and saves v6 with its migration, character select and the co-op lobby, the co-op sync and eligibility
+(PROTO 20), the dev tools, both Lost & Found shelves, the looks on all four maps (captures:
+`web/artifacts/visual/tiers/`, local only), the creature variants, the bosses' tier attacks, the ceremonies, the
+tier achievements and a first balance step. Decision record: D-97.
+
+Changed from this design while building it:
+
+- Second Wind and Final Act give might, Ember Heart armour, instead of speed: a guest's own movement is predicted
+  on its machine, so the shelves' changing bonuses stay on stats only the host reads.
+- Tier numbers after the first balance step: Nightmare health ×1.45, damage ×1.2; Hell ×2.2, ×1.5 (the rest as in
+  §2).
+- The bosses' tier attacks are one shared, telegraphed layer (Nightmare's choir, Hell's firestorm) over each boss's
+  own patterns, not yet bespoke staging per boss.
+- The "link" variant ability was left out (the other eleven are in).
+
+Not done yet, in the order they'd be worth doing:
+
+1. The new content of §7: the Night Watchman and the Fire-Eater (portraits, sculpted 3D models to the character
+   art standard), the Watchman's Lantern, Spirit Chains and Fire Breath, Death's Door, the Soul Jar, Brimstone,
+   Cinder Heart and the two evolutions.
+2. Balance across every map, party sizes two to six and Lost & Found levels (`scripts/tier_balance.ts` takes them
+   all), then the owner's playtests.
+3. Fires and apparitions as props in the worlds (burning tents, smoke columns, spectral riders), and the score's
+   and ambience's tier transforms (§9).
+4. Bespoke tier staging for the four final bosses (§8).
+5. The real-GPU benchmark (`desktop/bench.js`) on Nightmare and Hell, and a cross-network co-op night on a tier.
+
 ## 1. What the audit found (the starting point)
 
 - **Difficulty today** (`data/difficulty.ts`): three per-night settings, Midway / Carnival / Nightmare, chosen at

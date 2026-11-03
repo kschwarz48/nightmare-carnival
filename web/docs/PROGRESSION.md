@@ -2,7 +2,7 @@
 
 How Nightmare Carnival paces a night: XP and levels, Ticket value, chests, healing, Lost Tickets,
 the upgrade-pool fallback, and spawn pacing. Every number below lives in **`src/data/progression.ts`**
-(plus wave tables in `src/data/waves.ts` and difficulty tiers in `src/data/difficulty.ts`), so tuning
+(plus wave tables in `src/data/waves.ts` and the world tiers in `src/data/tiers.ts`, D-97), so tuning
 never requires touching simulation code. Design rationale: D-31, D-33, D-43 in `DESIGN_DECISIONS.md`.
 
 ## There is no mana system

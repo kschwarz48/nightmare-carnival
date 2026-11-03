@@ -274,6 +274,23 @@ Anything in this file is public.
   (`desktop/coop-bench.js`, two windows on one PC): snapshots 30 Hz at ~1.5 KB (41 KB/s), a guest decodes and applies
   each in 0.28 ms. Report: `docs/PERFORMANCE_AUDIT_REPORT.md` (D).
 
+### World tiers (D-97, PROTO 20)
+
+- **The host chooses** the night's world tier (Normal, Nightmare, Hell) among those its own save has open, then a
+  map open on it; `LobbyState.tier` and `StartCfg.tier` carry it (validated on arrival: an unknown tier is Normal).
+  A rejoining guest rebuilds the same tier's night from the start config.
+- **Who it counts for:** a guest's profile carries `open`, the `tier:map` pairs its own save has open (validated
+  against the known tiers and maps, at most 16). The host computes each seat's `counts` and the lobby marks guests
+  the night won't count for as "Visiting"; each guest's own lobby says whether it counts for them. On Normal only
+  the Ghost Train matters (it opens Nightmare); Normal's other maps still open through their bosses' achievements.
+- **What everyone keeps:** their Lost Tickets (at their own greed), vouchers, stats and Normal achievements. Only a
+  counting night records the completion, opens the next map or tier, and grants tier achievements. A guest re-sends
+  its profile after a night, so the host learns at once whom the next night counts for.
+- **Variant states** ride the enemy flags' high four bits (phasing, wrath, plating, an ability's tell); every variant
+  strike is an existing replicated hazard. The Lost & Found's tier perks are meta stats like any perk (validated
+  against the shelf's caps); their changing bonuses never touch a stat a guest's prediction reads.
+- **PROTO 20.** Old builds can't join new lobbies.
+
 ### The Last Train Home's shared things (D-95, PROTO 19)
 
 - The hidden quest's chain changed shape: tapers, cogs and shovels of coal are carried by each player at once

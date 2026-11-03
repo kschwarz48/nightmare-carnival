@@ -1930,3 +1930,56 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
 - **Tried and not kept:** priming the Game's fields as fractions (a V8 hidden-class change mid-night sends Node's
   bullet loop into a deopt loop): no measurable gain once the walls were fixed, so removed. A coarser copy for the
   silhouettes and the shadow: under a millisecond to gain.
+
+### D-97 · World tiers: Normal → Nightmare → Hell
+
+- **The ask:** replace the per-night difficulties with persistent world tiers in the manner of Diablo II: Normal (the
+  Cursed Carnival), Nightmare (the Haunted Carnival, opened by finishing the Normal campaign) and Hell (the Infernal
+  Carnival, opened by finishing Nightmare's); per-tier map progression, co-op rules that never let a tier be
+  skipped, a safe save migration, new Lost & Found stock, each world transformed, creature variants, boss
+  treatments, ceremonies, balance, tests and docs. Design and status: `docs/WORLD_TIER_DESIGN.md`.
+- **Tiers** (`data/tiers.ts`): each sets the crowd's health, damage, cap, spawn rate, speed, the night's greed,
+  minibosses, elite affixes and the value of a ticket. Normal plays the old Midway's numbers; the Daily Run keeps
+  the old Carnival's as its own scaling (`DAILY_SCALING`). The difficulty rows, Midway/Carnival/Nightmare, are gone;
+  their achievements stay on saves that have them, shown as retired. The Curse stays, a toggle on any tier.
+- **Progression** (`meta/save.ts`): Normal keeps its map rules. On Nightmare and Hell the Carnival Core opens with
+  the tier and each next map once the one before has been won on that tier; the Ghost Train's win opens the next
+  tier. A win (standard or secret ending, not a Daily Run) counts as a completion of its tier and map only for a
+  save that has both open. Easter eggs are untouched.
+- **Saves v6:** `tiers { unlocked, wins, seen }`, `last.tier`. From v5: Normal wins from the maps' final-boss
+  achievements, Nightmare open iff the Ghost Train was beaten, never Hell, nothing else touched; the old text is
+  kept once under `nightmare_carnival_save_v5` before the first migration. Deterministic and idempotent (tested on
+  fresh, partial, finished and rich saves, a v1 save, damaged tier records and a corrupt main slot).
+- **Co-op** (PROTO 20): `LobbyState.tier` and `StartCfg.tier`; a guest's profile lists the tiers and maps its save
+  has open, so the host's lobby shows who is "Visiting" and each guest is told whether the night counts for them.
+  Everyone keeps their Lost Tickets, vouchers and Normal achievements; only a counting night gives completions,
+  unlocks and tier achievements. A guest's progress is re-sent to the host after a night.
+- **Lost & Found:** a Nightmare shelf (~41,000 LT) and a Hell shelf (~92,000), sold once their tier is open:
+  Second Chance, Soul Collector, Prize Hunter, Opening Act, Second Wind; Devil's Bargain (switchable), Final Act,
+  Unfinished Business, Infernal Resilience, Ember Heart (`sim/tierPerks.ts`). Mechanics more than numbers; their
+  changing bonuses touch only stats the host alone reads (might, maximum health, armour), so a guest's prediction
+  never depends on them. Changed from the design for that reason: Second Wind and Final Act give might (not speed),
+  Ember Heart armour (not speed).
+- **Looks** (`render3d/tierLook.ts`): one table over each world's own settings through the choke points they share:
+  moon, hemisphere, shadow fill, mist and fog, the practical-light pool (colour family and flicker), the signs'
+  emissive and the grade; tier particles (`world/tierFx.ts`: Nightmare's wisps, Hell's embers). No new draw calls;
+  telegraphs keep their colours. Captured on all four maps on all three tiers.
+- **Variants** (`data/variants.ts`, `sim/variants.ts`): every creature spectral on Nightmare, infernal on Hell;
+  about half of each map's kinds gain an ability (phasing, ectoplasm, blink, wail, haunting; volatile, firewalker,
+  fire-lobber, wrath, tremor, plating). Host-side with the seeded randomness (none drawn on Normal, whose nights stay
+  exactly as they were); strikes are existing replicated hazards; states in the enemy flags' high bits.
+- **Bosses:** a tier attack on its own clock over each boss's patterns (Nightmare's choir, Hell's firestorm), harder
+  for each map's final boss.
+- **Ceremonies** (`ui/ceremony.ts`): once per save at the next calm screen, the lights stutter and the live scene
+  crosses into the new tier's look with an original synthesized sting, then NIGHTMARE / HELL UNLOCKED and what is
+  new; skippable once the crossing has played.
+- **Achievements:** each map on each tier, both campaigns (Hell's is the game's biggest reward), cursed wins, a party
+  win; only from counting nights.
+- **Balance:** `scripts/tier_balance.ts` (bot nights per tier, map, progression and party size). First runs ruled out
+  the extremes and suggested the higher tiers ran steep, so one small step (Nightmare hp 1.6 → 1.45, damage 1.3 →
+  1.2; Hell 2.4 → 2.2, 1.6 → 1.5). Bot nights this noisy settle nothing finer: playtests next.
+- **Dev tools** (development builds only, never deployed): `__nc.tiers.show / unlock / lock / win / reset / play /
+  ceremony`.
+- **Not done yet** (see the design doc's status): the new characters, weapons and passives; fires and apparitions
+  as props; the score's tier transforms; bespoke per-boss staging; balance across maps and party sizes; the
+  real-GPU benchmark on the tiers; a cross-network co-op night.
