@@ -57,6 +57,8 @@ export class Player {
   secondChanceUsed = false;
   windT = 0;
   tierBonus = { might: 0, hp: 0, armor: 0 };
+  /** the Soul Jar: kills since it last broke */
+  jarKills = 0;
   /** this player's own share of the night, for the co-op leaderboard (D-71) */
   runDmg = 0;
   runBossDmg = 0;

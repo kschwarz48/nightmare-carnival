@@ -404,7 +404,9 @@ export type StatAxis =
 /** The Nightmare and Hell shelves' perks (D-97, sim/tierPerks.ts): a level each, Devil's Bargain on or off. */
 export type TierPerkAxis =
   | 'secondChance' | 'soulCollector' | 'prizeHunter' | 'openingAct' | 'secondWind'
-  | 'bargain' | 'finalAct' | 'unfinished' | 'infernal' | 'emberHeart';
+  | 'bargain' | 'finalAct' | 'unfinished' | 'infernal' | 'emberHeart'
+  // the tiers' passives (D-97): Death's Door, the Soul Jar, Brimstone, Cinder Heart
+  | 'deathsDoor' | 'soulJar' | 'brimstone' | 'cinderHeart';
 
 export interface PassiveDef {
   id: string;
@@ -438,6 +440,11 @@ export const PASSIVES: Record<string, PassiveDef> = {
   season_pass: P({ id: 'season_pass', name: 'Season Pass', desc: '+10% XP gain', effects: [{ axis: 'xp', perLevel: flat(0.1) }], maxLevel: 5, unlock: 'p_season_pass', weight: 0.9, lore: 'Valid every night. Every single night.' }),
   coin_purse: P({ id: 'coin_purse', name: 'Coin Purse', desc: '+15% Greed (more Lost Tickets)', effects: [{ axis: 'greed', perLevel: flat(0.15) }], maxLevel: 5, unlock: 'p_coin_purse', weight: 0.8, lore: 'It jingles even when empty.' }),
   hand_mirror: P({ id: 'hand_mirror', name: "Mira's Hand Mirror", desc: '+6% Might and +6% Area', effects: [{ axis: 'might', perLevel: flat(0.06) }, { axis: 'area', perLevel: flat(0.06) }], maxLevel: 5, unlock: 'p_hand_mirror', weight: 0.8, lore: 'Cracked across the middle. In it, a girl stands just behind your shoulder.' }),
+  // the world tiers' passives (D-97, sim/tierPerks.ts): sold at the Lost & Found once their map is won on their tier
+  deaths_door: P({ id: 'deaths_door', name: "Death's Door", desc: 'More Might the less health you have: up to +8% per level at a sliver', effects: [{ axis: 'deathsDoor', perLevel: flat(0.08) }], maxLevel: 5, unlock: 'p_deaths_door', weight: 0.8, lore: "The Night Watchman's keyring. One key opens a door nobody should walk back out of." }),
+  soul_jar: P({ id: 'soul_jar', name: 'Soul Jar', desc: 'Every 40 kills (fewer each level) the jar breaks in a spectral blast around you', effects: [{ axis: 'soulJar', perLevel: flat(1) }], maxLevel: 5, unlock: 'p_soul_jar', weight: 0.8, lore: 'Corked with wax from the Widow\'s candles. It fills on its own.' }),
+  brimstone: P({ id: 'brimstone', name: 'Brimstone', desc: 'Hits may set creatures alight (+4% chance per level); burning creatures burst when they die', effects: [{ axis: 'brimstone', perLevel: flat(1) }], maxLevel: 5, unlock: 'p_brimstone', weight: 0.8, lore: 'A lump of something from under the Infernal Carnival. It never cools.' }),
+  cinder_heart: P({ id: 'cinder_heart', name: 'Cinder Heart', desc: 'Burning creatures near you heal you a little (more each level)', effects: [{ axis: 'cinderHeart', perLevel: flat(1) }], maxLevel: 5, unlock: 'p_cinder_heart', weight: 0.8, lore: 'It beats warmer the closer the fire comes.' }),
   ada_conch: P({ id: 'ada_conch', name: "Ada's Conch", desc: '+12% Pickup radius and +0.25 HP regen per second', effects: [{ axis: 'pickup', perLevel: flat(0.12) }, { axis: 'regen', perLevel: flat(0.25) }], maxLevel: 5, unlock: 'p_ada_conch', weight: 0.8, lore: 'Hold it to your ear. Somebody on the other side is humming a song from 1933.' }),
   rabbits_foot: P({ id: 'rabbits_foot', name: "Rabbit's Foot", desc: '+1 Revive', effects: [{ axis: 'revive', perLevel: [1, 1] }], maxLevel: 2, unlock: 'p_rabbits_foot', weight: 0.35, lore: 'Lucky for you. Less so for the rabbit from the hat.' }),
 };

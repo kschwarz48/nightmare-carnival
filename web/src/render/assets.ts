@@ -108,7 +108,7 @@ export class Assets {
     });
   }
   passiveIcon(id: string): string {
-    return this.cached(`pi_${id}`, () => paintToDataURL(64, 64, (ctx, w, h) => passiveIcon(ctx, w, h, id), 1.5));
+    return this.cached(`pi_${id}`, () => paintToDataURL(64, 64, (ctx, w, h) => void (tierIcon(ctx, w, h, id) || passiveIcon(ctx, w, h, id)), 1.5));
   }
   /** A companion's portrait (D-84). */
   petPortrait(id: string): string {

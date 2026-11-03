@@ -14,6 +14,7 @@ import { ENEMIES, ELITE_AFFIXES, type EnemyDef } from '../data/enemies';
 import { GREASE_SLICKS, MAP_HALF, PLAYER_BOUNDS, PLAYER_SPAWN, PROPS, TILT_A_WHIRL, type Prop } from '../data/map';
 import { ACT_GATES, DAWN_TIME } from '../data/waves';
 import { initVariant, phased, tickBossTier, tickVariant, variantDeath, variantHit } from './variants';
+import { brimstoneBurst, brimstoneHit, fillSoulJar } from './tierPerks';
 import { collectSoul, eliteChestMult, mealHeal, openingActDue, telegraphedDamage, tickTierPerks, trySecondChance } from './tierPerks';
 import { computePayout } from '../data/meta';
 import type { BossBase } from './bosses/boss';
@@ -930,7 +931,10 @@ export class Game {
     }
     this.kills++;
     variantDeath(this, e);
-    collectSoul(this, this.players[this.credit === -1 ? this.player.index : this.credit], e);
+    const killer = this.players[this.credit === -1 ? this.player.index : this.credit];
+    collectSoul(this, killer, e);
+    fillSoulJar(this, killer);
+    if (e.burnT > 0) brimstoneBurst(this, e);
     if (d.behavior === 'ambusher' || d.behavior === 'brute' || d.behavior === 'line_charger' || d.behavior === 'rail_strafer' || TELEGRAPHERS.has(d.behavior) || d.behavior.startsWith('gt_')) this.clearHazardsOf(e.uid);
     if (d.behavior.startsWith('gt_')) gtDeath(this, e);
     this.dropTickets(e.x, e.y, e.tickets);
@@ -1005,6 +1009,9 @@ export class Game {
       } else dmg *= sh.cracked;
     }
     if (e.vAb) dmg = variantHit(this, e, dmg);
+    // Brimstone (D-97): the hitter's hits may set it alight
+    const hitter = this.players[this.credit === -1 ? this.player.index : this.credit];
+    if (hitter && hitter.stats.brimstone > 0 && weapon !== 'brimstone') brimstoneHit(this, hitter, e);
     e.hp -= dmg;
     e.flash = 1;
     this.book(dmg, weapon, false, e.hp <= 0);

@@ -36,6 +36,11 @@ export class PlayerStats {
   unfinished = 0;
   infernal = 0;
   emberHeart = 0;
+  /** the tiers' passives (D-97): Death's Door's might at a sliver, and the Soul Jar's, Brimstone's, Cinder Heart's levels */
+  deathsDoor = 0;
+  soulJar = 0;
+  brimstone = 0;
+  cinderHeart = 0;
 
   maxHp(): number {
     return this.baseHp * this.maxHpMult;
@@ -75,6 +80,10 @@ export class PlayerStats {
       case 'unfinished': this.unfinished += Math.round(v); break;
       case 'infernal': this.infernal += Math.round(v); break;
       case 'emberHeart': this.emberHeart += Math.round(v); break;
+      case 'deathsDoor': this.deathsDoor += v; break;
+      case 'soulJar': this.soulJar += Math.round(v); break;
+      case 'brimstone': this.brimstone += Math.round(v); break;
+      case 'cinderHeart': this.cinderHeart += Math.round(v); break;
       // Devil's Bargain: a quarter of your health for 30% might (sim/tierPerks.ts TIER_PERK.bargain)
       case 'bargain': this.maxHpMult -= 0.25 * v; this.might += 0.3 * v; break;
     }

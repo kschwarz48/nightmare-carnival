@@ -599,3 +599,69 @@ describe('tier achievements', () => {
     expect(ACHIEVEMENTS.find((a) => a.id === 'hell_ghost_train')!.reward).toBe(top);
   });
 });
+
+describe("the tiers' passives", () => {
+  const withPassive = (id: string, lv = 5) => {
+    const g = makeGame({ godMode: true });
+    for (let i = 0; i < lv; i++) g.player.addPassive(id);
+    return g;
+  };
+
+  it('are sold once their map is won on their tier', () => {
+    const s = new SaveManager(mem());
+    s.data.lostTickets = 1e6;
+    expect(s.buyUnlock('p_deaths_door')).toBe(false);
+    s.grantAchievements(['nm_boardwalk']);
+    expect(s.buyUnlock('p_deaths_door')).toBe(true);
+    expect(s.buyUnlock('p_brimstone')).toBe(false);
+  });
+
+  it("Death's Door: more might the less health", () => {
+    const g = withPassive('deaths_door');
+    const m0 = g.player.stats.might;
+    g.tick();
+    expect(g.player.stats.might).toBeCloseTo(m0, 3);
+    g.player.hp = g.player.stats.maxHp() * 0.1;
+    g.tick();
+    expect(g.player.stats.might).toBeCloseTo(m0 + 0.4 * 0.9, 2);
+  });
+
+  it('the Soul Jar breaks in a blast every so many kills', () => {
+    const g = withPassive('soul_jar');
+    const p = g.player;
+    const ring = Array.from({ length: 6 }, (_, i) => g.spawnEnemy('evil_clown', p.x + 60 * Math.cos(i), p.y + 60 * Math.sin(i))!);
+    for (const e of ring) e.hp = e.maxHp = 500;
+    g.tick(); // (into the spatial grid the blast looks through)
+    for (const e of ring) e.hp = 500;
+    for (let i = 0; i < 27; i++) g.killEnemy(g.spawnEnemy('evil_clown', p.x + 900, p.y)!);
+    expect(ring.every((e) => e.hp === 500)).toBe(true);
+    g.killEnemy(g.spawnEnemy('evil_clown', p.x + 900, p.y)!);
+    expect(p.jarKills).toBe(0);
+    expect(ring.every((e) => e.hp < 500)).toBe(true);
+  });
+
+  it('Brimstone sets creatures alight and the burning burst; Cinder Heart heals near them', () => {
+    const g = withPassive('brimstone');
+    const p = g.player;
+    const e = g.spawnEnemy('carnival_brute', p.x + 300, p.y)!;
+    e.hp = e.maxHp = 1e6;
+    for (let i = 0; i < 200 && e.burnT <= 0; i++) g.damageEnemy(e, 1, false, 0, p.x, p.y, 'throwing_cards');
+    expect(e.burnT).toBeGreaterThan(0);
+    const near = g.spawnEnemy('carnival_brute', e.x + 30, e.y)!;
+    near.hp = near.maxHp = 1e6;
+    g.tick();
+    near.hp = 1e6;
+    e.burnT = Math.max(e.burnT, 1);
+    g.killEnemy(e);
+    expect(near.hp).toBeLessThan(1e6);
+    const c = withPassive('cinder_heart');
+    const q = c.player;
+    q.hp = q.stats.maxHp() * 0.5;
+    const hot = c.spawnEnemy('carnival_brute', q.x + 60, q.y)!;
+    hot.burnT = 99;
+    hot.burnDps = 0;
+    const hp0 = q.hp;
+    for (let i = 0; i < 60; i++) c.tick();
+    expect(q.hp).toBeGreaterThan(hp0 + 0.3); // one burning creature: 0.36 a second at level 5
+  });
+});

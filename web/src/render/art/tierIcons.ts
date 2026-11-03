@@ -27,8 +27,8 @@ function flame(ctx: Ctx, cx: number, cy: number, s: number): void {
 /** Paint the shelf item `id`'s icon; false if it isn't one of theirs. */
 export function tierIcon(ctx: Ctx, w: number, h: number, id: string): boolean {
   const cx = w / 2, cy = h / 2, s = w * 0.18;
-  const cold = ['second_chance', 'soul_collector', 'prize_hunter', 'opening_act', 'second_wind'].includes(id);
-  const hot = ['devils_bargain', 'final_act', 'unfinished_business', 'infernal_resilience', 'ember_heart'].includes(id);
+  const cold = ['second_chance', 'soul_collector', 'prize_hunter', 'opening_act', 'second_wind', 'deaths_door', 'soul_jar'].includes(id);
+  const hot = ['devils_bargain', 'final_act', 'unfinished_business', 'infernal_resilience', 'ember_heart', 'brimstone', 'cinder_heart'].includes(id);
   if (!cold && !hot) return false;
   const c = cold ? COLD : HOT;
   badge(ctx, w, h, cold ? '#2c3f66' : '#5a1a10', false);
@@ -201,6 +201,77 @@ export function tierIcon(ctx: Ctx, w: number, h: number, id: string): boolean {
       fillInk(ctx, shade(ctx, cx - s * 0.4, cy - s * 0.5, s * 1.8, '#9aa4b0', '#2a2e36'));
       flame(ctx, cx, cy + s * 0.1, s * 0.6);
       fillInk(ctx, shade(ctx, cx, cy, s * 0.7, c.glow, '#ff4a10'), 1.8);
+      break;
+    }
+    case 'deaths_door': {
+      // a door ajar on a pale light, a key in the lock
+      ctx.beginPath();
+      ctx.rect(cx - s * 0.9, cy - s * 1.2, s * 1.8, s * 2.4);
+      fillInk(ctx, shade(ctx, cx, cy, s * 1.6, c.glow, c.dark), 2.4);
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.9, cy - s * 1.2);
+      ctx.lineTo(cx + s * 0.3, cy - s * 0.95);
+      ctx.lineTo(cx + s * 0.3, cy + s * 1.45);
+      ctx.lineTo(cx - s * 0.9, cy + s * 1.2);
+      ctx.closePath();
+      fillInk(ctx, '#3a2a1a', 2.2);
+      circle(ctx, cx + s * 0.05, cy + s * 0.15, s * 0.14);
+      ctx.fillStyle = '#d8b04a';
+      ctx.fill();
+      break;
+    }
+    case 'soul_jar': {
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.6, cy - s * 0.8);
+      ctx.lineTo(cx + s * 0.6, cy - s * 0.8);
+      ctx.quadraticCurveTo(cx + s * 1.2, cy + s * 0.2, cx + s * 0.7, cy + s * 1.15);
+      ctx.lineTo(cx - s * 0.7, cy + s * 1.15);
+      ctx.quadraticCurveTo(cx - s * 1.2, cy + s * 0.2, cx - s * 0.6, cy - s * 0.8);
+      ctx.closePath();
+      fillInk(ctx, 'rgba(150,220,255,0.4)');
+      flame(ctx, cx, cy + s * 0.35, s * 0.55);
+      ctx.fillStyle = c.glow;
+      ctx.fill();
+      ctx.fillStyle = '#c8a070';
+      ctx.fillRect(cx - s * 0.5, cy - s * 1.15, s * 1.0, s * 0.38);
+      ink(ctx, 1.8);
+      ctx.strokeRect(cx - s * 0.5, cy - s * 1.15, s * 1.0, s * 0.38);
+      break;
+    }
+    case 'brimstone': {
+      // a glowing lump, cracked with fire
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 1.0, cy + s * 0.3);
+      ctx.lineTo(cx - s * 0.6, cy - s * 0.7);
+      ctx.lineTo(cx + s * 0.3, cy - s * 0.95);
+      ctx.lineTo(cx + s * 1.05, cy - s * 0.2);
+      ctx.lineTo(cx + s * 0.7, cy + s * 0.85);
+      ctx.lineTo(cx - s * 0.4, cy + s * 0.95);
+      ctx.closePath();
+      fillInk(ctx, shade(ctx, cx - s * 0.3, cy - s * 0.4, s * 1.6, '#5a4a40', '#1a1210'));
+      ctx.strokeStyle = '#ff8a2a';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.5, cy - s * 0.3);
+      ctx.lineTo(cx + s * 0.05, cy + s * 0.1);
+      ctx.lineTo(cx + s * 0.6, cy - s * 0.2);
+      ctx.moveTo(cx + s * 0.05, cy + s * 0.1);
+      ctx.lineTo(cx - s * 0.05, cy + s * 0.7);
+      ctx.stroke();
+      break;
+    }
+    case 'cinder_heart': {
+      heart(ctx, cx, cy + s * 0.1, s * 1.05);
+      fillInk(ctx, shade(ctx, cx - s * 0.4, cy - s * 0.4, s * 1.6, '#4a3a34', '#120a08'));
+      ctx.strokeStyle = '#ff9a3a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.5, cy - s * 0.2);
+      ctx.lineTo(cx, cy + s * 0.15);
+      ctx.lineTo(cx + s * 0.45, cy - s * 0.25);
+      ctx.moveTo(cx, cy + s * 0.15);
+      ctx.lineTo(cx, cy + s * 0.65);
+      ctx.stroke();
       break;
     }
     case 'ember_heart': {

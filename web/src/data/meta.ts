@@ -58,6 +58,8 @@ export interface UnlockDef {
   /** an achievement the attraction waits for before it can be bought (D-78), and how the shop names it */
   req?: string;
   reqText?: string;
+  /** a world tier's (D-97) */
+  tier?: TierId;
 }
 
 export const UNLOCKS: UnlockDef[] = [
@@ -72,6 +74,11 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'p_coin_purse', name: 'Coin Purse', desc: 'Adds Coin Purse (+Greed) to the draft pool.', cost: 600, kind: 'passive', ref: 'coin_purse' },
   { id: 'p_rabbits_foot', name: "Rabbit's Foot", desc: "Adds Rabbit's Foot (+Revive) to the draft pool.", cost: 1500, kind: 'passive', ref: 'rabbits_foot' },
   { id: 'f_skip', name: 'Skip Ticket', desc: 'Lets you skip a draft (heals 10 HP).', cost: 400, kind: 'feature' },
+  // the world tiers' passives (D-97)
+  { id: 'p_deaths_door', tier: 'nightmare', name: "Death's Door", desc: "Adds Death's Door (more Might the less health you have) to the draft pool.", cost: 2500, kind: 'passive', ref: 'deaths_door', req: 'nm_boardwalk', reqText: 'Win the Boardwalk on Nightmare' },
+  { id: 'p_soul_jar', tier: 'nightmare', name: 'Soul Jar', desc: 'Adds the Soul Jar (a spectral blast every so many kills) to the draft pool.', cost: 2500, kind: 'passive', ref: 'soul_jar', req: 'nm_boardwalk', reqText: 'Win the Boardwalk on Nightmare' },
+  { id: 'p_brimstone', tier: 'hell', name: 'Brimstone', desc: 'Adds Brimstone (hits set creatures alight; the burning burst) to the draft pool.', cost: 4000, kind: 'passive', ref: 'brimstone', req: 'hell_boardwalk', reqText: 'Win the Boardwalk on Hell' },
+  { id: 'p_cinder_heart', tier: 'hell', name: 'Cinder Heart', desc: 'Adds Cinder Heart (burning creatures near you heal you) to the draft pool.', cost: 4000, kind: 'passive', ref: 'cinder_heart', req: 'hell_boardwalk', reqText: 'Win the Boardwalk on Hell' },
 ];
 
 /** Unlocks that are never sold — earned only through discovery (each map's hidden quest); never in a Daily Run. */
