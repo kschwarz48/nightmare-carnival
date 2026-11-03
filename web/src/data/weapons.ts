@@ -3,7 +3,9 @@
 
 export type WeaponKind =
   | 'cards' | 'mallet' | 'tarot' | 'bumper' | 'plush' | 'tophat' | 'popcorn' | 'darts' | 'fireworks'
-  | 'cotton' | 'rings' | 'cannon' | 'snowcone' | 'grill' | 'laser' | 'orbs' | 'bell' | 'mirror' | 'calliope';
+  | 'cotton' | 'rings' | 'cannon' | 'snowcone' | 'grill' | 'laser' | 'orbs' | 'bell' | 'mirror' | 'calliope'
+  // the world tiers' (D-97)
+  | 'lantern' | 'chains' | 'breath';
 
 export type Archetype = 'crit' | 'aoe' | 'dot' | 'orbit' | 'summon' | 'mobility';
 
@@ -239,6 +241,34 @@ export const WEAPONS: Record<string, WeaponDef> = {
     maxLevel: 8, evolvesTo: 'grand_illumination', evoPassive: 'spinning_top', archetypes: ['orbit', 'dot'], aimable: false, weight: 0.9,
     lore: 'The disco tent never closed. Its lights learned to cut.',
   }),
+  // the world tiers' weapons (D-97): sold at the Lost & Found once the Fun House is won on their tier
+  lantern: W({
+    id: 'lantern', name: "Watchman's Lantern", kind: 'lantern', unlock: 'w_lantern',
+    desc: 'A beam of lantern light sweeps back and forth before you, burning whatever it touches for as long as it stays in it.',
+    levelText: ['', '', '+2 damage', '+12% length', '+2 damage', '+12% length, a second beam', '+3 damage', '+12% length', '+3 damage'],
+    damage: 7, cooldown: 0, area: 1, amount: 1, speed: 2.1, pierce: 0, duration: 999, knockback: 0.15,
+    lv: { dmg: [0, 2, 0, 2, 0, 3, 0, 3], cd: Z8, area: [0, 0, 0.12, 0, 0.12, 0, 0.12, 0], amount: [0, 0, 0, 0, 1, 0, 0, 0] },
+    maxLevel: 8, evolvesTo: 'last_light', evoPassive: 'deaths_door', archetypes: ['dot'], aimable: true, weight: 0.9,
+    lore: "The last night guard's lantern. Whatever it shows can't hide, and what can't hide can be hurt.",
+  }),
+  chains: W({
+    id: 'chains', name: 'Spirit Chains', kind: 'chains', unlock: 'w_chains',
+    desc: 'Spectral chains leap from creature to creature, each link a little weaker, and bind the last one fast.',
+    levelText: ['', '', '+3 damage', '+1 link, −0.15s cooldown', '+4 damage', '−0.15s cooldown', '+4 damage, +1 link', '−0.15s cooldown', '+5 damage, +1 link'],
+    damage: 16, cooldown: 1.8, area: 1, amount: 1, speed: 1, pierce: 0, duration: 1.5, knockback: 0.4,
+    lv: { dmg: [0, 3, 0, 4, 0, 4, 0, 5], cd: [0, 0, -0.15, 0, -0.15, 0, -0.15, 0], area: Z8, amount: [0, 0, 1, 0, 0, 1, 0, 1] },
+    maxLevel: 8, evolvesTo: 'reapers_chain', evoPassive: 'soul_jar', archetypes: ['crit'], aimable: false, weight: 0.9,
+    lore: 'Forged for something that kept walking out of its grave. It still remembers the way.',
+  }),
+  breath: W({
+    id: 'breath', name: 'Fire Breath', kind: 'breath', unlock: 'w_breath',
+    desc: 'A roaring cone of flame where you face, setting everything in it alight.',
+    levelText: ['', '', '+1 damage, +10% reach', '−0.2s cooldown, +0.2s duration', '+1 damage, +10% reach', '−0.2s cooldown, +0.2s duration', '+2 damage, +10% reach', '−0.2s cooldown, +0.3s duration', '+2 damage, +10% reach'],
+    damage: 4, cooldown: 2.4, area: 1, amount: 1, speed: 1, pierce: 0, duration: 1.2, knockback: 0.1,
+    lv: { dmg: [0, 1, 0, 1, 0, 2, 0, 2], cd: [0, 0, -0.2, 0, -0.2, 0, -0.2, 0], area: [0, 0.1, 0, 0.1, 0, 0.1, 0, 0.1], amount: Z8, dur: [0, 0, 0.2, 0, 0.2, 0, 0.3, 0] },
+    maxLevel: 8, evolvesTo: 'hellmouth', evoPassive: 'brimstone', archetypes: ['aoe', 'dot'], aimable: true, weight: 0.9,
+    lore: 'The Fire-Eater swallowed a coal from the Infernal Carnival on a dare. It never went out.',
+  }),
   orbs: W({
     id: 'orbs', name: 'Crystal Orbs', kind: 'orbs', unlock: 'w_orbs',
     desc: 'Fortune-teller orbs orbit you, grinding through anything they touch and shoving it back out.',
@@ -370,6 +400,24 @@ export const WEAPONS: Record<string, WeaponDef> = {
     damage: 26, cooldown: 0, area: 1.6, amount: 6, speed: 1.4, pierce: 0, duration: 999, knockback: 0.3,
     archetypes: ['orbit', 'dot'], aimable: false, lore: 'All the lights of the midway, aimed inward.',
   }, 'dadsdaD', 'beam'),
+  last_light: EVO({
+    id: 'last_light', name: 'The Last Light', kind: 'lantern', evolvedFrom: 'lantern',
+    desc: 'Three long beams of grave-light turn about you and sweep before you at once.',
+    damage: 13, cooldown: 0, area: 1.35, amount: 3, speed: 2.4, pierce: 0, duration: 999, knockback: 0.2,
+    archetypes: ['dot'], aimable: true, lore: "The lantern at Death's Door: it shows the way out, and nothing follows.",
+  }, 'dadsdaD', 'beam'),
+  reapers_chain: EVO({
+    id: 'reapers_chain', name: "The Reaper's Chain", kind: 'chains', evolvedFrom: 'chains',
+    desc: 'The chain leaps twice as far through twice as many, losing nothing, and binds every link it passes.',
+    damage: 30, cooldown: 1.2, area: 1.6, amount: 5, speed: 1, pierce: 0, duration: 2, knockback: 0.5,
+    archetypes: ['crit'], aimable: false, lore: 'Every soul in the jar pulls on it.',
+  }, 'dndcdnD', 'link'),
+  hellmouth: EVO({
+    id: 'hellmouth', name: 'Hellmouth', kind: 'breath', evolvedFrom: 'breath',
+    desc: 'Fire pours from you without end, front and back, and every burning thing bursts.',
+    damage: 6, cooldown: 0, area: 1.3, amount: 2, speed: 1, pierce: 0, duration: 999, knockback: 0.15,
+    archetypes: ['aoe', 'dot'], aimable: true, lore: 'The coal got out.',
+  }, 'dadsdaD', 'flame'),
   cosmic_convergence: EVO({
     id: 'cosmic_convergence', name: 'Cosmic Convergence', kind: 'orbs', evolvedFrom: 'orbs',
     desc: 'Seven giant orbs orbit permanently — a barrier that shoves the crowd back — while a gravity pulse drags enemies into them.',

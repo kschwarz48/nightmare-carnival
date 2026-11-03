@@ -665,3 +665,50 @@ describe("the tiers' passives", () => {
     expect(q.hp).toBeGreaterThan(hp0 + 0.3); // one burning creature: 0.36 a second at level 5
   });
 });
+
+describe("the tiers' weapons", () => {
+  const armed = (id: string) => {
+    const g = makeGame({ godMode: true, seed: 3 });
+    g.weapons.list.length = 0;
+    g.weapons.add(id);
+    return g;
+  };
+  const crowd = (g: Game, n: number, dx = 120) => {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const e = g.spawnEnemy('carnival_brute', g.player.x + dx + i * 40, g.player.y + (i % 2) * 20)!;
+      e.hp = e.maxHp = 1e6;
+      e.speed = 0;
+      out.push(e);
+    }
+    return out;
+  };
+
+  it("the Watchman's Lantern burns what its sweeping beam lights", () => {
+    const g = armed('lantern');
+    const [e] = crowd(g, 1);
+    g.player.faceX = 1;
+    g.player.faceY = 0;
+    for (let i = 0; i < 240; i++) g.tick();
+    expect(e.hp).toBeLessThan(1e6);
+    expect(g.weaponDamage.get('lantern') ?? 0).toBeGreaterThan(0);
+  });
+
+  it('Spirit Chains leap through several creatures and bind the last', () => {
+    const g = armed('chains');
+    const es = crowd(g, 5, 100);
+    for (let i = 0; i < 150; i++) g.tick();
+    expect(es.filter((e) => e.hp < 1e6).length).toBeGreaterThanOrEqual(3);
+    expect(es.some((e) => e.slowT > 0 && e.slowF <= 0.5)).toBe(true);
+  });
+
+  it('Fire Breath sets what is in its cone alight', () => {
+    const g = armed('breath');
+    const [e] = crowd(g, 1, 90);
+    g.player.faceX = 1;
+    g.player.faceY = 0;
+    for (let i = 0; i < 200; i++) g.tick();
+    expect(e.hp).toBeLessThan(1e6);
+    expect(e.burnT > 0 || (g.weaponDamage.get('breath') ?? 0) > 0).toBe(true);
+  });
+});

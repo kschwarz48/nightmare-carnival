@@ -27,11 +27,11 @@ function flame(ctx: Ctx, cx: number, cy: number, s: number): void {
 /** Paint the shelf item `id`'s icon; false if it isn't one of theirs. */
 export function tierIcon(ctx: Ctx, w: number, h: number, id: string): boolean {
   const cx = w / 2, cy = h / 2, s = w * 0.18;
-  const cold = ['second_chance', 'soul_collector', 'prize_hunter', 'opening_act', 'second_wind', 'deaths_door', 'soul_jar'].includes(id);
-  const hot = ['devils_bargain', 'final_act', 'unfinished_business', 'infernal_resilience', 'ember_heart', 'brimstone', 'cinder_heart'].includes(id);
+  const cold = ['second_chance', 'soul_collector', 'prize_hunter', 'opening_act', 'second_wind', 'deaths_door', 'soul_jar', 'lantern', 'chains', 'last_light', 'reapers_chain'].includes(id);
+  const hot = ['devils_bargain', 'final_act', 'unfinished_business', 'infernal_resilience', 'ember_heart', 'brimstone', 'cinder_heart', 'breath', 'hellmouth'].includes(id);
   if (!cold && !hot) return false;
   const c = cold ? COLD : HOT;
-  badge(ctx, w, h, cold ? '#2c3f66' : '#5a1a10', false);
+  badge(ctx, w, h, cold ? '#2c3f66' : '#5a1a10', id === 'last_light' || id === 'hellmouth' || id === 'reapers_chain');
   ctx.save();
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -272,6 +272,57 @@ export function tierIcon(ctx: Ctx, w: number, h: number, id: string): boolean {
       ctx.moveTo(cx, cy + s * 0.15);
       ctx.lineTo(cx, cy + s * 0.65);
       ctx.stroke();
+      break;
+    }
+    case 'lantern':
+    case 'last_light': {
+      // a hooded lantern on its ring, its light thrown forward
+      ctx.beginPath();
+      ctx.moveTo(cx + s * 0.2, cy - s * 0.2);
+      ctx.lineTo(cx + s * 1.3, cy - s * 0.9);
+      ctx.lineTo(cx + s * 1.3, cy + s * 0.9);
+      ctx.closePath();
+      ctx.fillStyle = id === 'last_light' ? 'rgba(190,255,235,0.45)' : 'rgba(255,225,150,0.45)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.rect(cx - s * 0.8, cy - s * 0.6, s * 1.0, s * 1.4);
+      fillInk(ctx, shade(ctx, cx - s * 0.3, cy, s, id === 'last_light' ? '#d8fff0' : '#fff0b0', '#8a6a2a'), 2.2);
+      ctx.beginPath();
+      ctx.arc(cx - s * 0.3, cy - s * 0.75, s * 0.4, Math.PI, 0);
+      ink(ctx, 2.4);
+      ctx.stroke();
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(cx - s * 0.9, cy - s * 0.7, s * 1.2, s * 0.18);
+      ctx.fillRect(cx - s * 0.9, cy + s * 0.75, s * 1.2, s * 0.18);
+      break;
+    }
+    case 'chains':
+    case 'reapers_chain': {
+      ctx.strokeStyle = INK;
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.lineWidth = pass ? 2.4 : 5;
+        if (pass) ctx.strokeStyle = c.body;
+        for (let k = -1; k <= 1; k++) {
+          ctx.beginPath();
+          ctx.ellipse(cx + k * s * 0.75, cy - k * s * 0.55, s * 0.55, s * 0.32, -0.6, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      break;
+    }
+    case 'breath':
+    case 'hellmouth': {
+      // a gout of fire from a grinning mouth
+      for (const [dx, dy, r] of [[0.55, 0, 0.8], [0.2, -0.35, 0.55], [0.2, 0.4, 0.5]]) {
+        ctx.save();
+        ctx.translate(cx + dx * s, cy + dy * s);
+        ctx.rotate(Math.PI / 2);
+        flame(ctx, 0, 0, r * s);
+        ctx.restore();
+        fillInk(ctx, shade(ctx, cx + dx * s, cy + dy * s, r * s * 1.4, c.glow, '#d8300a'), 1.8);
+      }
+      circle(ctx, cx - s * 0.75, cy, s * 0.42);
+      fillInk(ctx, '#3a1a10', 2);
       break;
     }
     case 'ember_heart': {

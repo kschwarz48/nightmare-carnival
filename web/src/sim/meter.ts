@@ -10,7 +10,7 @@ import type { Game } from './game';
 export const lineOf = (id: string): string => WEAPONS[id]?.evolvedFrom ?? id;
 
 /** Damage that isn't a weapon's: the Spare Balloon's burst on a revive, the Ride Operator's spark trail (and a catch-all). */
-export const OTHER_SOURCES: readonly string[] = ['revive', 'spark_trail', 'other'];
+export const OTHER_SOURCES: readonly string[] = ['revive', 'spark_trail', 'other', 'soul_jar', 'brimstone'];
 
 /** Can `key` be a meter source? (weapon lines and the other sources; what a guest accepts from the wire) */
 export const isSource = (key: string): boolean => !!WEAPONS[key] || OTHER_SOURCES.includes(key);

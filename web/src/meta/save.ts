@@ -593,9 +593,12 @@ export class SaveManager {
     // evolutions that need something never sold (a hidden quest's reward, D-78: the Hand Mirror for the Hall
     // of Mirrors, Running Shoes for the Last Lap) don't count toward Full House
     const neverSold = [...SECRET_UNLOCKS, ...EARNED_UNLOCKS];
+    // nor do the world tiers' (D-97): Full House stays a Normal-carnival achievement
+    const tierUnlock = (id: string) => !!UNLOCKS.find((u) => u.id === id)?.tier;
     const counts = (e: string) => {
       const base = WEAPONS[WEAPONS[e].evolvedFrom!];
-      return !neverSold.includes(base?.unlock ?? '') && !neverSold.includes(PASSIVES[base?.evoPassive ?? '']?.unlock ?? '');
+      const via = [base?.unlock ?? '', PASSIVES[base?.evoPassive ?? '']?.unlock ?? ''];
+      return !via.some((u) => neverSold.includes(u) || tierUnlock(u));
     };
     const allEvos = EVOLUTION_IDS.filter(counts).every((e) => this.data.pedia.includes(e));
     if (allEvos && !this.hasAchievement('full_house')) out.push(...this.grantAchievements(['full_house']));

@@ -126,7 +126,7 @@ describe('save system', () => {
     const total = (ps: typeof PERKS) => ps.reduce((t, p) => t + Array.from({ length: p.cap }, (_, i) => Math.round(p.base * Math.pow(p.growth, i))).reduce((a, b) => a + b, 0), 0);
     const perkTotal = total(PERKS.filter((p) => !p.tier));
     const unlockTotal = UNLOCKS.filter((u) => !u.tier).reduce((t, u) => t + u.cost, 0);
-    expect(UNLOCKS.filter((u) => u.tier).reduce((t, u) => t + u.cost, 0)).toBe(13000);
+    expect(UNLOCKS.filter((u) => u.tier).reduce((t, u) => t + u.cost, 0)).toBe(24500);
     const castTotal = CHARACTERS.reduce((t, c) => t + (c.unlock?.cost ?? 0), 0);
     expect(perkTotal).toBe(22097);
     // the tiers' shelves (D-97)

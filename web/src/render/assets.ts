@@ -104,7 +104,8 @@ export class Assets {
   weaponIcon(id: string): string {
     return this.cached(`wi_${id}`, () => {
       const d = WEAPONS[id];
-      return paintToDataURL(64, 64, (ctx, w, h) => weaponIcon(ctx, w, h, d.kind, !!d.isEvolution), 1.5);
+      // the world tiers' have their own (D-97)
+      return paintToDataURL(64, 64, (ctx, w, h) => void (tierIcon(ctx, w, h, id) || weaponIcon(ctx, w, h, d.kind, !!d.isEvolution)), 1.5);
     });
   }
   passiveIcon(id: string): string {

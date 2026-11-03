@@ -74,7 +74,10 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'p_coin_purse', name: 'Coin Purse', desc: 'Adds Coin Purse (+Greed) to the draft pool.', cost: 600, kind: 'passive', ref: 'coin_purse' },
   { id: 'p_rabbits_foot', name: "Rabbit's Foot", desc: "Adds Rabbit's Foot (+Revive) to the draft pool.", cost: 1500, kind: 'passive', ref: 'rabbits_foot' },
   { id: 'f_skip', name: 'Skip Ticket', desc: 'Lets you skip a draft (heals 10 HP).', cost: 400, kind: 'feature' },
-  // the world tiers' passives (D-97)
+  // the world tiers' weapons and passives (D-97)
+  { id: 'w_lantern', tier: 'nightmare', name: "Watchman's Lantern", desc: "Adds the Watchman's Lantern (a sweeping beam that burns what it lights) to the draft pool.", cost: 3000, kind: 'weapon', ref: 'lantern', req: 'nm_fun_house', reqText: 'Win the Fun House on Nightmare' },
+  { id: 'w_chains', tier: 'nightmare', name: 'Spirit Chains', desc: 'Adds Spirit Chains (links that leap from creature to creature) to the draft pool.', cost: 3500, kind: 'weapon', ref: 'chains', req: 'nm_fun_house', reqText: 'Win the Fun House on Nightmare' },
+  { id: 'w_breath', tier: 'hell', name: 'Fire Breath', desc: 'Adds Fire Breath (a cone of flame that sets creatures alight) to the draft pool.', cost: 5000, kind: 'weapon', ref: 'breath', req: 'hell_fun_house', reqText: 'Win the Fun House on Hell' },
   { id: 'p_deaths_door', tier: 'nightmare', name: "Death's Door", desc: "Adds Death's Door (more Might the less health you have) to the draft pool.", cost: 2500, kind: 'passive', ref: 'deaths_door', req: 'nm_boardwalk', reqText: 'Win the Boardwalk on Nightmare' },
   { id: 'p_soul_jar', tier: 'nightmare', name: 'Soul Jar', desc: 'Adds the Soul Jar (a spectral blast every so many kills) to the draft pool.', cost: 2500, kind: 'passive', ref: 'soul_jar', req: 'nm_boardwalk', reqText: 'Win the Boardwalk on Nightmare' },
   { id: 'p_brimstone', tier: 'hell', name: 'Brimstone', desc: 'Adds Brimstone (hits set creatures alight; the burning burst) to the draft pool.', cost: 4000, kind: 'passive', ref: 'brimstone', req: 'hell_boardwalk', reqText: 'Win the Boardwalk on Hell' },

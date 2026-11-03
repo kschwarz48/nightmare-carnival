@@ -242,6 +242,9 @@ export class Weapons {
         case 'bell': this.bell(w, dt); break;
         case 'mirror': this.mirror(w, dt); break;
         case 'calliope': this.calliope(w, dt); break;
+        case 'lantern': this.lantern(w, dt); break;
+        case 'chains': this.chains(w, dt); break;
+        case 'breath': this.breath(w, dt); break;
       }
     }
   }
@@ -845,6 +848,124 @@ export class Weapons {
         if (ht.recent(t.uid, this.g.realTime, 0.3)) return;
         ht.mark(t.uid, this.g.realTime);
         this.hit(w, t, this.damage(w), p.x, p.y, 0.3);
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- the world tiers' weapons (D-97)
+  /** The lantern's beams: `w.angle` is the sweep's own (replicated); the Last Light adds beams turning about you. */
+  lanternAngle(w: WeaponInst, i: number, n: number): number {
+    if (w.def.id === 'last_light') return i === 0 ? w.angle : w.angle + (i * TAU) / n + w.t * 0.35;
+    return w.angle + (i - (n - 1) / 2) * 0.38;
+  }
+  lanternLength(w: WeaponInst): number {
+    return 240 * this.area(w);
+  }
+
+  /** Watchman's Lantern: a beam sweeping back and forth before you, burning what stays in it. */
+  private lantern(w: WeaponInst, dt: number): void {
+    w.active = true;
+    w.t += dt;
+    const p = this.g.player;
+    const d = this.aimDir(w, p.x, p.y, 'forward');
+    w.angle = Math.atan2(d.y, d.x) + Math.sin(w.t * this.speed(w)) * 0.75;
+    w.tickAcc -= dt;
+    if (w.tickAcc > 0) return;
+    w.tickAcc = 0.1;
+    const n = this.amount(w), L = this.lanternLength(w);
+    while (w.orbHits.length < n) w.orbHits.push(new HitTracker());
+    for (let i = 0; i < n; i++) {
+      const a = this.lanternAngle(w, i, n);
+      const ht = w.orbHits[i];
+      this.g.forEachTargetInCircle(p.x, p.y, L, (t) => {
+        if (!inSector(t.x, t.y, p.x, p.y, a, 0.2, L, t.r)) return;
+        if (ht.recent(t.uid, this.g.realTime, 0.3)) return;
+        ht.mark(t.uid, this.g.realTime);
+        this.hit(w, t, this.damage(w), p.x, p.y, 0.3);
+      });
+    }
+  }
+
+  /** Spirit Chains: links leap from creature to creature, each weaker, and bind the last. */
+  private chains(w: WeaponInst, dt: number): void {
+    if (!this.ready(w, dt)) return;
+    const p = this.g.player;
+    let t = this.g.nearestTarget(p.x, p.y, 320);
+    if (!t) {
+      w.cd = 0.3;
+      return;
+    }
+    this.sfx('zap', 0.4);
+    const links = 3 + this.amount(w), reach = 170 * this.area(w);
+    const hit = new Set<number>();
+    let dmg = this.damage(w), fx = p.x, fy = p.y;
+    for (let k = 0; k < links && t; k++) {
+      hit.add(t.uid);
+      for (let s = 1; s <= 3; s++) this.g.fx.push('spark', fx + ((t.x - fx) * s) / 4, fy + ((t.y - fy) * s) / 4, 0.7, 0, 0, 'shield');
+      this.hit(w, t, dmg, fx, fy, 0.5);
+      fx = t.x;
+      fy = t.y;
+      const reaper = w.def.id === 'reapers_chain';
+      if (!reaper) dmg *= 0.85;
+      // the Reaper's Chain binds every link it passes
+      if (reaper && !t.isBoss) {
+        const e = t as Enemy;
+        e.slowF = Math.min(e.slowF, 0.5);
+        e.slowT = Math.max(e.slowT, this.duration(w));
+      }
+      let next: Target | null = null, best = reach * reach;
+      this.g.forEachTargetInCircle(fx, fy, reach, (o) => {
+        if (hit.has(o.uid)) return;
+        const d2 = (o.x - fx) ** 2 + (o.y - fy) ** 2;
+        if (d2 < best) {
+          best = d2;
+          next = o;
+        }
+      });
+      // the last one in the chain (nothing left to leap to, or its last link) is bound fast
+      if ((!next || k === links - 1) && !t.isBoss) {
+        const e = t as Enemy;
+        e.slowF = Math.min(e.slowF, 0.5);
+        e.slowT = Math.max(e.slowT, this.duration(w));
+      }
+      t = next;
+    }
+  }
+
+  /** The breath's cone: half its angle, and its reach. */
+  breathCone(w: WeaponInst): { half: number; L: number } {
+    return w.def.id === 'hellmouth' ? { half: 0.6, L: 220 * this.area(w) } : { half: 0.45, L: 170 * this.area(w) };
+  }
+
+  /** Fire Breath: a cone of flame where you face, setting what it touches alight (Hellmouth: front and back, always). */
+  private breath(w: WeaponInst, dt: number): void {
+    const evo = w.def.id === 'hellmouth';
+    if (!evo) {
+      if (!w.active) {
+        if (!this.ready(w, dt)) return;
+        w.active = true;
+        w.activeT = this.duration(w);
+        this.sfx('whoosh', 0.45);
+      } else if ((w.activeT -= dt) <= 0) {
+        w.active = false;
+        w.cd = this.cooldown(w);
+        return;
+      }
+    } else w.active = true;
+    const p = this.g.player;
+    const d = this.aimDir(w, p.x, p.y, 'forward');
+    w.angle = Math.atan2(d.y, d.x);
+    w.tickAcc -= dt;
+    if (w.tickAcc > 0) return;
+    w.tickAcc = 0.15;
+    const { half, L } = this.breathCone(w);
+    const st = this.g.player.stats;
+    for (let k = 0; k < (evo ? 2 : 1); k++) {
+      const a = w.angle + k * Math.PI;
+      this.g.forEachTargetInCircle(p.x, p.y, L, (t) => {
+        if (!inSector(t.x, t.y, p.x, p.y, a, half, L, t.r)) return;
+        this.hit(w, t, this.damage(w), p.x, p.y, 0.2);
+        if (!t.isBoss) ignite(t as Enemy, 3, 6 * st.might, w.def.id, p.index);
       });
     }
   }

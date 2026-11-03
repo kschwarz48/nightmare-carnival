@@ -1663,6 +1663,37 @@ export class GameRenderer3D {
           this.fxAdd.draw(glowF, ex, ey, 18, 0.5, 0.5, 0, c[0], c[1], c[2], 0.5);
           if (op > 0) pool.add(ex, ey, 140, 0.32 * op, c[0], c[1], c[2], 40, 1.5);
         }
+      } else if (k === 'lantern' && w.active) {
+        // the world tiers' (D-97): a soft cone of warm lantern light with a brighter core, lighting what it shows
+        const n = g.weapons.amount(w), L = g.weapons.lanternLength(w);
+        const last = w.def.isEvolution;
+        for (let i = 0; i < n; i++) {
+          const a = g.weapons.lanternAngle(w, i, n);
+          const cx = Math.cos(a), cy = Math.sin(a);
+          const sx = px + cx * 18, sy = py + cy * 18, ex = px + cx * L, ey = py + cy * L;
+          const c = last ? [0.7, 1, 0.95] : [1, 0.86, 0.55];
+          A.line(sx, sy, ex, ey, 64, c[0], c[1], c[2], 0.09, 0);
+          A.line(sx, sy, ex, ey, 26, c[0], c[1], c[2], 0.16, 0.1);
+          A.line(sx, sy, ex, ey, 5, 1, 0.97, 0.85, 0.45, 0.3);
+          this.fxAdd.draw(glowF, px + cx * 22, py + cy * 22, 40, 0.5, 0.5, 0, c[0], c[1], c[2], 0.6);
+          if (op > 0) pool.add(px + cx * L * 0.6, py + cy * L * 0.6, 170, 0.45 * op, c[0], c[1], c[2], 40, 1.5);
+        }
+      } else if (k === 'breath' && w.active) {
+        // a fan of flame tongues that flicker, hottest at the mouth
+        const { half, L } = g.weapons.breathCone(w);
+        for (let s2 = 0; s2 < (w.def.isEvolution ? 2 : 1); s2++) {
+          for (let j = 0; j < 7; j++) {
+            const f = j / 6 - 0.5;
+            const a = w.angle + s2 * Math.PI + f * 2 * half * (0.85 + 0.15 * Math.sin(this.time * 23 + j * 1.7));
+            const len = L * (0.75 + 0.25 * Math.sin(this.time * 17 + j * 2.3));
+            const cx = Math.cos(a), cy = Math.sin(a);
+            A.line(px + cx * 14, py + cy * 14, px + cx * len, py + cy * len, 22, 1, 0.42, 0.1, 0.22, 0);
+            A.line(px + cx * 14, py + cy * 14, px + cx * len * 0.6, py + cy * len * 0.6, 9, 1, 0.82, 0.4, 0.4, 0.2);
+          }
+          const mx = px + Math.cos(w.angle + s2 * Math.PI) * L * 0.5, my = py + Math.sin(w.angle + s2 * Math.PI) * L * 0.5;
+          this.fxAdd.draw(glowF, mx, my, 30, 1.2, 1.2, 0, 1, 0.5, 0.15, 0.55);
+          if (op > 0) pool.add(mx, my, 200, 0.6 * op, 1, 0.5, 0.18, 40, 1.5);
+        }
       } else if (k === 'orbs' && w.active) {
         const n = g.weapons.amount(w);
         const R = g.weapons.orbRadius(w);

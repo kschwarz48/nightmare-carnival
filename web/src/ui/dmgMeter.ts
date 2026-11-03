@@ -15,10 +15,14 @@ const KIND_COL: Record<WeaponKind, string> = {
   cards: '#e04a4e', mallet: '#d8893a', tarot: '#9d6bff', bumper: '#3fb8c8', plush: '#ff7cc0', tophat: '#8a70d8',
   popcorn: '#e8c43e', darts: '#ff6f8e', fireworks: '#f05ad2', cotton: '#ff9ccf', rings: '#f2b84e', cannon: '#8fa4b8',
   snowcone: '#6cc8f4', grill: '#ff7a3a', laser: '#4fe08a', orbs: '#b38aff', bell: '#c8a050', mirror: '#9fd8e8', calliope: '#d8a860',
+  lantern: '#ffe08a', chains: '#8fd3ff', breath: '#ff6a3a',
 };
 /** What isn't a weapon's: its name, colour and icon. */
 const OTHER: Record<string, { name: string; col: string; icon: (a: Assets) => string }> = {
   revive: { name: 'Spare Balloon', col: '#ff6a8a', icon: (a) => a.uiIcon('revive') },
+  // the world tiers' passives (D-97)
+  soul_jar: { name: 'Soul Jar', col: '#8fd3ff', icon: (a) => a.passiveIcon('soul_jar') },
+  brimstone: { name: 'Brimstone', col: '#ff6a3a', icon: (a) => a.passiveIcon('brimstone') },
   spark_trail: { name: 'Live Wire', col: '#ffe066', icon: (a) => a.portrait('ride_operator') },
   other: { name: 'Other', col: '#a8a0b8', icon: (a) => a.uiIcon('other') },
 };
