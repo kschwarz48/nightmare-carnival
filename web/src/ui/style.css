@@ -749,6 +749,9 @@ body:has(#nl-badge-frame) .title .corner { bottom: calc(1.2em + 64px); }
 .hud .quest-prompt { position: absolute; transform: translate(-50%, -100%); display: flex; align-items: center; gap: 0.5em; background: rgba(20, 10, 32, 0.88); border: 3px solid var(--ink); border-radius: 10px; padding: 0.25em 0.8em; box-shadow: 0 0 0 2px var(--gold-dark), 0 6px 16px rgba(0, 0, 0, 0.5); color: var(--cream); white-space: nowrap; pointer-events: none; font-size: 0.95em; animation: promptIn 0.18s ease-out; }
 .hud .quest-prompt.hidden { display: none; }
 .hud .quest-prompt .key { background: var(--gold); color: var(--ink); border-radius: 6px; padding: 0 0.45em; font-size: 0.9em; box-shadow: 0 2px 0 var(--gold-dark); }
+/* the key answers a press at once (D-101), before the host's answer comes back */
+.hud .quest-prompt .key.pressed { animation: keyPress 0.3s ease-out; }
+@keyframes keyPress { 0% { transform: translateY(2px) scale(0.84); box-shadow: 0 0 0 var(--gold-dark), 0 0 16px rgba(255, 220, 120, 0.95); } 100% { transform: none; box-shadow: 0 2px 0 var(--gold-dark); } }
 @keyframes promptIn { from { opacity: 0; transform: translate(-50%, -80%); } to { opacity: 1; transform: translate(-50%, -100%); } }
 .hud .chest-arrow { position: absolute; width: 40px; height: 40px; pointer-events: none; color: #f2c14e; filter: drop-shadow(0 0 7px rgba(255, 200, 80, 0.8)); }
 .hud .chest-arrow[data-kind="golden"] { color: #ffe066; filter: drop-shadow(0 0 8px rgba(255, 236, 130, 0.9)); }

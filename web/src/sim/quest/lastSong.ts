@@ -49,27 +49,27 @@ export class LastSongChain extends QuestChain {
     return this.stage === LS.Complete;
   }
 
-  /** 0..1 puck height on the High Striker (triangle wave, peaks at the bell). */
-  strikerHeight(): number {
-    const ph = (this.g.realTime % LAST_SONG.striker.period) / LAST_SONG.striker.period;
+  /** 0..1 puck height on the High Striker (triangle wave, peaks at the bell) at real time `rt`. */
+  strikerHeight(rt = this.g.realTime): number {
+    const ph = (rt % LAST_SONG.striker.period) / LAST_SONG.striker.period;
     return 1 - Math.abs(ph * 2 - 1);
   }
 
-  strikerInWindow(): boolean {
-    return this.strikerHeight() >= 1 - LAST_SONG.striker.window;
+  strikerInWindow(rt = this.g.realTime): boolean {
+    return this.strikerHeight(rt) >= 1 - LAST_SONG.striker.window;
   }
 
   /**
    * What a player standing at (x, y) could use with interact right now (D-98: the first map answers E like the others;
    * it was walk-up): Zoltana, a lit ghost lamp, the High Striker's pad. The HUD shows its prompt.
    */
-  interaction(x: number, y: number, _who?: number, slack = 0): { kind: 'zoltana' | 'lamp' | 'striker'; i: number; x: number; y: number; label: string } | null {
+  interaction(x: number, y: number, _who?: number): { kind: 'zoltana' | 'lamp' | 'striker'; i: number; x: number; y: number; label: string } | null {
     if (this.stage === LS.Finale) return null;
     const m = LAST_SONG.machine, s = LAST_SONG.striker;
     let best: { kind: 'zoltana' | 'lamp' | 'striker'; i: number; x: number; y: number; label: string } | null = null, bd = Infinity;
     const offer = (kind: 'zoltana' | 'lamp' | 'striker', i: number, px: number, py: number, reach: number, label: string) => {
       const d = dist2(x, y, px, py);
-      if (d < (reach + slack) ** 2 && d < bd) {
+      if (d < reach * reach && d < bd) {
         bd = d;
         best = { kind, i, x: px, y: py, label };
       }
@@ -93,15 +93,16 @@ export class LastSongChain extends QuestChain {
     // presses: each player who pressed interact uses the nearest thing in reach (co-op shares the chain, D-51)
     for (const p of g.players) {
       if (p.dead || p.downed || !g.inputs[p.index]?.interact) continue;
-      // a guest's press comes from where their own screen showed them, a moment ahead of their copy here: a step of slack
-      const it = this.interaction(p.x, p.y, p.index, p.index === 0 ? 0 : 40) as { kind: 'zoltana' | 'lamp' | 'striker'; i: number } | null;
+      // where they pressed (D-101: a guest's own screen runs a moment ahead of their copy here)
+      const at = g.pressPoint(p);
+      const it = this.interaction(at.x, at.y, p.index) as { kind: 'zoltana' | 'lamp' | 'striker'; i: number } | null;
       if (!it) continue;
       const key = `${it.kind}${it.i}`;
       if (this.cool.has(key)) continue;
       this.cool.set(key, it.kind === 'striker' ? 0.35 : 0.3);
       if (it.kind === 'zoltana') this.onMachine();
       else if (it.kind === 'lamp') this.onTouchLamp(it.i);
-      else this.onPad();
+      else this.onPad(g.pressClock(p).realTime);
     }
     // the carousel's music box gives away the order once it has woken
     if (this.stage >= LS.Melody && this.stage < LS.Finale) {
@@ -217,9 +218,10 @@ export class LastSongChain extends QuestChain {
     }
   }
 
-  private onPad(): void {
+  /** A strike, judged by the light when it was swung (`rt`: a guest's by what their screen showed, D-101). */
+  private onPad(rt = this.g.realTime): void {
     const s = LAST_SONG.striker;
-    const hit = this.strikerInWindow();
+    const hit = this.strikerInWindow(rt);
     if (this.stage !== LS.Striker) {
       // a toy otherwise: it rings, but nothing answers
       this.cue(hit ? 'ding' : 'clunk', { x: s.x, y: s.y, a: 0, b: 0 });

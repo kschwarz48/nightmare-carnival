@@ -341,12 +341,14 @@ export class LastTrainChain extends QuestChain {
     for (const [k, t] of this.cool) if (t - dt <= 0) this.cool.delete(k); else this.cool.set(k, t - dt);
     for (const p of up) {
       if (!g.inputs[p.index]?.interact) continue;
-      const it = this.interaction(p.x, p.y, p.index);
+      // where and when they pressed (D-101: a guest's own screen runs a moment ahead of their copy here, and late)
+      const at = g.pressPoint(p);
+      const it = this.interaction(at.x, at.y, p.index);
       if (!it) continue;
       const key = `${it.kind}${it.i}`;
       if (this.cool.has(key)) continue;
       this.cool.set(key, COOLDOWN[it.kind] ?? 0.25);
-      this.use(it, p.index);
+      this.use(it, p.index, g.pressClock(p).time);
     }
     // whatever is carried passes to the nearest standing player if its carrier falls
     const pass = (by: number): number => {
@@ -508,7 +510,8 @@ export class LastTrainChain extends QuestChain {
   }
 
   /** A player (index `who`) used `it`. */
-  private use(it: LTInteraction, who: number): void {
+  /** `t`: the night's time the press saw (a stoke is judged by the needle then; D-101). */
+  private use(it: LTInteraction, who: number, t = this.g.time): void {
     const g = this.g;
     const at = { x: it.x, y: it.y };
     switch (it.kind) {
@@ -640,7 +643,7 @@ export class LastTrainChain extends QuestChain {
         break;
       case 'stoke':
         if (trainNow(g).phase !== 'travel') break;
-        if (gaugeAt(g.time) >= 1 - LAST_TRAIN.gaugeWindow) {
+        if (gaugeAt(t) >= 1 - LAST_TRAIN.gaugeWindow) {
           this.stokes++;
           this.cue('lt_stoke', { ...at, a: this.stokes });
           if (this.stokes >= LAST_TRAIN.stokes) this.taskDone(1, at);

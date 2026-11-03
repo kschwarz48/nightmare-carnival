@@ -53,9 +53,10 @@ export class LineChain extends QuestChain {
     }
     for (const p of g.players) {
       if (!g.isUp(p) || !g.inputs[p.index]?.interact) continue;
+      const at = g.pressPoint(p); // where they pressed (D-101)
       // the hidden quest's fixtures answer first where they overlap (its chain is asked before this one)
-      if (g.quests.chains.some((c) => c !== this && c.interaction?.(p.x, p.y, p.index))) continue;
-      const it = this.interaction(p.x, p.y);
+      if (g.quests.chains.some((c) => c !== this && c.interaction?.(at.x, at.y, p.index))) continue;
+      const it = this.interaction(at.x, at.y);
       if (!it) continue;
       const key = `${it.kind}${it.i}:${p.index}`;
       if (this.cool.has(key)) continue;

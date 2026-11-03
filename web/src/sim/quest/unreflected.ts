@@ -166,7 +166,8 @@ export class UnreflectedChain extends QuestChain {
     // presses first: each player who pressed uses the nearest thing in reach
     for (const p of up) {
       if (!g.inputs[p.index]?.interact) continue;
-      const it = this.interaction(p.x, p.y);
+      const at = g.pressPoint(p); // where they pressed (D-101)
+      const it = this.interaction(at.x, at.y);
       if (!it) continue;
       const key = `${it.kind}${it.i}`;
       if (this.cool.has(key)) continue;

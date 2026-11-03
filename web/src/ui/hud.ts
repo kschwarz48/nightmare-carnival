@@ -209,6 +209,8 @@ export class Hud {
   /** the Last Train Home's boiler gauge (D-98) */
   private stoke = new StokeGauge(LAST_TRAIN.gaugeWindow);
   private promptKey = '';
+  /** when the local player last pressed interact (D-101): the key's answer carries on if the prompt is rebuilt */
+  private pressedAt = -1e9;
   /** the prompt names the pad's button instead of the key (set by the app from the input in use) */
   padKeys = false;
 
@@ -417,6 +419,17 @@ export class Hud {
     this.stoke.pulse(good);
   }
 
+  /** The local player pressed interact (D-101): the prompt's key answers at once, before the host does. */
+  promptPressed(): void {
+    if (this.promptEl.classList.contains('hidden')) return;
+    this.pressedAt = performance.now();
+    const k = this.promptEl.querySelector<HTMLElement>('.key');
+    if (!k) return;
+    k.classList.remove('pressed');
+    void k.offsetWidth; // restart its animation
+    k.classList.add('pressed');
+  }
+
   /** "E  Turn the mirror": floats over whatever the local player could use right now (D-67). */
   private updatePrompt(g: Game, screen: HudScreen): void {
     const p = g.player;
@@ -429,7 +442,16 @@ export class Hud {
     if (key !== this.promptKey) {
       this.promptKey = key;
       this.promptEl.classList.toggle('hidden', !it);
-      if (it) this.promptEl.replaceChildren(h('span', { class: 'key' }, this.padKeys ? 'A' : 'E'), h('span', {}, it.label));
+      if (it) {
+        const k = h('span', { class: 'key' }, this.padKeys ? 'A' : 'E');
+        // the press just made changed what it says (the host answered): the key's answer carries on where it was
+        const since = performance.now() - this.pressedAt;
+        if (since < 300) {
+          k.classList.add('pressed');
+          k.style.animationDelay = `${-since}ms`;
+        }
+        this.promptEl.replaceChildren(k, h('span', {}, it.label));
+      }
     }
     if (!it) return;
     const s = screen.toScreen(it.x, it.y, 150);

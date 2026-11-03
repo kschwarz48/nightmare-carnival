@@ -17,7 +17,7 @@ import type { LinkStats, NetLink } from './link';
 import {
   BIN_INPUT, BIN_SNAPSHOT, FORWARDED_EVENTS, INPUT_REDUNDANCY, MAX_PLAYERS, PROTO, REJECT_TEXT, RateLimiter, SNAPSHOT_HZ, SNAPSHOT_HZ_FAST,
   binType, cleanChat, decodeInputPacket, encodeInputPacket, meterFromWire, meterToWire, parseGuestMsg, parseHostMsg,
-  type GuestMsg, type GuestProfile, type HoldWhy, type HostMsg, type LobbyState, type NetInput, type RejectReason, type StartCfg,
+  type GuestMsg, type GuestProfile, type HoldWhy, type HostMsg, type LobbyState, type NetInput, type PressRecord, type RejectReason, type StartCfg,
 } from './protocol';
 import { Replica } from './replica';
 import { SnapshotEncoder, decodeSnapshot, snapshotEpoch, type SfxEvt } from './snapshot';
@@ -42,6 +42,10 @@ export const METER_EVERY = 1000;
 export const RECONNECT_WAIT = 20000;
 /** Longest the host waits for the guests to finish watching a prize wheel. */
 export const PRIZE_WAIT = 30000;
+
+/** A guest's interact press (D-101): sent with its inputs this long after it, and used by the host only this fresh. */
+const PRESS_SEND_MS = 1000;
+const PRESS_FRESH_MS = 700;
 
 export interface HostProfile {
   name: string;
@@ -90,8 +94,9 @@ interface Seat {
   deepTicks: number;
   /** when the last new input arrived (a silent guest stops moving instead of running on) */
   lastInputAt: number;
-  /** the guest's interact count as last applied (-1: not yet heard, so the first input sets it; D-67) */
-  lastIa: number;
+  /** the guest's latest interact press as heard (its number; -1 before any), and one waiting for the next tick (D-101) */
+  lastPress: number;
+  press: (PressRecord & { at: number }) | null;
   /** consecutive ticks covered by repeating the last input while the buffer was empty */
   repeats: number;
   /** dropped mid-run: the night waits for them until this time (0 = not waiting) */
@@ -453,7 +458,7 @@ export class HostSession {
     if (index < 0) return this.refuse(link, 'full');
     const seat: Seat = {
       index, link: null, profile: { ...m.profile, name: this.uniqueName(m.profile.name) }, token: randomToken(), character: null, ready: false, away: false, connected: false, lastHeard: this.now, heard: false, rtt: 0, jitter: 0, owed: 0, fast: false,
-      view: { hx: 900, hy: 700 }, queue: [], lastQueued: 0, lastApplied: 0, lastInput: null, lastIa: -1, ackSnap: 0, dictAck: 0, invalid: 0,
+      view: { hx: 900, hy: 700 }, queue: [], lastQueued: 0, lastApplied: 0, lastInput: null, lastPress: -1, press: null, ackSnap: 0, dictAck: 0, invalid: 0,
       limiter: new RateLimiter(40, 80, this.now), binLimiter: new RateLimiter(180, 240, this.now), paused: false, goneAt: 0, deepTicks: 0, lastInputAt: 0, repeats: 0,
       waitUntil: 0, prize: 0, enc: new SnapshotEncoder(), snapSeq: 0, snapAcc: 0, fx: [], sfx: [],
       stats: { bytes: 0, snaps: 0, winStart: this.now, bps: 0, rate: 0, last: 0, skipped: 0, starved: 0, dropped: 0 },
@@ -478,7 +483,8 @@ export class HostSession {
     s.queue.length = 0;
     s.lastQueued = s.lastApplied = 0;
     s.lastInput = null;
-    s.lastIa = -1;
+    s.lastPress = -1;
+    s.press = null;
     s.paused = false;
     s.waitUntil = 0;
     this.resetStream(s);
@@ -698,6 +704,12 @@ export class HostSession {
       s.lastQueued = i.seq;
       s.lastInputAt = this.now;
     }
+    // an interact press (D-101): heard here, as it lands, and used at the next tick. It waited behind the inputs
+    // queued ahead of it, and a backlog after a hitch on either side made a guest's E late, or find them elsewhere
+    if (pk.press && pk.press.n !== s.lastPress) {
+      s.lastPress = pk.press.n;
+      s.press = { ...pk.press, at: this.now };
+    }
   }
 
   private guestDraft(s: Seat, m: Extract<GuestMsg, { t: 'draft' }>): void {
@@ -748,7 +760,8 @@ export class HostSession {
       s.queue.length = 0;
       s.lastQueued = s.lastApplied = 0;
       s.lastInput = null;
-      s.lastIa = -1;
+      s.lastPress = -1;
+      s.press = null;
       s.prize = 0;
     }
     for (const type of FORWARDED_EVENTS) {
@@ -813,6 +826,16 @@ export class HostSession {
         inp.aimActive = false;
         continue;
       }
+      // a press (D-101) is this tick's, wherever their inputs stand; one held over a pause or a stall is dropped
+      // rather than used late
+      if (s.press) {
+        const pr = s.press;
+        s.press = null;
+        if (this.now - pr.at < PRESS_FRESH_MS) {
+          inp.interact = true;
+          inp.press = { x: pr.x, y: pr.y, time: pr.tm, realTime: pr.rt };
+        }
+      }
       // Every guest input should be applied exactly once, in order. Frames on either machine arrive
       // unevenly (a 144 Hz display ticks on some frames and not others; a busy frame runs several
       // ticks), so the buffer breathes; only a backlog that persists — latency the guest would feel —
@@ -857,10 +880,6 @@ export class HostSession {
       inp.aimX = next.ax;
       inp.aimY = next.ay;
       inp.aimActive = next.aim;
-      // a changed interact count is a press (or several, folded into one) for this tick
-      const ia = next.ia ?? 0;
-      if (s.lastIa >= 0 && ia !== s.lastIa) inp.interact = true;
-      s.lastIa = ia;
     }
   }
 
@@ -1042,8 +1061,10 @@ export class GuestSession {
   /** the game the host says is running (D-76): inputs carry it, and snapshots of another game are dropped */
   private epoch = 0;
   private recent: NetInput[] = [];
-  /** interact presses so far, sent with every input (D-67) */
-  private ia = 0;
+  /** interact presses so far (wrapping at 256), and the latest, sent with the inputs until `pressUntil` (D-101) */
+  private pressN = 0;
+  private press: PressRecord | null = null;
+  private pressUntil = 0;
   private writer = new Writer(128);
   private lastPing = 0;
   private lastHeard = 0;
@@ -1164,6 +1185,7 @@ export class GuestSession {
         this.prizeWait = false;
         this.seq = 0;
         this.recent.length = 0;
+        this.press = null;
         this.epoch = m.epoch ?? 0;
         const g = this.onStart(m.cfg, !!m.resume);
         if (!g) return;
@@ -1260,23 +1282,34 @@ export class GuestSession {
    */
   step(mx: number, my: number, ax: number, ay: number, aim: boolean): void {
     if (this.state !== 'run' || !this.replica) return;
-    const inp: NetInput = { seq: ++this.seq, mx, my, ax, ay, aim, ia: this.ia };
+    const inp: NetInput = { seq: ++this.seq, mx, my, ax, ay, aim };
     this.recent.push(inp);
     if (this.recent.length > INPUT_REDUNDANCY) this.recent.shift();
     this.replica.predict(inp.seq, mx, my);
     this.sendInputs();
   }
 
-  /** The local player pressed interact (E, or A on a pad): it rides out with the next inputs. */
+  /**
+   * The local player pressed interact (E, or A on a pad; D-101). It goes out at once, with where they stood on this
+   * screen and the host's clocks this screen showed, and rides along with the inputs for a second: the host uses it
+   * at its next tick, finds what was in reach where they stood, and judges a swing timed by eye by what they saw.
+   */
   interact(): void {
-    this.ia = (this.ia + 1) & 255;
+    const g = this.game, r = this.replica;
+    const p = g && r ? g.players[r.local] : null;
+    if (!g || !p) return;
+    this.pressN = (this.pressN + 1) & 255;
+    this.press = { n: this.pressN, x: p.x, y: p.y, tm: g.time, rt: g.realTime };
+    this.pressUntil = this.now + PRESS_SEND_MS;
+    if (this.state === 'run') this.sendInputs();
   }
 
   private sendInputs(): void {
     const r = this.replica;
     if (!r) return;
     this.lastSend = this.now;
-    this.link.sendBin(encodeInputPacket({ epoch: this.epoch, ackSnap: r.last?.seq ?? 0, dictSize: r.dict.size, inputs: this.recent }, this.writer));
+    const press = this.press && this.now < this.pressUntil ? this.press : null;
+    this.link.sendBin(encodeInputPacket({ epoch: this.epoch, ackSnap: r.last?.seq ?? 0, dictSize: r.dict.size, inputs: this.recent, press }, this.writer));
   }
 
   /** Per frame: keepalive acks while not stepping, pings, link timeout, diagnostics. */

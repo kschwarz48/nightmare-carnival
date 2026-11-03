@@ -2662,6 +2662,7 @@ export class App {
   private interactPress(): void {
     const g = this.game;
     if (!g || g.hub) return;
+    this.hud.promptPressed();
     if (this.net?.role === 'guest') this.net.guest.interact();
     else g.inputs[this.localIndex].interact = true;
   }

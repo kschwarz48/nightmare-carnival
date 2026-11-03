@@ -473,18 +473,27 @@ a freshly built copy, node by node (`morph` in `ui/dom.ts`):
 - attributes and click handlers are synced;
 - the focus ring of keyboard and gamepad navigation (the `focus` class) is kept.
 
-### Interact presses (D-67, PROTO 9)
+### Interact presses (D-67, PROTO 9; D-101, PROTO 22)
 
-- **What.** The Fun House quest's hands-on steps are presses of interact (E, or A on a pad). A guest's
-  press has to reach the host's sim, which runs the quest.
-- **How.** Every input a guest sends carries `ia`, its running count of presses (one byte, wrapping at
-  256). When the host applies an input whose count differs from the last one it applied for that seat,
-  that player's sim input gets a press for the tick. The count rides in every input, including the
-  redundant copies, so a lost packet never loses a press and a duplicate never doubles one. On a rejoin
-  the host relearns the count from the first input it hears.
-- **Test.** `tests/net.test.ts` sends one press over a link with 15% loss and 5% duplication and checks
-  the host's sim sees it on exactly one tick.
-- **PROTO 9.** The input packet grew a byte per input, so old builds can't join new lobbies.
+- **What.** Every map's hands-on quest steps are presses of interact (E, or A on a pad). A guest's press
+  has to reach the host's sim, which runs the quests.
+- **How (D-101).** A press goes out at once in an input packet, as a record: its number (one byte,
+  wrapping at 256), where the guest stood on its own screen, and the host's clocks that screen showed (the
+  night's time and the real time of the snapshot it was drawing). The record rides every input packet for
+  a second, so a lost packet never loses a press and a duplicate never doubles one: the host acts on a
+  number it hasn't heard. It reads the record as the packet lands and gives that player's sim input a
+  press at its next tick, whatever inputs are still queued ahead of it; one held over a pause or a stall
+  (700 ms) is dropped.
+- **Where and when.** The quests look for what was in reach where the guest stood (`Game.pressPoint`),
+  believed within 200 units of their copy on the host, and judge a swing timed by eye (the High Striker,
+  the boiler's stoke) by the clocks the guest saw (`Game.pressClock`), believed up to 1 s back.
+- **Before (D-67).** Every input carried a running count of presses, and the host acted when it applied an
+  input whose count had changed: behind whatever backlog the input queue held, at the guest's copy on the
+  host, by the host's clocks. A playtest found it late and missing timed swings (D-101).
+- **Tests.** `tests/net.test.ts` sends one press over a link with 15% loss and 5% duplication and checks
+  the host's sim sees it on exactly one tick. `tests/coopInteract.test.ts` checks a press is used at the
+  next tick behind a backlog, finds what was in reach where the guest stood, and rings the striker by the
+  guest's clock.
 
 ### Chat and miniboss health (D-65, PROTO 8)
 

@@ -14,7 +14,7 @@ import { isPetId } from '../data/pets';
 import { isSource, type MeterPlayer } from '../sim/meter';
 
 /** Bump when the wire format changes; mismatched builds are refused with a clear message. */
-export const PROTO = 21;
+export const PROTO = 22;
 /** Party size cap: the host plus five guests (D-54). */
 export const MAX_PLAYERS = 6;
 export const MAX_RELIABLE_BYTES = 16384;
@@ -424,11 +424,22 @@ export interface NetInput {
   ax: number;
   ay: number;
   aim: boolean;
-  /**
-   * How many times the guest has pressed interact (wraps at 256; D-67). Every input carries the count,
-   * so a lost packet never loses a press: the host acts once each time the count changes.
-   */
-  ia?: number;
+}
+
+/**
+ * A guest's latest interact press (D-101; it was a count in every input, D-67, acted on only once the inputs queued
+ * ahead of it had played out). It rides in every input packet for a second after the press, so a lost packet never
+ * loses it; the host acts on a new number at its next tick.
+ */
+export interface PressRecord {
+  /** the press count (wraps at 256): a number the host hasn't heard is a new press */
+  n: number;
+  /** where the guest stood on its own screen */
+  x: number;
+  y: number;
+  /** the host's clocks its screen showed: the night's time and the real time (the snapshot it was drawing) */
+  tm: number;
+  rt: number;
 }
 
 export interface InputPacket {
@@ -440,6 +451,8 @@ export interface InputPacket {
   dictSize: number;
   /** oldest → newest, consecutive sequence numbers */
   inputs: NetInput[];
+  /** the latest interact press, for a second after it (D-101) */
+  press?: PressRecord | null;
 }
 
 const q8 = (v: number) => Math.max(-127, Math.min(127, Math.round(v * 127)));
@@ -459,14 +472,22 @@ export function encodeInputPacket(p: InputPacket, w = new Writer(128)): ArrayBuf
     w.i8(q8(i.ax));
     w.i8(q8(i.ay));
     w.u8(i.aim ? 1 : 0);
-    w.u8((i.ia ?? 0) & 255);
+  }
+  const pr = p.press;
+  w.u8(pr ? 1 : 0);
+  if (pr) {
+    w.u8(pr.n & 255);
+    w.f32(pr.x);
+    w.f32(pr.y);
+    w.f32(pr.tm);
+    w.f32(pr.rt);
   }
   return w.done();
 }
 
 /** Decode a guest input packet; null if malformed. Movement is clamped to the unit disc. */
 export function decodeInputPacket(buf: ArrayBuffer): InputPacket | null {
-  if (!(buf instanceof ArrayBuffer) || buf.byteLength > MAX_INPUT_BYTES || buf.byteLength < 13) return null;
+  if (!(buf instanceof ArrayBuffer) || buf.byteLength > MAX_INPUT_BYTES || buf.byteLength < 14) return null;
   try {
     const r = new Reader(buf);
     if (r.u8() !== BIN_INPUT) return null;
@@ -482,9 +503,14 @@ export function decodeInputPacket(buf: ArrayBuffer): InputPacket | null {
         mx /= l;
         my /= l;
       }
-      inputs.push({ seq: seq - (n - 1 - k), mx, my, ax: r.i8() / 127, ay: r.i8() / 127, aim: (r.u8() & 1) === 1, ia: r.u8() });
+      inputs.push({ seq: seq - (n - 1 - k), mx, my, ax: r.i8() / 127, ay: r.i8() / 127, aim: (r.u8() & 1) === 1 });
     }
-    return { epoch, ackSnap, dictSize, inputs };
+    let press: PressRecord | null = null;
+    if (r.u8() === 1) {
+      const pn = r.u8(), x = r.f32(), y = r.f32(), tm = r.f32(), rt = r.f32();
+      if ([x, y, tm, rt].every(Number.isFinite) && Math.abs(x) < 1e5 && Math.abs(y) < 1e5) press = { n: pn, x, y, tm, rt };
+    }
+    return { epoch, ackSnap, dictSize, inputs, press };
   } catch {
     return null;
   }

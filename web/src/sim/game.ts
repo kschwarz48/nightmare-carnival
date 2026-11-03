@@ -55,7 +55,7 @@ import { lineOf, type MeterPlayer } from './meter';
 import { PET_MAP } from '../data/pets';
 import { addHazardPull, moveBody, steer } from './movement';
 
-import { KB_FATIGUE_S, KB_SCALE, KB_WEAR, NOBODY, TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
+import { KB_FATIGUE_S, KB_SCALE, KB_WEAR, NOBODY, PRESS_LATE, PRESS_REACH, TICK, VIEW_HALF_X, VIEW_HALF_Y } from './constants';
 export { TICK, VIEW_HALF_X, VIEW_HALF_Y };
 const GEM_CAP = 400;
 /**
@@ -107,6 +107,8 @@ export interface InputState {
   aimActive: boolean;
   /** an interact press (E, or A on a pad) for the next tick to use; cleared once a tick has run (D-67) */
   interact?: boolean;
+  /** a co-op guest's press: where they stood on their own screen and the clocks it showed (D-101); cleared with it */
+  press?: { x: number; y: number; time: number; realTime: number } | null;
 }
 
 /** One player's share of a co-op night (D-71), as the results' leaderboard shows it. */
@@ -413,6 +415,28 @@ export class Game {
   }
 
   // ------------------------------------------------------------------ party
+  /**
+   * Where player `p` pressed interact (D-101). A guest's screen runs a moment ahead of their copy here (their inputs
+   * still queued behind a hitch, a shove not yet seen there), so their press brings where they stood, believed within
+   * PRESS_REACH of this copy; anyone else pressed where they are.
+   */
+  pressPoint(p: Player): { x: number; y: number } {
+    const pr = this.inputs[p.index]?.press;
+    return pr && dist2(pr.x, pr.y, p.x, p.y) < PRESS_REACH * PRESS_REACH ? pr : p;
+  }
+
+  /**
+   * The night's clocks as player `p` saw them when pressing (D-101). A guest's screen shows the night a moment late,
+   * and their press lands later still, so a swing timed by eye (the High Striker's light, the boiler's needle) is
+   * judged by what they saw, believed up to PRESS_LATE seconds back.
+   */
+  pressClock(p: Player): { time: number; realTime: number } {
+    const pr = this.inputs[p.index]?.press;
+    if (!pr) return { time: this.time, realTime: this.realTime };
+    const ok = (seen: number, now: number) => seen <= now + 1e-6 && now - seen <= PRESS_LATE;
+    return { time: ok(pr.time, this.time) ? pr.time : this.time, realTime: ok(pr.realTime, this.realTime) ? pr.realTime : this.realTime };
+  }
+
   /** Point the single-player systems at `p` (see `player`). */
   setCtx(p: Player): void {
     this.player = p;
@@ -501,7 +525,10 @@ export class Game {
   tick(): void {
     this.step();
     // an interact press is good for the one tick that sees it (D-67)
-    for (const i of this.inputs) i.interact = false;
+    for (const i of this.inputs) {
+      i.interact = false;
+      i.press = null;
+    }
   }
 
   private step(): void {

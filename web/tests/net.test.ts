@@ -364,14 +364,17 @@ describe('replication into the guest mirror', () => {
 // ===================================================================================== protocol
 describe('protocol validation', () => {
   it('round-trips input packets and clamps hostile values', () => {
-    const buf = encodeInputPacket({ epoch: 7, ackSnap: 12, dictSize: 40, inputs: [{ seq: 9, mx: 1, my: 0, ax: 0, ay: -1, aim: true, ia: 3 }, { seq: 10, mx: -0.5, my: 0.5, ax: 1, ay: 0, aim: false, ia: 260 }] });
+    const press = { n: 260, x: -1440.5, y: 1050.25, tm: 61.5, rt: 63.25 };
+    const buf = encodeInputPacket({ epoch: 7, ackSnap: 12, dictSize: 40, inputs: [{ seq: 9, mx: 1, my: 0, ax: 0, ay: -1, aim: true }, { seq: 10, mx: -0.5, my: 0.5, ax: 1, ay: 0, aim: false }], press });
     const p = decodeInputPacket(buf)!;
     expect(p.epoch).toBe(7); // which game the inputs belong to (D-76)
     expect(p.ackSnap).toBe(12);
     expect(p.dictSize).toBe(40);
     expect(p.inputs.map((i) => i.seq)).toEqual([9, 10]);
     expect(p.inputs[0].aim).toBe(true);
-    expect(p.inputs.map((i) => i.ia)).toEqual([3, 4]); // the interact count wraps at 256 (D-67)
+    // the latest interact press rides along (D-101): its number wraps at 256, where and when it was made come through
+    expect(p.press).toEqual({ ...press, n: 4 });
+    expect(decodeInputPacket(encodeInputPacket({ ackSnap: 0, dictSize: 0, inputs: [{ seq: 1, mx: 0, my: 0, ax: 0, ay: 0, aim: false }] }))!.press).toBeNull();
     expect(p.inputs[1].mx).toBeCloseTo(-0.5, 1);
     // a forged packet with (127,127) movement is normalised to the unit disc
     const forged = new Uint8Array(buf.slice(0));

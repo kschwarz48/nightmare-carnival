@@ -2059,3 +2059,32 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   finished), the locked ones dimmed with what opens them. Clicking an open tier picks it: the menus close and the
   Midway crosses into its look and music, as Swap Character and Companions return to the grounds. A co-op host's pick
   is the lobby's, as before; guests still follow the host. UI only: no rule, save or protocol change.
+
+### D-101 · A guest's E: at once, where they stood, judged by what they saw
+
+- **The playtest.** A guest's E "works sometimes, but sometimes takes multiple tries or is very delayed". Measured with
+  a guest walking up to Zoltana on real key presses, in two windows over real WebRTC with lag and loss added at each
+  side's link, and over the loopback link with the frames of both machines on their own clocks. Two causes:
+  - **Late.** A press rode the guest's inputs as a running count (D-67), and the host acted on it only when the input
+    carrying it reached the front of that guest's input queue. After a hitch on either side that queue holds a backlog
+    (a tick per input, trimmed slowly), and the press waited behind it: one press in the probe took 490 ms.
+  - **Timed by eye.** The High Striker's light and the Last Train Home's boiler needle are judged at the moment of the
+    press. A guest's screen shows them late (the newest snapshot) and the press lands later still, so a strike at the
+    top landed about a round trip late: at 90±40 ms lag with 5% loss, 2 of 6 strikes timed by the guest's screen
+    missed (and a missed stoke starts the stokes over).
+- **Now.** A press goes out at once, without waiting for the next input, with where the guest stood on its own screen
+  and the host's clocks its screen showed. It rides every input packet for a second: a lost packet never loses it, and
+  a new number is a new press. The host reads it as it lands and uses it at its next tick, whatever is queued ahead
+  of it. One held over a pause or a stall is dropped, not used late.
+  - The quests find what was in reach where the guest stood, believed within 200 units of their copy on the host
+    (`PRESS_REACH`).
+  - The striker and the stoke are judged by the clocks the guest saw, believed up to 1 s back (`PRESS_LATE`).
+  - The first map's 40-unit slack for a guest (D-99) goes: the guest's own spot replaces it.
+  - The prompt's key answers a press at once on the presser's screen, before the host's answer comes back.
+- **Measured.** Over the loopback link a press reaches the host's sim in 3–17 ms with no lag (it was 20–37), 34–67 ms
+  at 40±15 ms (59–85) and 62–196 ms at 90±40 ms with 5% loss and loss bursts (102–143; the slowest was a press lost
+  in a burst). In two windows over real WebRTC with that lag added, every press woke Zoltana, and every strike timed
+  by the guest's screen rang (18 of 18). A test (`tests/coopInteract.test.ts`) builds a backlog behind a struggling
+  host and checks the press is used at the next tick (the old code never got it through).
+- PROTO 22: the input packet's per-input count byte goes, and the press record joins it.
+

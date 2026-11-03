@@ -14,3 +14,9 @@ export const KB_FATIGUE_S = 1.2;
 export const KB_WEAR = 0.75;
 /** `Game.credit` for damage that is nobody's: the night's own (the Boardwalk's coaster running the crowd down; D-85). */
 export const NOBODY = -2;
+/**
+ * A co-op guest's interact press (D-101): where they stood on their own screen is believed within PRESS_REACH of
+ * their copy on the host, and the clocks it showed up to PRESS_LATE seconds back.
+ */
+export const PRESS_REACH = 200;
+export const PRESS_LATE = 1;
