@@ -134,7 +134,29 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // companions (D-84): each brings a pet along, and each can be earned on any map
   { id: 'pet_milo', name: 'Fetch!', desc: 'Pick up two golden tickets in a single night, on any map. Milo comes along.', reward: 60 },
   { id: 'pet_augustus', name: 'Nine Lives', desc: 'See the dawn on any map without your health ever falling below half. Augustus comes along.', reward: 120 },
+  // the world tiers (D-97): earned only by a night that counts for this save (its tier and map open on it)
+  { id: 'nm_carnival_core', name: 'The Haunted Midway', desc: 'Win the Carnival Core on Nightmare.', reward: 600 },
+  { id: 'nm_fun_house', name: 'Mirror, Mirror, Dead and Gone', desc: 'Win the Fun House on Nightmare.', reward: 800 },
+  { id: 'nm_boardwalk', name: 'Drowned Lights', desc: 'Win the Boardwalk on Nightmare.', reward: 1000 },
+  { id: 'nm_ghost_train', name: "Nightmare's End", desc: 'Finish the Ghost Train on Nightmare: the Haunted Carnival is beaten, and Hell opens.', reward: 2500 },
+  { id: 'hell_carnival_core', name: 'The Burning Big Top', desc: 'Win the Carnival Core on Hell.', reward: 1000 },
+  { id: 'hell_fun_house', name: 'Smoke and Mirrors', desc: 'Win the Fun House on Hell.', reward: 1400 },
+  { id: 'hell_boardwalk', name: 'The Boiling Sea', desc: 'Win the Boardwalk on Hell.', reward: 1800 },
+  { id: 'hell_ghost_train', name: 'Master of the Infernal Carnival', desc: 'Finish the Ghost Train on Hell: every world of the carnival is beaten.', reward: 6000 },
+  { id: 'nm_cursed', name: 'Cursed Spirits', desc: 'Win any night on Nightmare with the Curse.', reward: 1500 },
+  { id: 'hell_cursed', name: 'Damned', desc: 'Win any night on Hell with the Curse.', reward: 3000 },
+  { id: 'tier_party', name: 'Haunted Together', desc: 'Win a night on Nightmare or Hell in a party of three or more.', reward: 600 },
 ];
+
+/** The tier achievements a won night earns for a save it counts for (D-97). */
+export function tierAchievements(tier: TierId, map: string, curse: boolean, partySize: number): string[] {
+  if (tier === 'normal') return [];
+  const k = tier === 'nightmare' ? 'nm' : 'hell';
+  const out = [`${k}_${map}`];
+  if (curse) out.push(`${k}_cursed`);
+  if (partySize >= 3) out.push('tier_party');
+  return out;
+}
 
 /** End-of-run payout (doc 01 §8). */
 export function computePayout(o: { seconds: number; bosses: number; kills: number; won: boolean; greed: number; endlessExtraSeconds?: number; dawn?: number }): number {

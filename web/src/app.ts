@@ -13,7 +13,7 @@ import { Game, TICK, type RunConfig, type RunStats } from './sim/game';
 import { hashSeed } from './core/rng';
 import { CHARACTERS, CHARACTER_MAP } from './data/characters';
 import { BOSS_MAP } from './data/bosses';
-import { PERKS } from './data/meta';
+import { PERKS, tierAchievements } from './data/meta';
 import { WEAPONS, PASSIVES } from './data/weapons';
 import { ENEMIES } from './data/enemies';
 import { TIERS, type TierId } from './data/tiers';
@@ -1717,7 +1717,7 @@ export class App {
     const beforeCurse = s.curseAvailable();
     // the world tiers (D-97), judged on what this save had open when the night began (before its achievements)
     const tierRes = this.tierProgress(st);
-    const earned = s.grantAchievements(st.achievementsHit);
+    const earned = s.grantAchievements([...st.achievementsHit, ...tierRes.hits]);
     const notes: string[] = [...tierRes.notes];
     for (const c of CHARACTERS) if (!beforeChars.includes(c.id) && s.characterRequirementMet(c.id)) notes.push(`${c.name} can now be unlocked in the Lost & Found!`);
     for (const u of UNLOCKS) if (u.req && !beforeUnlocks.includes(u.id) && s.unlockRequirementMet(u.id)) notes.push(`${u.name} can now be bought in the Lost & Found!`);
@@ -1763,9 +1763,9 @@ export class App {
    * lines. A night that doesn't count (a guest visiting a tier or map they haven't reached) still pays its Lost
    * Tickets and achievements.
    */
-  private tierProgress(st: RunStats): { notes: string[]; tier: TierId | null; changed: boolean } {
+  private tierProgress(st: RunStats): { notes: string[]; tier: TierId | null; changed: boolean; hits: string[] } {
     const s = this.save;
-    const out = { notes: [] as string[], tier: null as TierId | null, changed: false };
+    const out = { notes: [] as string[], tier: null as TierId | null, changed: false, hits: [] as string[] };
     const map = st.map ?? 'carnival_core';
     if (!st.won || st.daily) return out;
     const t = TIERS[st.tier];
@@ -1779,6 +1779,10 @@ export class App {
     }
     const r = s.recordTierWin(st.tier, map);
     out.changed = true;
+    out.hits = tierAchievements(st.tier, map, st.curse, st.party?.length ?? 1);
+    if (st.tier === 'hell' && map === 'ghost_train' && s.tierWins('hell', 'ghost_train') === 1) {
+      out.notes.unshift('THE INFERNAL CARNIVAL FALLS. Every world of the carnival is beaten: Normal, Nightmare and Hell.');
+    }
     if (st.tier !== 'normal') for (const m of r.maps) out.notes.push(`${MAPS[m].name} is now open on ${t.name}.`);
     if (r.tier) {
       out.tier = r.tier;

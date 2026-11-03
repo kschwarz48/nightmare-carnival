@@ -585,3 +585,17 @@ describe("the bosses' tier attacks", () => {
     expect(hF.next).toBeLessThan(9);
   });
 });
+
+describe('tier achievements', () => {
+  it('name each map on each tier, the campaigns, the Curse and parties; none on Normal', async () => {
+    const { tierAchievements, ACHIEVEMENTS } = await import('../src/data/meta');
+    expect(tierAchievements('normal', 'ghost_train', true, 4)).toEqual([]);
+    expect(tierAchievements('nightmare', 'fun_house', true, 3)).toEqual(['nm_fun_house', 'nm_cursed', 'tier_party']);
+    expect(tierAchievements('hell', 'ghost_train', false, 1)).toEqual(['hell_ghost_train']);
+    const ids = new Set(ACHIEVEMENTS.map((a) => a.id));
+    for (const t of ['nightmare', 'hell'] as const) for (const m of MAP_IDS) for (const id of tierAchievements(t, m, true, 6)) expect(ids.has(id), id).toBe(true);
+    // Hell's campaign is the biggest reward in the game
+    const top = Math.max(...ACHIEVEMENTS.map((a) => a.reward));
+    expect(ACHIEVEMENTS.find((a) => a.id === 'hell_ghost_train')!.reward).toBe(top);
+  });
+});
