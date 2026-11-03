@@ -247,7 +247,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   lantern: W({
     id: 'lantern', name: "Watchman's Lantern", kind: 'lantern', unlock: 'w_lantern', signature: 'watchman',
     desc: 'A beam of lantern light sweeps back and forth before you, burning whatever it touches for as long as it stays in it.',
-    levelText: ['', '', '+2 damage', '+12% length', '+2 damage', '+12% length, a second beam', '+3 damage', '+12% length', '+3 damage'],
+    levelText: ['', '', '+2 damage', '+12% length', '+2 damage', '+12% length, +1 beam', '+3 damage', '+12% length', '+3 damage'],
     damage: 7, cooldown: 0, area: 1, amount: 1, speed: 2.1, pierce: 0, duration: 999, knockback: 0.15,
     lv: { dmg: [0, 2, 0, 2, 0, 3, 0, 3], cd: Z8, area: [0, 0, 0.12, 0, 0.12, 0, 0.12, 0], amount: [0, 0, 0, 0, 1, 0, 0, 0] },
     maxLevel: 8, evolvesTo: 'last_light', evoPassive: 'deaths_door', archetypes: ['dot'], aimable: true, weight: 0.9,
@@ -305,7 +305,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
   steam_whistle: W({
     id: 'steam_whistle', name: 'Night Express Whistle', kind: 'whistle', unlock: 'w_whistle',
     desc: 'A shriek of steam: a ring of scalding vapour rolls out from you, shoving the crowd back and scalding all it passes.',
-    levelText: ['', '', '+3 damage', '+12% reach, −0.2s cooldown', '+4 damage', '+12% reach, a second ring', '+4 damage, −0.2s cooldown', '+12% reach, −0.2s cooldown', '+5 damage'],
+    levelText: ['', '', '+3 damage', '+12% reach, −0.2s cooldown', '+4 damage', '+12% reach, +1 ring', '+4 damage, −0.2s cooldown', '+12% reach, −0.2s cooldown', '+5 damage'],
     damage: 16, cooldown: 2.8, area: 1, amount: 1, speed: 1, pierce: 0, duration: 0.5, knockback: 1.5,
     lv: { dmg: [0, 3, 0, 4, 0, 4, 0, 5], cd: [0, 0, -0.2, 0, 0, -0.2, -0.2, 0], area: [0, 0, 0.12, 0, 0.12, 0, 0.12, 0], amount: [0, 0, 0, 0, 1, 0, 0, 0] },
     maxLevel: 8, evolvesTo: 'last_call', evoPassive: 'conductor_watch', archetypes: ['aoe'], aimable: false, weight: 0.9,
@@ -502,7 +502,7 @@ export const PASSIVES: Record<string, PassiveDef> = {
   // (Funnel Cake, +0.4 HP regen per second, left the draft pool for the Lost & Found's permanent perks: D-76)
   safety_goggles: P({ id: 'safety_goggles', name: 'Safety Goggles', desc: '+1 Armor (flat damage reduction)', effects: [{ axis: 'armor', perLevel: flat(1) }], maxLevel: 5, weight: 1, lore: 'Required for the Hammer Strike. Ignored by everyone.' }),
   magnet_glove: P({ id: 'magnet_glove', name: 'Magnet Glove', desc: '+25% Pickup radius', effects: [{ axis: 'pickup', perLevel: flat(0.25) }], maxLevel: 5, weight: 1, lore: 'Tickets cling to it. So do screams.' }),
-  lucky_ticket: P({ id: 'lucky_ticket', name: 'Lucky Ticket', desc: '+10% Luck (crits, rarer drafts, 4th card)', effects: [{ axis: 'luck', perLevel: flat(0.1) }], maxLevel: 5, weight: 1, lore: 'Number 777. The winning number. For someone.' }),
+  lucky_ticket: P({ id: 'lucky_ticket', name: 'Lucky Ticket', desc: '+10% Luck (better upgrade qualities, a 4th card)', effects: [{ axis: 'luck', perLevel: flat(0.1) }], maxLevel: 5, weight: 1, lore: 'Number 777. The winning number. For someone.' }),
   season_pass: P({ id: 'season_pass', name: 'Season Pass', desc: '+10% XP gain', effects: [{ axis: 'xp', perLevel: flat(0.1) }], maxLevel: 5, unlock: 'p_season_pass', weight: 0.9, lore: 'Valid every night. Every single night.' }),
   coin_purse: P({ id: 'coin_purse', name: 'Coin Purse', desc: '+15% Greed (more Lost Tickets)', effects: [{ axis: 'greed', perLevel: flat(0.15) }], maxLevel: 5, unlock: 'p_coin_purse', weight: 0.8, lore: 'It jingles even when empty.' }),
   hand_mirror: P({ id: 'hand_mirror', name: "Mira's Hand Mirror", desc: '+6% Might and +6% Area', effects: [{ axis: 'might', perLevel: flat(0.06) }, { axis: 'area', perLevel: flat(0.06) }], maxLevel: 5, unlock: 'p_hand_mirror', weight: 0.8, lore: 'Cracked across the middle. In it, a girl stands just behind your shoulder.' }),

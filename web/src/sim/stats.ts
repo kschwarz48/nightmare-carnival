@@ -89,9 +89,8 @@ export class PlayerStats {
     }
   }
 
-  /** Effective crit chance with a luck re-roll (doc 01 §7: luck affects crit re-rolls). */
+  /** A crit at the crit chance (D-99: luck no longer re-rolls crits; it rolls the upgrades' qualities). */
   critRoll(rand: number, bonus = 0): boolean {
-    const c = Math.min(0.95, (this.critChance + bonus) * (0.6 + 0.4 * this.luck));
-    return rand < c;
+    return rand < Math.min(0.95, this.critChance + bonus);
   }
 }

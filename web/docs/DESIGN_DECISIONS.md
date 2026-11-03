@@ -2023,3 +2023,30 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   one bug, fixed — in co-op only the nearest player's radius counted. Popcorn in the first map's corners: holding
   into each corner from 2:00 to 10:00 kills about as many as in the open (2,300–2,800 against 2,580) and still
   takes 1,850–3,370 damage (3,060 in the open): no corner exploit found.
+
+### D-99 · Upgrade qualities, the build sheet, and small fixes
+
+- **Qualities.** Every upgrade a level-up or a prize wheel offers rolls Common, Uncommon, Rare or Legendary
+  (`data/quality.ts`), and the quality scales that level's gains: amounts ×1 / ×1.5 / ×2 / ×2⅔ (a +6 damage level is
+  +9 / +12 / +16), counts one more a step (+1 card is +2 / +3 / +4). A new weapon's quality is its damage from the start
+  (+25% / +50% / +80%), since its first level has no gain; penalties never scale; an evolution starts its own run (its
+  card has no quality). Weapons never go below a third of their own cooldown, a floor no Common table comes near.
+- **Odds** by the acting player's Luck: weights Common 100, Uncommon 28·L, Rare 10·L^1.5, Legendary 2.5·L² (at base
+  Luck ~71% / 20% / 7% / 1.8%; at double Luck ~52% / 29% / 15% / 5%). Luck no longer tilts which items come up, and no
+  longer rolls crits: the Lucky Ticket gives Luck only, and Luck rolls the qualities (and the chance of a 4th card).
+- **Cards** keep their look at Common; Uncommon, Rare and Legendary wear a neon border in green, blue and orange
+  (Legendary pulsing), the label and a faint wash of the card to match, and their text gives the scaled numbers. The
+  prize wheel's prizes show their quality in their colour.
+- **Co-op:** each weapon's and passive's run of qualities rides the snapshot as a u16 (base-4 digits per level), and
+  a guest's mirror replays it exactly: its move speed (for prediction), its weapons' reach and counts (for drawing)
+  and its build sheet are the host's. PROTO 21.
+- **The build sheet** (C, rebindable): every weapon and passive with its level and each level's quality, every
+  evolution recipe and where it stands, and every stat as the night's base (character, Lost & Found, companion) plus
+  what the night's items add. Solo, the night holds while it's open; in co-op it keeps up with the night.
+- **Small fixes:** the Zoltana opening plays in co-op too (each machine plays it; guests stand still, the host's night
+  waits for the host's); the Swap Character screen lays its characters out in a grid again (they had stacked into one
+  column) and shows the chosen one in full; the ghost lamps offer nothing until all four are lit; a guest's presses on
+  the first map get a step of slack (their screen shows them a moment ahead of their copy on the host). A playtest
+  found guests couldn't use the first map at all: not reproduced on this build over real WebRTC (two windows, a press
+  at Zoltana wakes her on both; `tests/coopInteract.test.ts` keeps it), so the slack is the likeliest cure, not a
+  proven one.

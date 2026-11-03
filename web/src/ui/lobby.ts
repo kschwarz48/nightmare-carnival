@@ -211,10 +211,10 @@ export function menuPanel(c: UICtx, title: string, text: string, actions: { labe
 export function characterPanel(c: UICtx, current: string, pick: (id: string) => void, back: () => void): HTMLElement {
   const s = c.save;
   const cur = CHARACTER_MAP[current as keyof typeof CHARACTER_MAP];
-  return h('div', { class: 'screen dim mp' }, h('div', { class: 'panel bulbs mp-panel' },
+  return h('div', { class: 'screen dim mp' }, h('div', { class: 'panel bulbs mp-panel swap-panel' },
     h('h2', { class: 'title-text' }, 'Swap Character'),
     h('div', { class: 'muted' }, 'Who you walk the Midway as, and who starts your next night.'),
-    h('div', { class: 'mp-grid' }, ...CHARACTERS.map((ch) => {
+    h('div', { class: 'mp-grid swap-grid' }, ...CHARACTERS.map((ch) => {
       const avail = s.characterAvailable(ch.id);
       return h('div', {
         class: `char-card${ch.id === current ? ' sel' : ''}${avail ? '' : ' locked'}`,
@@ -224,7 +224,13 @@ export function characterPanel(c: UICtx, current: string, pick: (id: string) => 
         onclick: () => { if (!avail) return; c.click(); pick(ch.id); },
       }, h('img', { src: c.assets.portrait(ch.id), alt: ch.name }), h('div', { class: `nm${avail && ch.name.replace('The ', '').length > 8 ? ' long' : ''}` }, avail ? ch.name.replace('The ', '') : '???'));
     })),
-    cur ? h('div', { class: 'mp-detail' }, h('b', {}, cur.name), ' — ', cur.quirkName, h('div', { class: 'muted' }, `Starts with ${WEAPONS[cur.startWeapon].name}. ${cur.quirkDesc}`)) : null,
+    // the one you walk as, in full: who they are, their quirk, the weapon they start with
+    cur ? h('div', { class: 'swap-detail' },
+      h('img', { class: 'swap-full', src: c.assets.charFull(cur.id, 1), alt: '' }),
+      h('div', { class: 'swap-text' },
+        h('h3', {}, cur.name), h('div', { class: 'sub' }, cur.title),
+        h('div', { class: 'quirk' }, h('b', {}, cur.quirkName), ' — ', cur.quirkDesc),
+        h('div', { class: 'weapon-line' }, h('img', { src: c.assets.weaponIcon(cur.startWeapon), alt: '' }), h('div', {}, h('b', {}, WEAPONS[cur.startWeapon].name), h('div', { class: 'muted' }, WEAPONS[cur.startWeapon].desc))))) : null,
     h('div', { class: 'menu' }, btn('Back', () => { c.click(); back(); }, 'small red')),
   ));
 }

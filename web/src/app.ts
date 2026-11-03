@@ -18,6 +18,7 @@ import { WEAPONS, PASSIVES } from './data/weapons';
 import { ENEMIES } from './data/enemies';
 import { TIERS, type TierId } from './data/tiers';
 import { ceremonyEl } from './ui/ceremony';
+import { buildSheetEl } from './ui/buildSheet';
 import { DraftView, Hud, PLAYER_CSS, type HudScreen } from './ui/hud';
 import { kitOf } from './ui/recipes';
 import { ChatBox } from './ui/chat';
@@ -186,6 +187,9 @@ export class App {
   private hubJustUnlocked = false;
   /** seconds to the next heartbeat at very low health (D-98) */
   private beatT = 0;
+  /** the build sheet on screen (D-99), and when it next refreshes (co-op: the night goes on under it) */
+  private sheet: HTMLElement | null = null;
+  private sheetT = 0;
   /** the first night's opening look at Zoltana's booth (D-98): its clock, its overlay, whether the whisper has played */
   private cut: { t: number; el: HTMLElement; note: HTMLElement; whisper: boolean } | null = null;
   /** the world tier's unlock ceremony on screen (D-97), if any */
@@ -1712,6 +1716,32 @@ export class App {
     this.hud.root.style.visibility = '';
   }
 
+  /** The build sheet (D-99): C opens and closes it in a night; solo, the night holds meanwhile. */
+  private toggleBuildSheet(): void {
+    if (this.sheet) return this.closeBuildSheet();
+    const g = this.game;
+    if (!g || g.hub || this.state !== 'playing' || g.phase !== 'play' || this.cut) return;
+    this.openBuildSheet();
+  }
+
+  private openBuildSheet(): void {
+    const g = this.game!;
+    const me = g.players[this.localIndex] ?? g.player;
+    const el = buildSheetEl(this.assets, g, me, () => this.closeBuildSheet(), !this.net);
+    if (this.sheet) this.sheet.replaceWith(el);
+    else this.ui.append(el);
+    this.sheet = el;
+    this.sheetT = 1;
+    this.nav = new FocusNav(el);
+  }
+
+  private closeBuildSheet(): void {
+    if (!this.sheet) return;
+    this.sheet.remove();
+    this.sheet = null;
+    this.nav = null;
+  }
+
   private resume(): void {
     this.screenEl?.remove();
     this.screenEl = null;
@@ -1874,6 +1904,7 @@ export class App {
   /** Tear down the in-run views (HUD, overlays, the game) without leaving any session. */
   private endRunView(): void {
     this.endZoltanaCut();
+    this.closeBuildSheet();
     this.audio.setTier('normal');
     this.renderer.tierPreview = null;
     this.hubHud?.root.remove();
@@ -2082,6 +2113,14 @@ export class App {
   }
 
   private onNav(e: NavEvent): void {
+    // the build sheet (D-99): C, Back or Pause close it; nothing else reaches the night beneath
+    if (this.sheet) {
+      if (e === 'build' || e === 'back' || e === 'pause') this.closeBuildSheet();
+      else if (e === 'up' || e === 'down' || e === 'left' || e === 'right') this.nav?.move(e);
+      else if (e === 'confirm') this.nav?.activate();
+      return;
+    }
+    if (e === 'build') return this.toggleBuildSheet();
     // the first night's opening look at Zoltana's booth (D-98): any button skips it
     if (this.cut) {
       if (e === 'confirm' || e === 'back' || e === 'pause' || e === 'interact') this.endZoltanaCut();
@@ -2267,7 +2306,12 @@ export class App {
       // co-op host: the night also holds for a pause, a prize wheel or a dropped partner on either side;
       // solo, it waits while the chat log is open for reading back (D-72)
       this.updateZoltanaCut(dt);
-      const held = (!!hs && (hs.paused || !hs.prizeReady)) || (!net && (this.chat.isOpen || !!this.cut));
+      // the build sheet (D-99): it gives way to a draft or the night's end; in co-op it keeps up with the night
+      if (this.sheet) {
+        if (g!.phase !== 'play' || this.state !== 'playing') this.closeBuildSheet();
+        else if (net && (this.sheetT -= dt) <= 0) this.openBuildSheet();
+      }
+      const held = (!!hs && (hs.paused || !hs.prizeReady || !!this.cut)) || (!net && (this.chat.isOpen || !!this.cut || !!this.sheet));
       if (!this.overlayPause && g!.phase !== 'draft' && !held) {
         const s0 = perf.now();
         this.acc += dt * this.simSpeed;
@@ -2998,6 +3042,8 @@ export class App {
     const g = new Game(runConfigFromStart(cfg));
     hs.attachGame(g);
     this.beginRun(g, cfg.players[0].character, 'MIDNIGHT', withYou(cfg.players.slice(1).map((p) => p.name)));
+    // the Carnival Core opens on Zoltana's booth in co-op too (each machine plays it; the host's night waits for its own)
+    if ((cfg.map ?? 'carnival_core') === 'carnival_core') this.startZoltanaCut();
   }
 
   /** Guest: the host started (or we rejoined) a night — build the mirror the session will feed. */
@@ -3011,6 +3057,7 @@ export class App {
     if (this.game) this.endRunView();
     const g = new Game(runConfigFromStart(cfg));
     this.beginRun(g, cfg.players[me].character, resume ? 'BACK IN THE NIGHT' : 'MIDNIGHT', resume ? 'Reconnected to the host' : withYou(cfg.players.filter((_, i) => i !== me).map((p) => p.name)), resume);
+    if (!resume && (cfg.map ?? 'carnival_core') === 'carnival_core') this.startZoltanaCut();
     setTimeout(() => this.sendView(), 0);
     return g;
   }
@@ -3083,8 +3130,10 @@ export class App {
     const gs = (this.net as Extract<NetCtx, { role: 'guest' }>).guest;
     const g = this.game!;
     const rep = gs.replica;
+    // the Carnival Core's opening look at Zoltana's booth plays here too (D-98); the guest stands still through it
+    this.updateZoltanaCut(dt);
     // only walk while the host's night is actually running (otherwise the host discards the steps)
-    const live = (this.state === 'playing' || (this.state === 'hub' && g.hub)) && g.phase === 'play' && !gs.pausedBy && !this.prize.active && !!rep && !rep.frozen;
+    const live = (this.state === 'playing' || (this.state === 'hub' && g.hub)) && g.phase === 'play' && !gs.pausedBy && !this.prize.active && !!rep && !rep.frozen && !this.cut;
     const s0 = perf.now();
     if (live) {
       this.acc += dt;

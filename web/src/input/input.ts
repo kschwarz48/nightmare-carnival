@@ -3,7 +3,7 @@
 
 import { DEFAULT_BINDINGS } from '../meta/save';
 
-export type NavEvent = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'reroll' | 'banish' | 'skip' | 'interact' | 'chat' | 'meter';
+export type NavEvent = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause' | 'reroll' | 'banish' | 'skip' | 'interact' | 'chat' | 'meter' | 'build';
 
 export class Input {
   private keys = new Set<string>();
@@ -82,6 +82,7 @@ export class Input {
           if (action === 'banish') this.emit('banish');
           if (action === 'skip') this.emit('skip');
           if (action === 'meter') this.emit('meter');
+          if (action === 'build') this.emit('build');
           if (action === 'up') this.emit('up');
           if (action === 'down') this.emit('down');
           if (action === 'left') this.emit('left');

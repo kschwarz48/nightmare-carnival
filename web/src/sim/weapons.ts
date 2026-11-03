@@ -4,6 +4,7 @@
 
 import { clamp, dist2, inSector, TAU } from '../core/math';
 import { WEAPONS, weaponLevelSum, type WeaponDef } from '../data/weapons';
+import { NEW_WEAPON_DMG, QUALITIES, QUALITY, type Quality } from '../data/quality';
 import { HitTracker, ignite, stick, type Enemy, type PlayerProjectile, type Summon, type Target } from './entities';
 import type { Game } from './game';
 import { lineOf } from './meter';
@@ -37,9 +38,42 @@ const STORM_BITE = 3;
 export const MIRA_HALO = { r: 85, dmg: 12, perLevel: 2, evo: 1.25, every: 1 };
 export const miraHaloRadius = (p: { stats: { area: number } }): number => MIRA_HALO.r * p.stats.area;
 
+/** What better qualities added to a weapon's levels (D-99), on top of its table. */
+export interface WeaponBonus { dmg: number; cd: number; area: number; amount: number; spd: number; dur: number; pierce: number }
+const noBonus = (): WeaponBonus => ({ dmg: 0, cd: 0, area: 0, amount: 0, spd: 0, dur: 0, pierce: 0 });
+
+/**
+ * The bonus a run of qualities gives `def` (one per level, as QUALITY indices; the first is a new weapon's own): the
+ * same on the host and on a guest, who gets the run on the wire. Each level's gains scale with its quality, its
+ * penalties never; the first quality is the weapon's damage from the start (an evolution's is always common).
+ */
+export function qualityBonus(def: WeaponDef, quals: number[]): WeaponBonus {
+  const b = noBonus();
+  if (!def.isEvolution) b.dmg += def.damage * NEW_WEAPON_DMG[QUALITIES[quals[0] ?? 0]];
+  const lv = def.lv;
+  for (let k = 1; k < quals.length; k++) {
+    const q = QUALITY[QUALITIES[quals[k]] ?? 'common'];
+    if (q.idx === 0) continue;
+    const m = q.mult - 1, n = q.idx;
+    const dmg = lv.dmg[k] ?? 0, cd = lv.cd[k] ?? 0, area = lv.area[k] ?? 0, amt = lv.amount[k] ?? 0;
+    const spd = lv.spd?.[k] ?? 0, dur = lv.dur?.[k] ?? 0, pc = lv.pierce?.[k] ?? 0;
+    if (dmg > 0) b.dmg += dmg * m;
+    if (cd < 0) b.cd += cd * m;
+    if (area > 0) b.area += area * m;
+    if (spd > 0) b.spd += spd * m;
+    if (dur > 0) b.dur += dur * m;
+    if (amt > 0) b.amount += amt * n;
+    if (pc > 0) b.pierce += pc * n;
+  }
+  return b;
+}
+
 export class WeaponInst {
   def: WeaponDef;
   level = 1;
+  /** the quality of each level taken (QUALITY indices; D-99) and the bonus they add */
+  quals: number[] = [0];
+  bonus: WeaponBonus = noBonus();
   cd = 0.4;
   t = 0;
   n = 0; // volley counter
@@ -84,19 +118,24 @@ export class Weapons {
   hasRoom(): boolean {
     return this.list.length < this.g.slots.weapons;
   }
-  add(id: string): WeaponInst | null {
+  add(id: string, q: Quality = 'common'): WeaponInst | null {
     const def = WEAPONS[id];
     if (!def || this.has(id) || !this.hasRoom()) return null;
     const w = new WeaponInst(def);
+    w.quals = [QUALITY[q].idx];
+    w.bonus = qualityBonus(def, w.quals);
     this.list.push(w);
     // when it joined the build: its damage meter row counts its damage per second from here (D-85)
     const since = this.g.player.dmgSince;
     if (!since.has(lineOf(id))) since.set(lineOf(id), this.g.time);
     return w;
   }
-  levelUp(id: string): void {
+  levelUp(id: string, q: Quality = 'common'): void {
     const w = this.get(id);
-    if (w && w.level < w.def.maxLevel) w.level++;
+    if (!w || w.level >= w.def.maxLevel) return;
+    w.level++;
+    w.quals.push(QUALITY[q].idx);
+    w.bonus = qualityBonus(w.def, w.quals);
   }
   evolve(baseId: string): string | null {
     const w = this.get(baseId);
@@ -105,6 +144,9 @@ export class Weapons {
     this.clearOwned(w.def.id);
     w.def = evo;
     w.level = 1;
+    // an evolution starts its own run of qualities (D-99)
+    w.quals = [0];
+    w.bonus = qualityBonus(evo, w.quals);
     w.cd = 0.2;
     w.t = 0;
     w.n = 0;
@@ -129,26 +171,29 @@ export class Weapons {
     if (q === 'balloon_shield' && w.def.kind === 'plush') return 1.2;
     return 1;
   }
+  // (each with what its levels' qualities added, D-99)
   damage(w: WeaponInst): number {
-    return (w.def.damage + weaponLevelSum(w.def.lv.dmg, w.level)) * this.g.player.stats.might * this.charMult(w);
+    return (w.def.damage + weaponLevelSum(w.def.lv.dmg, w.level) + w.bonus.dmg) * this.g.player.stats.might * this.charMult(w);
   }
   cooldown(w: WeaponInst): number {
-    return Math.max(0.08, (w.def.cooldown + weaponLevelSum(w.def.lv.cd, w.level)) * this.g.player.stats.cooldown);
+    // (qualities never take a weapon below a third of its own cooldown)
+    const own = Math.max(w.def.cooldown / 3, w.def.cooldown + weaponLevelSum(w.def.lv.cd, w.level) + w.bonus.cd);
+    return Math.max(0.08, own * this.g.player.stats.cooldown);
   }
   area(w: WeaponInst): number {
-    return (w.def.area + weaponLevelSum(w.def.lv.area, w.level)) * this.g.player.stats.area;
+    return (w.def.area + weaponLevelSum(w.def.lv.area, w.level) + w.bonus.area) * this.g.player.stats.area;
   }
   amount(w: WeaponInst): number {
-    return w.def.amount + weaponLevelSum(w.def.lv.amount, w.level) + this.g.player.stats.amount;
+    return w.def.amount + weaponLevelSum(w.def.lv.amount, w.level) + w.bonus.amount + this.g.player.stats.amount;
   }
   speed(w: WeaponInst): number {
-    return (w.def.speed + weaponLevelSum(w.def.lv.spd, w.level)) * this.g.player.stats.projSpeed;
+    return (w.def.speed + weaponLevelSum(w.def.lv.spd, w.level) + w.bonus.spd) * this.g.player.stats.projSpeed;
   }
   duration(w: WeaponInst): number {
-    return (w.def.duration + weaponLevelSum(w.def.lv.dur, w.level)) * this.g.player.stats.duration;
+    return (w.def.duration + weaponLevelSum(w.def.lv.dur, w.level) + w.bonus.dur) * this.g.player.stats.duration;
   }
   pierce(w: WeaponInst): number {
-    return w.def.pierce + weaponLevelSum(w.def.lv.pierce, w.level);
+    return w.def.pierce + weaponLevelSum(w.def.lv.pierce, w.level) + w.bonus.pierce;
   }
 
   /** Roll crit and return final damage for one hit. */

@@ -18,7 +18,8 @@ import { addConveyorPush, refreshFunhouseWalls } from '../sim/funhouse';
 import { refreshSea } from '../sim/boardwalk';
 import { refreshTrainDoors } from '../sim/ghosttrain';
 import { PlayerStats } from '../sim/stats';
-import { WeaponInst } from '../sim/weapons';
+import { WeaponInst, qualityBonus } from '../sim/weapons';
+import { QUALITIES, unpackQualities } from '../data/quality';
 import { TICK } from '../sim/constants';
 import { StringDict } from './codec';
 import { EF, ET, GF, PF, isPresent, type PoolSnap, type Snapshot } from './snapshot';
@@ -261,20 +262,27 @@ export class Replica {
       const p = g.players[i];
       if (!p) return;
       const isLocal = i === this.local;
-      // arsenal and passives: rebuild only when they change
-      const pk = d.passives.map((v) => `${v.id}:${v.level}`).join(',');
+      // arsenal and passives: rebuild only when they change, each level at the quality it was taken at (D-99), so
+      // the mirror's stats (its move speed, its weapons' reach and counts) are the host's
+      const pk = d.passives.map((v) => `${v.id}:${v.level}:${v.q}`).join(',');
       if (pk !== this.passiveKey[i]) {
         this.passiveKey[i] = pk;
         p.stats = Object.assign(new PlayerStats(), this.baseStats[i]);
         p.passives.clear();
-        for (const v of d.passives) for (let k = 0; k < v.level; k++) p.addPassive(v.id);
+        p.passiveQ.clear();
+        for (const v of d.passives) {
+          const qs = unpackQualities(v.q, v.level);
+          for (let k = 0; k < v.level; k++) p.addPassive(v.id, QUALITIES[qs[k] ?? 0]);
+        }
       }
-      const wk = d.weapons.map((v) => `${v.id}:${v.level}`).join(',');
+      const wk = d.weapons.map((v) => `${v.id}:${v.level}:${v.q}`).join(',');
       if (wk !== this.weaponKey[i]) {
         this.weaponKey[i] = wk;
         p.weapons.list = d.weapons.filter((v) => WEAPONS[v.id]).map((v) => {
           const w = new WeaponInst(WEAPONS[v.id]);
           w.level = v.level;
+          w.quals = unpackQualities(v.q, v.level);
+          w.bonus = qualityBonus(w.def, w.quals);
           return w;
         });
       }

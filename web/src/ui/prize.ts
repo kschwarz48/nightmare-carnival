@@ -43,7 +43,7 @@ export class PrizeOverlay implements PrizeUi {
       this.capEl.classList.remove('on');
       return;
     }
-    this.capEl.className = `prize-cap on ${e.type}`;
+    this.capEl.className = `prize-cap on ${e.type} q-${e.quality ?? 'common'}`;
     // Party Favors (D-74): each player's gift on a line of its own, in their colour
     const gifts = e.gifts?.length
       ? h('div', { class: 'gifts' }, ...e.gifts.map((gift) => h('span', {}, iconOf ? h('img', { src: iconOf(gift), alt: '' }) : null, this.who(gift), gift.label)))
@@ -58,7 +58,7 @@ export class PrizeOverlay implements PrizeUi {
     this.titleEl.textContent = this.owners ? 'THE WINNINGS' : entries.length > 1 ? 'YOUR WINNINGS' : 'YOUR PRIZE';
     const rows: HTMLElement[] = [];
     entries.forEach((e, i) => {
-      rows.push(h('div', { class: `item ${e.type}`, style: { animationDelay: `${0.08 + rows.length * 0.12}s` } }, h('img', { src: icons[i], alt: '' }), h('span', {}, this.who(e), e.label)));
+      rows.push(h('div', { class: `item ${e.type} q-${e.quality ?? 'common'}`, style: { animationDelay: `${0.08 + rows.length * 0.12}s` } }, h('img', { src: icons[i], alt: '' }), h('span', {}, this.who(e), e.label)));
       for (const gift of e.gifts ?? []) {
         rows.push(h('div', { class: `item gift ${gift.type}`, style: { animationDelay: `${0.08 + rows.length * 0.12}s` } }, iconOf ? h('img', { src: iconOf(gift), alt: '' }) : null, h('span', {}, this.who(gift), gift.label)));
       }

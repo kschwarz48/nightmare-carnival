@@ -136,6 +136,8 @@ export const DEFAULT_BINDINGS: Record<string, string[]> = {
   chat: ['KeyT'],
   /** show or hide the damage meter (D-85) */
   meter: ['KeyM'],
+  /** the build sheet (D-99) */
+  build: ['KeyC'],
 };
 
 export function defaultSettings(): Settings {

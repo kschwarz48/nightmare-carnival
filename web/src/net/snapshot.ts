@@ -13,6 +13,7 @@
 // fractions bytes, strings dictionary ids (codec.ts).
 
 import type { Game } from '../sim/game';
+import { packQualities } from '../data/quality';
 import type { FxEvent, FxType } from '../sim/fx';
 import type { BossBase } from '../sim/bosses/boss';
 import type { Enemy, EnemyBullet, Hazard, Pickup, PlayerProjectile, Summon, Zone } from '../sim/entities';
@@ -29,8 +30,9 @@ export interface PlayerSnap {
   x: number; y: number; vx: number; vy: number; hp: number; maxHp: number;
   faceX: number; faceY: number; facing: number; flags: number;
   iframes: number; hurtFlash: number; reviveT: number; reviveFx: number; animT: number; slowF: number; dashT: number;
-  weapons: { id: string; level: number; active: boolean; angle: number; cd: number }[];
-  passives: { id: string; level: number }[];
+  /** each with the qualities of its levels (D-99: base-4 digits, see data/quality.ts packQualities) */
+  weapons: { id: string; level: number; active: boolean; angle: number; cd: number; q: number }[];
+  passives: { id: string; level: number; q: number }[];
 }
 
 export interface EnemyS { uid: number; def: string; scale: number; r: number; flags: number }
@@ -518,11 +520,13 @@ export class SnapshotEncoder {
         w.u8(wi.active ? 1 : 0);
         w.f32(wi.angle);
         w.u8(Math.min(255, Math.max(0, wi.cd) * 50));
+        w.u16(packQualities(wi.quals));
       }
       w.u8(p.passives.size);
       for (const [id, lvl] of p.passives) {
         w.u16(d.id(id));
         w.u8(lvl);
+        w.u16(packQualities(p.passiveQ.get(id) ?? []));
       }
     }
   }
@@ -703,19 +707,21 @@ export function decodeSnapshot(buf: ArrayBuffer, dict: StringDict): Snapshot {
     };
     const nw = r.u8();
     for (let i = 0; i < nw; i++) {
-      const wv = { id: '', level: 0, active: false, angle: 0, cd: 0 };
+      const wv = { id: '', level: 0, active: false, angle: 0, cd: 0, q: 0 };
       S(wv, 'id', r.u16());
       wv.level = r.u8();
       wv.active = r.u8() === 1;
       wv.angle = r.f32();
       wv.cd = r.u8() / 50;
+      wv.q = r.u16();
       p.weapons.push(wv);
     }
     const npv = r.u8();
     for (let i = 0; i < npv; i++) {
-      const pv = { id: '', level: 0 };
+      const pv = { id: '', level: 0, q: 0 };
       S(pv, 'id', r.u16());
       pv.level = r.u8();
+      pv.q = r.u16();
       p.passives.push(pv);
     }
     players.push(p);

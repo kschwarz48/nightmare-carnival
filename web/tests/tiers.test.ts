@@ -304,7 +304,7 @@ function party(open?: string[]) {
 
 describe('world tiers in co-op', () => {
   it('syncs the host\'s tier to every guest and into the night', () => {
-    expect(PROTO).toBe(20);
+    expect(PROTO).toBe(21); // (D-99: the upgrades' qualities on the wire)
     const { host, guest, run } = party(['normal:carnival_core', 'nightmare:carnival_core']);
     host.setTier('nightmare', true);
     host.setCharacter('carny');

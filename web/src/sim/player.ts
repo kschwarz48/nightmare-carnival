@@ -2,6 +2,7 @@
 
 import { CHARACTER_MAP, type CharacterDef } from '../data/characters';
 import { PASSIVES, type StatAxis } from '../data/weapons';
+import { QUALITY, qualityGain, type Quality } from '../data/quality';
 import { PlayerStats } from './stats';
 import type { Weapons } from './weapons';
 
@@ -27,6 +28,10 @@ export class Player {
   aimMode: 'auto' | 'hybrid' | 'manual' = 'auto';
   /** Draft cards this player has banished. */
   banished = new Set<string>();
+  /** the quality of each level of each passive (QUALITY indices, D-99) */
+  passiveQ = new Map<string, number[]>();
+  /** the stats this player started the night with (character, Lost & Found, companion): the build sheet's base (D-99) */
+  baseStats: PlayerStats | null = null;
   /** Lost & Found / hidden-quest unlocks this player's own save has added to their draft pool (D-74). */
   unlocked = new Set<string>();
   char: CharacterDef;
@@ -117,14 +122,18 @@ export class Player {
     return this.passives.get(id) ?? 0;
   }
 
-  addPassive(id: string): void {
+  addPassive(id: string, q: Quality = 'common'): void {
     const def = PASSIVES[id];
     if (!def) return;
     const lvl = this.passiveLevel(id);
     if (lvl >= def.maxLevel) return;
     const oldMax = this.stats.maxHp();
-    for (const eff of def.effects) this.stats.apply(eff.axis, eff.perLevel[lvl] ?? 0);
+    // the level's quality scales its gains (D-99)
+    for (const eff of def.effects) this.stats.apply(eff.axis, qualityGain(eff.axis, eff.perLevel[lvl] ?? 0, q));
     this.passives.set(id, lvl + 1);
+    const qs = this.passiveQ.get(id) ?? [];
+    qs[lvl] = QUALITY[q].idx;
+    this.passiveQ.set(id, qs);
     const newMax = this.stats.maxHp();
     if (newMax > oldMax) this.hp += newMax - oldMax; // growing max HP also heals the difference
   }

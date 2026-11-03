@@ -13,6 +13,7 @@ import { DAILY_SCALING, TIERS, isTierId, type TierDef, type TierId } from '../da
 import { ENEMIES, ELITE_AFFIXES, type EnemyDef } from '../data/enemies';
 import { GREASE_SLICKS, MAP_HALF, PLAYER_BOUNDS, PLAYER_SPAWN, PROPS, TILT_A_WHIRL, type Prop } from '../data/map';
 import { ACT_GATES, DAWN_TIME } from '../data/waves';
+import { PlayerStats } from './stats';
 import { initVariant, phased, tickBossTier, tickVariant, variantDeath, variantHit } from './variants';
 import { brimstoneBurst, brimstoneHit, fillSoulJar } from './tierPerks';
 import { collectSoul, eliteChestMult, mealHeal, openingActDue, telegraphedDamage, tickTierPerks, trySecondChance } from './tierPerks';
@@ -353,6 +354,7 @@ export class Game {
       pl.pet = pet?.id ?? null;
       if (pet) for (const e of pet.effects) pl.stats.apply(e.axis, e.v);
       pl.initHp();
+      pl.baseStats = Object.assign(new PlayerStats(), pl.stats);
       const at = cfg.hub?.at?.[i];
       pl.x = pl.px = at?.x ?? PLAYER_SPAWN.x + (i - (party.length - 1) / 2) * 70;
       pl.y = pl.py = at?.y ?? PLAYER_SPAWN.y;

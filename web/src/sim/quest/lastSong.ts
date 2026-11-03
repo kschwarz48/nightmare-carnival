@@ -63,23 +63,24 @@ export class LastSongChain extends QuestChain {
    * What a player standing at (x, y) could use with interact right now (D-98: the first map answers E like the others;
    * it was walk-up): Zoltana, a lit ghost lamp, the High Striker's pad. The HUD shows its prompt.
    */
-  interaction(x: number, y: number): { kind: 'zoltana' | 'lamp' | 'striker'; i: number; x: number; y: number; label: string } | null {
+  interaction(x: number, y: number, _who?: number, slack = 0): { kind: 'zoltana' | 'lamp' | 'striker'; i: number; x: number; y: number; label: string } | null {
     if (this.stage === LS.Finale) return null;
     const m = LAST_SONG.machine, s = LAST_SONG.striker;
     let best: { kind: 'zoltana' | 'lamp' | 'striker'; i: number; x: number; y: number; label: string } | null = null, bd = Infinity;
     const offer = (kind: 'zoltana' | 'lamp' | 'striker', i: number, px: number, py: number, reach: number, label: string) => {
       const d = dist2(x, y, px, py);
-      if (d < reach * reach && d < bd) {
+      if (d < (reach + slack) ** 2 && d < bd) {
         bd = d;
         best = { kind, i, x: px, y: py, label };
       }
     };
     offer('zoltana', 0, m.x, m.y, m.r, this.stage === LS.Dormant ? 'Look into the fortune booth' : 'Ask Zoltana');
-    for (let i = 0; i < 4; i++) {
-      if (!this.lit[i]) continue;
-      const l = LAST_SONG.lamps[i];
-      if (this.stage < LS.Melody) offer('lamp', i, l.x, l.y, LAST_SONG.touchRadius, 'Listen to the lamp');
-      else if (this.stage === LS.Melody && !this.played(i)) offer('lamp', i, l.x, l.y, LAST_SONG.touchRadius, 'Touch the ghost lamp');
+    // the lamps answer only once all four are lit (the song's stage), each until its note is played
+    if (this.stage === LS.Melody) {
+      for (let i = 0; i < 4; i++) {
+        const l = LAST_SONG.lamps[i];
+        if (!this.played(i)) offer('lamp', i, l.x, l.y, LAST_SONG.touchRadius, 'Touch the ghost lamp');
+      }
     }
     offer('striker', 0, s.padX, s.padY, s.padR + 12, this.stage === LS.Striker ? 'Strike the bell when the light is at the top' : 'Ring the High Striker');
     return best;
@@ -92,7 +93,8 @@ export class LastSongChain extends QuestChain {
     // presses: each player who pressed interact uses the nearest thing in reach (co-op shares the chain, D-51)
     for (const p of g.players) {
       if (p.dead || p.downed || !g.inputs[p.index]?.interact) continue;
-      const it = this.interaction(p.x, p.y) as { kind: 'zoltana' | 'lamp' | 'striker'; i: number } | null;
+      // a guest's press comes from where their own screen showed them, a moment ahead of their copy here: a step of slack
+      const it = this.interaction(p.x, p.y, p.index, p.index === 0 ? 0 : 40) as { kind: 'zoltana' | 'lamp' | 'striker'; i: number } | null;
       if (!it) continue;
       const key = `${it.kind}${it.i}`;
       if (this.cool.has(key)) continue;
