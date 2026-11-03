@@ -111,7 +111,7 @@ class BackgroundClock {
   }
 }
 
-type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results' | 'mp' | 'mp_join' | 'lobby' | 'netmsg' | 'hub' | 'midway' | 'charswap' | 'pets';
+type State = 'loading' | 'press' | 'title' | 'charselect' | 'daily' | 'lostfound' | 'pedia' | 'settings' | 'playing' | 'paused' | 'results' | 'mp' | 'mp_join' | 'lobby' | 'netmsg' | 'hub' | 'midway' | 'charswap' | 'pets' | 'worldtier';
 
 export class App {
   canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -411,6 +411,9 @@ export class App {
         break;
       case 'charswap':
         el = L.characterPanel(this.ctx, this.game?.hub ? this.game.players[this.localIndex]?.char.id ?? this.hubCharacter() : this.hubCharacter(), (id) => this.swapCharacter(id), () => this.go('midway'));
+        break;
+      case 'worldtier':
+        el = L.tierPanel(this.ctx, this.hubTier(), (t) => this.setHubTier(t), () => this.go('midway'));
         break;
       case 'press':
         this.audio.setCue('menu');
@@ -2747,10 +2750,9 @@ export class App {
         },
       });
     } else items.push({ label: 'Leave the Midway', fn: () => this.toMenu() });
-    // the world tier (D-98): chosen here too, and the Midway takes on its look and its music at once
+    // the world tier (D-98): chosen here too, from its own menu (D-100), and the Midway takes on its look and music
     if (role !== 'guest' && this.save.data.tiers.unlocked.length > 1) {
-      const t = this.hubTier();
-      items.splice(1, 0, { label: `World: ${TIERS[t].name} \u2014 ${TIERS[t].title}`, fn: () => this.cycleHubTier() });
+      items.splice(1, 0, { label: `World Tier: ${TIERS[this.hubTier()].name}`, fn: () => this.go('worldtier') });
     }
     items.push({ label: 'Swap Character', fn: () => this.go('charswap') }, { label: 'Companions', fn: () => this.go('pets') });
     items.push({ label: 'Carnival-pedia', fn: () => this.go('pedia') }, { label: 'Settings', fn: () => this.go('settings') });
@@ -2777,19 +2779,22 @@ export class App {
     return this.save.lastTier();
   }
 
-  /** The next open world tier, from the Midway's menu: remembered, the lobby's (co-op host), and shown at once. */
-  private cycleHubTier(): void {
-    const open = this.save.data.tiers.unlocked;
-    const t = open[(open.indexOf(this.hubTier()) + 1) % open.length] ?? 'normal';
-    this.save.data.last.tier = t;
-    this.save.save();
-    if (this.net?.role === 'host') {
-      const hs = this.net.host;
-      hs.setTier(t, hs.lobby.curse);
-      if (!this.save.mapAvailableOn(t, hs.lobby.map)) hs.setMap('carnival_core');
+  /**
+   * A world tier picked on the Midway's World Tier menu (D-100): remembered, the lobby's (co-op host), and back on the
+   * grounds as the Midway crosses into its look and music, as Swap Character and Companions return there.
+   */
+  private setHubTier(t: TierId): void {
+    if (this.save.tierUnlocked(t) && t !== this.hubTier()) {
+      this.save.data.last.tier = t;
+      this.save.save();
+      if (this.net?.role === 'host') {
+        const hs = this.net.host;
+        hs.setTier(t, hs.lobby.curse);
+        if (!this.save.mapAvailableOn(t, hs.lobby.map)) hs.setMap('carnival_core');
+      }
+      this.applyHubTier(1.6);
     }
-    this.applyHubTier(1.6);
-    this.go('midway');
+    this.go('hub');
   }
 
   /** The Midway in its world tier's look and music (D-98): eased in over `fade` seconds (0: at once). */

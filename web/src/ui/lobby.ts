@@ -4,8 +4,8 @@
 
 import { CHARACTERS, CHARACTER_MAP } from '../data/characters';
 import { CURSE } from '../data/difficulty';
-import { MAPS, type MapId } from '../data/maps';
-import { TIERS, type TierId } from '../data/tiers';
+import { MAPS, MAP_IDS, type MapId } from '../data/maps';
+import { TIERS, TIER_IDS, type TierId } from '../data/tiers';
 import { WEAPONS } from '../data/weapons';
 import { PETS, PET_MAP } from '../data/pets';
 import { ACHIEVEMENTS } from '../data/meta';
@@ -262,6 +262,37 @@ export function petPanel(c: UICtx, current: string | null, pick: (id: string | n
     h('div', { class: 'muted' }, 'A companion follows you everywhere, its own passive on your stats. Each is earned by an achievement you can finish on any map.'),
     h('div', { class: 'pet-grid' }, card(null), ...PETS.map((p) => card(p.id))),
     cur ? h('div', { class: 'mp-detail' }, h('b', {}, cur.name), ` — ${cur.lore}`) : null,
+    h('div', { class: 'menu' }, btn('Back', () => { c.click(); back(); }, 'small red')),
+  ));
+}
+
+/**
+ * World Tier on the Midway (D-100): the three carnivals as cards, the open ones to choose (the Midway takes on its
+ * look and music at once), the locked ones saying what opens them, each open one with how far this save has got.
+ */
+export function tierPanel(c: UICtx, current: TierId, pick: (t: TierId) => void, back: () => void): HTMLElement {
+  const s = c.save;
+  const card = (t: TierId) => {
+    const d = TIERS[t];
+    const ok = s.tierUnlocked(t);
+    const won = MAP_IDS.filter((m) => s.tierWins(t, m) > 0).length;
+    return h('div', {
+      class: `tier-card tier-${t}${t === current ? ' sel' : ''}${ok ? '' : ' locked'}`,
+      'data-nav': ok ? '' : undefined,
+      'data-default': t === current ? '' : undefined,
+      onclick: () => { if (!ok) return; c.click(); pick(t); },
+    },
+      h('div', { class: 'tc-name' }, ok ? d.name : `\u{1F512} ${d.name}`),
+      h('div', { class: 'tc-title' }, d.title),
+      h('div', { class: 'tc-desc' }, d.desc),
+      h('div', { class: 'tc-foot' },
+        t === current ? h('span', { class: 'tc-now' }, 'Current') : null,
+        !ok ? d.unlockText : s.tierComplete(t) ? '\u2605 Campaign finished' : `${won} of ${MAP_IDS.length} maps won`));
+  };
+  return h('div', { class: 'screen dim mp' }, h('div', { class: 'panel bulbs mp-panel tier-panel' },
+    h('h2', { class: 'title-text' }, 'World Tier'),
+    h('div', { class: 'muted' }, 'Which carnival your nights are played in. The Midway takes on its look and its music.'),
+    h('div', { class: 'tier-grid' }, ...TIER_IDS.map(card)),
     h('div', { class: 'menu' }, btn('Back', () => { c.click(); back(); }, 'small red')),
   ));
 }

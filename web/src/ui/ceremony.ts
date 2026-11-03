@@ -11,7 +11,7 @@ const NEWS: Record<Exclude<TierId, 'normal'>, string[]> = {
     'Every map again, crossed over into the realm of the dead: its creatures spectral, half of them with new tricks (phasing, blinking, wailing, haunting), its bosses with a spectral choir.',
     "Nightmare's maps open one by one by winning them on Nightmare, starting with the Carnival Core. No secrets needed.",
     "The Lost & Found's Nightmare Shelf is open, and the night pays 50% more Lost Tickets.",
-    'Normal stays open: switch worlds at character select or in the lobby.',
+    'Normal stays open: switch worlds from the Midway menu, at character select or in the lobby.',
   ],
   hell: [
     'The carnival burns: creatures that explode, set the ground alight, lob fire, harden and rage; bosses that call down a firestorm.',

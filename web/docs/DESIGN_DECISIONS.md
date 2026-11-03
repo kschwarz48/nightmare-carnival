@@ -2050,3 +2050,12 @@ Design of record: `docs/GHOST_TRAIN.md`; the developer-only solution: `docs/EAST
   found guests couldn't use the first map at all: not reproduced on this build over real WebRTC (two windows, a press
   at Zoltana wakes her on both; `tests/coopInteract.test.ts` keeps it), so the slack is the likeliest cure, not a
   proven one.
+
+### D-100 · The World Tier menu on the Midway
+
+- The Midway menu's world tier button (**World Tier: Nightmare**) opens its own menu instead of cycling through the
+  tiers on each click: Normal, Nightmare and Hell as cards in their colours, each with its carnival's name and
+  description, the current one marked, the open ones with how many maps this save has won on them (or the campaign
+  finished), the locked ones dimmed with what opens them. Clicking an open tier picks it: the menus close and the
+  Midway crosses into its look and music, as Swap Character and Companions return to the grounds. A co-op host's pick
+  is the lobby's, as before; guests still follow the host. UI only: no rule, save or protocol change.
